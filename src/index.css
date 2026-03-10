@@ -1,0 +1,35 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Prevent default blue selection highlight on canvas drag */
+.konvajs-content {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #1a1a2a;
+}
+::-webkit-scrollbar-thumb {
+  background: #2e2e46;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #4a4a6a;
+}
+
+/* Textarea inside sticky note — no browser chrome */
+textarea {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+/* Suppress Konva canvas outline */
+canvas:focus {
+  outline: none;
+}
