@@ -57,7 +57,7 @@ butler login
 **Push a build:**
 ```bash
 npm run build
-butler push dist/ your-username/devboard:html
+butler push dist/ mischa/devboard:html
 ```
 
 Replace `your-username/devboard` with your actual itch.io username and game slug.
@@ -102,15 +102,28 @@ src/
 - [x] Board title, Export PNG, Save/Load JSON, Share link (base64 URL)
 - [x] Welcome modal with keyboard cheatsheet
 - [x] Single-file build for itch.io
+- [x] Fullscreen button
 
 ### Up next
-- [ ] Text blocks (standalone text, no background)
-- [ ] Basic shapes — rectangle, ellipse, triangle
+- [x] Text blocks (standalone text, no background)
+- [x] Basic shapes — rectangle, ellipse, diamond, triangle
+- [x] Allow moving multiple sections together (left mouse + shift select)
+- [ ] When editing text in shape / post it, dont hide the bgr (it's disorienting)
 - [ ] Freehand pen / draw tool
 - [ ] Sections / grouping areas
-- [ ] Undo / redo (Ctrl+Z / Ctrl+Shift+Z)
+- [x] Undo / redo (Ctrl+Z / Ctrl+Shift+Z)
 
 ### Later / ideas
+- [ ] Mobile-friendly posting of items on board
+- [x] When selecting a different object type (ie text or post it) change the toolbar to that one. When pressing escape switch back to Select tool.
+- [ ] Align tools when multiple things are selected
+- [ ] Re-center button appearing when users are far off from objects (ie top of page) 
+- [ ] More export options (ie entire board, screen, PDF, with background)
+- [ ] Advertise on Reddit + X
+- [ ] Enable pages (see Figjam / Figma) which makes organising your boards easier. 
+- [ ] Dropdown menu from the top left (like Figjam) giving even more options (ie saving, settings, etc)
+  - [ ] Allow inserting code sections and comments (toggle to show in toolbar)
+  - [ ] Open a template (enable different templates, ie planning board or note taking)
 - [ ] Image upload (drop PNG/JPG onto canvas)
 - [ ] Mini-map / overview panel
 - [ ] Multiple boards / tabs

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { saveAs } from 'file-saver';
 import { useBoardStore } from '../store/boardStore';
 
@@ -6,11 +6,45 @@ interface TopBarProps {
   onShowAbout: () => void;
 }
 
+function IconExpand() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <path d="M1 5V1h4M9 1h4v4M13 9v4H9M5 13H1V9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+function IconCompress() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <path d="M5 1v4H1M13 5H9V1M9 13v-4h4M1 9h4v4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+const isItchIo = typeof window !== 'undefined' && window.location.hostname.endsWith('.itch.io');
+
 export default function TopBar({ onShowAbout }: TopBarProps) {
   const { boardTitle, setBoardTitle, exportData, loadBoard } = useBoardStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState(boardTitle);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+
+  // Track fullscreen changes (e.g. user presses Esc)
+  useEffect(() => {
+    const onFsChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', onFsChange);
+    return () => document.removeEventListener('fullscreenchange', onFsChange);
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    } else {
+      document.exitFullscreen().catch(() => {});
+    }
+  };
 
   const commitTitle = () => {
     const t = titleDraft.trim() || 'Untitled Board';
@@ -19,16 +53,12 @@ export default function TopBar({ onShowAbout }: TopBarProps) {
     setEditingTitle(false);
   };
 
-  // Export as JSON
   const handleSaveJSON = () => {
     const data = exportData();
-    const blob = new Blob([JSON.stringify(data, null, 2)], {
-      type: 'application/json',
-    });
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     saveAs(blob, `${data.boardTitle.replace(/\s+/g, '_')}.devboard.json`);
   };
 
-  // Load from JSON
   const handleLoadJSON = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -49,29 +79,38 @@ export default function TopBar({ onShowAbout }: TopBarProps) {
     e.target.value = '';
   };
 
-  // Export PNG via Konva stage snapshot
+  const showToast = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 2500);
+  };
+
+  const handleShare = () => {
+    const data = exportData();
+    const json = JSON.stringify(data);
+    const b64 = btoa(unescape(encodeURIComponent(json)));
+    const url = `${window.location.origin}${window.location.pathname}#board=${b64}`;
+    navigator.clipboard.writeText(url).then(() => {
+      showToast('Share link copied!');
+    }).catch(() => {
+      showToast('Failed to copy link.');
+    });
+  };
+
   const handleExportPNG = () => {
-    // Find the Konva stage canvas element and capture it
-    const stageCanvas = document.querySelector<HTMLCanvasElement>(
-      '.konvajs-content canvas'
-    );
+    const stageCanvas = document.querySelector<HTMLCanvasElement>('.konvajs-content canvas');
     if (!stageCanvas) return;
     stageCanvas.toBlob((blob) => {
       if (blob) saveAs(blob, `${boardTitle.replace(/\s+/g, '_')}.png`);
     });
   };
 
-  // Share via base64 URL hash
-  const handleShare = () => {
-    const data = exportData();
-    const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
-    const url = `${window.location.origin}${window.location.pathname}#board=${encoded}`;
-    navigator.clipboard.writeText(url).then(() => {
-      alert('Share link copied to clipboard!');
-    });
-  };
-
   return (
+    <>
+    {toast && (
+      <div className="fixed top-14 left-1/2 -translate-x-1/2 z-[200] px-4 py-2 rounded bg-[#6366f1] text-white font-mono text-xs shadow-lg pointer-events-none select-none animate-fade-in">
+        {toast}
+      </div>
+    )}
     <div className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between px-4 h-11 bg-[#1a1a2a] border-b border-[#2e2e46]">
       {/* Left: Logo + title */}
       <div className="flex items-center gap-3 min-w-0">
@@ -91,19 +130,13 @@ export default function TopBar({ onShowAbout }: TopBarProps) {
             onBlur={commitTitle}
             onKeyDown={(e) => {
               if (e.key === 'Enter') commitTitle();
-              if (e.key === 'Escape') {
-                setTitleDraft(boardTitle);
-                setEditingTitle(false);
-              }
+              if (e.key === 'Escape') { setTitleDraft(boardTitle); setEditingTitle(false); }
             }}
             className="bg-transparent border-b border-[#6366f1] text-[#e2e8f0] font-mono text-sm outline-none min-w-0 max-w-[220px]"
           />
         ) : (
           <button
-            onClick={() => {
-              setTitleDraft(boardTitle);
-              setEditingTitle(true);
-            }}
+            onClick={() => { setTitleDraft(boardTitle); setEditingTitle(true); }}
             title="Rename board"
             className="font-mono text-sm text-[#e2e8f0] hover:text-white truncate max-w-[220px] text-left"
           >
@@ -114,22 +147,24 @@ export default function TopBar({ onShowAbout }: TopBarProps) {
 
       {/* Right: Actions */}
       <div className="flex items-center gap-1">
-        <TopBarBtn onClick={handleExportPNG} title="Export PNG">
-          PNG
-        </TopBarBtn>
-        <TopBarBtn onClick={handleSaveJSON} title="Save board as JSON">
-          Save
-        </TopBarBtn>
-        <TopBarBtn onClick={() => fileInputRef.current?.click()} title="Load board from JSON">
-          Load
-        </TopBarBtn>
-        <TopBarBtn
-          onClick={handleShare}
-          title="Copy shareable link (base64 in URL hash)"
-          accent
+        <TopBarBtn onClick={handleExportPNG} title="Export PNG">PNG</TopBarBtn>
+        <TopBarBtn onClick={handleSaveJSON} title="Save board as JSON">Save</TopBarBtn>
+        <TopBarBtn onClick={() => fileInputRef.current?.click()} title="Load board from JSON">Load</TopBarBtn>
+        {!isItchIo && (
+          <TopBarBtn onClick={handleShare} title="Copy share link" accent>Share</TopBarBtn>
+        )}
+
+        <div className="w-px h-5 bg-[#2e2e46] mx-1" />
+
+        {/* Fullscreen */}
+        <button
+          onClick={toggleFullscreen}
+          title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+          className="w-7 h-7 flex items-center justify-center rounded text-[#8888aa] hover:text-[#e2e8f0] hover:bg-[#22223a] transition-colors"
         >
-          Share ↗
-        </TopBarBtn>
+          {isFullscreen ? <IconCompress /> : <IconExpand />}
+        </button>
+
         <input
           ref={fileInputRef}
           type="file"
@@ -139,6 +174,7 @@ export default function TopBar({ onShowAbout }: TopBarProps) {
         />
       </div>
     </div>
+    </>
   );
 }
 

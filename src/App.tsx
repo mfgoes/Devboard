@@ -49,6 +49,12 @@ export default function App() {
       } else if (e.key === 'd') {
         e.preventDefault();
         useBoardStore.getState().duplicate();
+      } else if (e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        useBoardStore.getState().undo();
+      } else if (e.key === 'z' && e.shiftKey) {
+        e.preventDefault();
+        useBoardStore.getState().redo();
       }
     };
     window.addEventListener('keydown', onKeyDown);

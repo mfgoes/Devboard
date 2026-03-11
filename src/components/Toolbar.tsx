@@ -1,5 +1,5 @@
 import { useBoardStore } from '../store/boardStore';
-import { Tool } from '../types';
+import { Tool, ShapeKind } from '../types';
 
 interface ToolDef {
   id: Tool;
@@ -102,17 +102,57 @@ const TOOLS: ToolDef[] = [
   { id: 'select', label: 'Select', shortcut: 'V', icon: <IconSelect /> },
   { id: 'pan', label: 'Pan', shortcut: 'H', icon: <IconPan /> },
   { id: 'sticky', label: 'Sticky', shortcut: 'S', icon: <IconSticky /> },
-  { id: 'shape', label: 'Shape', shortcut: '', icon: <IconShape /> },
-  { id: 'text', label: 'Text', shortcut: '', icon: <IconText /> },
+  { id: 'shape', label: 'Shape', shortcut: 'R', icon: <IconShape /> },
+  { id: 'text', label: 'Text', shortcut: 'T', icon: <IconText /> },
   { id: 'line', label: 'Line', shortcut: 'L', icon: <IconLine /> },
   { id: 'pen', label: 'Pen', shortcut: '', icon: <IconPen /> },
   { id: 'section', label: 'Section', shortcut: '', icon: <IconSection /> },
 ];
 
+type ShapeKindDef = { kind: ShapeKind; label: string; icon: React.ReactNode };
+const SHAPE_KINDS: ShapeKindDef[] = [
+  {
+    kind: 'rect',
+    label: 'Rectangle',
+    icon: (
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <rect x="1" y="3" width="12" height="8" rx="1" stroke="currentColor" strokeWidth="1.5" />
+      </svg>
+    ),
+  },
+  {
+    kind: 'ellipse',
+    label: 'Ellipse',
+    icon: (
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <ellipse cx="7" cy="7" rx="6" ry="4" stroke="currentColor" strokeWidth="1.5" />
+      </svg>
+    ),
+  },
+  {
+    kind: 'diamond',
+    label: 'Diamond',
+    icon: (
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <path d="M7 1L13 7L7 13L1 7Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+      </svg>
+    ),
+  },
+  {
+    kind: 'triangle',
+    label: 'Triangle',
+    icon: (
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <path d="M7 1L13 13H1L7 1Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+      </svg>
+    ),
+  },
+];
+
 const ZOOM_PRESETS = [0.25, 0.5, 0.75, 1, 1.5, 2];
 
 export default function Toolbar() {
-  const { activeTool, setActiveTool, camera, setCamera } = useBoardStore();
+  const { activeTool, setActiveTool, activeShapeKind, setActiveShapeKind, camera, setCamera } = useBoardStore();
 
   const zoomIn = () => {
     const next = ZOOM_PRESETS.find((z) => z > camera.scale) ?? 8;
@@ -127,12 +167,36 @@ export default function Toolbar() {
   const zoomPct = Math.round(camera.scale * 100);
 
   return (
-    <div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-50 flex items-center gap-0 rounded-xl border border-[#2e2e46] bg-[#1a1a2a] shadow-2xl overflow-hidden">
+    <div className="absolute bottom-5 left-0 right-0 z-50 flex flex-col items-center gap-2 pointer-events-none">
+      {/* Shape kind sub-picker */}
+      {activeTool === 'shape' && (
+        <div className="pointer-events-auto flex items-center gap-0.5 px-2 py-1.5 rounded-xl border border-[#2e2e46] bg-[#1a1a2a] shadow-lg">
+          {SHAPE_KINDS.map(({ kind, label, icon }) => (
+            <button
+              key={kind}
+              title={label}
+              onClick={() => setActiveShapeKind(kind)}
+              className={[
+                'w-8 h-8 flex items-center justify-center rounded-lg transition-colors',
+                activeShapeKind === kind
+                  ? 'bg-[#6366f1] text-white'
+                  : 'text-[#8888aa] hover:text-[#e2e8f0] hover:bg-[#22223a]',
+              ].join(' ')}
+            >
+              {icon}
+            </button>
+          ))}
+        </div>
+      )}
+
+    {/* Scrollable row — centered on wide screens, scrollable on narrow */}
+    <div className="pointer-events-auto w-full overflow-x-auto flex justify-center" style={{ WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }}>
+    <div className="flex items-center gap-0 rounded-xl border border-[#2e2e46] bg-[#1a1a2a] shadow-2xl overflow-hidden mx-4 shrink-0">
       {/* Tool buttons */}
       <div className="flex items-center px-1 py-1 gap-0.5">
-        {TOOLS.map((tool, i) => {
+        {TOOLS.map((tool) => {
           const isActive = activeTool === tool.id;
-          const isComingSoon = ['shape', 'text', 'pen', 'section'].includes(tool.id);
+          const isComingSoon = ['pen', 'section'].includes(tool.id);
           return (
             <button
               key={tool.id}
@@ -182,6 +246,8 @@ export default function Toolbar() {
           +
         </button>
       </div>
+    </div>
+    </div>{/* end scrollable row */}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { CanvasNode, ConnectorNode, StickyNoteNode, Camera, Tool, BoardData } from '../types';
+import { CanvasNode, ConnectorNode, StickyNoteNode, Camera, Tool, BoardData, ShapeKind } from '../types';
 
 function generateId(): string {
   return Math.random().toString(36).slice(2, 11);
@@ -14,21 +14,29 @@ interface BoardState {
   selectedIds: string[];
   editingId: string | null;
   clipboard: CanvasNode[]; // not persisted
+  past: CanvasNode[][]; // not persisted
+  future: CanvasNode[][]; // not persisted
+  activeShapeKind: ShapeKind; // not persisted
 
   // Actions
   setBoardTitle: (title: string) => void;
   addNode: (node: CanvasNode) => void;
   updateNode: (id: string, updates: Partial<CanvasNode>) => void;
+  updateNodes: (updates: { id: string; updates: Partial<CanvasNode> }[]) => void;
   deleteSelected: () => void;
   setActiveTool: (tool: Tool) => void;
   setCamera: (camera: Partial<Camera>) => void;
   selectIds: (ids: string[]) => void;
   setEditingId: (id: string | null) => void;
+  setActiveShapeKind: (kind: ShapeKind) => void;
   loadBoard: (data: BoardData) => void;
   exportData: () => BoardData;
   copySelected: () => void;
   paste: () => void;
   duplicate: () => void;
+  saveHistory: () => void;
+  undo: () => void;
+  redo: () => void;
 }
 
 export const useBoardStore = create<BoardState>()(
@@ -41,11 +49,16 @@ export const useBoardStore = create<BoardState>()(
       selectedIds: [],
       editingId: null,
       clipboard: [],
+      past: [],
+      future: [],
+      activeShapeKind: 'rect',
 
       setBoardTitle: (title) => set({ boardTitle: title }),
 
       addNode: (node) =>
         set((state) => ({
+          past: [...state.past, state.nodes],
+          future: [],
           nodes: [...state.nodes, node],
           selectedIds: [node.id],
         })),
@@ -56,6 +69,19 @@ export const useBoardStore = create<BoardState>()(
             n.id === id ? ({ ...n, ...updates } as CanvasNode) : n
           ),
         })),
+
+      updateNodes: (updates) =>
+        set((state) => {
+          const map = new Map(updates.map((u) => [u.id, u.updates]));
+          return {
+            past: [...state.past, state.nodes],
+            future: [],
+            nodes: state.nodes.map((n) => {
+              const u = map.get(n.id);
+              return u ? ({ ...n, ...u } as CanvasNode) : n;
+            }),
+          };
+        }),
 
       deleteSelected: () =>
         set((state) => {
@@ -70,7 +96,7 @@ export const useBoardStore = create<BoardState>()(
             }
             return true;
           });
-          return { nodes: cleaned, selectedIds: [] };
+          return { past: [...state.past, state.nodes], future: [], nodes: cleaned, selectedIds: [] };
         }),
 
       setActiveTool: (tool) =>
@@ -83,6 +109,8 @@ export const useBoardStore = create<BoardState>()(
 
       setEditingId: (id) => set({ editingId: id }),
 
+      setActiveShapeKind: (kind) => set({ activeShapeKind: kind }),
+
       loadBoard: (data) =>
         set({
           boardTitle: data.boardTitle,
@@ -90,6 +118,8 @@ export const useBoardStore = create<BoardState>()(
           selectedIds: [],
           editingId: null,
           camera: { x: 0, y: 0, scale: 1 },
+          past: [],
+          future: [],
         }),
 
       exportData: () => {
@@ -118,6 +148,8 @@ export const useBoardStore = create<BoardState>()(
         }));
         // Update clipboard to the pasted copies so repeated Cmd+V keeps offsetting
         set((state) => ({
+          past: [...state.past, state.nodes],
+          future: [],
           nodes: [...state.nodes, ...newNodes],
           selectedIds: newNodes.map((n) => n.id),
           clipboard: newNodes,
@@ -138,9 +170,41 @@ export const useBoardStore = create<BoardState>()(
           y: n.y + OFFSET,
         }));
         set((state) => ({
+          past: [...state.past, state.nodes],
+          future: [],
           nodes: [...state.nodes, ...newNodes],
           selectedIds: newNodes.map((n) => n.id),
         }));
+      },
+
+      saveHistory: () =>
+        set((state) => ({
+          past: [...state.past, state.nodes],
+          future: [],
+        })),
+
+      undo: () => {
+        const { nodes, past, future } = get();
+        if (!past.length) return;
+        const prev = past[past.length - 1];
+        set({
+          past: past.slice(0, -1),
+          future: [nodes, ...future],
+          nodes: prev,
+          selectedIds: [],
+        });
+      },
+
+      redo: () => {
+        const { nodes, past, future } = get();
+        if (!future.length) return;
+        const next = future[0];
+        set({
+          past: [...past, nodes],
+          future: future.slice(1),
+          nodes: next,
+          selectedIds: [],
+        });
       },
     }),
     {

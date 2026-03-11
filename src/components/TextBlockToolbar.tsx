@@ -1,0 +1,303 @@
+import { useState, useRef, useEffect } from 'react';
+import { useBoardStore } from '../store/boardStore';
+import { TextBlockNode } from '../types';
+
+const TEXT_COLORS = [
+  { label: 'White',  hex: '#e2e8f0' },
+  { label: 'Yellow', hex: '#fbbf24' },
+  { label: 'Green',  hex: '#4ade80' },
+  { label: 'Cyan',   hex: '#67e8f9' },
+  { label: 'Blue',   hex: '#60a5fa' },
+  { label: 'Purple', hex: '#a78bfa' },
+  { label: 'Red',    hex: '#f87171' },
+  { label: 'Orange', hex: '#fb923c' },
+];
+
+const SIZE_PRESETS = [
+  { label: 'Small',       value: 14 },
+  { label: 'Medium',      value: 20 },
+  { label: 'Large',       value: 28 },
+  { label: 'Extra large', value: 40 },
+];
+
+export default function TextBlockToolbar({ nodeId }: { nodeId: string }) {
+  const { nodes, updateNode, saveHistory } = useBoardStore();
+  const node = nodes.find((n) => n.id === nodeId) as TextBlockNode | undefined;
+
+  const [showColors, setShowColors] = useState(false);
+  const [showSizes, setShowSizes]   = useState(false);
+  const [showLink, setShowLink]     = useState(false);
+  const [customSize, setCustomSize] = useState('');
+  const [linkValue, setLinkValue]   = useState('');
+
+  const linkInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (showLink && linkInputRef.current) {
+      linkInputRef.current.focus();
+      setLinkValue(node?.link ?? '');
+    }
+  }, [showLink]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (!node) return null;
+
+  const update = (updates: Partial<TextBlockNode>) => {
+    saveHistory();
+    updateNode(nodeId, updates as Parameters<typeof updateNode>[1]);
+  };
+
+  const closeAll = () => { setShowColors(false); setShowSizes(false); setShowLink(false); };
+
+  const matchedPreset = SIZE_PRESETS.find((p) => p.value === node.fontSize);
+  const sizeLabel = matchedPreset?.label ?? `${node.fontSize}px`;
+
+  const fontStyle = [node.bold ? 'bold' : '', node.italic ? 'italic' : ''].filter(Boolean).join(' ') || 'normal';
+
+  return (
+    <div
+      className="absolute top-14 left-1/2 -translate-x-1/2 z-50 flex items-center rounded-xl border border-[#2e2e46] bg-[#1a1a2a] shadow-2xl"
+      onMouseDown={(e) => e.stopPropagation()}
+    >
+      {/* ── Color ──────────────────────────────────────────────────── */}
+      <div className="relative px-1 py-1">
+        <button
+          title="Text color"
+          onClick={() => { closeAll(); setShowColors((v) => !v); }}
+          className="w-9 h-9 flex flex-col items-center justify-center gap-px rounded-lg text-[#e2e8f0] hover:bg-[#22223a] transition-colors"
+        >
+          <span style={{ fontFamily: 'serif', fontSize: 13, fontWeight: 700, lineHeight: 1 }}>A</span>
+          <span style={{ width: 14, height: 3, borderRadius: 2, background: node.color, display: 'block' }} />
+        </button>
+        {showColors && (
+          <div
+            className="absolute top-full left-0 mt-1 bg-[#1a1a2a] border border-[#2e2e46] rounded-xl shadow-2xl z-50"
+            style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, padding: 12 }}
+          >
+            {TEXT_COLORS.map((c) => (
+              <button
+                key={c.hex}
+                title={c.label}
+                onClick={() => { update({ color: c.hex }); setShowColors(false); }}
+                style={{
+                  width: 32, height: 32,
+                  borderRadius: 8,
+                  border: `2px solid ${node.color === c.hex ? '#6366f1' : 'transparent'}`,
+                  background: c.hex,
+                  cursor: 'pointer',
+                  transition: 'transform 0.1s',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.15)')}
+                onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="w-px h-6 bg-[#2e2e46]" />
+
+      {/* ── Size ───────────────────────────────────────────────────── */}
+      <div className="relative px-1 py-1">
+        <button
+          title="Text size"
+          onClick={() => { closeAll(); setShowSizes((v) => !v); }}
+          className="h-9 px-2.5 rounded-lg text-[#8888aa] hover:text-[#e2e8f0] hover:bg-[#22223a] transition-colors font-mono text-[11px] tabular-nums"
+        >
+          {node.fontSize}px
+        </button>
+        {showSizes && (
+          <div className="absolute top-full left-0 mt-1 py-1.5 bg-[#1a1a2a] border border-[#2e2e46] rounded-xl shadow-2xl z-50 min-w-[164px]">
+            {SIZE_PRESETS.map((preset) => {
+              const active = node.fontSize === preset.value;
+              return (
+                <button
+                  key={preset.label}
+                  onClick={() => { update({ fontSize: preset.value }); setCustomSize(''); setShowSizes(false); }}
+                  className={[
+                    'w-full text-left px-4 py-2 font-mono text-[13px] transition-colors flex items-center gap-2',
+                    active
+                      ? 'bg-[#6366f1] text-white'
+                      : 'text-[#c4c4e0] hover:bg-[#22223a]',
+                  ].join(' ')}
+                >
+                  <span className="w-4 text-center">{active ? '✓' : ''}</span>
+                  {preset.label}
+                </button>
+              );
+            })}
+            <div className="border-t border-[#2e2e46] mt-1.5 pt-1.5 px-2">
+              <input
+                type="number"
+                min={8}
+                max={200}
+                value={customSize}
+                placeholder={String(node.fontSize)}
+                onChange={(e) => setCustomSize(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const v = parseInt(customSize, 10);
+                    if (v >= 8 && v <= 200) { update({ fontSize: v }); setShowSizes(false); }
+                  }
+                  if (e.key === 'Escape') setShowSizes(false);
+                  e.stopPropagation();
+                }}
+                className="w-full bg-[#111118] border border-[#2e2e46] rounded-lg px-3 py-1.5 text-[#e2e8f0] font-mono text-[12px] outline-none focus:border-[#6366f1]"
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="w-px h-6 bg-[#2e2e46]" />
+
+      {/* ── Bold ───────────────────────────────────────────────────── */}
+      <div className="px-0.5 py-1">
+        <button
+          title="Bold"
+          onClick={() => update({ bold: !node.bold })}
+          className={[
+            'w-9 h-9 flex items-center justify-center rounded-lg transition-colors font-bold text-[14px]',
+            node.bold
+              ? 'bg-[#6366f1] text-white'
+              : 'text-[#8888aa] hover:text-[#e2e8f0] hover:bg-[#22223a]',
+          ].join(' ')}
+          style={{ fontFamily: 'serif' }}
+        >
+          B
+        </button>
+      </div>
+
+      {/* ── Italic ─────────────────────────────────────────────────── */}
+      <div className="px-0.5 py-1">
+        <button
+          title="Italic"
+          onClick={() => update({ italic: !node.italic })}
+          className={[
+            'w-9 h-9 flex items-center justify-center rounded-lg transition-colors text-[14px] italic',
+            node.italic
+              ? 'bg-[#6366f1] text-white'
+              : 'text-[#8888aa] hover:text-[#e2e8f0] hover:bg-[#22223a]',
+          ].join(' ')}
+          style={{ fontFamily: 'serif' }}
+        >
+          I
+        </button>
+      </div>
+
+      {/* ── Underline ──────────────────────────────────────────────── */}
+      <div className="px-0.5 py-1">
+        <button
+          title="Underline"
+          onClick={() => update({ underline: !node.underline })}
+          className={[
+            'w-9 h-9 flex items-center justify-center rounded-lg transition-colors text-[14px] underline',
+            node.underline
+              ? 'bg-[#6366f1] text-white'
+              : 'text-[#8888aa] hover:text-[#e2e8f0] hover:bg-[#22223a]',
+          ].join(' ')}
+          style={{ fontFamily: 'serif', fontStyle }}
+        >
+          U
+        </button>
+      </div>
+
+      {/* ── Bullet list ────────────────────────────────────────────── */}
+      <div className="px-0.5 py-1">
+        <button
+          title="Bullet list"
+          onClick={() => {
+            const next = !node.bulletList;
+            let newText = node.text;
+            if (next) {
+              newText = newText
+                .split('\n')
+                .map((line) => (line.trim() !== '' && !line.startsWith('• ') ? '• ' + line : line))
+                .join('\n');
+              if (newText.trim() === '') newText = '• ';
+            } else {
+              newText = newText
+                .split('\n')
+                .map((line) => (line.startsWith('• ') ? line.slice(2) : line))
+                .join('\n');
+            }
+            update({ bulletList: next, text: newText });
+          }}
+          className={[
+            'w-9 h-9 flex items-center justify-center rounded-lg transition-colors',
+            node.bulletList
+              ? 'bg-[#6366f1] text-white'
+              : 'text-[#8888aa] hover:text-[#e2e8f0] hover:bg-[#22223a]',
+          ].join(' ')}
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <circle cx="2" cy="3.5" r="1.2" fill="currentColor" />
+            <circle cx="2" cy="7" r="1.2" fill="currentColor" />
+            <circle cx="2" cy="10.5" r="1.2" fill="currentColor" />
+            <rect x="5" y="2.8" width="8" height="1.4" rx="0.7" fill="currentColor" />
+            <rect x="5" y="6.3" width="8" height="1.4" rx="0.7" fill="currentColor" />
+            <rect x="5" y="9.8" width="8" height="1.4" rx="0.7" fill="currentColor" />
+          </svg>
+        </button>
+      </div>
+
+      <div className="w-px h-6 bg-[#2e2e46]" />
+
+      {/* ── Link ───────────────────────────────────────────────────── */}
+      <div className="relative px-1 py-1">
+        <button
+          title={node.link ? `Link: ${node.link}` : 'Add link'}
+          onClick={() => { closeAll(); setShowLink((v) => !v); }}
+          className={[
+            'w-9 h-9 flex items-center justify-center rounded-lg transition-colors',
+            showLink || node.link
+              ? 'bg-[#6366f1] text-white'
+              : 'text-[#8888aa] hover:text-[#e2e8f0] hover:bg-[#22223a]',
+          ].join(' ')}
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path
+              d="M6.5 9.5a3.5 3.5 0 0 0 5 0l2-2a3.5 3.5 0 0 0-5-5l-1 1"
+              stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"
+            />
+            <path
+              d="M9.5 6.5a3.5 3.5 0 0 0-5 0l-2 2a3.5 3.5 0 0 0 5 5l1-1"
+              stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"
+            />
+          </svg>
+        </button>
+        {showLink && (
+          <div className="absolute top-full right-0 mt-1 p-2 bg-[#1a1a2a] border border-[#2e2e46] rounded-xl shadow-2xl z-50 flex gap-2 items-center min-w-[260px]">
+            <input
+              ref={linkInputRef}
+              type="url"
+              value={linkValue}
+              placeholder="https://..."
+              onChange={(e) => setLinkValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') { update({ link: linkValue || undefined }); setShowLink(false); }
+                if (e.key === 'Escape') setShowLink(false);
+                e.stopPropagation();
+              }}
+              className="flex-1 bg-[#111118] border border-[#2e2e46] rounded-lg px-3 py-1.5 text-[#e2e8f0] font-mono text-[12px] outline-none focus:border-[#6366f1]"
+            />
+            <button
+              onClick={() => { update({ link: linkValue || undefined }); setShowLink(false); }}
+              className="px-3 py-1.5 bg-[#6366f1] text-white rounded-lg text-[12px] font-mono hover:bg-[#4f51c7] transition-colors whitespace-nowrap"
+            >
+              Set
+            </button>
+            {node.link && (
+              <button
+                title="Remove link"
+                onClick={() => { update({ link: undefined }); setShowLink(false); }}
+                className="w-7 h-7 flex items-center justify-center text-[#f87171] rounded-lg hover:bg-[#22223a] transition-colors flex-shrink-0"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

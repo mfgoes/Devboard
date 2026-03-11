@@ -1,12 +1,18 @@
 import { useRef, useEffect, useCallback, useState } from 'react';
-import { Stage, Layer, Arrow } from 'react-konva';
+import { Stage, Layer, Line } from 'react-konva';
 import Konva from 'konva';
 import { useBoardStore } from '../store/boardStore';
 import StickyNote from './nodes/StickyNote';
+import ShapeNodeComponent from './nodes/ShapeNode';
+import TextBlock from './nodes/TextBlock';
 import ConnectorLine, { anchorCoords, cpOffset, smartAnchors } from './nodes/ConnectorLine';
 import TextEditor from './TextEditor';
 import StickyColorPicker from './StickyColorPicker';
-import { AnchorSide, ConnectorNode, StickyNoteNode } from '../types';
+import ShapeToolbar from './ShapeToolbar';
+import TextBlockToolbar from './TextBlockToolbar';
+import ConnectorToolbar from './ConnectorToolbar';
+import MultiSelectToolbar from './MultiSelectToolbar';
+import { AnchorSide, ConnectorNode, StickyNoteNode, ShapeNode, TextBlockNode } from '../types';
 import { STICKY_COLORS } from './StickyColorPicker';
 
 function generateId(): string {
@@ -25,11 +31,42 @@ interface DrawingLine {
   toY: number;
 }
 
+interface TextDraw {
+  startScreenX: number;
+  startScreenY: number;
+  startWorldX: number;
+  startWorldY: number;
+  currentScreenX: number;
+  currentWorldX: number;
+}
+
+interface ShapeDraw {
+  startScreenX: number;
+  startScreenY: number;
+  startWorldX: number;
+  startWorldY: number;
+  currentScreenX: number;
+  currentScreenY: number;
+  currentWorldX: number;
+  currentWorldY: number;
+}
+
+interface MarqueeDraw {
+  startScreenX: number;
+  startScreenY: number;
+  currentScreenX: number;
+  currentScreenY: number;
+}
+
 export default function Canvas() {
   const stageRef = useRef<Konva.Stage>(null);
   const [size, setSize] = useState({ width: window.innerWidth, height: window.innerHeight });
   const isPanning = useRef(false);
   const lastPointer = useRef({ x: 0, y: 0 });
+  // Touch tracking for mobile pan/pinch
+  const lastTouchPos = useRef<{ x: number; y: number } | null>(null);
+  const lastPinchDist = useRef<number | null>(null);
+  const lastPinchMid = useRef<{ x: number; y: number } | null>(null);
   const spacePressed = useRef(false);
   const [cursorOverride, setCursorOverride] = useState<string | null>(null);
 
@@ -37,16 +74,28 @@ export default function Canvas() {
   const [drawingLine, setDrawingLine] = useState<DrawingLine | null>(null);
   const [snapTarget, setSnapTarget] = useState<{ nodeId: string; side: AnchorSide } | null>(null);
 
+  // Text placement state
+  const [textCursorPos, setTextCursorPos] = useState<{ x: number; y: number } | null>(null);
+  const [textDraw, setTextDraw] = useState<TextDraw | null>(null);
+
+  // Shape drag-to-size state
+  const [shapeDraw, setShapeDraw] = useState<ShapeDraw | null>(null);
+
+  // Marquee (drag-to-select) state
+  const [marqueeDraw, setMarqueeDraw] = useState<MarqueeDraw | null>(null);
+
   const {
     nodes,
     camera,
     activeTool,
+    activeShapeKind,
     selectedIds,
     editingId,
     setCamera,
     addNode,
     selectIds,
     setActiveTool,
+    setEditingId,
     deleteSelected,
   } = useBoardStore();
 
@@ -78,15 +127,22 @@ export default function Canvas() {
           KeyV: 'select',
           KeyH: 'pan',
           KeyS: 'sticky',
+          KeyR: 'shape',
+          KeyT: 'text',
           KeyL: 'line',
         };
         if (shortcuts[e.code]) setActiveTool(shortcuts[e.code]);
       }
-      // Escape: cancel line draw or deselect
+      // Escape: cancel any in-progress operation
       if (e.code === 'Escape') {
         setDrawingLine(null);
         setSnapTarget(null);
+        setTextDraw(null);
+        setTextCursorPos(null);
+        setShapeDraw(null);
+        setMarqueeDraw(null);
         selectIds([]);
+        setActiveTool('select');
       }
     };
     const onKeyUp = (e: KeyboardEvent) => {
@@ -112,14 +168,12 @@ export default function Canvas() {
       if (!stage) return;
 
       if (e.evt.ctrlKey) {
-        // Pinch-to-zoom (trackpad) or Ctrl+scroll (mouse)
         const { x, y, scale } = camera;
         const pointer = stage.getPointerPosition()!;
-        // Trackpad pinch deltaY is small (1–10); regular Ctrl+scroll is large (±100)
         const factor =
           Math.abs(e.evt.deltaY) < 50
-            ? 1 - e.evt.deltaY * 0.018   // trackpad pinch: smooth
-            : e.evt.deltaY < 0 ? 1.08 : 1 / 1.08; // mouse wheel: stepped
+            ? 1 - e.evt.deltaY * 0.018
+            : e.evt.deltaY < 0 ? 1.08 : 1 / 1.08;
 
         const newScale = Math.min(Math.max(scale * factor, 0.08), 8);
         const mousePointTo = {
@@ -132,7 +186,6 @@ export default function Canvas() {
           y: pointer.y - mousePointTo.y * newScale,
         });
       } else {
-        // 2-finger pan on trackpad (deltaX + deltaY are already in pixels)
         setCamera({
           x: camera.x - e.evt.deltaX,
           y: camera.y - e.evt.deltaY,
@@ -155,7 +208,6 @@ export default function Canvas() {
         return;
       }
 
-      // If we're mid-draw and clicked the stage (not an anchor), cancel
       if (drawingLine) {
         setDrawingLine(null);
         setSnapTarget(null);
@@ -182,11 +234,51 @@ export default function Canvas() {
         return;
       }
 
+      if (activeTool === 'shape') {
+        const pos = stageRef.current!.getPointerPosition()!;
+        const worldX = (pos.x - camera.x) / camera.scale;
+        const worldY = (pos.y - camera.y) / camera.scale;
+        setShapeDraw({
+          startScreenX: pos.x,
+          startScreenY: pos.y,
+          startWorldX: worldX,
+          startWorldY: worldY,
+          currentScreenX: pos.x,
+          currentScreenY: pos.y,
+          currentWorldX: worldX,
+          currentWorldY: worldY,
+        });
+        return;
+      }
+
+      // Text tool: begin drag-to-set-width
+      if (activeTool === 'text' && clickedStage) {
+        const pos = stageRef.current!.getPointerPosition()!;
+        const worldX = (pos.x - camera.x) / camera.scale;
+        const worldY = (pos.y - camera.y) / camera.scale;
+        setTextDraw({
+          startScreenX: pos.x,
+          startScreenY: pos.y,
+          startWorldX: worldX,
+          startWorldY: worldY,
+          currentScreenX: pos.x,
+          currentWorldX: worldX,
+        });
+        return;
+      }
+
       if (activeTool === 'select' && clickedStage) {
-        selectIds([]);
+        const pos = stageRef.current!.getPointerPosition()!;
+        setMarqueeDraw({
+          startScreenX: pos.x,
+          startScreenY: pos.y,
+          currentScreenX: pos.x,
+          currentScreenY: pos.y,
+        });
+        return;
       }
     },
-    [activeTool, camera, addNode, selectIds, setActiveTool, drawingLine]
+    [activeTool, activeShapeKind, camera, addNode, selectIds, setActiveTool, drawingLine]
   );
 
   // ── Mouse move ──────────────────────────────────────────────────────────────
@@ -206,9 +298,56 @@ export default function Canvas() {
         setDrawingLine((prev) =>
           prev ? { ...prev, toX: worldX, toY: worldY } : null
         );
+
+        // Proximity snap — threshold 50 screen px converted to world units
+        const threshold = 50 / camera.scale;
+        let best: { nodeId: string; side: AnchorSide } | null = null;
+        let bestDist = threshold;
+        for (const n of useBoardStore.getState().nodes) {
+          if ((n.type !== 'sticky' && n.type !== 'shape') || n.id === drawingLine.fromNodeId) continue;
+          for (const side of ['top', 'right', 'bottom', 'left'] as AnchorSide[]) {
+            const { x: ax, y: ay } = anchorCoords(n as StickyNoteNode | ShapeNode, side);
+            const d = Math.hypot(worldX - ax, worldY - ay);
+            if (d < bestDist) { bestDist = d; best = { nodeId: n.id, side }; }
+          }
+        }
+        setSnapTarget(best);
+      }
+      // Track marquee drag
+      if (marqueeDraw) {
+        const pos = stageRef.current?.getPointerPosition();
+        if (pos) {
+          setMarqueeDraw((prev) =>
+            prev ? { ...prev, currentScreenX: pos.x, currentScreenY: pos.y } : null
+          );
+        }
+      }
+      // Track shape drag preview
+      if (activeTool === 'shape' && shapeDraw) {
+        const pos = stageRef.current?.getPointerPosition();
+        if (pos) {
+          const worldX = (pos.x - camera.x) / camera.scale;
+          const worldY = (pos.y - camera.y) / camera.scale;
+          setShapeDraw((prev) =>
+            prev ? { ...prev, currentScreenX: pos.x, currentScreenY: pos.y, currentWorldX: worldX, currentWorldY: worldY } : null
+          );
+        }
+      }
+      // Track cursor for text ghost / drag preview
+      if (activeTool === 'text') {
+        const pos = stageRef.current?.getPointerPosition();
+        if (pos) {
+          setTextCursorPos({ x: pos.x, y: pos.y });
+          if (textDraw) {
+            const worldX = (pos.x - camera.x) / camera.scale;
+            setTextDraw((prev) =>
+              prev ? { ...prev, currentScreenX: pos.x, currentWorldX: worldX } : null
+            );
+          }
+        }
       }
     },
-    [camera, setCamera, drawingLine]
+    [camera, setCamera, drawingLine, activeTool, shapeDraw, textDraw, marqueeDraw]
   );
 
   // ── Mouse up ────────────────────────────────────────────────────────────────
@@ -217,12 +356,37 @@ export default function Canvas() {
       isPanning.current = false;
       setCursorOverride(spacePressed.current ? 'grab' : null);
     }
+    // Marquee selection
+    if (marqueeDraw) {
+      const dragW = Math.abs(marqueeDraw.currentScreenX - marqueeDraw.startScreenX);
+      const dragH = Math.abs(marqueeDraw.currentScreenY - marqueeDraw.startScreenY);
+      if (dragW > 5 || dragH > 5) {
+        const { camera: cam, nodes: allNodes } = useBoardStore.getState();
+        const x1 = (Math.min(marqueeDraw.startScreenX, marqueeDraw.currentScreenX) - cam.x) / cam.scale;
+        const y1 = (Math.min(marqueeDraw.startScreenY, marqueeDraw.currentScreenY) - cam.y) / cam.scale;
+        const x2 = (Math.max(marqueeDraw.startScreenX, marqueeDraw.currentScreenX) - cam.x) / cam.scale;
+        const y2 = (Math.max(marqueeDraw.startScreenY, marqueeDraw.currentScreenY) - cam.y) / cam.scale;
+        const hit = allNodes
+          .filter((n) => n.type !== 'connector')
+          .filter((n) => {
+            const sn = n as { x: number; y: number; width?: number; height?: number };
+            const nw = sn.width ?? 0;
+            const nh = sn.height ?? 0;
+            return sn.x < x2 && sn.x + nw > x1 && sn.y < y2 && sn.y + nh > y1;
+          })
+          .map((n) => n.id);
+        selectIds(hit);
+      } else {
+        selectIds([]);
+      }
+      setMarqueeDraw(null);
+      return;
+    }
     if (drawingLine) {
       if (snapTarget && snapTarget.nodeId !== drawingLine.fromNodeId) {
-        // Find the to-node to snapshot coords
         const toNode = useBoardStore
           .getState()
-          .nodes.find((n) => n.id === snapTarget.nodeId) as StickyNoteNode | undefined;
+          .nodes.find((n) => n.id === snapTarget.nodeId && (n.type === 'sticky' || n.type === 'shape')) as (StickyNoteNode | ShapeNode) | undefined;
         const toCoords = toNode
           ? anchorCoords(toNode, snapTarget.side)
           : { x: drawingLine.toX, y: drawingLine.toY };
@@ -240,14 +404,153 @@ export default function Canvas() {
           toY: toCoords.y,
           color: '#6366f1',
           strokeWidth: 2,
-          hasArrow: true,
-          dashed: false,
+          lineStyle: 'curved',
+          strokeStyle: 'solid',
+          arrowHeadStart: 'none',
+          arrowHeadEnd: 'arrow',
         } satisfies ConnectorNode);
       }
       setDrawingLine(null);
       setSnapTarget(null);
     }
-  }, [drawingLine, snapTarget, addNode]);
+    // Shape drag-to-size placement
+    if (shapeDraw) {
+      const dragW = Math.abs(shapeDraw.currentScreenX - shapeDraw.startScreenX);
+      const dragH = Math.abs(shapeDraw.currentScreenY - shapeDraw.startScreenY);
+      const isDrag = dragW > 8 || dragH > 8;
+      const worldW = Math.abs(shapeDraw.currentWorldX - shapeDraw.startWorldX);
+      const worldH = Math.abs(shapeDraw.currentWorldY - shapeDraw.startWorldY);
+      const useWidth  = isDrag ? Math.max(40, Math.round(worldW)) : 160;
+      const useHeight = isDrag ? Math.max(40, Math.round(worldH)) : 120;
+      const placeX = isDrag
+        ? Math.min(shapeDraw.startWorldX, shapeDraw.currentWorldX)
+        : shapeDraw.startWorldX - 80;
+      const placeY = isDrag
+        ? Math.min(shapeDraw.startWorldY, shapeDraw.currentWorldY)
+        : shapeDraw.startWorldY - 60;
+      addNode({
+        id: generateId(),
+        type: 'shape',
+        kind: activeShapeKind,
+        x: placeX,
+        y: placeY,
+        width: useWidth,
+        height: useHeight,
+        fill: '#6366f1',
+        stroke: 'transparent',
+        strokeWidth: 2,
+        text: '',
+        fontSize: 14,
+        bold: false,
+        italic: false,
+        textAlign: 'center',
+      } satisfies ShapeNode);
+      setActiveTool('select');
+      setShapeDraw(null);
+    }
+    // Text drag-to-place
+    if (textDraw) {
+      const dragScreenPx = Math.abs(textDraw.currentScreenX - textDraw.startScreenX);
+      const worldWidth = Math.abs(textDraw.currentWorldX - textDraw.startWorldX);
+      // If drag was meaningful (>20px screen), use that width; otherwise default
+      const useWidth = dragScreenPx > 20 ? Math.max(80, Math.round(worldWidth)) : 240;
+      const placeX = dragScreenPx > 20
+        ? Math.min(textDraw.startWorldX, textDraw.currentWorldX)
+        : textDraw.startWorldX;
+
+      const newId = generateId();
+      addNode({
+        id: newId,
+        type: 'textblock',
+        x: placeX,
+        y: textDraw.startWorldY,
+        text: '',
+        fontSize: 20,
+        width: useWidth,
+        color: '#e2e8f0',
+        bold: false,
+        italic: false,
+        underline: false,
+      } satisfies TextBlockNode);
+      setActiveTool('select');
+      setEditingId(newId);
+      setTextDraw(null);
+      setTextCursorPos(null);
+    }
+  }, [drawingLine, snapTarget, addNode, shapeDraw, activeShapeKind, textDraw, setActiveTool, setEditingId, marqueeDraw, selectIds]);
+
+  // ── Touch: single-finger pan (pan tool) + two-finger pinch/pan (always) ────
+  const handleTouchStart = useCallback(
+    (e: Konva.KonvaEventObject<TouchEvent>) => {
+      const touches = e.evt.touches;
+      if (touches.length === 1) {
+        const isPanMode = activeTool === 'pan' || spacePressed.current;
+        if (isPanMode) {
+          isPanning.current = true;
+          lastTouchPos.current = { x: touches[0].clientX, y: touches[0].clientY };
+        }
+      } else if (touches.length === 2) {
+        e.evt.preventDefault();
+        isPanning.current = false;
+        const t0 = touches[0], t1 = touches[1];
+        lastPinchDist.current = Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY);
+        lastPinchMid.current = {
+          x: (t0.clientX + t1.clientX) / 2,
+          y: (t0.clientY + t1.clientY) / 2,
+        };
+      }
+    },
+    [activeTool]
+  );
+
+  const handleTouchMove = useCallback(
+    (e: Konva.KonvaEventObject<TouchEvent>) => {
+      e.evt.preventDefault();
+      const touches = e.evt.touches;
+
+      if (touches.length === 1 && isPanning.current && lastTouchPos.current) {
+        const dx = touches[0].clientX - lastTouchPos.current.x;
+        const dy = touches[0].clientY - lastTouchPos.current.y;
+        lastTouchPos.current = { x: touches[0].clientX, y: touches[0].clientY };
+        const { camera: cam } = useBoardStore.getState();
+        setCamera({ x: cam.x + dx, y: cam.y + dy });
+      } else if (touches.length === 2 && lastPinchDist.current !== null && lastPinchMid.current !== null) {
+        const t0 = touches[0], t1 = touches[1];
+        const newDist = Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY);
+        const newMid = {
+          x: (t0.clientX + t1.clientX) / 2,
+          y: (t0.clientY + t1.clientY) / 2,
+        };
+        const dx = newMid.x - lastPinchMid.current.x;
+        const dy = newMid.y - lastPinchMid.current.y;
+        const factor = newDist / lastPinchDist.current;
+        const { camera: cam } = useBoardStore.getState();
+        const newScale = Math.min(Math.max(cam.scale * factor, 0.08), 8);
+        setCamera({
+          scale: newScale,
+          x: newMid.x - (newMid.x - cam.x) * (newScale / cam.scale) + dx,
+          y: newMid.y - (newMid.y - cam.y) * (newScale / cam.scale) + dy,
+        });
+        lastPinchDist.current = newDist;
+        lastPinchMid.current = newMid;
+      }
+    },
+    [setCamera]
+  );
+
+  const handleTouchEnd = useCallback((e: Konva.KonvaEventObject<TouchEvent>) => {
+    if (e.evt.touches.length < 2) {
+      lastPinchDist.current = null;
+      lastPinchMid.current = null;
+    }
+    if (e.evt.touches.length === 0) {
+      isPanning.current = false;
+      lastTouchPos.current = null;
+    } else if (e.evt.touches.length === 1) {
+      // Transitioned from 2→1 fingers: restart single-touch tracking
+      lastTouchPos.current = { x: e.evt.touches[0].clientX, y: e.evt.touches[0].clientY };
+    }
+  }, []);
 
   // ── Anchor callbacks (passed to StickyNote) ─────────────────────────────────
   const handleAnchorDown = useCallback(
@@ -276,13 +579,12 @@ export default function Canvas() {
   function previewPoints(): number[] {
     if (!drawingLine) return [];
     const { fromX, fromY, fromAnchor, toX, toY } = drawingLine;
-    // If snapped, use the actual anchor coords
     let tx = toX;
     let ty = toY;
     if (snapTarget) {
       const toNode = nodes.find(
-        (n) => n.id === snapTarget.nodeId && n.type === 'sticky'
-      ) as StickyNoteNode | undefined;
+        (n) => n.id === snapTarget.nodeId && (n.type === 'sticky' || n.type === 'shape')
+      ) as (StickyNoteNode | ShapeNode) | undefined;
       if (toNode) {
         const c = anchorCoords(toNode, snapTarget.side);
         tx = c.x;
@@ -292,12 +594,10 @@ export default function Canvas() {
     const dist = Math.hypot(tx - fromX, ty - fromY);
     const tension = Math.min(Math.max(dist * 0.42, 55), 220);
     const cp1 = cpOffset(fromAnchor, tension);
-    // For the preview endpoint side, use smart detection if snapped
     let toSide: AnchorSide = 'left';
     if (snapTarget) {
       toSide = snapTarget.side;
     } else {
-      // rough guess based on direction
       const dx = tx - fromX;
       const dy = ty - fromY;
       toSide = Math.abs(dx) >= Math.abs(dy)
@@ -315,22 +615,44 @@ export default function Canvas() {
     sticky: 'crosshair',
     line: drawingLine ? 'crosshair' : 'default',
     shape: 'crosshair',
-    text: 'text',
+    text: textDraw ? 'crosshair' : 'crosshair',
     pen: 'crosshair',
     section: 'crosshair',
   };
-  const cursor = cursorOverride ?? toolCursor[activeTool] ?? 'default';
+  // If a line draw is in progress (e.g. started from an anchor in select mode), always crosshair
+  const cursor = cursorOverride ?? (drawingLine ? 'crosshair' : toolCursor[activeTool] ?? 'default');
 
   // ── Grid ────────────────────────────────────────────────────────────────────
   const dotSpacing = 24 * camera.scale;
   const gridOffX = ((camera.x % dotSpacing) + dotSpacing) % dotSpacing;
   const gridOffY = ((camera.y % dotSpacing) + dotSpacing) % dotSpacing;
+  // Dot radius stops shrinking below 40% zoom
+  const dotScale = Math.max(camera.scale, 0.4);
+  const dotRadius = 1.2 * dotScale;
 
-  // ── Selected single sticky (for color picker) ───────────────────────────────
+  // ── Selected single node (for toolbars) ─────────────────────────────────────
   const singleSelected =
     selectedIds.length === 1 && !editingId
       ? nodes.find((n) => n.id === selectedIds[0])
       : null;
+
+  // ── Selected connector (for connector toolbar) ───────────────────────────────
+  const selectedConnectorId =
+    selectedIds.length === 1
+      ? (nodes.find(n => n.id === selectedIds[0] && n.type === 'connector')?.id ?? null)
+      : null;
+
+  // ── Selected/editing text block (for text toolbar) ───────────────────────────
+  const activeTextBlockId =
+    (selectedIds.length === 1 &&
+      nodes.find((n) => n.id === selectedIds[0] && n.type === 'textblock')?.id) ||
+    (editingId && nodes.find((n) => n.id === editingId && n.type === 'textblock')?.id) ||
+    null;
+
+  // ── Text ghost / drag-preview geometry ──────────────────────────────────────
+  const ghostFontSize = Math.round(20 * camera.scale);
+  const ghostWidth    = Math.round(240 * camera.scale);
+  const ghostLineH    = Math.round(ghostFontSize * 1.5);
 
   const prevPoints = previewPoints();
 
@@ -340,9 +662,12 @@ export default function Canvas() {
       style={{
         background: '#111118',
         cursor,
-        backgroundImage: `radial-gradient(circle, #3a3a4a 1.2px, transparent 1.2px)`,
+        backgroundImage: `radial-gradient(circle, #3a3a4a ${dotRadius}px, transparent ${dotRadius}px)`,
         backgroundSize: `${dotSpacing}px ${dotSpacing}px`,
         backgroundPosition: `${gridOffX}px ${gridOffY}px`,
+      }}
+      onMouseLeave={() => {
+        if (activeTool === 'text' && !textDraw) setTextCursorPos(null);
       }}
     >
       <Stage
@@ -357,6 +682,9 @@ export default function Canvas() {
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
         style={{ position: 'absolute', top: 0, left: 0 }}
       >
         <Layer>
@@ -380,6 +708,7 @@ export default function Canvas() {
                 node={n as StickyNoteNode}
                 isSelected={selectedIds.includes(n.id)}
                 isEditing={editingId === n.id}
+                isDrawingLine={drawingLine !== null}
                 onAnchorDown={handleAnchorDown}
                 onAnchorEnter={handleAnchorEnter}
                 onAnchorLeave={handleAnchorLeave}
@@ -389,18 +718,47 @@ export default function Canvas() {
               />
             ))}
 
+          {/* Shape nodes */}
+          {nodes
+            .filter((n) => n.type === 'shape')
+            .map((n) => (
+              <ShapeNodeComponent
+                key={n.id}
+                node={n as ShapeNode}
+                isSelected={selectedIds.includes(n.id)}
+                isEditing={editingId === n.id}
+                isDrawingLine={drawingLine !== null}
+                onAnchorDown={handleAnchorDown}
+                onAnchorEnter={handleAnchorEnter}
+                onAnchorLeave={handleAnchorLeave}
+                snapAnchor={
+                  snapTarget?.nodeId === n.id ? snapTarget.side : null
+                }
+              />
+            ))}
+
+          {/* Text blocks */}
+          {nodes
+            .filter((n) => n.type === 'textblock')
+            .map((n) => (
+              <TextBlock
+                key={n.id}
+                node={n as TextBlockNode}
+                isSelected={selectedIds.includes(n.id)}
+                isEditing={editingId === n.id}
+              />
+            ))}
+
           {/* In-progress line preview */}
           {drawingLine && prevPoints.length === 8 && (
-            <Arrow
+            <Line
               points={prevPoints}
               bezier={true}
               stroke={snapTarget ? '#6366f1' : '#818cf8'}
               strokeWidth={2}
-              fill={snapTarget ? '#6366f1' : '#818cf8'}
+              fill="transparent"
               dash={[7, 5]}
               opacity={0.75}
-              pointerLength={snapTarget ? 10 : 0}
-              pointerWidth={snapTarget ? 7 : 0}
               lineCap="round"
               listening={false}
             />
@@ -408,10 +766,126 @@ export default function Canvas() {
         </Layer>
       </Stage>
 
+      {/* ── Text ghost: hover preview before clicking ─────────────────────── */}
+      {activeTool === 'text' && textCursorPos && !textDraw && (
+        <div
+          style={{
+            position: 'absolute',
+            left: textCursorPos.x + 10,
+            top: textCursorPos.y - ghostLineH / 2,
+            width: ghostWidth,
+            height: ghostLineH,
+            border: '1px dashed #6366f1',
+            borderRadius: 3,
+            pointerEvents: 'none',
+            opacity: 0.55,
+            display: 'flex',
+            alignItems: 'center',
+            paddingLeft: 4,
+            overflow: 'hidden',
+          }}
+        >
+          <span
+            style={{
+              fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+              fontSize: ghostFontSize,
+              color: '#4a4a6a',
+              whiteSpace: 'nowrap',
+              lineHeight: 1,
+            }}
+          >
+            Type something…
+          </span>
+        </div>
+      )}
+
+      {/* ── Text drag-to-width preview ────────────────────────────────────── */}
+      {activeTool === 'text' && textDraw && (
+        <>
+          {/* Dashed preview box */}
+          <div
+            style={{
+              position: 'absolute',
+              left: Math.min(textDraw.startScreenX, textDraw.currentScreenX),
+              top: textDraw.startScreenY - ghostLineH / 2,
+              width: Math.max(2, Math.abs(textDraw.currentScreenX - textDraw.startScreenX)),
+              height: ghostLineH,
+              border: '1px dashed #6366f1',
+              borderRadius: 3,
+              background: 'rgba(99,102,241,0.06)',
+              pointerEvents: 'none',
+            }}
+          />
+          {/* Width label */}
+          {Math.abs(textDraw.currentScreenX - textDraw.startScreenX) > 40 && (
+            <div
+              style={{
+                position: 'absolute',
+                left: Math.min(textDraw.startScreenX, textDraw.currentScreenX),
+                top: textDraw.startScreenY + ghostLineH / 2 + 6,
+                fontFamily: "'JetBrains Mono', monospace",
+                fontSize: 10,
+                color: '#6366f1',
+                pointerEvents: 'none',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {Math.round(Math.abs(textDraw.currentWorldX - textDraw.startWorldX))}px
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ── Shape drag-to-size preview ────────────────────────────────────── */}
+      {activeTool === 'shape' && shapeDraw && (
+        <div
+          style={{
+            position: 'absolute',
+            left: Math.min(shapeDraw.startScreenX, shapeDraw.currentScreenX),
+            top: Math.min(shapeDraw.startScreenY, shapeDraw.currentScreenY),
+            width: Math.max(2, Math.abs(shapeDraw.currentScreenX - shapeDraw.startScreenX)),
+            height: Math.max(2, Math.abs(shapeDraw.currentScreenY - shapeDraw.startScreenY)),
+            border: '1.5px dashed #6366f1',
+            borderRadius: activeShapeKind === 'rect' ? 4 : activeShapeKind === 'ellipse' ? '50%' : 2,
+            background: 'rgba(99,102,241,0.08)',
+            pointerEvents: 'none',
+          }}
+        />
+      )}
+
+      {/* Marquee selection rect */}
+      {marqueeDraw && (
+        <div
+          style={{
+            position: 'absolute',
+            left: Math.min(marqueeDraw.startScreenX, marqueeDraw.currentScreenX),
+            top:  Math.min(marqueeDraw.startScreenY, marqueeDraw.currentScreenY),
+            width:  Math.max(1, Math.abs(marqueeDraw.currentScreenX - marqueeDraw.startScreenX)),
+            height: Math.max(1, Math.abs(marqueeDraw.currentScreenY - marqueeDraw.startScreenY)),
+            border: '1px dashed #6366f1',
+            borderRadius: 2,
+            background: 'rgba(99,102,241,0.07)',
+            pointerEvents: 'none',
+          }}
+        />
+      )}
+
       {/* HTML overlays */}
       <TextEditor />
       {singleSelected?.type === 'sticky' && (
         <StickyColorPicker nodeId={singleSelected.id} />
+      )}
+      {singleSelected?.type === 'shape' && (
+        <ShapeToolbar nodeId={singleSelected.id} />
+      )}
+      {activeTextBlockId && (
+        <TextBlockToolbar nodeId={activeTextBlockId} />
+      )}
+      {selectedConnectorId && (
+        <ConnectorToolbar nodeId={selectedConnectorId} />
+      )}
+      {selectedIds.length > 1 && !editingId && (
+        <MultiSelectToolbar />
       )}
     </div>
   );
