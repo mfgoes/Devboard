@@ -60,7 +60,6 @@ npm run build
 butler push dist/ mischa/devboard:html
 ```
 
-Replace `your-username/devboard` with your actual itch.io username and game slug.
 The channel name (`html`) can be anything — it just labels the build on itch.io.
 
 **Tip:** Add a `push` script to `package.json` once you have Butler set up:

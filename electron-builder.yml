@@ -1,0 +1,33 @@
+appId: com.mishowave.devboard
+productName: DevBoard
+copyright: Copyright © 2025 MishoWave
+
+directories:
+  output: dist-electron
+
+files:
+  - electron/main.cjs
+  - dist/index.html
+
+# Windows — portable directory (no installer)
+win:
+  target:
+    - target: dir
+      arch: [x64]
+  icon: public/icon.ico
+
+# macOS — DMG
+mac:
+  target:
+    - target: dmg
+      arch: [x64, arm64]
+  icon: public/icon.icns
+  category: public.app-category.productivity
+
+# Linux — AppImage
+linux:
+  target:
+    - target: AppImage
+      arch: [x64]
+  icon: public/icon.png
+  category: Utility

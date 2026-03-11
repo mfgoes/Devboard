@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useBoardStore } from '../store/boardStore';
-import { StickyNoteNode, TextBlockNode, ShapeNode } from '../types';
+import { StickyNoteNode, TextBlockNode, ShapeNode, SectionNode } from '../types';
+import { useTheme } from '../theme';
 
 function autoResize(el: HTMLTextAreaElement) {
   el.style.height = 'auto';
@@ -33,17 +34,24 @@ function measureStickyHeight(text: string, contentWidth: number): number {
 }
 
 export default function TextEditor() {
+  const t = useTheme();
   const { editingId, nodes, camera, updateNode, setEditingId, saveHistory } = useBoardStore();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const editingNode = nodes.find((n) => n.id === editingId) as
     | StickyNoteNode
     | TextBlockNode
     | ShapeNode
+    | SectionNode
     | undefined;
 
   useEffect(() => {
-    if (editingId && textareaRef.current) {
+    if (!editingId) return;
+    if (editingNode?.type === 'section') {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    } else if (textareaRef.current) {
       textareaRef.current.focus();
       const len = textareaRef.current.value.length;
       textareaRef.current.setSelectionRange(len, len);
@@ -114,6 +122,52 @@ export default function TextEditor() {
       });
     }
   };
+
+  if (editingNode.type === 'section') {
+    const sectionNode = editingNode as SectionNode;
+    const labelText = sectionNode.name || 'Section';
+    const pillW = Math.max(72, labelText.length * 8 + 24);
+    const pillScreenX = (sectionNode.x + 12) * camera.scale + camera.x;
+    const pillScreenY = (sectionNode.y - 13) * camera.scale + camera.y;
+    const pillScreenW = pillW * camera.scale;
+    const pillScreenH = 26 * camera.scale;
+    const fs = Math.round(12 * camera.scale);
+    return (
+      <input
+        ref={inputRef}
+        value={sectionNode.name}
+        onChange={(e) => updateNode(editingId, { name: e.target.value } as Parameters<typeof updateNode>[1])}
+        onFocus={saveHistory}
+        onBlur={() => setTimeout(() => {
+          if (document.activeElement !== inputRef.current) setEditingId(null);
+        }, 150)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === 'Escape') {
+            e.preventDefault();
+            setEditingId(null);
+          }
+          e.stopPropagation();
+        }}
+        style={{
+          position: 'absolute',
+          left: pillScreenX + 10 * camera.scale,
+          top: pillScreenY + (pillScreenH - fs * 1.3) / 2,
+          width: pillScreenW - 20 * camera.scale,
+          height: fs * 1.4,
+          background: 'transparent',
+          border: 'none',
+          outline: 'none',
+          color: t.sectionLabelColor,
+          fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+          fontSize: fs,
+          fontWeight: 'bold',
+          zIndex: 200,
+          padding: 0,
+          caretColor: t.sectionLabelColor,
+        }}
+      />
+    );
+  }
 
   if (editingNode.type === 'shape') {
     const shapeNode = editingNode as ShapeNode;
@@ -207,7 +261,7 @@ export default function TextEditor() {
   // Sticky note
   const stickyNode = editingNode as StickyNoteNode;
   const sh = stickyNode.height * camera.scale;
-  const fs = Math.round(13 * camera.scale);
+  const fs = Math.round((stickyNode.fontSize ?? 13) * camera.scale);
   return (
     <textarea
       ref={textareaRef}
@@ -233,6 +287,8 @@ export default function TextEditor() {
         fontSize: fs,
         lineHeight: 1.5,
         fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+        fontWeight: stickyNode.bold ? 'bold' : 'normal',
+        fontStyle: stickyNode.italic ? 'italic' : 'normal',
         color: '#1a1a2e',
         padding: 0,
         zIndex: 100,

@@ -3,6 +3,7 @@ import { Group, Text, Rect, Transformer } from 'react-konva';
 import Konva from 'konva';
 import { TextBlockNode } from '../../types';
 import { useBoardStore } from '../../store/boardStore';
+import { useTheme } from '../../theme';
 
 interface Props {
   node: TextBlockNode;
@@ -11,6 +12,7 @@ interface Props {
 }
 
 export default function TextBlock({ node, isSelected, isEditing }: Props) {
+  const t = useTheme();
   const groupRef = useRef<Konva.Group>(null);
   const trRef    = useRef<Konva.Transformer>(null);
   const { updateNode, selectIds, setEditingId, setActiveTool, saveHistory } = useBoardStore();
@@ -129,7 +131,7 @@ export default function TextBlock({ node, isSelected, isEditing }: Props) {
           textDecoration={textDecoration}
           lineHeight={1.5}
           fontFamily="'JetBrains Mono', 'Fira Code', monospace"
-          fill={node.text ? node.color : '#4a4a6a'}
+          fill={node.text ? node.color : t.textOff}
           wrap="word"
           align="left"
           listening={false}

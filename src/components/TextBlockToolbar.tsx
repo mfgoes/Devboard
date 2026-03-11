@@ -55,7 +55,7 @@ export default function TextBlockToolbar({ nodeId }: { nodeId: string }) {
 
   return (
     <div
-      className="absolute top-14 left-1/2 -translate-x-1/2 z-50 flex items-center rounded-xl border border-[#2e2e46] bg-[#1a1a2a] shadow-2xl"
+      className="absolute top-14 left-1/2 -translate-x-1/2 z-50 flex items-center rounded-xl border border-[var(--c-border)] bg-[var(--c-panel)] shadow-2xl"
       onMouseDown={(e) => e.stopPropagation()}
     >
       {/* ── Color ──────────────────────────────────────────────────── */}
@@ -63,14 +63,14 @@ export default function TextBlockToolbar({ nodeId }: { nodeId: string }) {
         <button
           title="Text color"
           onClick={() => { closeAll(); setShowColors((v) => !v); }}
-          className="w-9 h-9 flex flex-col items-center justify-center gap-px rounded-lg text-[#e2e8f0] hover:bg-[#22223a] transition-colors"
+          className="w-9 h-9 flex flex-col items-center justify-center gap-px rounded-lg text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
         >
           <span style={{ fontFamily: 'serif', fontSize: 13, fontWeight: 700, lineHeight: 1 }}>A</span>
           <span style={{ width: 14, height: 3, borderRadius: 2, background: node.color, display: 'block' }} />
         </button>
         {showColors && (
           <div
-            className="absolute top-full left-0 mt-1 bg-[#1a1a2a] border border-[#2e2e46] rounded-xl shadow-2xl z-50"
+            className="absolute top-full left-0 mt-1 bg-[var(--c-panel)] border border-[var(--c-border)] rounded-xl shadow-2xl z-50"
             style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, padding: 12 }}
           >
             {TEXT_COLORS.map((c) => (
@@ -94,19 +94,19 @@ export default function TextBlockToolbar({ nodeId }: { nodeId: string }) {
         )}
       </div>
 
-      <div className="w-px h-6 bg-[#2e2e46]" />
+      <div className="w-px h-6 bg-[var(--c-border)]" />
 
       {/* ── Size ───────────────────────────────────────────────────── */}
       <div className="relative px-1 py-1">
         <button
           title="Text size"
           onClick={() => { closeAll(); setShowSizes((v) => !v); }}
-          className="h-9 px-2.5 rounded-lg text-[#8888aa] hover:text-[#e2e8f0] hover:bg-[#22223a] transition-colors font-mono text-[11px] tabular-nums"
+          className="h-9 px-2.5 rounded-lg text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors font-mono text-[11px] tabular-nums"
         >
           {node.fontSize}px
         </button>
         {showSizes && (
-          <div className="absolute top-full left-0 mt-1 py-1.5 bg-[#1a1a2a] border border-[#2e2e46] rounded-xl shadow-2xl z-50 min-w-[164px]">
+          <div className="absolute top-full left-0 mt-1 py-1.5 bg-[var(--c-panel)] border border-[var(--c-border)] rounded-xl shadow-2xl z-50 min-w-[164px]">
             {SIZE_PRESETS.map((preset) => {
               const active = node.fontSize === preset.value;
               return (
@@ -117,7 +117,7 @@ export default function TextBlockToolbar({ nodeId }: { nodeId: string }) {
                     'w-full text-left px-4 py-2 font-mono text-[13px] transition-colors flex items-center gap-2',
                     active
                       ? 'bg-[#6366f1] text-white'
-                      : 'text-[#c4c4e0] hover:bg-[#22223a]',
+                      : 'text-[var(--c-text-md)] hover:bg-[var(--c-hover)]',
                   ].join(' ')}
                 >
                   <span className="w-4 text-center">{active ? '✓' : ''}</span>
@@ -125,7 +125,7 @@ export default function TextBlockToolbar({ nodeId }: { nodeId: string }) {
                 </button>
               );
             })}
-            <div className="border-t border-[#2e2e46] mt-1.5 pt-1.5 px-2">
+            <div className="border-t border-[var(--c-border)] mt-1.5 pt-1.5 px-2">
               <input
                 type="number"
                 min={8}
@@ -141,14 +141,14 @@ export default function TextBlockToolbar({ nodeId }: { nodeId: string }) {
                   if (e.key === 'Escape') setShowSizes(false);
                   e.stopPropagation();
                 }}
-                className="w-full bg-[#111118] border border-[#2e2e46] rounded-lg px-3 py-1.5 text-[#e2e8f0] font-mono text-[12px] outline-none focus:border-[#6366f1]"
+                className="w-full bg-[var(--c-canvas)] border border-[var(--c-border)] rounded-lg px-3 py-1.5 text-[var(--c-text-hi)] font-mono text-[12px] outline-none focus:border-[#6366f1]"
               />
             </div>
           </div>
         )}
       </div>
 
-      <div className="w-px h-6 bg-[#2e2e46]" />
+      <div className="w-px h-6 bg-[var(--c-border)]" />
 
       {/* ── Bold ───────────────────────────────────────────────────── */}
       <div className="px-0.5 py-1">
@@ -159,7 +159,7 @@ export default function TextBlockToolbar({ nodeId }: { nodeId: string }) {
             'w-9 h-9 flex items-center justify-center rounded-lg transition-colors font-bold text-[14px]',
             node.bold
               ? 'bg-[#6366f1] text-white'
-              : 'text-[#8888aa] hover:text-[#e2e8f0] hover:bg-[#22223a]',
+              : 'text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
           ].join(' ')}
           style={{ fontFamily: 'serif' }}
         >
@@ -176,7 +176,7 @@ export default function TextBlockToolbar({ nodeId }: { nodeId: string }) {
             'w-9 h-9 flex items-center justify-center rounded-lg transition-colors text-[14px] italic',
             node.italic
               ? 'bg-[#6366f1] text-white'
-              : 'text-[#8888aa] hover:text-[#e2e8f0] hover:bg-[#22223a]',
+              : 'text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
           ].join(' ')}
           style={{ fontFamily: 'serif' }}
         >
@@ -193,7 +193,7 @@ export default function TextBlockToolbar({ nodeId }: { nodeId: string }) {
             'w-9 h-9 flex items-center justify-center rounded-lg transition-colors text-[14px] underline',
             node.underline
               ? 'bg-[#6366f1] text-white'
-              : 'text-[#8888aa] hover:text-[#e2e8f0] hover:bg-[#22223a]',
+              : 'text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
           ].join(' ')}
           style={{ fontFamily: 'serif', fontStyle }}
         >
@@ -226,7 +226,7 @@ export default function TextBlockToolbar({ nodeId }: { nodeId: string }) {
             'w-9 h-9 flex items-center justify-center rounded-lg transition-colors',
             node.bulletList
               ? 'bg-[#6366f1] text-white'
-              : 'text-[#8888aa] hover:text-[#e2e8f0] hover:bg-[#22223a]',
+              : 'text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
           ].join(' ')}
         >
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -240,7 +240,7 @@ export default function TextBlockToolbar({ nodeId }: { nodeId: string }) {
         </button>
       </div>
 
-      <div className="w-px h-6 bg-[#2e2e46]" />
+      <div className="w-px h-6 bg-[var(--c-border)]" />
 
       {/* ── Link ───────────────────────────────────────────────────── */}
       <div className="relative px-1 py-1">
@@ -251,7 +251,7 @@ export default function TextBlockToolbar({ nodeId }: { nodeId: string }) {
             'w-9 h-9 flex items-center justify-center rounded-lg transition-colors',
             showLink || node.link
               ? 'bg-[#6366f1] text-white'
-              : 'text-[#8888aa] hover:text-[#e2e8f0] hover:bg-[#22223a]',
+              : 'text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
           ].join(' ')}
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -266,7 +266,7 @@ export default function TextBlockToolbar({ nodeId }: { nodeId: string }) {
           </svg>
         </button>
         {showLink && (
-          <div className="absolute top-full right-0 mt-1 p-2 bg-[#1a1a2a] border border-[#2e2e46] rounded-xl shadow-2xl z-50 flex gap-2 items-center min-w-[260px]">
+          <div className="absolute top-full right-0 mt-1 p-2 bg-[var(--c-panel)] border border-[var(--c-border)] rounded-xl shadow-2xl z-50 flex gap-2 items-center min-w-[260px]">
             <input
               ref={linkInputRef}
               type="url"
@@ -278,7 +278,7 @@ export default function TextBlockToolbar({ nodeId }: { nodeId: string }) {
                 if (e.key === 'Escape') setShowLink(false);
                 e.stopPropagation();
               }}
-              className="flex-1 bg-[#111118] border border-[#2e2e46] rounded-lg px-3 py-1.5 text-[#e2e8f0] font-mono text-[12px] outline-none focus:border-[#6366f1]"
+              className="flex-1 bg-[var(--c-canvas)] border border-[var(--c-border)] rounded-lg px-3 py-1.5 text-[var(--c-text-hi)] font-mono text-[12px] outline-none focus:border-[#6366f1]"
             />
             <button
               onClick={() => { update({ link: linkValue || undefined }); setShowLink(false); }}
@@ -290,7 +290,7 @@ export default function TextBlockToolbar({ nodeId }: { nodeId: string }) {
               <button
                 title="Remove link"
                 onClick={() => { update({ link: undefined }); setShowLink(false); }}
-                className="w-7 h-7 flex items-center justify-center text-[#f87171] rounded-lg hover:bg-[#22223a] transition-colors flex-shrink-0"
+                className="w-7 h-7 flex items-center justify-center text-[#f87171] rounded-lg hover:bg-[var(--c-hover)] transition-colors flex-shrink-0"
               >
                 ✕
               </button>

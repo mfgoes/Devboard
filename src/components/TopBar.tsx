@@ -20,16 +20,42 @@ function IconCompress() {
     </svg>
   );
 }
+function IconChevronDown() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+      <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+function IconTheme({ isLight }: { isLight: boolean }) {
+  if (isLight) {
+    // Moon icon (switch to dark)
+    return (
+      <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+        <path d="M11 8.5A5.5 5.5 0 0 1 4.5 2a5.5 5.5 0 1 0 6.5 6.5z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+  }
+  // Sun icon (switch to light)
+  return (
+    <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+      <circle cx="6.5" cy="6.5" r="2.5" stroke="currentColor" strokeWidth="1.3" />
+      <path d="M6.5 1v1.5M6.5 10.5V12M1 6.5h1.5M10.5 6.5H12M2.9 2.9l1.1 1.1M9 9l1.1 1.1M2.9 10.1l1.1-1.1M9 4l1.1-1.1" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    </svg>
+  );
+}
 
 const isItchIo = typeof window !== 'undefined' && window.location.hostname.endsWith('.itch.io');
 
 export default function TopBar({ onShowAbout }: TopBarProps) {
-  const { boardTitle, setBoardTitle, exportData, loadBoard } = useBoardStore();
+  const { boardTitle, setBoardTitle, exportData, loadBoard, setActiveTool, toggleTheme, theme } = useBoardStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState(boardTitle);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   // Track fullscreen changes (e.g. user presses Esc)
   useEffect(() => {
@@ -37,6 +63,18 @@ export default function TopBar({ onShowAbout }: TopBarProps) {
     document.addEventListener('fullscreenchange', onFsChange);
     return () => document.removeEventListener('fullscreenchange', onFsChange);
   }, []);
+
+  // Close menu on outside click
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [menuOpen]);
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -104,6 +142,11 @@ export default function TopBar({ onShowAbout }: TopBarProps) {
     });
   };
 
+  const menuAction = (fn: () => void) => {
+    setMenuOpen(false);
+    fn();
+  };
+
   return (
     <>
     {toast && (
@@ -111,17 +154,63 @@ export default function TopBar({ onShowAbout }: TopBarProps) {
         {toast}
       </div>
     )}
-    <div className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between px-4 h-11 bg-[#1a1a2a] border-b border-[#2e2e46]">
-      {/* Left: Logo + title */}
+    <div className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between px-4 h-11 bg-[var(--c-panel)] border-b border-[var(--c-border)]">
+      {/* Left: Logo + dropdown + title */}
       <div className="flex items-center gap-3 min-w-0">
-        <button
-          onClick={onShowAbout}
-          title="About DevBoard"
-          className="font-mono text-[11px] font-semibold text-[#6366f1] tracking-widest uppercase shrink-0 hover:text-[#818cf8] transition-colors"
-        >
-          DevBoard
-        </button>
-        <span className="text-[#2e2e46]">/</span>
+
+        {/* Logo + chevron */}
+        <div className="relative flex items-center shrink-0" ref={menuRef}>
+          <button
+            onClick={() => setMenuOpen((v) => !v)}
+            title="Menu"
+            className={[
+              'flex items-center gap-0.5 px-1.5 h-7 rounded transition-colors',
+              menuOpen
+                ? 'text-[var(--c-text-hi)] bg-[var(--c-hover)]'
+                : 'text-[#6366f1] hover:text-[#818cf8] hover:bg-[var(--c-hover)]',
+            ].join(' ')}
+          >
+            <span className="font-mono text-[11px] font-semibold tracking-widest uppercase">DevBoard</span>
+            <IconChevronDown />
+          </button>
+
+          {/* Dropdown */}
+          {menuOpen && (
+            <div className="absolute top-full left-0 mt-1.5 w-52 rounded-xl border border-[var(--c-border)] bg-[var(--c-panel)] shadow-2xl py-1.5 z-[100]">
+
+              <MenuItem onClick={() => menuAction(onShowAbout)} icon={<IconAbout />}>About</MenuItem>
+              <MenuItem onClick={() => menuAction(toggleTheme)} icon={<IconTheme isLight={theme === 'light'} />}>
+                {theme === 'light' ? 'Dark mode' : 'Light mode'}
+              </MenuItem>
+
+              <MenuDivider />
+              <MenuLabel>Export</MenuLabel>
+              <MenuItem onClick={() => menuAction(handleExportPNG)} icon={<IconImg />}>Export PNG</MenuItem>
+              <MenuItem onClick={() => menuAction(handleSaveJSON)} icon={<IconJson />}>Save as JSON</MenuItem>
+              <MenuItem onClick={() => menuAction(() => fileInputRef.current?.click())} icon={<IconLoad />}>Load JSON</MenuItem>
+              {!isItchIo && (
+                <MenuItem onClick={() => menuAction(handleShare)} icon={<IconShare />}>Copy share link</MenuItem>
+              )}
+
+              <MenuDivider />
+              <MenuLabel>Insert</MenuLabel>
+              <MenuItem onClick={() => menuAction(() => setActiveTool('sticky'))} icon={<IconSticky />}>Sticky note</MenuItem>
+              <MenuItem onClick={() => menuAction(() => setActiveTool('shape'))} icon={<IconShape />}>Shape</MenuItem>
+              <MenuItem onClick={() => menuAction(() => setActiveTool('text'))} icon={<IconText />}>Text block</MenuItem>
+
+              <MenuDivider />
+              <MenuItem
+                onClick={() => { setMenuOpen(false); window.open('https://mischa.itch.io/devboard', '_blank', 'noopener'); }}
+                icon={<IconDownload />}
+              >
+                Download desktop app
+              </MenuItem>
+
+            </div>
+          )}
+        </div>
+
+        <span className="text-[var(--c-border)]">/</span>
         {editingTitle ? (
           <input
             autoFocus
@@ -132,13 +221,13 @@ export default function TopBar({ onShowAbout }: TopBarProps) {
               if (e.key === 'Enter') commitTitle();
               if (e.key === 'Escape') { setTitleDraft(boardTitle); setEditingTitle(false); }
             }}
-            className="bg-transparent border-b border-[#6366f1] text-[#e2e8f0] font-mono text-sm outline-none min-w-0 max-w-[220px]"
+            className="bg-transparent border-b border-[#6366f1] text-[var(--c-text-hi)] font-mono text-sm outline-none min-w-0 max-w-[220px]"
           />
         ) : (
           <button
             onClick={() => { setTitleDraft(boardTitle); setEditingTitle(true); }}
             title="Rename board"
-            className="font-mono text-sm text-[#e2e8f0] hover:text-white truncate max-w-[220px] text-left"
+            className="font-mono text-sm text-[var(--c-text-hi)] hover:text-[var(--c-text-hi)] truncate max-w-[220px] text-left"
           >
             {boardTitle}
           </button>
@@ -154,13 +243,13 @@ export default function TopBar({ onShowAbout }: TopBarProps) {
           <TopBarBtn onClick={handleShare} title="Copy share link" accent>Share</TopBarBtn>
         )}
 
-        <div className="w-px h-5 bg-[#2e2e46] mx-1" />
+        <div className="w-px h-5 bg-[var(--c-border)] mx-1" />
 
         {/* Fullscreen */}
         <button
           onClick={toggleFullscreen}
           title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
-          className="w-7 h-7 flex items-center justify-center rounded text-[#8888aa] hover:text-[#e2e8f0] hover:bg-[#22223a] transition-colors"
+          className="w-7 h-7 flex items-center justify-center rounded text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
         >
           {isFullscreen ? <IconCompress /> : <IconExpand />}
         </button>
@@ -177,6 +266,140 @@ export default function TopBar({ onShowAbout }: TopBarProps) {
     </>
   );
 }
+
+// ── Menu sub-components ──────────────────────────────────────────────────────
+
+function MenuDivider() {
+  return <div className="my-1 h-px bg-[var(--c-border)] mx-2" />;
+}
+
+function MenuLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="px-3 py-0.5 font-mono text-[10px] text-[var(--c-text-off)] uppercase tracking-widest select-none">
+      {children}
+    </div>
+  );
+}
+
+function MenuItem({
+  children,
+  onClick,
+  icon,
+  disabled,
+  badge,
+}: {
+  children: React.ReactNode;
+  onClick?: () => void;
+  icon?: React.ReactNode;
+  disabled?: boolean;
+  badge?: string;
+}) {
+  return (
+    <button
+      onClick={disabled ? undefined : onClick}
+      className={[
+        'w-full flex items-center gap-2.5 px-3 py-1.5 font-mono text-[12px] text-left transition-colors',
+        disabled
+          ? 'text-[var(--c-text-off)] cursor-default'
+          : 'text-[var(--c-text-md)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
+      ].join(' ')}
+    >
+      {icon && (
+        <span className={disabled ? 'text-[var(--c-text-off)]' : 'text-[#6366f1]'}>
+          {icon}
+        </span>
+      )}
+      <span className="flex-1">{children}</span>
+      {badge && (
+        <span className="text-[9px] font-mono text-[var(--c-text-off)] border border-[var(--c-border)] rounded px-1 py-0.5 uppercase tracking-wide">
+          {badge}
+        </span>
+      )}
+    </button>
+  );
+}
+
+// ── Menu icons ───────────────────────────────────────────────────────────────
+
+function IconAbout() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+      <circle cx="6.5" cy="6.5" r="5.5" stroke="currentColor" strokeWidth="1.3" />
+      <path d="M6.5 5.5v4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      <circle cx="6.5" cy="3.5" r="0.7" fill="currentColor" />
+    </svg>
+  );
+}
+function IconImg() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+      <rect x="1" y="2.5" width="11" height="8" rx="1" stroke="currentColor" strokeWidth="1.3" />
+      <path d="M1 8.5l3-3 2.5 2.5 2-2 2.5 2.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="4.5" cy="5.5" r="1" stroke="currentColor" strokeWidth="1.1" />
+    </svg>
+  );
+}
+function IconJson() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+      <rect x="1.5" y="1" width="10" height="11" rx="1" stroke="currentColor" strokeWidth="1.3" />
+      <path d="M4 4.5h5M4 6.5h5M4 8.5h3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    </svg>
+  );
+}
+function IconLoad() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+      <path d="M2 8.5v2a.5.5 0 0 0 .5.5h8a.5.5 0 0 0 .5-.5v-2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+      <path d="M6.5 1.5v6M4 5l2.5 2.5L9 5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+function IconShare() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+      <circle cx="10" cy="3" r="1.5" stroke="currentColor" strokeWidth="1.2" />
+      <circle cx="3" cy="6.5" r="1.5" stroke="currentColor" strokeWidth="1.2" />
+      <circle cx="10" cy="10" r="1.5" stroke="currentColor" strokeWidth="1.2" />
+      <path d="M4.4 7.3l4.2 2M8.6 3.7l-4.2 2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    </svg>
+  );
+}
+function IconSticky() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+      <rect x="1.5" y="1.5" width="10" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.3" />
+      <path d="M8.5 1.5v3.5l1.5-1.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round" />
+      <line x1="4" y1="7" x2="9" y2="7" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
+      <line x1="4" y1="9" x2="7.5" y2="9" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
+    </svg>
+  );
+}
+function IconShape() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+      <rect x="1.5" y="1.5" width="4.5" height="4.5" rx="0.5" stroke="currentColor" strokeWidth="1.3" />
+      <circle cx="9.5" cy="9.5" r="2.5" stroke="currentColor" strokeWidth="1.3" />
+    </svg>
+  );
+}
+function IconText() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+      <path d="M2.5 3.5h8M6.5 3.5v6.5M4 10h5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+    </svg>
+  );
+}
+function IconDownload() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+      <path d="M6.5 1v6.5M4 5.5l2.5 2.5L9 5.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M1.5 10h10" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+// ── TopBarBtn ────────────────────────────────────────────────────────────────
 
 function TopBarBtn({
   children,
@@ -197,7 +420,7 @@ function TopBarBtn({
         'px-3 h-7 rounded font-mono text-[11px] tracking-wide transition-colors',
         accent
           ? 'bg-[#6366f1] text-white hover:bg-[#4f46e5]'
-          : 'text-[#8888aa] hover:text-[#e2e8f0] hover:bg-[#22223a]',
+          : 'text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
       ].join(' ')}
     >
       {children}

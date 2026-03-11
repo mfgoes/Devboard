@@ -1,8 +1,12 @@
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import { Group, Rect, Ellipse, Line, Text, Transformer, Circle } from 'react-konva';
 import Konva from 'konva';
-import { ShapeNode as ShapeNodeType, AnchorSide } from '../../types';
+import { ShapeNode as ShapeNodeType, AnchorSide, ConnectorNode } from '../../types';
 import { useBoardStore } from '../../store/boardStore';
+import { anchorCoords, cpOffset } from './ConnectorLine';
+import { useTheme } from '../../theme';
+
+function generateId() { return Math.random().toString(36).slice(2, 11); }
 
 interface Props {
   node: ShapeNodeType;
@@ -30,6 +34,22 @@ const ANCHOR_DEFS: {
   { side: 'right',  cx: (w) => w,         cy: (_, h) => h / 2,   dx:  DOT_OFFSET, dy: 0           },
 ];
 
+// ── Anchor visual helpers ─────────────────────────────────────────────────────
+const GHOST_LEN = 90;
+const GHOST_DIR: Record<AnchorSide, [number, number]> = {
+  right: [1, 0], left: [-1, 0], top: [0, -1], bottom: [0, 1],
+};
+const CHEVRON: Record<AnchorSide, number[]> = {
+  right:  [-4, -3.5,  3,  0, -4,  3.5],
+  left:   [ 4, -3.5, -3,  0,  4,  3.5],
+  top:    [-3.5,  4,  0, -3,  3.5,  4],
+  bottom: [-3.5, -4,  0,  3,  3.5, -4],
+};
+const TOOLTIP_OFFSET: Record<AnchorSide, [number, number]> = {
+  right:  [ 14, -9], left:  [-74, -9],
+  top:    [-30, -28], bottom: [-30, 12],
+};
+
 function luminance(hex: string): number {
   if (hex === 'transparent' || !hex.startsWith('#')) return 200;
   const r = parseInt(hex.slice(1, 3), 16);
@@ -50,9 +70,13 @@ export default function ShapeNode({
 }: Props) {
   const groupRef = useRef<Konva.Group>(null);
   const trRef    = useRef<Konva.Transformer>(null);
-  const { updateNode, selectIds, setEditingId, setActiveTool, activeTool, saveHistory } = useBoardStore();
+  const t = useTheme();
+  const { updateNode, selectIds, setEditingId, setActiveTool, activeTool, saveHistory, addNode } = useBoardStore();
 
   const isLineTool = activeTool === 'line';
+  const [hoveredAnchor, setHoveredAnchor] = useState<AnchorSide | null>(null);
+  type SmartGhost = { fromSide: AnchorSide; targetId: string; targetSide: AnchorSide; toWorldX: number; toWorldY: number; pts: number[] };
+  const [smartGhost, setSmartGhost] = useState<SmartGhost | null>(null);
   const showAnchors = (isSelected && !isEditing) || isLineTool || (isDrawingLine === true && !isEditing);
 
   useEffect(() => {
@@ -210,42 +234,113 @@ export default function ShapeNode({
             const vx = bx + dx;
             const vy = by + dy;
             const snapped = snapAnchor === side;
+            const hovered = hoveredAnchor === side;
+            const active  = snapped || hovered;
+            const [gdx, gdy] = GHOST_DIR[side];
+            const [tx, ty]   = TOOLTIP_OFFSET[side];
+            const ghost = hovered && smartGhost?.fromSide === side ? smartGhost : null;
             return (
-              <Circle
-                key={side}
-                x={vx}
-                y={vy}
-                radius={snapped ? 7 : 5}
-                fill={snapped ? '#6366f1' : 'white'}
-                stroke="#6366f1"
-                strokeWidth={2}
-                opacity={snapped ? 1 : 0.85}
-                shadowEnabled={snapped}
-                shadowColor="#6366f1"
-                shadowBlur={10}
-                onMouseDown={(e) => {
-                  e.cancelBubble = true;
-                  onAnchorDown?.(node.id, side, node.x + bx, node.y + by);
-                }}
-                onMouseEnter={(e) => {
-                  const c = e.target as Konva.Circle;
-                  c.radius(7);
-                  c.fill('#6366f1');
-                  c.opacity(1);
-                  c.getLayer()?.batchDraw();
-                  onAnchorEnter?.(node.id, side);
-                }}
-                onMouseLeave={(e) => {
-                  const c = e.target as Konva.Circle;
-                  if (!snapped) {
-                    c.radius(5);
-                    c.fill('white');
-                    c.opacity(0.85);
-                    c.getLayer()?.batchDraw();
-                  }
-                  onAnchorLeave?.();
-                }}
-              />
+              <Group key={side}>
+                {/* Ghost: smart bezier to nearby target, or simple dashed ray */}
+                {hovered && (
+                  ghost ? (
+                    <Line
+                      points={ghost.pts} bezier={true}
+                      stroke="#6366f1" strokeWidth={2}
+                      opacity={0.35} lineCap="round" listening={false}
+                    />
+                  ) : (
+                    <>
+                      <Line
+                        points={[bx, by, bx + gdx * GHOST_LEN, by + gdy * GHOST_LEN]}
+                        stroke="#6366f1" strokeWidth={2}
+                        opacity={0.22} dash={[6, 4]} lineCap="round" listening={false}
+                      />
+                      <Line
+                        x={bx + gdx * GHOST_LEN} y={by + gdy * GHOST_LEN}
+                        points={CHEVRON[side]}
+                        stroke="#6366f1" strokeWidth={2}
+                        opacity={0.35} lineCap="round" lineJoin="round" listening={false}
+                      />
+                    </>
+                  )
+                )}
+                <Circle
+                  x={vx} y={vy}
+                  radius={active ? 8 : 5}
+                  fill={active ? '#6366f1' : 'white'}
+                  stroke="#6366f1" strokeWidth={2}
+                  opacity={active ? 1 : 0.85}
+                  shadowEnabled={active} shadowColor="#6366f1" shadowBlur={12}
+                  onMouseDown={(e) => {
+                    e.cancelBubble = true;
+                    if (ghost) {
+                      addNode({
+                        id: generateId(), type: 'connector',
+                        fromNodeId: node.id, fromAnchor: side,
+                        fromX: node.x + bx, fromY: node.y + by,
+                        toNodeId: ghost.targetId, toAnchor: ghost.targetSide,
+                        toX: ghost.toWorldX, toY: ghost.toWorldY,
+                        color: '#6366f1', strokeWidth: 2,
+                        lineStyle: 'curved', strokeStyle: 'solid',
+                        arrowHeadStart: 'none', arrowHeadEnd: 'arrow',
+                      } as ConnectorNode);
+                      setSmartGhost(null);
+                      setHoveredAnchor(null);
+                    } else {
+                      onAnchorDown?.(node.id, side, node.x + bx, node.y + by);
+                    }
+                  }}
+                  onMouseEnter={() => {
+                    setHoveredAnchor(side);
+                    onAnchorEnter?.(node.id, side);
+                    const PROXIMITY = 280;
+                    const fwx = node.x + bx, fwy = node.y + by;
+                    let best: { nodeId: string; side: AnchorSide; dist: number; wx: number; wy: number } | null = null;
+                    for (const n of useBoardStore.getState().nodes) {
+                      if (n.id === node.id || (n.type !== 'sticky' && n.type !== 'shape')) continue;
+                      const rn = n as { x: number; y: number; width: number; height: number };
+                      for (const ts of ['top', 'right', 'bottom', 'left'] as AnchorSide[]) {
+                        const a = anchorCoords(rn, ts);
+                        const d = Math.hypot(a.x - fwx, a.y - fwy);
+                        if (d < PROXIMITY && (!best || d < best.dist)) best = { nodeId: n.id, side: ts, dist: d, wx: a.x, wy: a.y };
+                      }
+                    }
+                    if (best) {
+                      const tension = Math.min(Math.max(best.dist * 0.42, 55), 220);
+                      const cp1 = cpOffset(side, tension);
+                      const cp2 = cpOffset(best.side, tension);
+                      const toLx = best.wx - node.x, toLy = best.wy - node.y;
+                      setSmartGhost({
+                        fromSide: side, targetId: best.nodeId, targetSide: best.side,
+                        toWorldX: best.wx, toWorldY: best.wy,
+                        pts: [bx, by, bx + cp1.dx, by + cp1.dy, toLx + cp2.dx, toLy + cp2.dy, toLx, toLy],
+                      });
+                    } else {
+                      setSmartGhost(null);
+                    }
+                  }}
+                  onMouseLeave={() => { setHoveredAnchor(null); setSmartGhost(null); onAnchorLeave?.(); }}
+                />
+                {active && (
+                  <Line
+                    x={vx} y={vy} points={CHEVRON[side]}
+                    stroke="white" strokeWidth={2}
+                    lineCap="round" lineJoin="round" listening={false}
+                  />
+                )}
+                {hovered && (
+                  <Group x={vx + tx} y={vy + ty}>
+                    <Rect width={ghost ? 76 : 60} height={18} fill={t.panelBg} cornerRadius={4} opacity={0.92} />
+                    <Text
+                      width={ghost ? 76 : 60} height={18}
+                      text={ghost ? 'Click to connect' : 'Connect'}
+                      fontSize={10} fontFamily="'JetBrains Mono', monospace"
+                      fill={t.textHi} align="center" verticalAlign="middle" listening={false}
+                    />
+                  </Group>
+                )}
+              </Group>
             );
           })}
       </Group>

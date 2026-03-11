@@ -2,6 +2,33 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --c-canvas: #111118;
+  --c-panel: #1a1a2a;
+  --c-hover: #22223a;
+  --c-border: #2e2e46;
+  --c-text-hi: #e2e8f0;
+  --c-text-md: #a0a0c0;
+  --c-text-lo: #8888aa;
+  --c-text-off: #4a4a6a;
+  --c-dot: #3a3a4a;
+  --c-line: #6366f1;
+  --c-line-pre: #818cf8;
+}
+:root.light {
+  --c-canvas: #f0f0ec;
+  --c-panel: #ffffff;
+  --c-hover: #eeeef4;
+  --c-border: #d4d4e0;
+  --c-text-hi: #18181b;
+  --c-text-md: #52525b;
+  --c-text-lo: #71717a;
+  --c-text-off: #a1a1aa;
+  --c-dot: #c0c0cc;
+  --c-line: #4f46e5;
+  --c-line-pre: #6366f1;
+}
+
 /* Prevent default blue selection highlight on canvas drag */
 .konvajs-content {
   user-select: none;
@@ -14,14 +41,14 @@
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #1a1a2a;
+  background: var(--c-panel);
 }
 ::-webkit-scrollbar-thumb {
-  background: #2e2e46;
+  background: var(--c-border);
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #4a4a6a;
+  background: var(--c-text-off);
 }
 
 /* Textarea inside sticky note — no browser chrome */

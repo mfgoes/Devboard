@@ -5,15 +5,18 @@ import { useBoardStore } from '../store/boardStore';
 import StickyNote from './nodes/StickyNote';
 import ShapeNodeComponent from './nodes/ShapeNode';
 import TextBlock from './nodes/TextBlock';
+import SectionNodeComponent from './nodes/SectionNode';
 import ConnectorLine, { anchorCoords, cpOffset, smartAnchors } from './nodes/ConnectorLine';
 import TextEditor from './TextEditor';
 import StickyColorPicker from './StickyColorPicker';
 import ShapeToolbar from './ShapeToolbar';
 import TextBlockToolbar from './TextBlockToolbar';
 import ConnectorToolbar from './ConnectorToolbar';
+import SectionToolbar from './SectionToolbar';
 import MultiSelectToolbar from './MultiSelectToolbar';
-import { AnchorSide, ConnectorNode, StickyNoteNode, ShapeNode, TextBlockNode } from '../types';
+import { AnchorSide, ConnectorNode, StickyNoteNode, ShapeNode, TextBlockNode, SectionNode } from '../types';
 import { STICKY_COLORS } from './StickyColorPicker';
+import { useTheme } from '../theme';
 
 function generateId(): string {
   return Math.random().toString(36).slice(2, 11);
@@ -59,6 +62,7 @@ interface MarqueeDraw {
 }
 
 export default function Canvas() {
+  const t = useTheme();
   const stageRef = useRef<Konva.Stage>(null);
   const [size, setSize] = useState({ width: window.innerWidth, height: window.innerHeight });
   const isPanning = useRef(false);
@@ -80,6 +84,9 @@ export default function Canvas() {
 
   // Shape drag-to-size state
   const [shapeDraw, setShapeDraw] = useState<ShapeDraw | null>(null);
+
+  // Section drag-to-size state
+  const [sectionDraw, setSectionDraw] = useState<ShapeDraw | null>(null);
 
   // Marquee (drag-to-select) state
   const [marqueeDraw, setMarqueeDraw] = useState<MarqueeDraw | null>(null);
@@ -130,6 +137,7 @@ export default function Canvas() {
           KeyR: 'shape',
           KeyT: 'text',
           KeyL: 'line',
+          KeyF: 'section',
         };
         if (shortcuts[e.code]) setActiveTool(shortcuts[e.code]);
       }
@@ -140,6 +148,7 @@ export default function Canvas() {
         setTextDraw(null);
         setTextCursorPos(null);
         setShapeDraw(null);
+        setSectionDraw(null);
         setMarqueeDraw(null);
         selectIds([]);
         setActiveTool('select');
@@ -251,6 +260,23 @@ export default function Canvas() {
         return;
       }
 
+      if (activeTool === 'section') {
+        const pos = stageRef.current!.getPointerPosition()!;
+        const worldX = (pos.x - camera.x) / camera.scale;
+        const worldY = (pos.y - camera.y) / camera.scale;
+        setSectionDraw({
+          startScreenX: pos.x,
+          startScreenY: pos.y,
+          startWorldX: worldX,
+          startWorldY: worldY,
+          currentScreenX: pos.x,
+          currentScreenY: pos.y,
+          currentWorldX: worldX,
+          currentWorldY: worldY,
+        });
+        return;
+      }
+
       // Text tool: begin drag-to-set-width
       if (activeTool === 'text' && clickedStage) {
         const pos = stageRef.current!.getPointerPosition()!;
@@ -333,6 +359,17 @@ export default function Canvas() {
           );
         }
       }
+      // Track section drag preview
+      if (activeTool === 'section' && sectionDraw) {
+        const pos = stageRef.current?.getPointerPosition();
+        if (pos) {
+          const worldX = (pos.x - camera.x) / camera.scale;
+          const worldY = (pos.y - camera.y) / camera.scale;
+          setSectionDraw((prev) =>
+            prev ? { ...prev, currentScreenX: pos.x, currentScreenY: pos.y, currentWorldX: worldX, currentWorldY: worldY } : null
+          );
+        }
+      }
       // Track cursor for text ghost / drag preview
       if (activeTool === 'text') {
         const pos = stageRef.current?.getPointerPosition();
@@ -347,7 +384,7 @@ export default function Canvas() {
         }
       }
     },
-    [camera, setCamera, drawingLine, activeTool, shapeDraw, textDraw, marqueeDraw]
+    [camera, setCamera, drawingLine, activeTool, shapeDraw, sectionDraw, textDraw, marqueeDraw]
   );
 
   // ── Mouse up ────────────────────────────────────────────────────────────────
@@ -448,6 +485,34 @@ export default function Canvas() {
       setActiveTool('select');
       setShapeDraw(null);
     }
+    // Section drag-to-size placement
+    if (sectionDraw) {
+      const dragW = Math.abs(sectionDraw.currentScreenX - sectionDraw.startScreenX);
+      const dragH = Math.abs(sectionDraw.currentScreenY - sectionDraw.startScreenY);
+      const isDrag = dragW > 20 || dragH > 20;
+      const worldW = Math.abs(sectionDraw.currentWorldX - sectionDraw.startWorldX);
+      const worldH = Math.abs(sectionDraw.currentWorldY - sectionDraw.startWorldY);
+      const useW = isDrag ? Math.max(200, Math.round(worldW)) : 400;
+      const useH = isDrag ? Math.max(150, Math.round(worldH)) : 300;
+      const placeX = isDrag
+        ? Math.min(sectionDraw.startWorldX, sectionDraw.currentWorldX)
+        : sectionDraw.startWorldX - 200;
+      const placeY = isDrag
+        ? Math.min(sectionDraw.startWorldY, sectionDraw.currentWorldY)
+        : sectionDraw.startWorldY - 150;
+      addNode({
+        id: generateId(),
+        type: 'section',
+        x: placeX,
+        y: placeY,
+        width: useW,
+        height: useH,
+        name: 'Section',
+        color: '#6366f1',
+      } satisfies SectionNode);
+      setActiveTool('select');
+      setSectionDraw(null);
+    }
     // Text drag-to-place
     if (textDraw) {
       const dragScreenPx = Math.abs(textDraw.currentScreenX - textDraw.startScreenX);
@@ -477,7 +542,7 @@ export default function Canvas() {
       setTextDraw(null);
       setTextCursorPos(null);
     }
-  }, [drawingLine, snapTarget, addNode, shapeDraw, activeShapeKind, textDraw, setActiveTool, setEditingId, marqueeDraw, selectIds]);
+  }, [drawingLine, snapTarget, addNode, shapeDraw, sectionDraw, activeShapeKind, textDraw, setActiveTool, setEditingId, marqueeDraw, selectIds]);
 
   // ── Touch: single-finger pan (pan tool) + two-finger pinch/pan (always) ────
   const handleTouchStart = useCallback(
@@ -660,9 +725,9 @@ export default function Canvas() {
     <div
       className="absolute inset-0 overflow-hidden select-none"
       style={{
-        background: '#111118',
+        background: t.canvasBg,
         cursor,
-        backgroundImage: `radial-gradient(circle, #3a3a4a ${dotRadius}px, transparent ${dotRadius}px)`,
+        backgroundImage: `radial-gradient(circle, ${t.dotColor} ${dotRadius}px, transparent ${dotRadius}px)`,
         backgroundSize: `${dotSpacing}px ${dotSpacing}px`,
         backgroundPosition: `${gridOffX}px ${gridOffY}px`,
       }}
@@ -688,6 +753,18 @@ export default function Canvas() {
         style={{ position: 'absolute', top: 0, left: 0 }}
       >
         <Layer>
+          {/* Sections — rendered first so they sit behind everything */}
+          {nodes
+            .filter((n) => n.type === 'section')
+            .map((n) => (
+              <SectionNodeComponent
+                key={n.id}
+                node={n as SectionNode}
+                isSelected={selectedIds.includes(n.id)}
+                isEditing={editingId === n.id}
+              />
+            ))}
+
           {/* Connectors rendered below stickies */}
           {nodes
             .filter((n) => n.type === 'connector')
@@ -754,7 +831,7 @@ export default function Canvas() {
             <Line
               points={prevPoints}
               bezier={true}
-              stroke={snapTarget ? '#6366f1' : '#818cf8'}
+              stroke={snapTarget ? t.connectorColor : t.connectorPreview}
               strokeWidth={2}
               fill="transparent"
               dash={[7, 5]}
@@ -775,7 +852,7 @@ export default function Canvas() {
             top: textCursorPos.y - ghostLineH / 2,
             width: ghostWidth,
             height: ghostLineH,
-            border: '1px dashed #6366f1',
+            border: `1px dashed ${t.connectorColor}`,
             borderRadius: 3,
             pointerEvents: 'none',
             opacity: 0.55,
@@ -789,7 +866,7 @@ export default function Canvas() {
             style={{
               fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
               fontSize: ghostFontSize,
-              color: '#4a4a6a',
+              color: t.textOff,
               whiteSpace: 'nowrap',
               lineHeight: 1,
             }}
@@ -810,7 +887,7 @@ export default function Canvas() {
               top: textDraw.startScreenY - ghostLineH / 2,
               width: Math.max(2, Math.abs(textDraw.currentScreenX - textDraw.startScreenX)),
               height: ghostLineH,
-              border: '1px dashed #6366f1',
+              border: `1px dashed ${t.connectorColor}`,
               borderRadius: 3,
               background: 'rgba(99,102,241,0.06)',
               pointerEvents: 'none',
@@ -825,7 +902,7 @@ export default function Canvas() {
                 top: textDraw.startScreenY + ghostLineH / 2 + 6,
                 fontFamily: "'JetBrains Mono', monospace",
                 fontSize: 10,
-                color: '#6366f1',
+                color: t.connectorColor,
                 pointerEvents: 'none',
                 whiteSpace: 'nowrap',
               }}
@@ -845,9 +922,26 @@ export default function Canvas() {
             top: Math.min(shapeDraw.startScreenY, shapeDraw.currentScreenY),
             width: Math.max(2, Math.abs(shapeDraw.currentScreenX - shapeDraw.startScreenX)),
             height: Math.max(2, Math.abs(shapeDraw.currentScreenY - shapeDraw.startScreenY)),
-            border: '1.5px dashed #6366f1',
+            border: `1.5px dashed ${t.connectorColor}`,
             borderRadius: activeShapeKind === 'rect' ? 4 : activeShapeKind === 'ellipse' ? '50%' : 2,
             background: 'rgba(99,102,241,0.08)',
+            pointerEvents: 'none',
+          }}
+        />
+      )}
+
+      {/* ── Section drag-to-size preview ─────────────────────────────────── */}
+      {activeTool === 'section' && sectionDraw && (
+        <div
+          style={{
+            position: 'absolute',
+            left: Math.min(sectionDraw.startScreenX, sectionDraw.currentScreenX),
+            top: Math.min(sectionDraw.startScreenY, sectionDraw.currentScreenY),
+            width: Math.max(2, Math.abs(sectionDraw.currentScreenX - sectionDraw.startScreenX)),
+            height: Math.max(2, Math.abs(sectionDraw.currentScreenY - sectionDraw.startScreenY)),
+            border: `1.5px dashed ${t.connectorColor}`,
+            borderRadius: 12,
+            background: 'rgba(99,102,241,0.06)',
             pointerEvents: 'none',
           }}
         />
@@ -862,7 +956,7 @@ export default function Canvas() {
             top:  Math.min(marqueeDraw.startScreenY, marqueeDraw.currentScreenY),
             width:  Math.max(1, Math.abs(marqueeDraw.currentScreenX - marqueeDraw.startScreenX)),
             height: Math.max(1, Math.abs(marqueeDraw.currentScreenY - marqueeDraw.startScreenY)),
-            border: '1px dashed #6366f1',
+            border: `1px dashed ${t.connectorColor}`,
             borderRadius: 2,
             background: 'rgba(99,102,241,0.07)',
             pointerEvents: 'none',
@@ -877,6 +971,9 @@ export default function Canvas() {
       )}
       {singleSelected?.type === 'shape' && (
         <ShapeToolbar nodeId={singleSelected.id} />
+      )}
+      {singleSelected?.type === 'section' && (
+        <SectionToolbar nodeId={singleSelected.id} />
       )}
       {activeTextBlockId && (
         <TextBlockToolbar nodeId={activeTextBlockId} />

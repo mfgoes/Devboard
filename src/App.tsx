@@ -5,6 +5,7 @@ import TopBar from './components/TopBar';
 import WelcomeModal from './components/WelcomeModal';
 import { useBoardStore } from './store/boardStore';
 
+
 function loadFromHash() {
   const hash = window.location.hash;
   const match = hash.match(/^#board=(.+)$/);
@@ -25,6 +26,17 @@ export default function App() {
   const [showWelcome, setShowWelcome] = useState(() => {
     return !localStorage.getItem('devboard-visited');
   });
+
+  const theme = useBoardStore((s) => s.theme);
+
+  // Apply/remove light class on document root when theme changes
+  useEffect(() => {
+    if (theme === 'light') {
+      document.documentElement.classList.add('light');
+    } else {
+      document.documentElement.classList.remove('light');
+    }
+  }, [theme]);
 
   // Load from URL hash once on mount
   useEffect(() => {
@@ -67,7 +79,7 @@ export default function App() {
   };
 
   return (
-    <div className="relative w-full h-full overflow-hidden bg-[#111118] font-mono">
+    <div className="relative w-full h-full overflow-hidden bg-[var(--c-canvas)] font-mono">
       <TopBar onShowAbout={() => setShowWelcome(true)} />
       <div className="absolute inset-0 top-11">
         <Canvas />

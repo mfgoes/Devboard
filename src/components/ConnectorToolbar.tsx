@@ -110,15 +110,15 @@ function DropBtn({
         className={[
           'flex items-center gap-1 h-9 px-2.5 rounded-lg transition-colors',
           open
-            ? 'bg-[#22223a] text-[#e2e8f0]'
-            : 'text-[#8888aa] hover:text-[#e2e8f0] hover:bg-[#22223a]',
+            ? 'bg-[var(--c-hover)] text-[var(--c-text-hi)]'
+            : 'text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
         ].join(' ')}
       >
         {icon}
         <span className="opacity-60">{icons.chevron}</span>
       </button>
       {open && (
-        <div className="absolute top-full left-0 mt-1 bg-[#1a1a2a] border border-[#2e2e46] rounded-xl shadow-2xl z-50 p-1.5 flex flex-col gap-0.5 min-w-[130px]">
+        <div className="absolute top-full left-0 mt-1 bg-[var(--c-panel)] border border-[var(--c-border)] rounded-xl shadow-2xl z-50 p-1.5 flex flex-col gap-0.5 min-w-[130px]">
           {children}
         </div>
       )}
@@ -136,7 +136,7 @@ function DropItem({
       onClick={onClick}
       className={[
         'flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-mono transition-colors w-full text-left',
-        active ? 'bg-[#6366f1] text-white' : 'text-[#c4c4e0] hover:bg-[#22223a]',
+        active ? 'bg-[#6366f1] text-white' : 'text-[var(--c-text-md)] hover:bg-[var(--c-hover)]',
       ].join(' ')}
     >
       {children}
@@ -176,7 +176,7 @@ export default function ConnectorToolbar({ nodeId }: { nodeId: string }) {
 
   return (
     <div
-      className="absolute top-14 left-1/2 -translate-x-1/2 z-50 flex items-center rounded-xl border border-[#2e2e46] bg-[#1a1a2a] shadow-2xl px-1 py-1 gap-0.5"
+      className="absolute top-14 left-1/2 -translate-x-1/2 z-50 flex items-center rounded-xl border border-[var(--c-border)] bg-[var(--c-panel)] shadow-2xl px-1 py-1 gap-0.5"
       onMouseDown={e => e.stopPropagation()}
     >
       {/* Color */}
@@ -187,8 +187,8 @@ export default function ConnectorToolbar({ nodeId }: { nodeId: string }) {
           className={[
             'flex items-center gap-1 h-9 px-2.5 rounded-lg transition-colors',
             open === 'color'
-              ? 'bg-[#22223a] text-[#e2e8f0]'
-              : 'text-[#8888aa] hover:text-[#e2e8f0] hover:bg-[#22223a]',
+              ? 'bg-[var(--c-hover)] text-[var(--c-text-hi)]'
+              : 'text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
           ].join(' ')}
         >
           <span className="w-4 h-4 rounded-full border border-white/20 shrink-0" style={{ background: node.color }}/>
@@ -196,7 +196,7 @@ export default function ConnectorToolbar({ nodeId }: { nodeId: string }) {
         </button>
         {open === 'color' && (
           <div
-            className="absolute top-full left-0 mt-1 bg-[#1a1a2a] border border-[#2e2e46] rounded-xl shadow-2xl z-50"
+            className="absolute top-full left-0 mt-1 bg-[var(--c-panel)] border border-[var(--c-border)] rounded-xl shadow-2xl z-50"
             style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, padding: 12 }}
           >
             {COLORS.map(hex => (
@@ -220,7 +220,7 @@ export default function ConnectorToolbar({ nodeId }: { nodeId: string }) {
         )}
       </div>
 
-      <div className="w-px h-5 bg-[#2e2e46] mx-0.5" />
+      <div className="w-px h-5 bg-[var(--c-border)] mx-0.5" />
 
       {/* Line style */}
       <DropBtn label="Line style" icon={lineIcon} open={open === 'style'} onToggle={() => toggle('style')}>
@@ -252,7 +252,7 @@ export default function ConnectorToolbar({ nodeId }: { nodeId: string }) {
         <DropItem active={strokeStyle === 'dotted'} onClick={() => closeAndUpdate({ strokeStyle: 'dotted' })}> {icons.dotted} Dotted </DropItem>
       </DropBtn>
 
-      <div className="w-px h-5 bg-[#2e2e46] mx-0.5" />
+      <div className="w-px h-5 bg-[var(--c-border)] mx-0.5" />
 
       {/* Stroke width */}
       {[1, 2, 3].map(w => (
@@ -264,7 +264,7 @@ export default function ConnectorToolbar({ nodeId }: { nodeId: string }) {
             'w-8 h-9 flex items-center justify-center rounded-lg transition-colors',
             node.strokeWidth === w
               ? 'bg-[#6366f1] text-white'
-              : 'text-[#8888aa] hover:text-[#e2e8f0] hover:bg-[#22223a]',
+              : 'text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
           ].join(' ')}
         >
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none">

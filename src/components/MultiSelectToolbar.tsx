@@ -99,7 +99,7 @@ export default function MultiSelectToolbar() {
   const cy   = (minY + maxY) / 2;
 
   // Text-capable nodes (shape + textblock)
-  const textNodes = selected.filter((n) => n.type === 'textblock' || n.type === 'shape');
+  const textNodes = selected.filter((n) => n.type === 'textblock' || n.type === 'shape' || n.type === 'sticky');
   const hasText   = textNodes.length > 0;
   const allBold   = hasText && textNodes.every((n) => !!(n as { bold?: boolean }).bold);
   const allItalic = hasText && textNodes.every((n) => !!(n as { italic?: boolean }).italic);
@@ -126,7 +126,7 @@ export default function MultiSelectToolbar() {
         'w-8 h-8 flex items-center justify-center rounded-lg transition-colors',
         active
           ? 'bg-[#6366f1] text-white'
-          : 'text-[#8888aa] hover:text-[#e2e8f0] hover:bg-[#22223a]',
+          : 'text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
       ].join(' ')}
     >
       {children}
@@ -135,7 +135,7 @@ export default function MultiSelectToolbar() {
 
   return (
     <div
-      className="absolute top-14 left-1/2 -translate-x-1/2 z-50 flex items-center rounded-xl border border-[#2e2e46] bg-[#1a1a2a] shadow-2xl"
+      className="absolute top-14 left-1/2 -translate-x-1/2 z-50 flex items-center rounded-xl border border-[var(--c-border)] bg-[var(--c-panel)] shadow-2xl"
       onMouseDown={(e) => e.stopPropagation()}
     >
       {/* ── Horizontal alignment ──────────────────────────────────────────── */}
@@ -151,7 +151,7 @@ export default function MultiSelectToolbar() {
         </IconBtn>
       </div>
 
-      <div className="w-px h-6 bg-[#2e2e46]" />
+      <div className="w-px h-6 bg-[var(--c-border)]" />
 
       {/* ── Vertical alignment ────────────────────────────────────────────── */}
       <div className="flex items-center gap-0 px-1 py-1">
@@ -169,7 +169,7 @@ export default function MultiSelectToolbar() {
       {/* ── Text styling (only when text-capable nodes are selected) ──────── */}
       {hasText && (
         <>
-          <div className="w-px h-6 bg-[#2e2e46]" />
+          <div className="w-px h-6 bg-[var(--c-border)]" />
 
           {/* Bold */}
           <div className="px-0.5 py-1">
@@ -190,12 +190,12 @@ export default function MultiSelectToolbar() {
             <button
               title="Font size"
               onClick={() => setShowFontSizes((v) => !v)}
-              className="h-8 px-2 rounded-lg text-[#8888aa] hover:text-[#e2e8f0] hover:bg-[#22223a] transition-colors font-mono text-[11px] tabular-nums"
+              className="h-8 px-2 rounded-lg text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors font-mono text-[11px] tabular-nums"
             >
               {commonFontSize !== null ? `${commonFontSize}px` : 'mixed'}
             </button>
             {showFontSizes && (
-              <div className="absolute top-full left-0 mt-1 py-1.5 bg-[#1a1a2a] border border-[#2e2e46] rounded-xl shadow-2xl z-50 min-w-[140px]">
+              <div className="absolute top-full left-0 mt-1 py-1.5 bg-[var(--c-panel)] border border-[var(--c-border)] rounded-xl shadow-2xl z-50 min-w-[140px]">
                 {FONT_SIZE_PRESETS.map((preset) => {
                   const active = commonFontSize === preset.value;
                   return (
@@ -204,7 +204,7 @@ export default function MultiSelectToolbar() {
                       onClick={() => { applyText({ fontSize: preset.value } as Partial<CanvasNode>); setShowFontSizes(false); }}
                       className={[
                         'w-full flex items-center gap-2 px-4 py-2 font-mono text-[12px] transition-colors',
-                        active ? 'bg-[#6366f1] text-white' : 'text-[#c4c4e0] hover:bg-[#22223a]',
+                        active ? 'bg-[#6366f1] text-white' : 'text-[var(--c-text-md)] hover:bg-[var(--c-hover)]',
                       ].join(' ')}
                     >
                       <span className="w-4 text-center">{active ? '✓' : ''}</span>
@@ -219,7 +219,7 @@ export default function MultiSelectToolbar() {
       )}
 
       {/* Count badge */}
-      <div className="px-2 py-1 text-[10px] font-mono text-[#4a4a6a]">
+      <div className="px-2 py-1 text-[10px] font-mono text-[var(--c-text-off)]">
         {selected.length} selected
       </div>
     </div>

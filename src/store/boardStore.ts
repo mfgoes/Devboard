@@ -17,9 +17,11 @@ interface BoardState {
   past: CanvasNode[][]; // not persisted
   future: CanvasNode[][]; // not persisted
   activeShapeKind: ShapeKind; // not persisted
+  theme: 'dark' | 'light';
 
   // Actions
   setBoardTitle: (title: string) => void;
+  toggleTheme: () => void;
   addNode: (node: CanvasNode) => void;
   updateNode: (id: string, updates: Partial<CanvasNode>) => void;
   updateNodes: (updates: { id: string; updates: Partial<CanvasNode> }[]) => void;
@@ -52,8 +54,11 @@ export const useBoardStore = create<BoardState>()(
       past: [],
       future: [],
       activeShapeKind: 'rect',
+      theme: 'dark',
 
       setBoardTitle: (title) => set({ boardTitle: title }),
+
+      toggleTheme: () => set((s) => ({ theme: s.theme === 'dark' ? 'light' : 'dark' })),
 
       addNode: (node) =>
         set((state) => ({
@@ -213,6 +218,7 @@ export const useBoardStore = create<BoardState>()(
         boardTitle: state.boardTitle,
         nodes: state.nodes,
         camera: state.camera,
+        theme: state.theme,
       }),
     }
   )

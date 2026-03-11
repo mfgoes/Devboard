@@ -77,7 +77,7 @@ export default function StickyColorPicker({ nodeId }: Props) {
         transform: 'translateX(-50%)',
         zIndex: 200,
       }}
-      className="flex items-center gap-1 bg-[#1a1a2a] border border-[#2e2e46] rounded-md px-2 py-1.5 shadow-lg"
+      className="flex items-center gap-1 bg-[var(--c-panel)] border border-[var(--c-border)] rounded-md px-2 py-1.5 shadow-lg"
       onMouseDown={(e) => e.stopPropagation()}
     >
       {/* Bullet list toggle */}
@@ -88,32 +88,32 @@ export default function StickyColorPicker({ nodeId }: Props) {
           'w-6 h-6 flex items-center justify-center rounded transition-colors',
           node.bulletList
             ? 'bg-[#6366f1] text-white'
-            : 'text-[#8888aa] hover:text-[#e2e8f0] hover:bg-[#22223a]',
+            : 'text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
         ].join(' ')}
       >
         <BulletListIcon />
       </button>
 
-      <div className="w-px h-4 bg-[#2e2e46]" />
+      <div className="w-px h-4 bg-[var(--c-border)]" />
 
       {/* Color dropdown */}
       <div className="relative">
         <button
           title="Note color"
           onClick={() => setShowColors((v) => !v)}
-          className="flex items-center gap-1.5 h-6 px-2 rounded text-[#8888aa] hover:text-[#e2e8f0] hover:bg-[#22223a] transition-colors"
+          className="flex items-center gap-1.5 h-6 px-2 rounded text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
         >
           <span
             className="w-3.5 h-3.5 rounded-sm border border-white/20"
             style={{ background: node.color }}
           />
-          <svg width="8" height="5" viewBox="0 0 8 5" fill="currentColor" className="text-[#8888aa]">
+          <svg width="8" height="5" viewBox="0 0 8 5" fill="currentColor" className="text-[var(--c-text-lo)]">
             <path d="M0 0l4 5 4-5z" />
           </svg>
         </button>
 
         {showColors && (
-          <div className="absolute top-full left-0 mt-1 bg-[#1a1a2a] border border-[#2e2e46] rounded-xl shadow-2xl z-50">
+          <div className="absolute top-full left-0 mt-1 bg-[var(--c-panel)] border border-[var(--c-border)] rounded-xl shadow-2xl z-50">
             <ColorSwatches
               colors={STICKY_COLORS}
               activeColor={node.color}

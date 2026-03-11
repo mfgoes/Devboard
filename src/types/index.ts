@@ -20,6 +20,9 @@ export interface StickyNoteNode {
   width: number;
   height: number;
   bulletList?: boolean;
+  fontSize?: number;
+  bold?: boolean;
+  italic?: boolean;
 }
 
 export type LineStyle      = 'curved' | 'straight' | 'orthogonal';

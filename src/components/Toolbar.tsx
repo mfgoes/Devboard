@@ -106,7 +106,7 @@ const TOOLS: ToolDef[] = [
   { id: 'text', label: 'Text', shortcut: 'T', icon: <IconText /> },
   { id: 'line', label: 'Line', shortcut: 'L', icon: <IconLine /> },
   { id: 'pen', label: 'Pen', shortcut: '', icon: <IconPen /> },
-  { id: 'section', label: 'Section', shortcut: '', icon: <IconSection /> },
+  { id: 'section', label: 'Section', shortcut: 'F', icon: <IconSection /> },
 ];
 
 type ShapeKindDef = { kind: ShapeKind; label: string; icon: React.ReactNode };
@@ -170,7 +170,7 @@ export default function Toolbar() {
     <div className="absolute bottom-5 left-0 right-0 z-50 flex flex-col items-center gap-2 pointer-events-none">
       {/* Shape kind sub-picker */}
       {activeTool === 'shape' && (
-        <div className="pointer-events-auto flex items-center gap-0.5 px-2 py-1.5 rounded-xl border border-[#2e2e46] bg-[#1a1a2a] shadow-lg">
+        <div className="pointer-events-auto flex items-center gap-0.5 px-2 py-1.5 rounded-xl border border-[var(--c-border)] bg-[var(--c-panel)] shadow-lg">
           {SHAPE_KINDS.map(({ kind, label, icon }) => (
             <button
               key={kind}
@@ -180,7 +180,7 @@ export default function Toolbar() {
                 'w-8 h-8 flex items-center justify-center rounded-lg transition-colors',
                 activeShapeKind === kind
                   ? 'bg-[#6366f1] text-white'
-                  : 'text-[#8888aa] hover:text-[#e2e8f0] hover:bg-[#22223a]',
+                  : 'text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
               ].join(' ')}
             >
               {icon}
@@ -191,12 +191,12 @@ export default function Toolbar() {
 
     {/* Scrollable row — centered on wide screens, scrollable on narrow */}
     <div className="pointer-events-auto w-full overflow-x-auto flex justify-center" style={{ WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }}>
-    <div className="flex items-center gap-0 rounded-xl border border-[#2e2e46] bg-[#1a1a2a] shadow-2xl overflow-hidden mx-4 shrink-0">
+    <div className="flex items-center gap-0 rounded-xl border border-[var(--c-border)] bg-[var(--c-panel)] shadow-2xl overflow-hidden mx-4 shrink-0">
       {/* Tool buttons */}
       <div className="flex items-center px-1 py-1 gap-0.5">
         {TOOLS.map((tool) => {
           const isActive = activeTool === tool.id;
-          const isComingSoon = ['pen', 'section'].includes(tool.id);
+          const isComingSoon = ['pen'].includes(tool.id);
           return (
             <button
               key={tool.id}
@@ -207,8 +207,8 @@ export default function Toolbar() {
                 isActive
                   ? 'bg-[#6366f1] text-white shadow-sm'
                   : isComingSoon
-                  ? 'text-[#4a4a6a] hover:text-[#6a6a8a] hover:bg-[#22223a] cursor-not-allowed'
-                  : 'text-[#8888aa] hover:text-[#e2e8f0] hover:bg-[#22223a]',
+                  ? 'text-[var(--c-text-off)] hover:text-[var(--c-text-lo)] hover:bg-[var(--c-hover)] cursor-not-allowed'
+                  : 'text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
               ].join(' ')}
               disabled={isComingSoon}
             >
@@ -220,28 +220,28 @@ export default function Toolbar() {
       </div>
 
       {/* Divider */}
-      <div className="w-px h-8 bg-[#2e2e46] mx-1" />
+      <div className="w-px h-8 bg-[var(--c-border)] mx-1" />
 
       {/* Zoom controls */}
       <div className="flex items-center gap-0.5 px-1 py-1">
         <button
           title="Zoom out"
           onClick={zoomOut}
-          className="w-8 h-8 flex items-center justify-center rounded-lg text-[#8888aa] hover:text-[#e2e8f0] hover:bg-[#22223a] transition-colors font-mono text-lg leading-none"
+          className="w-8 h-8 flex items-center justify-center rounded-lg text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors font-mono text-lg leading-none"
         >
           −
         </button>
         <button
           title="Reset zoom (100%)"
           onClick={zoomReset}
-          className="min-w-[52px] h-8 flex items-center justify-center rounded-lg text-[#8888aa] hover:text-[#e2e8f0] hover:bg-[#22223a] transition-colors font-mono text-[11px] tabular-nums"
+          className="min-w-[52px] h-8 flex items-center justify-center rounded-lg text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors font-mono text-[11px] tabular-nums"
         >
           {zoomPct}%
         </button>
         <button
           title="Zoom in"
           onClick={zoomIn}
-          className="w-8 h-8 flex items-center justify-center rounded-lg text-[#8888aa] hover:text-[#e2e8f0] hover:bg-[#22223a] transition-colors font-mono text-lg leading-none"
+          className="w-8 h-8 flex items-center justify-center rounded-lg text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors font-mono text-lg leading-none"
         >
           +
         </button>
