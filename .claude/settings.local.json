@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /c/Users/Mischa/OneDrive/Documents/GitHub/Devboard/src -type f \\\\\\( -name \"*.ts\" -o -name \"*.tsx\" -o -name \"*.js\" -o -name \"*.jsx\" -o -name \"*.css\" \\\\\\) 2>/dev/null | sort)",
+      "Bash(cd \"C:\\\\Users\\\\Mischa\\\\OneDrive\\\\Documents\\\\GitHub\\\\Devboard\" && npx tsc --noEmit 2>&1 | head -40)",
+      "Bash(cd \"C:\\\\Users\\\\Mischa\\\\OneDrive\\\\Documents\\\\GitHub\\\\Devboard\" && grep -n \"onTap\\\\|onDblTap\\\\|handleTouchStart\\\\|handleTouchMove\\\\|handleTouchEnd\\\\|lastTouchPos\\\\|lastPinchDist\\\\|lastPinchMid\" src/components/Canvas.tsx src/components/nodes/*.tsx 2>&1)",
+      "Bash(cd \"C:\\\\Users\\\\Mischa\\\\OneDrive\\\\Documents\\\\GitHub\\\\Devboard\" && npx tsc --noEmit 2>&1)",
+      "Bash(cd \"/c/Users/Mischa/OneDrive/Documents/GitHub/Devboard\" && npx tsc --noEmit 2>&1 | head -30)"
+    ]
+  }
+}

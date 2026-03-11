@@ -107,17 +107,21 @@ src/
 - [x] Text blocks (standalone text, no background)
 - [x] Basic shapes — rectangle, ellipse, diamond, triangle
 - [x] Allow moving multiple sections together (left mouse + shift select)
-- [ ] When editing text in shape / post it, dont hide the bgr (it's disorienting)
+- [x] Clicking doesn't work well on Brave browser on Windows, but works fine on Mac. On Chrome Windows it seems to work fine. 
+      -> Check if browser is brave -> Then give a notice to disable shields or download the app. Brave users: If interactions don’t work, click the 🦁 icon in the address bar and disable Shields for this page.
+- [ ] Templates to choose from (make it more dev focused)
 - [ ] Freehand pen / draw tool
-- [ ] Sections / grouping areas
+- [ ] Split zoom control to separate toolbar (and make it stack on mobile)
+- [x] Sections / grouping areas
 - [x] Undo / redo (Ctrl+Z / Ctrl+Shift+Z)
 
 ### Later / ideas
-- [ ] Mobile-friendly posting of items on board
+
 - [x] When selecting a different object type (ie text or post it) change the toolbar to that one. When pressing escape switch back to Select tool.
-- [ ] Align tools when multiple things are selected
+- [x] Align option when multiple objects are selected
 - [ ] Re-center button appearing when users are far off from objects (ie top of page) 
 - [ ] More export options (ie entire board, screen, PDF, with background)
+- [ ] Insert 'sticker' option (from a selection of stickers, such as thumbs up/down/fire emoji, surprise, etc)
 - [ ] Advertise on Reddit + X
 - [ ] Enable pages (see Figjam / Figma) which makes organising your boards easier. 
 - [ ] Dropdown menu from the top left (like Figjam) giving even more options (ie saving, settings, etc)
@@ -126,8 +130,11 @@ src/
 - [ ] Image upload (drop PNG/JPG onto canvas)
 - [ ] Mini-map / overview panel
 - [ ] Multiple boards / tabs
-- [ ] Themes (dark mode, color schemes)
-- [ ] Real-time collaboration (WebSocket / WebRTC)
+- [x] Themes (dark mode, color schemes)
+- [ ] Real-time collaboration (WebSocket / WebRTC via ie QN database)
+
+### Much later / Post release
+- [ ] Mobile-friendly posting of items on board
 
 ---
 

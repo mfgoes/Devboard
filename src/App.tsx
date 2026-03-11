@@ -22,10 +22,22 @@ function loadFromHash() {
   }
 }
 
+async function isBraveBrowser(): Promise<boolean> {
+  return !!(navigator as Navigator & { brave?: { isBrave?: () => Promise<boolean> } }).brave?.isBrave
+    && await (navigator as Navigator & { brave?: { isBrave?: () => Promise<boolean> } }).brave!.isBrave!();
+}
+
 export default function App() {
   const [showWelcome, setShowWelcome] = useState(() => {
     return !localStorage.getItem('devboard-visited');
   });
+  const [showBraveNotice, setShowBraveNotice] = useState(false);
+
+  useEffect(() => {
+    isBraveBrowser().then((brave) => {
+      if (brave) setShowBraveNotice(true);
+    });
+  }, []);
 
   const theme = useBoardStore((s) => s.theme);
 
@@ -81,7 +93,20 @@ export default function App() {
   return (
     <div className="relative w-full h-full overflow-hidden bg-[var(--c-canvas)] font-mono">
       <TopBar onShowAbout={() => setShowWelcome(true)} />
-      <div className="absolute inset-0 top-11">
+      {showBraveNotice && (
+        <div className="absolute top-11 left-0 right-0 z-50 flex items-center justify-between gap-3 bg-orange-500 text-white text-xs px-4 py-2">
+          <span>
+            🦁 <strong>Brave browser detected:</strong> If interactions don't work, click the 🦁 icon in the address bar and disable <strong>Shields</strong> for this page.
+          </span>
+          <button
+            onClick={() => setShowBraveNotice(false)}
+            className="shrink-0 opacity-75 hover:opacity-100 font-bold"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+      <div className={`absolute inset-0 ${showBraveNotice ? 'top-[5.25rem]' : 'top-11'}`}>
         <Canvas />
       </div>
       <Toolbar />
