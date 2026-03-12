@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
+import { saveBoard } from './utils/fileSave';
+import { setToastListener } from './utils/toast';
 import Canvas from './components/Canvas';
 import Toolbar from './components/Toolbar';
+import ZoomToolbar from './components/ZoomToolbar';
 import TopBar from './components/TopBar';
 import WelcomeModal from './components/WelcomeModal';
 import { useBoardStore } from './store/boardStore';
@@ -32,6 +35,14 @@ export default function App() {
     return !localStorage.getItem('devboard-visited');
   });
   const [showBraveNotice, setShowBraveNotice] = useState(false);
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    setToastListener((msg) => {
+      setToastMsg(msg);
+      setTimeout(() => setToastMsg(null), 2500);
+    });
+  }, []);
 
   useEffect(() => {
     isBraveBrowser().then((brave) => {
@@ -79,6 +90,27 @@ export default function App() {
       } else if (e.key === 'z' && e.shiftKey) {
         e.preventDefault();
         useBoardStore.getState().redo();
+      } else if (e.key === 's') {
+        e.preventDefault();
+        saveBoard(useBoardStore.getState().exportData());
+      } else if (e.key === 'b') {
+        e.preventDefault();
+        const { selectedIds, nodes, updateNode } = useBoardStore.getState();
+        for (const id of selectedIds) {
+          const n = nodes.find((x) => x.id === id);
+          if (n && (n.type === 'sticky' || n.type === 'textblock' || n.type === 'shape')) {
+            updateNode(id, { bold: !(n as { bold?: boolean }).bold } as never);
+          }
+        }
+      } else if (e.key === 'i') {
+        e.preventDefault();
+        const { selectedIds, nodes, updateNode } = useBoardStore.getState();
+        for (const id of selectedIds) {
+          const n = nodes.find((x) => x.id === id);
+          if (n && (n.type === 'sticky' || n.type === 'textblock' || n.type === 'shape')) {
+            updateNode(id, { italic: !(n as { italic?: boolean }).italic } as never);
+          }
+        }
       }
     };
     window.addEventListener('keydown', onKeyDown);
@@ -92,6 +124,11 @@ export default function App() {
 
   return (
     <div className="relative w-full h-full overflow-hidden bg-[var(--c-canvas)] font-mono">
+      {toastMsg && (
+        <div className="fixed top-14 left-1/2 -translate-x-1/2 z-[300] px-4 py-2 rounded bg-[#6366f1] text-white font-mono text-xs shadow-lg pointer-events-none select-none animate-fade-in">
+          {toastMsg}
+        </div>
+      )}
       <TopBar onShowAbout={() => setShowWelcome(true)} />
       {showBraveNotice && (
         <div className="absolute top-11 left-0 right-0 z-50 flex items-center justify-between gap-3 bg-orange-500 text-white text-xs px-4 py-2">
@@ -110,6 +147,7 @@ export default function App() {
         <Canvas />
       </div>
       <Toolbar />
+      <ZoomToolbar />
       {showWelcome && <WelcomeModal onClose={handleCloseWelcome} />}
     </div>
   );

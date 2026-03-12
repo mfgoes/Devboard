@@ -17,6 +17,7 @@ interface BoardState {
   past: CanvasNode[][]; // not persisted
   future: CanvasNode[][]; // not persisted
   activeShapeKind: ShapeKind; // not persisted
+  activeSticker: string; // not persisted
   theme: 'dark' | 'light';
 
   // Actions
@@ -31,6 +32,7 @@ interface BoardState {
   selectIds: (ids: string[]) => void;
   setEditingId: (id: string | null) => void;
   setActiveShapeKind: (kind: ShapeKind) => void;
+  setActiveSticker: (src: string) => void;
   loadBoard: (data: BoardData) => void;
   exportData: () => BoardData;
   copySelected: () => void;
@@ -54,6 +56,7 @@ export const useBoardStore = create<BoardState>()(
       past: [],
       future: [],
       activeShapeKind: 'rect',
+      activeSticker: '/stickers/sticker__0004_Layer-6_happy.png',
       theme: 'dark',
 
       setBoardTitle: (title) => set({ boardTitle: title }),
@@ -115,6 +118,8 @@ export const useBoardStore = create<BoardState>()(
       setEditingId: (id) => set({ editingId: id }),
 
       setActiveShapeKind: (kind) => set({ activeShapeKind: kind }),
+
+      setActiveSticker: (src) => set({ activeSticker: src }),
 
       loadBoard: (data) =>
         set({

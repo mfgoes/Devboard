@@ -6,6 +6,7 @@ import StickyNote from './nodes/StickyNote';
 import ShapeNodeComponent from './nodes/ShapeNode';
 import TextBlock from './nodes/TextBlock';
 import SectionNodeComponent from './nodes/SectionNode';
+import StickerNodeComponent from './nodes/StickerNode';
 import ConnectorLine, { anchorCoords, cpOffset, smartAnchors } from './nodes/ConnectorLine';
 import TextEditor from './TextEditor';
 import StickyColorPicker from './StickyColorPicker';
@@ -14,7 +15,7 @@ import TextBlockToolbar from './TextBlockToolbar';
 import ConnectorToolbar from './ConnectorToolbar';
 import SectionToolbar from './SectionToolbar';
 import MultiSelectToolbar from './MultiSelectToolbar';
-import { AnchorSide, ConnectorNode, StickyNoteNode, ShapeNode, TextBlockNode, SectionNode } from '../types';
+import { AnchorSide, ConnectorNode, StickyNoteNode, ShapeNode, TextBlockNode, SectionNode, StickerNode } from '../types';
 import { STICKY_COLORS } from './StickyColorPicker';
 import { useTheme } from '../theme';
 
@@ -91,11 +92,15 @@ export default function Canvas() {
   // Marquee (drag-to-select) state
   const [marqueeDraw, setMarqueeDraw] = useState<MarqueeDraw | null>(null);
 
+  // Sticker hover position
+  const [stickerCursorPos, setStickerCursorPos] = useState<{ x: number; y: number } | null>(null);
+
   const {
     nodes,
     camera,
     activeTool,
     activeShapeKind,
+    activeSticker,
     selectedIds,
     editingId,
     setCamera,
@@ -150,6 +155,7 @@ export default function Canvas() {
         setShapeDraw(null);
         setSectionDraw(null);
         setMarqueeDraw(null);
+        setStickerCursorPos(null);
         selectIds([]);
         setActiveTool('select');
       }
@@ -243,6 +249,24 @@ export default function Canvas() {
         return;
       }
 
+      if (activeTool === 'sticker') {
+        const pos = stageRef.current!.getPointerPosition()!;
+        const worldX = (pos.x - camera.x) / camera.scale;
+        const worldY = (pos.y - camera.y) / camera.scale;
+        const rotation = Math.round((Math.random() * 30 - 15) * 10) / 10;
+        addNode({
+          id: generateId(),
+          type: 'sticker',
+          src: activeSticker,
+          x: worldX,
+          y: worldY,
+          width: 100,
+          height: 100,
+          rotation,
+        } satisfies StickerNode);
+        return;
+      }
+
       if (activeTool === 'shape') {
         const pos = stageRef.current!.getPointerPosition()!;
         const worldX = (pos.x - camera.x) / camera.scale;
@@ -304,7 +328,7 @@ export default function Canvas() {
         return;
       }
     },
-    [activeTool, activeShapeKind, camera, addNode, selectIds, setActiveTool, drawingLine]
+    [activeTool, activeShapeKind, activeSticker, camera, addNode, selectIds, setActiveTool, drawingLine]
   );
 
   // ── Mouse move ──────────────────────────────────────────────────────────────
@@ -370,6 +394,12 @@ export default function Canvas() {
           );
         }
       }
+      // Track cursor for sticker ghost
+      if (activeTool === 'sticker') {
+        const pos = stageRef.current?.getPointerPosition();
+        if (pos) setStickerCursorPos({ x: pos.x, y: pos.y });
+      }
+
       // Track cursor for text ghost / drag preview
       if (activeTool === 'text') {
         const pos = stageRef.current?.getPointerPosition();
@@ -384,7 +414,7 @@ export default function Canvas() {
         }
       }
     },
-    [camera, setCamera, drawingLine, activeTool, shapeDraw, sectionDraw, textDraw, marqueeDraw]
+    [camera, setCamera, drawingLine, activeTool, shapeDraw, sectionDraw, textDraw, marqueeDraw, stickerCursorPos]
   );
 
   // ── Mouse up ────────────────────────────────────────────────────────────────
@@ -532,7 +562,7 @@ export default function Canvas() {
         text: '',
         fontSize: 20,
         width: useWidth,
-        color: '#e2e8f0',
+        color: 'auto',
         bold: false,
         italic: false,
         underline: false,
@@ -683,6 +713,7 @@ export default function Canvas() {
     text: textDraw ? 'crosshair' : 'crosshair',
     pen: 'crosshair',
     section: 'crosshair',
+    sticker: 'crosshair',
   };
   // If a line draw is in progress (e.g. started from an anchor in select mode), always crosshair
   const cursor = cursorOverride ?? (drawingLine ? 'crosshair' : toolCursor[activeTool] ?? 'default');
@@ -733,6 +764,7 @@ export default function Canvas() {
       }}
       onMouseLeave={() => {
         if (activeTool === 'text' && !textDraw) setTextCursorPos(null);
+        if (activeTool === 'sticker') setStickerCursorPos(null);
       }}
     >
       <Stage
@@ -823,6 +855,17 @@ export default function Canvas() {
                 node={n as TextBlockNode}
                 isSelected={selectedIds.includes(n.id)}
                 isEditing={editingId === n.id}
+              />
+            ))}
+
+          {/* Stickers */}
+          {nodes
+            .filter((n) => n.type === 'sticker')
+            .map((n) => (
+              <StickerNodeComponent
+                key={n.id}
+                node={n as StickerNode}
+                isSelected={selectedIds.includes(n.id)}
               />
             ))}
 
@@ -943,6 +986,25 @@ export default function Canvas() {
             borderRadius: 12,
             background: 'rgba(99,102,241,0.06)',
             pointerEvents: 'none',
+          }}
+        />
+      )}
+
+      {/* Sticker hover placeholder */}
+      {activeTool === 'sticker' && stickerCursorPos && (
+        <img
+          src={activeSticker}
+          alt=""
+          draggable={false}
+          style={{
+            position: 'absolute',
+            left: stickerCursorPos.x - (50 * camera.scale) / 2,
+            top: stickerCursorPos.y - (50 * camera.scale) / 2,
+            width: 100 * camera.scale,
+            height: 100 * camera.scale,
+            opacity: 0.6,
+            pointerEvents: 'none',
+            objectFit: 'contain',
           }}
         />
       )}

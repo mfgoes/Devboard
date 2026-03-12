@@ -1,7 +1,10 @@
-import { useRef, useState, useEffect } from 'react';
+import { useRef, useState, useEffect, useCallback } from 'react';
 import { saveAs } from 'file-saver';
 import { useBoardStore } from '../store/boardStore';
 import { TEMPLATES } from '../templates';
+import ConfirmDialog from './ConfirmDialog';
+import { saveBoardAs, clearFileHandle } from '../utils/fileSave';
+import { toast } from '../utils/toast';
 
 interface TopBarProps {
   onShowAbout: () => void;
@@ -49,14 +52,18 @@ function IconTheme({ isLight }: { isLight: boolean }) {
 const isItchIo = typeof window !== 'undefined' && window.location.hostname.endsWith('.itch.io');
 
 export default function TopBar({ onShowAbout }: TopBarProps) {
-  const { boardTitle, setBoardTitle, exportData, loadBoard, setActiveTool, toggleTheme, theme } = useBoardStore();
+  const { boardTitle, setBoardTitle, exportData, loadBoard, setActiveTool, setActiveShapeKind, toggleTheme, theme } = useBoardStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState(boardTitle);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const [templatesOpen, setTemplatesOpen] = useState(false);
+  const templatesRef = useRef<HTMLDivElement>(null);
+  const [exportOpen, setExportOpen] = useState(false);
+  const exportRef = useRef<HTMLDivElement>(null);
+  const [confirmDialog, setConfirmDialog] = useState<{ message: string; onConfirm: () => void } | null>(null);
 
   // Track fullscreen changes (e.g. user presses Esc)
   useEffect(() => {
@@ -69,13 +76,29 @@ export default function TopBar({ onShowAbout }: TopBarProps) {
   useEffect(() => {
     if (!menuOpen) return;
     const handler = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setMenuOpen(false);
-      }
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [menuOpen]);
+
+  useEffect(() => {
+    if (!templatesOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (templatesRef.current && !templatesRef.current.contains(e.target as Node)) setTemplatesOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [templatesOpen]);
+
+  useEffect(() => {
+    if (!exportOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (exportRef.current && !exportRef.current.contains(e.target as Node)) setExportOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [exportOpen]);
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -92,11 +115,7 @@ export default function TopBar({ onShowAbout }: TopBarProps) {
     setEditingTitle(false);
   };
 
-  const handleSaveJSON = () => {
-    const data = exportData();
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    saveAs(blob, `${data.boardTitle.replace(/\s+/g, '_')}.devboard.json`);
-  };
+  const handleSaveJSON = () => saveBoardAs(exportData());
 
   const handleLoadJSON = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -107,6 +126,7 @@ export default function TopBar({ onShowAbout }: TopBarProps) {
         const parsed = JSON.parse(ev.target?.result as string);
         if (parsed.nodes && Array.isArray(parsed.nodes)) {
           loadBoard(parsed);
+          clearFileHandle();
         } else {
           alert('Invalid DevBoard file.');
         }
@@ -118,20 +138,15 @@ export default function TopBar({ onShowAbout }: TopBarProps) {
     e.target.value = '';
   };
 
-  const showToast = (msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(null), 2500);
-  };
-
   const handleShare = () => {
     const data = exportData();
     const json = JSON.stringify(data);
     const b64 = btoa(unescape(encodeURIComponent(json)));
     const url = `${window.location.origin}${window.location.pathname}#board=${b64}`;
     navigator.clipboard.writeText(url).then(() => {
-      showToast('Share link copied!');
+      toast('Share link copied!');
     }).catch(() => {
-      showToast('Failed to copy link.');
+      toast('Failed to copy link.');
     });
   };
 
@@ -146,10 +161,22 @@ export default function TopBar({ onShowAbout }: TopBarProps) {
   const handleLoadTemplate = (templateId: string) => {
     const template = TEMPLATES.find((t) => t.id === templateId);
     if (!template) return;
-    const { nodes } = useBoardStore.getState();
-    if (nodes.length > 0 && !window.confirm('Load template? This will replace the current board.')) return;
-    loadBoard(template.data);
+    setTemplatesOpen(false);
     setMenuOpen(false);
+    const { nodes } = useBoardStore.getState();
+    if (nodes.length > 0) {
+      setConfirmDialog({
+        message: 'Load template? This will replace the current board.',
+        onConfirm: () => {
+          loadBoard(template.data);
+          clearFileHandle();
+          setConfirmDialog(null);
+        },
+      });
+    } else {
+      loadBoard(template.data);
+      clearFileHandle();
+    }
   };
 
   const menuAction = (fn: () => void) => {
@@ -159,10 +186,13 @@ export default function TopBar({ onShowAbout }: TopBarProps) {
 
   return (
     <>
-    {toast && (
-      <div className="fixed top-14 left-1/2 -translate-x-1/2 z-[200] px-4 py-2 rounded bg-[#6366f1] text-white font-mono text-xs shadow-lg pointer-events-none select-none animate-fade-in">
-        {toast}
-      </div>
+    {confirmDialog && (
+      <ConfirmDialog
+        message={confirmDialog.message}
+        onConfirm={confirmDialog.onConfirm}
+        onCancel={() => setConfirmDialog(null)}
+        confirmLabel="Load template"
+      />
     )}
     <div className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between px-4 h-11 bg-[var(--c-panel)] border-b border-[var(--c-border)]">
       {/* Left: Logo + dropdown + title */}
@@ -194,8 +224,8 @@ export default function TopBar({ onShowAbout }: TopBarProps) {
               </MenuItem>
 
               <MenuDivider />
-              <MenuLabel>Templates</MenuLabel>
-              {TEMPLATES.map((t) => (
+              <MenuLabel>Popular templates</MenuLabel>
+              {TEMPLATES.slice(0, 3).map((t) => (
                 <MenuItem key={t.id} onClick={() => handleLoadTemplate(t.id)} icon={<IconTemplate />}>
                   {t.name}
                 </MenuItem>
@@ -204,17 +234,23 @@ export default function TopBar({ onShowAbout }: TopBarProps) {
               <MenuDivider />
               <MenuLabel>Export</MenuLabel>
               <MenuItem onClick={() => menuAction(handleExportPNG)} icon={<IconImg />}>Export PNG</MenuItem>
-              <MenuItem onClick={() => menuAction(handleSaveJSON)} icon={<IconJson />}>Save as JSON</MenuItem>
+              <MenuItem onClick={() => menuAction(handleSaveJSON)} icon={<IconJson />} badge="⌘S">Save as JSON</MenuItem>
               <MenuItem onClick={() => menuAction(() => fileInputRef.current?.click())} icon={<IconLoad />}>Load JSON</MenuItem>
               {!isItchIo && (
                 <MenuItem onClick={() => menuAction(handleShare)} icon={<IconShare />}>Copy share link</MenuItem>
               )}
 
               <MenuDivider />
-              <MenuLabel>Insert</MenuLabel>
-              <MenuItem onClick={() => menuAction(() => setActiveTool('sticky'))} icon={<IconSticky />}>Sticky note</MenuItem>
-              <MenuItem onClick={() => menuAction(() => setActiveTool('shape'))} icon={<IconShape />}>Shape</MenuItem>
-              <MenuItem onClick={() => menuAction(() => setActiveTool('text'))} icon={<IconText />}>Text block</MenuItem>
+              <MenuItemSub label="Insert" icon={<IconSticky />}>
+                <MenuItem onClick={() => menuAction(() => setActiveTool('sticky'))} icon={<IconSticky />} badge="S">Sticky note</MenuItem>
+                <MenuItem onClick={() => menuAction(() => setActiveTool('text'))}   icon={<IconText />}   badge="T">Text block</MenuItem>
+                <MenuDivider />
+                <MenuLabel>Shapes</MenuLabel>
+                <MenuItem onClick={() => menuAction(() => { setActiveShapeKind('rect');     setActiveTool('shape'); })} icon={<IconShapeRect />}     badge="R">Rectangle</MenuItem>
+                <MenuItem onClick={() => menuAction(() => { setActiveShapeKind('ellipse');  setActiveTool('shape'); })} icon={<IconShapeEllipse />}  badge="R">Ellipse</MenuItem>
+                <MenuItem onClick={() => menuAction(() => { setActiveShapeKind('diamond');  setActiveTool('shape'); })} icon={<IconShapeDiamond />}  badge="R">Diamond</MenuItem>
+                <MenuItem onClick={() => menuAction(() => { setActiveShapeKind('triangle'); setActiveTool('shape'); })} icon={<IconShapeTriangle />} badge="R">Triangle</MenuItem>
+              </MenuItemSub>
 
               <MenuDivider />
               <MenuItem
@@ -254,12 +290,67 @@ export default function TopBar({ onShowAbout }: TopBarProps) {
 
       {/* Right: Actions */}
       <div className="flex items-center gap-1">
-        <TopBarBtn onClick={handleExportPNG} title="Export PNG">PNG</TopBarBtn>
-        <TopBarBtn onClick={handleSaveJSON} title="Save board as JSON">Save</TopBarBtn>
-        <TopBarBtn onClick={() => fileInputRef.current?.click()} title="Load board from JSON">Load</TopBarBtn>
-        {!isItchIo && (
-          <TopBarBtn onClick={handleShare} title="Copy share link" accent>Share</TopBarBtn>
-        )}
+
+        {/* Templates dropdown */}
+        <div className="relative" ref={templatesRef}>
+          <Tooltip label="Load a starter template">
+          <button
+            onClick={() => setTemplatesOpen((v) => !v)}
+            title="Templates"
+            className={[
+              'flex items-center gap-1 px-2 h-7 rounded font-mono text-[11px] tracking-wide transition-colors',
+              templatesOpen
+                ? 'text-[var(--c-text-hi)] bg-[var(--c-hover)]'
+                : 'text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
+            ].join(' ')}
+          >
+            <IconTemplate />
+            <IconChevronDown />
+          </button>
+          </Tooltip>
+          {templatesOpen && (
+            <div className="absolute top-full right-0 mt-1.5 w-52 rounded-xl border border-[var(--c-border)] bg-[var(--c-panel)] shadow-2xl py-1.5 z-[100]">
+              <MenuLabel>Templates</MenuLabel>
+              {TEMPLATES.map((t) => (
+                <MenuItem key={t.id} onClick={() => handleLoadTemplate(t.id)} icon={<IconTemplate />}>
+                  {t.name}
+                </MenuItem>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Export dropdown */}
+        <div className="relative" ref={exportRef}>
+          <Tooltip label="Save, load, or share your board">
+          <button
+            onClick={() => setExportOpen((v) => !v)}
+            title="Export"
+            className={[
+              'flex items-center gap-1 px-2.5 h-7 rounded font-mono text-[11px] tracking-wide transition-colors',
+              exportOpen
+                ? 'bg-[#4f46e5] text-white'
+                : 'bg-[#6366f1] text-white hover:bg-[#4f46e5]',
+            ].join(' ')}
+          >
+            <span>Export</span>
+            <IconChevronDown />
+          </button>
+          </Tooltip>
+          {exportOpen && (
+            <div className="absolute top-full right-0 mt-1.5 w-48 rounded-xl border border-[var(--c-border)] bg-[var(--c-panel)] shadow-2xl py-1.5 z-[100]">
+              <MenuItem onClick={() => { setExportOpen(false); handleExportPNG(); }} icon={<IconImg />}>Export PNG</MenuItem>
+              <MenuItem onClick={() => { setExportOpen(false); handleSaveJSON(); }} icon={<IconJson />} badge="⌘S">Save as JSON</MenuItem>
+              <MenuItem onClick={() => { setExportOpen(false); fileInputRef.current?.click(); }} icon={<IconLoad />}>Load JSON</MenuItem>
+              {!isItchIo && (
+                <>
+                  <MenuDivider />
+                  <MenuItem onClick={() => { setExportOpen(false); handleShare(); }} icon={<IconShare />}>Copy share link</MenuItem>
+                </>
+              )}
+            </div>
+          )}
+        </div>
 
         <div className="w-px h-5 bg-[var(--c-border)] mx-1" />
 
@@ -423,6 +514,100 @@ function IconTemplate() {
       <rect x="1" y="7" width="4.5" height="5" rx="1" stroke="currentColor" strokeWidth="1.3" />
       <rect x="7.5" y="7" width="4.5" height="5" rx="1" stroke="currentColor" strokeWidth="1.3" />
     </svg>
+  );
+}
+function IconChevronRight() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+      <path d="M4 2.5L7 5.5L4 8.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+function IconShapeRect() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+      <rect x="1.5" y="2.5" width="10" height="8" rx="1" stroke="currentColor" strokeWidth="1.3" />
+    </svg>
+  );
+}
+function IconShapeEllipse() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+      <ellipse cx="6.5" cy="6.5" rx="5" ry="4" stroke="currentColor" strokeWidth="1.3" />
+    </svg>
+  );
+}
+function IconShapeDiamond() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+      <path d="M6.5 1.5L12 6.5L6.5 11.5L1 6.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+    </svg>
+  );
+}
+function IconShapeTriangle() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+      <path d="M6.5 1.5L12 11.5H1Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+// ── MenuItemSub — hover-triggered right flyout ────────────────────────────────
+function MenuItemSub({ label, icon, children }: { label: string; icon?: React.ReactNode; children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const show = useCallback(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    setOpen(true);
+  }, []);
+
+  const hide = useCallback(() => {
+    timerRef.current = setTimeout(() => setOpen(false), 120);
+  }, []);
+
+  return (
+    <div ref={ref} className="relative" onMouseEnter={show} onMouseLeave={hide}>
+      <button
+        className={[
+          'w-full flex items-center gap-2.5 px-3 py-1.5 font-mono text-[12px] text-left transition-colors',
+          open
+            ? 'text-[var(--c-text-hi)] bg-[var(--c-hover)]'
+            : 'text-[var(--c-text-md)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
+        ].join(' ')}
+      >
+        {icon && <span className="text-[#6366f1]">{icon}</span>}
+        <span className="flex-1">{label}</span>
+        <span className="text-[var(--c-text-off)]"><IconChevronRight /></span>
+      </button>
+      {open && (
+        <div
+          className="absolute left-full top-0 ml-1 w-48 rounded-xl border border-[var(--c-border)] bg-[var(--c-panel)] shadow-2xl py-1.5 z-[110]"
+          onMouseEnter={show}
+          onMouseLeave={hide}
+        >
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Tooltip ──────────────────────────────────────────────────────────────────
+
+function Tooltip({ label, children }: { label: string; children: React.ReactNode }) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <div className="relative" onMouseEnter={() => setVisible(true)} onMouseLeave={() => setVisible(false)}>
+      {children}
+      {visible && (
+        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-2 py-1 rounded bg-[var(--c-panel)] border border-[var(--c-border)] text-[var(--c-text-md)] font-mono text-[10px] whitespace-nowrap shadow-lg pointer-events-none z-[200]">
+          {label}
+          <div className="absolute bottom-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent border-b-[4px] border-b-[var(--c-border)]" />
+        </div>
+      )}
+    </div>
   );
 }
 

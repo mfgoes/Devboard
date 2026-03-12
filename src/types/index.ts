@@ -6,7 +6,8 @@ export type Tool =
   | 'text'
   | 'line'
   | 'pen'
-  | 'section';
+  | 'section'
+  | 'sticker';
 
 export type AnchorSide = 'top' | 'right' | 'bottom' | 'left';
 
@@ -90,6 +91,18 @@ export interface ShapeNode {
   bold?: boolean;
   italic?: boolean;
   textAlign?: 'left' | 'center' | 'right';
+  rotation?: number;
+}
+
+export interface StickerNode {
+  id: string;
+  type: 'sticker';
+  src: string;
+  x: number; // center x
+  y: number; // center y
+  width: number;
+  height: number;
+  rotation: number; // degrees
 }
 
 export interface SectionNode {
@@ -103,7 +116,7 @@ export interface SectionNode {
   color: string; // accent hex
 }
 
-export type CanvasNode = StickyNoteNode | ConnectorNode | TextBlockNode | ShapeNode | SectionNode;
+export type CanvasNode = StickyNoteNode | ConnectorNode | TextBlockNode | ShapeNode | SectionNode | StickerNode;
 
 export interface Camera {
   x: number;

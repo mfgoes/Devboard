@@ -131,7 +131,7 @@ export default function TextBlock({ node, isSelected, isEditing }: Props) {
           textDecoration={textDecoration}
           lineHeight={1.5}
           fontFamily="'JetBrains Mono', 'Fira Code', monospace"
-          fill={node.text ? node.color : t.textOff}
+          fill={node.text ? (node.color === 'auto' ? t.textHi : node.color) : t.textOff}
           wrap="word"
           align="left"
           listening={false}

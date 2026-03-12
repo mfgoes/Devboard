@@ -1,5 +1,6 @@
 import { useBoardStore } from '../store/boardStore';
 import { Tool, ShapeKind } from '../types';
+import StickerPicker from './StickerPicker';
 
 interface ToolDef {
   id: Tool;
@@ -80,6 +81,16 @@ function IconPen() {
     </svg>
   );
 }
+function IconSticker() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.5" />
+      <circle cx="6" cy="7" r="1" fill="currentColor" />
+      <circle cx="10" cy="7" r="1" fill="currentColor" />
+      <path d="M5.5 10c.7 1 4.3 1 5 0" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    </svg>
+  );
+}
 function IconSection() {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -107,6 +118,7 @@ const TOOLS: ToolDef[] = [
   { id: 'line', label: 'Line', shortcut: 'L', icon: <IconLine /> },
   { id: 'pen', label: 'Pen', shortcut: '', icon: <IconPen /> },
   { id: 'section', label: 'Section', shortcut: 'F', icon: <IconSection /> },
+  { id: 'sticker', label: 'Sticker', shortcut: '', icon: <IconSticker /> },
 ];
 
 type ShapeKindDef = { kind: ShapeKind; label: string; icon: React.ReactNode };
@@ -149,22 +161,8 @@ const SHAPE_KINDS: ShapeKindDef[] = [
   },
 ];
 
-const ZOOM_PRESETS = [0.25, 0.5, 0.75, 1, 1.5, 2];
-
 export default function Toolbar() {
-  const { activeTool, setActiveTool, activeShapeKind, setActiveShapeKind, camera, setCamera } = useBoardStore();
-
-  const zoomIn = () => {
-    const next = ZOOM_PRESETS.find((z) => z > camera.scale) ?? 8;
-    setCamera({ scale: Math.min(next, 8) });
-  };
-  const zoomOut = () => {
-    const prev = [...ZOOM_PRESETS].reverse().find((z) => z < camera.scale) ?? 0.08;
-    setCamera({ scale: Math.max(prev, 0.08) });
-  };
-  const zoomReset = () => setCamera({ scale: 1, x: 0, y: 0 });
-
-  const zoomPct = Math.round(camera.scale * 100);
+  const { activeTool, setActiveTool, activeShapeKind, setActiveShapeKind } = useBoardStore();
 
   return (
     <div className="absolute bottom-5 left-0 right-0 z-50 flex flex-col items-center gap-2 pointer-events-none">
@@ -189,6 +187,9 @@ export default function Toolbar() {
         </div>
       )}
 
+      {/* Sticker picker */}
+      {activeTool === 'sticker' && <StickerPicker />}
+
     {/* Scrollable row — centered on wide screens, scrollable on narrow */}
     <div className="pointer-events-auto w-full overflow-x-auto flex justify-center" style={{ WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }}>
     <div className="flex items-center gap-0 rounded-xl border border-[var(--c-border)] bg-[var(--c-panel)] shadow-2xl overflow-hidden mx-4 shrink-0">
@@ -196,7 +197,7 @@ export default function Toolbar() {
       <div className="flex items-center px-1 py-1 gap-0.5">
         {TOOLS.map((tool) => {
           const isActive = activeTool === tool.id;
-          const isComingSoon = ['pen'].includes(tool.id);
+          const isComingSoon = ['pen', 'section'].includes(tool.id);
           return (
             <button
               key={tool.id}
@@ -219,33 +220,6 @@ export default function Toolbar() {
         })}
       </div>
 
-      {/* Divider */}
-      <div className="w-px h-8 bg-[var(--c-border)] mx-1" />
-
-      {/* Zoom controls */}
-      <div className="flex items-center gap-0.5 px-1 py-1">
-        <button
-          title="Zoom out"
-          onClick={zoomOut}
-          className="w-8 h-8 flex items-center justify-center rounded-lg text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors font-mono text-lg leading-none"
-        >
-          −
-        </button>
-        <button
-          title="Reset zoom (100%)"
-          onClick={zoomReset}
-          className="min-w-[52px] h-8 flex items-center justify-center rounded-lg text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors font-mono text-[11px] tabular-nums"
-        >
-          {zoomPct}%
-        </button>
-        <button
-          title="Zoom in"
-          onClick={zoomIn}
-          className="w-8 h-8 flex items-center justify-center rounded-lg text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors font-mono text-lg leading-none"
-        >
-          +
-        </button>
-      </div>
     </div>
     </div>{/* end scrollable row */}
     </div>

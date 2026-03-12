@@ -3,6 +3,7 @@ import { useBoardStore } from '../store/boardStore';
 import { TextBlockNode } from '../types';
 
 const TEXT_COLORS = [
+  { label: 'Auto',   hex: 'auto' },
   { label: 'White',  hex: '#e2e8f0' },
   { label: 'Yellow', hex: '#fbbf24' },
   { label: 'Green',  hex: '#4ade80' },
@@ -66,7 +67,7 @@ export default function TextBlockToolbar({ nodeId }: { nodeId: string }) {
           className="w-9 h-9 flex flex-col items-center justify-center gap-px rounded-lg text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
         >
           <span style={{ fontFamily: 'serif', fontSize: 13, fontWeight: 700, lineHeight: 1 }}>A</span>
-          <span style={{ width: 14, height: 3, borderRadius: 2, background: node.color, display: 'block' }} />
+          <span style={{ width: 14, height: 3, borderRadius: 2, background: node.color === 'auto' ? 'linear-gradient(90deg, #18181b 50%, #e2e8f0 50%)' : node.color, display: 'block' }} />
         </button>
         {showColors && (
           <div
@@ -82,7 +83,9 @@ export default function TextBlockToolbar({ nodeId }: { nodeId: string }) {
                   width: 32, height: 32,
                   borderRadius: 8,
                   border: `2px solid ${node.color === c.hex ? '#6366f1' : 'transparent'}`,
-                  background: c.hex,
+                  background: c.hex === 'auto'
+                    ? 'linear-gradient(135deg, #18181b 50%, #e2e8f0 50%)'
+                    : c.hex,
                   cursor: 'pointer',
                   transition: 'transform 0.1s',
                 }}

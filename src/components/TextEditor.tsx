@@ -105,7 +105,7 @@ export default function TextEditor() {
     if (isStickyBullet) {
       e.preventDefault();
       const newValue = value.slice(0, start) + '\n• ' + value.slice(end);
-      const newHeight = measureStickyHeight(newValue, (editingNode as StickyNoteNode).width - 20);
+      const newHeight = Math.max((editingNode as StickyNoteNode).height, measureStickyHeight(newValue, (editingNode as StickyNoteNode).width - 20));
       updateNode(editingId!, { text: newValue, height: newHeight });
       requestAnimationFrame(() => {
         ta.selectionStart = ta.selectionEnd = start + 3;
@@ -221,6 +221,7 @@ export default function TextEditor() {
   if (editingNode.type === 'textblock') {
     const tb = editingNode as TextBlockNode;
     const fs = Math.round(tb.fontSize * camera.scale);
+    const tbColor = tb.color === 'auto' ? t.textHi : tb.color;
     return (
       <textarea
         ref={textareaRef}
@@ -248,11 +249,11 @@ export default function TextEditor() {
           fontWeight: tb.bold ? 'bold' : 'normal',
           fontStyle: tb.italic ? 'italic' : 'normal',
           textDecoration: tb.underline ? 'underline' : 'none',
-          color: tb.color,
+          color: tbColor,
           padding: 0,
           zIndex: 100,
           overflow: 'hidden',
-          caretColor: tb.color,
+          caretColor: tbColor,
         }}
       />
     );
@@ -266,9 +267,10 @@ export default function TextEditor() {
     <textarea
       ref={textareaRef}
       value={editingNode.text}
+      placeholder="Type anything."
       onChange={(e) => {
         const newText = e.target.value;
-        const newHeight = measureStickyHeight(newText, stickyNode.width - 20);
+        const newHeight = Math.max(stickyNode.height, measureStickyHeight(newText, stickyNode.width - 20));
         updateNode(editingId, { text: newText, height: newHeight });
       }}
       onFocus={saveHistory}

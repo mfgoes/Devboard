@@ -5,7 +5,7 @@ import {
   LineStyle, StrokeStyle, ArrowHeadStyle,
 } from '../../types';
 
-type RectLike = { x: number; y: number; width: number; height: number };
+type RectLike = { x: number; y: number; width: number; height: number; kind?: string };
 import { useBoardStore } from '../../store/boardStore';
 
 // ── Geometry helpers (exported for Canvas.tsx preview) ────────────────────────
@@ -14,13 +14,26 @@ export function anchorCoords(
   node: RectLike,
   side: AnchorSide
 ): { x: number; y: number } {
-  const cx = node.x + node.width / 2;
-  const cy = node.y + node.height / 2;
+  const { x, y, width: w, height: h } = node;
+  const cx = x + w / 2;
+  const cy = y + h / 2;
+
+  // Triangle: vertices are apex=(cx,y), bottom-right=(x+w,y+h), bottom-left=(x,y+h)
+  // Left/right anchors sit at the midpoints of the slanted edges, not the bbox sides
+  if (node.kind === 'triangle') {
+    switch (side) {
+      case 'top':    return { x: cx,       y };
+      case 'bottom': return { x: cx,       y: y + h };
+      case 'left':   return { x: x + w / 4,     y: cy };
+      case 'right':  return { x: x + (w * 3) / 4, y: cy };
+    }
+  }
+
   switch (side) {
-    case 'top':    return { x: cx,          y: node.y };
-    case 'bottom': return { x: cx,          y: node.y + node.height };
-    case 'left':   return { x: node.x,      y: cy };
-    case 'right':  return { x: node.x + node.width, y: cy };
+    case 'top':    return { x: cx,      y };
+    case 'bottom': return { x: cx,      y: y + h };
+    case 'left':   return { x,          y: cy };
+    case 'right':  return { x: x + w,   y: cy };
   }
 }
 

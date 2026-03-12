@@ -5,7 +5,11 @@
       "Bash(cd \"C:\\\\Users\\\\Mischa\\\\OneDrive\\\\Documents\\\\GitHub\\\\Devboard\" && npx tsc --noEmit 2>&1 | head -40)",
       "Bash(cd \"C:\\\\Users\\\\Mischa\\\\OneDrive\\\\Documents\\\\GitHub\\\\Devboard\" && grep -n \"onTap\\\\|onDblTap\\\\|handleTouchStart\\\\|handleTouchMove\\\\|handleTouchEnd\\\\|lastTouchPos\\\\|lastPinchDist\\\\|lastPinchMid\" src/components/Canvas.tsx src/components/nodes/*.tsx 2>&1)",
       "Bash(cd \"C:\\\\Users\\\\Mischa\\\\OneDrive\\\\Documents\\\\GitHub\\\\Devboard\" && npx tsc --noEmit 2>&1)",
-      "Bash(cd \"/c/Users/Mischa/OneDrive/Documents/GitHub/Devboard\" && npx tsc --noEmit 2>&1 | head -30)"
+      "Bash(cd \"/c/Users/Mischa/OneDrive/Documents/GitHub/Devboard\" && npx tsc --noEmit 2>&1 | head -30)",
+      "Bash(mkdir -p /Users/mischavandergoes/Documents/GitHub/CollaboCanvas/public && mv /Users/mischavandergoes/Documents/GitHub/CollaboCanvas/favicon/favicon.ico /Users/mischavandergoes/Documents/GitHub/CollaboCanvas/public/ && mv /Users/mischavandergoes/Documents/GitHub/CollaboCanvas/favicon/favicon.svg /Users/mischavandergoes/Documents/GitHub/CollaboCanvas/public/ && mv /Users/mischavandergoes/Documents/GitHub/CollaboCanvas/favicon/favicon-96x96.png /Users/mischavandergoes/Documents/GitHub/CollaboCanvas/public/ && rm -rf /Users/mischavandergoes/Documents/GitHub/CollaboCanvas/favicon && echo \"done\")",
+      "Bash(cp -r /Users/mischavandergoes/Documents/GitHub/CollaboCanvas/stickers /Users/mischavandergoes/Documents/GitHub/CollaboCanvas/public/stickers && rm -rf /Users/mischavandergoes/Documents/GitHub/CollaboCanvas/stickers && echo \"done\")",
+      "Bash(npm run:*)",
+      "Bash(npx tsc:*)"
     ]
   }
 }

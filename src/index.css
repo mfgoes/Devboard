@@ -56,6 +56,11 @@ textarea {
   font-family: 'JetBrains Mono', 'Fira Code', monospace;
 }
 
+textarea::placeholder {
+  color: rgba(26, 26, 46, 0.35);
+  font-style: italic;
+}
+
 /* Suppress Konva canvas outline */
 canvas:focus {
   outline: none;

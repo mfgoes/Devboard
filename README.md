@@ -111,7 +111,8 @@ src/
       -> Check if browser is brave -> Then give a notice to disable shields or download the app. Brave users: If interactions don’t work, click the 🦁 icon in the address bar and disable Shields for this page.
 - [ ] Templates to choose from (make it more dev focused)
 - [ ] Freehand pen / draw tool
-- [ ] Split zoom control to separate toolbar (and make it stack on mobile)
+- [ ] sticker tool
+- [x] Split zoom control to separate toolbar (and make it stack on mobile)
 - [x] Sections / grouping areas
 - [x] Undo / redo (Ctrl+Z / Ctrl+Shift+Z)
 
@@ -119,7 +120,7 @@ src/
 
 - [x] When selecting a different object type (ie text or post it) change the toolbar to that one. When pressing escape switch back to Select tool.
 - [x] Align option when multiple objects are selected
-- [ ] Re-center button appearing when users are far off from objects (ie top of page) 
+- [x] Re-center button (press zoom number)
 - [ ] More export options (ie entire board, screen, PDF, with background)
 - [ ] Insert 'sticker' option (from a selection of stickers, such as thumbs up/down/fire emoji, surprise, etc)
 - [ ] Advertise on Reddit + X

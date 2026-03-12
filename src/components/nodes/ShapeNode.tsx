@@ -19,7 +19,7 @@ interface Props {
   snapAnchor?: AnchorSide | null;
 }
 
-const DOT_OFFSET = 20;
+const DOT_OFFSET = 32;
 
 const ANCHOR_DEFS: {
   side: AnchorSide;
@@ -46,9 +46,15 @@ const CHEVRON: Record<AnchorSide, number[]> = {
   bottom: [-3.5, -4,  0,  3,  3.5, -4],
 };
 const TOOLTIP_OFFSET: Record<AnchorSide, [number, number]> = {
-  right:  [ 14, -9], left:  [-74, -9],
-  top:    [-30, -28], bottom: [-30, 12],
+  right:  [ 14, -9], left:  [-102, -9],
+  top:    [-44, -28], bottom: [-44, 12],
 };
+
+// Generates a curved-arrow rotation cursor SVG pointing in `deg` degrees (0 = East/right)
+function makeRotateCursor(deg: number): string {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><g transform="rotate(${Math.round(deg)} 8 8)"><path d="M3 8 A5 5 0 0 1 13 8" stroke="#1a1a2e" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M15 8 L11 6 L12 8 L11 10 Z" fill="#1a1a2e"/></g></svg>`;
+  return `url("data:image/svg+xml;base64,${btoa(svg)}") 8 8, pointer`;
+}
 
 function luminance(hex: string): number {
   if (hex === 'transparent' || !hex.startsWith('#')) return 200;
@@ -77,7 +83,38 @@ export default function ShapeNode({
   const [hoveredAnchor, setHoveredAnchor] = useState<AnchorSide | null>(null);
   type SmartGhost = { fromSide: AnchorSide; targetId: string; targetSide: AnchorSide; toWorldX: number; toWorldY: number; pts: number[] };
   const [smartGhost, setSmartGhost] = useState<SmartGhost | null>(null);
+  const [dragPos, setDragPos] = useState<{ x: number; y: number } | null>(null);
   const showAnchors = (isSelected && !isEditing) || isLineTool || (isDrawingLine === true && !isEditing);
+
+  // Rotation tracking via window events
+  type RotateState = { worldCx: number; worldCy: number; startAngle: number; startRot: number; stageEl: HTMLElement };
+  const rotateRef = useRef<RotateState | null>(null);
+
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (!rotateRef.current) return;
+      const { worldCx, worldCy, startAngle, startRot, stageEl } = rotateRef.current;
+      const camera = useBoardStore.getState().camera;
+      const rect = stageEl.getBoundingClientRect();
+      const wx = (e.clientX - rect.left - camera.x) / camera.scale;
+      const wy = (e.clientY - rect.top  - camera.y) / camera.scale;
+      let newRot = startRot + (Math.atan2(wy - worldCy, wx - worldCx) * 180 / Math.PI - startAngle);
+      if (e.shiftKey) newRot = Math.round(newRot / 15) * 15;
+      updateNode(node.id, { rotation: newRot });
+    };
+    const onUp = () => {
+      if (!rotateRef.current) return;
+      rotateRef.current.stageEl.style.cursor = '';
+      saveHistory();
+      rotateRef.current = null;
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, [node.id, updateNode, saveHistory]);
 
   useEffect(() => {
     if (isSelected && !isLineTool && trRef.current && groupRef.current) {
@@ -87,7 +124,7 @@ export default function ShapeNode({
   }, [isSelected, isLineTool]);
 
   const handleClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
-    if (isLineTool || activeTool === 'shape') return;
+    if (isLineTool || activeTool === 'shape' || activeTool === 'sticker') return;
     e.cancelBubble = true;
     const { selectedIds } = useBoardStore.getState();
     if (e.evt.shiftKey) {
@@ -112,6 +149,7 @@ export default function ShapeNode({
     if (isLineTool) return;
     e.cancelBubble = true;
     const { selectedIds, activeTool: tool } = useBoardStore.getState();
+    if (tool === 'sticker') return;
     if (selectedIds.includes(node.id)) {
       setEditingId(node.id);
     } else {
@@ -127,21 +165,27 @@ export default function ShapeNode({
   };
 
   const handleDragEnd = (e: Konva.KonvaEventObject<DragEvent>) => {
+    setDragPos(null);
     saveHistory();
-    updateNode(node.id, { x: e.target.x(), y: e.target.y() });
+    // Group is center-offset, so x/y from target is the center; subtract offset to get top-left
+    updateNode(node.id, {
+      x: e.target.x() - e.target.offsetX(),
+      y: e.target.y() - e.target.offsetY(),
+    });
   };
 
   const handleTransformEnd = () => {
     const group = groupRef.current;
     if (!group) return;
-    const newWidth  = Math.max(40, group.width()  * group.scaleX());
-    const newHeight = Math.max(40, group.height() * group.scaleY());
+    const newWidth  = Math.max(20, w * group.scaleX());
+    const newHeight = Math.max(20, h * group.scaleY());
     saveHistory();
     updateNode(node.id, {
-      x: group.x(),
-      y: group.y(),
+      x: group.x() - group.offsetX(),
+      y: group.y() - group.offsetY(),
       width:  newWidth,
       height: newHeight,
+      rotation: group.rotation(),
     });
     group.scaleX(1);
     group.scaleY(1);
@@ -187,12 +231,41 @@ export default function ShapeNode({
     }
   }
 
+  const nx = dragPos?.x ?? node.x;
+  const ny = dragPos?.y ?? node.y;
+
+  // Rotation corner zones — positioned at actual rotated corners (world space)
+  const rot = node.rotation ?? 0;
+  const rad = rot * Math.PI / 180;
+  const cosR = Math.cos(rad), sinR = Math.sin(rad);
+  const worldCx = nx + w / 2, worldCy = ny + h / 2;
+  function rotatedPt(dx: number, dy: number): [number, number] {
+    return [worldCx + dx * cosR - dy * sinR, worldCy + dx * sinR + dy * cosR];
+  }
+  const ZONE = 16, GAP = 6;
+  // cursorDeg: clockwise tangent direction at each corner (0=East), offset by shape rotation
+  const rotZones = [
+    { key: 'tl', dx: -w / 2, dy: -h / 2, cursorDeg:   0 + rot },
+    { key: 'tr', dx:  w / 2, dy: -h / 2, cursorDeg:  90 + rot },
+    { key: 'br', dx:  w / 2, dy:  h / 2, cursorDeg: 180 + rot },
+    { key: 'bl', dx: -w / 2, dy:  h / 2, cursorDeg: 270 + rot },
+  ].map(({ key, dx, dy, cursorDeg }) => {
+    const mag = Math.sqrt(dx * dx + dy * dy);
+    const scale = 1 + GAP / mag;
+    const [wx, wy] = rotatedPt(dx * scale, dy * scale);
+    return { key, wx: wx - ZONE / 2, wy: wy - ZONE / 2, cursor: makeRotateCursor(cursorDeg) };
+  });
+
   return (
     <>
+      {/* Shape content — Transformer attaches ONLY to this Group */}
       <Group
         ref={groupRef}
-        x={node.x}
-        y={node.y}
+        x={node.x + w / 2}
+        y={node.y + h / 2}
+        offsetX={w / 2}
+        offsetY={h / 2}
+        rotation={rot}
         width={w}
         height={h}
         draggable={!isLineTool}
@@ -200,6 +273,7 @@ export default function ShapeNode({
         onDblClick={handleDblClick}
         onTap={handleTap}
         onDblTap={handleDblTap}
+        onDragMove={(e) => setDragPos({ x: e.target.x() - e.target.offsetX(), y: e.target.y() - e.target.offsetY() })}
         onDragEnd={handleDragEnd}
         onTransformEnd={handleTransformEnd}
         opacity={isEditing ? 0 : 1}
@@ -225,139 +299,183 @@ export default function ShapeNode({
             listening={false}
           />
         )}
-
-        {/* Anchor dots */}
-        {showAnchors &&
-          ANCHOR_DEFS.map(({ side, cx, cy, dx, dy }) => {
-            const bx = cx(w, h);
-            const by = cy(w, h);
-            const vx = bx + dx;
-            const vy = by + dy;
-            const snapped = snapAnchor === side;
-            const hovered = hoveredAnchor === side;
-            const active  = snapped || hovered;
-            const [gdx, gdy] = GHOST_DIR[side];
-            const [tx, ty]   = TOOLTIP_OFFSET[side];
-            const ghost = hovered && smartGhost?.fromSide === side ? smartGhost : null;
-            return (
-              <Group key={side}>
-                {/* Ghost: smart bezier to nearby target, or simple dashed ray */}
-                {hovered && (
-                  ghost ? (
-                    <Line
-                      points={ghost.pts} bezier={true}
-                      stroke="#6366f1" strokeWidth={2}
-                      opacity={0.35} lineCap="round" listening={false}
-                    />
-                  ) : (
-                    <>
-                      <Line
-                        points={[bx, by, bx + gdx * GHOST_LEN, by + gdy * GHOST_LEN]}
-                        stroke="#6366f1" strokeWidth={2}
-                        opacity={0.22} dash={[6, 4]} lineCap="round" listening={false}
-                      />
-                      <Line
-                        x={bx + gdx * GHOST_LEN} y={by + gdy * GHOST_LEN}
-                        points={CHEVRON[side]}
-                        stroke="#6366f1" strokeWidth={2}
-                        opacity={0.35} lineCap="round" lineJoin="round" listening={false}
-                      />
-                    </>
-                  )
-                )}
-                <Circle
-                  x={vx} y={vy}
-                  radius={active ? 8 : 5}
-                  fill={active ? '#6366f1' : 'white'}
-                  stroke="#6366f1" strokeWidth={2}
-                  opacity={active ? 1 : 0.85}
-                  shadowEnabled={active} shadowColor="#6366f1" shadowBlur={12}
-                  onMouseDown={(e) => {
-                    e.cancelBubble = true;
-                    if (ghost) {
-                      addNode({
-                        id: generateId(), type: 'connector',
-                        fromNodeId: node.id, fromAnchor: side,
-                        fromX: node.x + bx, fromY: node.y + by,
-                        toNodeId: ghost.targetId, toAnchor: ghost.targetSide,
-                        toX: ghost.toWorldX, toY: ghost.toWorldY,
-                        color: '#6366f1', strokeWidth: 2,
-                        lineStyle: 'curved', strokeStyle: 'solid',
-                        arrowHeadStart: 'none', arrowHeadEnd: 'arrow',
-                      } as ConnectorNode);
-                      setSmartGhost(null);
-                      setHoveredAnchor(null);
-                    } else {
-                      onAnchorDown?.(node.id, side, node.x + bx, node.y + by);
-                    }
-                  }}
-                  onMouseEnter={() => {
-                    setHoveredAnchor(side);
-                    onAnchorEnter?.(node.id, side);
-                    const PROXIMITY = 280;
-                    const fwx = node.x + bx, fwy = node.y + by;
-                    let best: { nodeId: string; side: AnchorSide; dist: number; wx: number; wy: number } | null = null;
-                    for (const n of useBoardStore.getState().nodes) {
-                      if (n.id === node.id || (n.type !== 'sticky' && n.type !== 'shape')) continue;
-                      const rn = n as { x: number; y: number; width: number; height: number };
-                      for (const ts of ['top', 'right', 'bottom', 'left'] as AnchorSide[]) {
-                        const a = anchorCoords(rn, ts);
-                        const d = Math.hypot(a.x - fwx, a.y - fwy);
-                        if (d < PROXIMITY && (!best || d < best.dist)) best = { nodeId: n.id, side: ts, dist: d, wx: a.x, wy: a.y };
-                      }
-                    }
-                    if (best) {
-                      const tension = Math.min(Math.max(best.dist * 0.42, 55), 220);
-                      const cp1 = cpOffset(side, tension);
-                      const cp2 = cpOffset(best.side, tension);
-                      const toLx = best.wx - node.x, toLy = best.wy - node.y;
-                      setSmartGhost({
-                        fromSide: side, targetId: best.nodeId, targetSide: best.side,
-                        toWorldX: best.wx, toWorldY: best.wy,
-                        pts: [bx, by, bx + cp1.dx, by + cp1.dy, toLx + cp2.dx, toLy + cp2.dy, toLx, toLy],
-                      });
-                    } else {
-                      setSmartGhost(null);
-                    }
-                  }}
-                  onMouseLeave={() => { setHoveredAnchor(null); setSmartGhost(null); onAnchorLeave?.(); }}
-                />
-                {active && (
-                  <Line
-                    x={vx} y={vy} points={CHEVRON[side]}
-                    stroke="white" strokeWidth={2}
-                    lineCap="round" lineJoin="round" listening={false}
-                  />
-                )}
-                {hovered && (
-                  <Group x={vx + tx} y={vy + ty}>
-                    <Rect width={ghost ? 76 : 60} height={18} fill={t.panelBg} cornerRadius={4} opacity={0.92} />
-                    <Text
-                      width={ghost ? 76 : 60} height={18}
-                      text={ghost ? 'Click to connect' : 'Connect'}
-                      fontSize={10} fontFamily="'JetBrains Mono', monospace"
-                      fill={t.textHi} align="center" verticalAlign="middle" listening={false}
-                    />
-                  </Group>
-                )}
-              </Group>
-            );
-          })}
       </Group>
+
+      {/* Anchor dots — rendered OUTSIDE the Group so Transformer bbox is not affected */}
+      {showAnchors &&
+        ANCHOR_DEFS.map(({ side, cx, cy, dx, dy }) => {
+          const bx = nx + cx(w, h);
+          const by = ny + cy(w, h);
+          const vx = bx + dx;
+          const vy = by + dy;
+          const snapped = snapAnchor === side;
+          const hovered = hoveredAnchor === side;
+          const active  = snapped || hovered;
+          const [gdx, gdy] = GHOST_DIR[side];
+          const [tx, ty]   = TOOLTIP_OFFSET[side];
+          const ghost = hovered && smartGhost?.fromSide === side ? smartGhost : null;
+          return (
+            <Group key={side}>
+              {/* Ghost: smart bezier to nearby target, or simple dashed ray */}
+              {hovered && (
+                ghost ? (
+                  <Line
+                    points={ghost.pts} bezier={true}
+                    stroke="#6366f1" strokeWidth={2}
+                    opacity={0.35} lineCap="round" listening={false}
+                  />
+                ) : (
+                  <>
+                    <Line
+                      points={[bx, by, bx + gdx * GHOST_LEN, by + gdy * GHOST_LEN]}
+                      stroke="#6366f1" strokeWidth={2}
+                      opacity={0.22} dash={[6, 4]} lineCap="round" listening={false}
+                    />
+                    <Line
+                      x={bx + gdx * GHOST_LEN} y={by + gdy * GHOST_LEN}
+                      points={CHEVRON[side]}
+                      stroke="#6366f1" strokeWidth={2}
+                      opacity={0.35} lineCap="round" lineJoin="round" listening={false}
+                    />
+                  </>
+                )
+              )}
+              <Circle
+                x={vx} y={vy}
+                radius={active ? 8 : 5}
+                fill={active ? '#6366f1' : 'white'}
+                stroke="#6366f1" strokeWidth={2}
+                opacity={active ? 1 : 0.85}
+                shadowEnabled={active} shadowColor="#6366f1" shadowBlur={12}
+                onMouseDown={(e) => {
+                  e.cancelBubble = true;
+                  if (ghost) {
+                    addNode({
+                      id: generateId(), type: 'connector',
+                      fromNodeId: node.id, fromAnchor: side,
+                      fromX: bx, fromY: by,
+                      toNodeId: ghost.targetId, toAnchor: ghost.targetSide,
+                      toX: ghost.toWorldX, toY: ghost.toWorldY,
+                      color: '#6366f1', strokeWidth: 2,
+                      lineStyle: 'curved', strokeStyle: 'solid',
+                      arrowHeadStart: 'none', arrowHeadEnd: 'arrow',
+                    } as ConnectorNode);
+                    setSmartGhost(null);
+                    setHoveredAnchor(null);
+                  } else {
+                    onAnchorDown?.(node.id, side, bx, by);
+                  }
+                }}
+                onMouseEnter={() => {
+                  setHoveredAnchor(side);
+                  onAnchorEnter?.(node.id, side);
+                  const PROXIMITY = 280;
+                  let best: { nodeId: string; side: AnchorSide; dist: number; wx: number; wy: number } | null = null;
+                  for (const n of useBoardStore.getState().nodes) {
+                    if (n.id === node.id || (n.type !== 'sticky' && n.type !== 'shape')) continue;
+                    const rn = n as { x: number; y: number; width: number; height: number };
+                    for (const ts of ['top', 'right', 'bottom', 'left'] as AnchorSide[]) {
+                      const a = anchorCoords(rn, ts);
+                      const d = Math.hypot(a.x - bx, a.y - by);
+                      if (d < PROXIMITY && (!best || d < best.dist)) best = { nodeId: n.id, side: ts, dist: d, wx: a.x, wy: a.y };
+                    }
+                  }
+                  if (best) {
+                    const tension = Math.min(Math.max(best.dist * 0.42, 55), 220);
+                    const cp1 = cpOffset(side, tension);
+                    const cp2 = cpOffset(best.side, tension);
+                    setSmartGhost({
+                      fromSide: side, targetId: best.nodeId, targetSide: best.side,
+                      toWorldX: best.wx, toWorldY: best.wy,
+                      pts: [bx, by, bx + cp1.dx, by + cp1.dy, best.wx + cp2.dx, best.wy + cp2.dy, best.wx, best.wy],
+                    });
+                  } else {
+                    setSmartGhost(null);
+                  }
+                }}
+                onMouseLeave={() => { setHoveredAnchor(null); setSmartGhost(null); onAnchorLeave?.(); }}
+              />
+              {active && (
+                <Line
+                  x={vx} y={vy} points={CHEVRON[side]}
+                  stroke="white" strokeWidth={2}
+                  lineCap="round" lineJoin="round" listening={false}
+                />
+              )}
+              {hovered && (
+                <Group x={vx + tx} y={vy + ty}>
+                  <Rect width={ghost ? 102 : 60} height={18} fill={t.panelBg} cornerRadius={4} opacity={0.92} />
+                  <Text
+                    width={ghost ? 102 : 60} height={18}
+                    text={ghost ? 'Click to connect' : 'Connect'}
+                    fontSize={10} fontFamily="'JetBrains Mono', monospace"
+                    fill={t.textHi} align="center" verticalAlign="middle" listening={false}
+                  />
+                </Group>
+              )}
+            </Group>
+          );
+        })}
+
+      {/* Corner rotation zones — transparent hit areas outside each corner */}
+      {isSelected && !isLineTool && !isEditing &&
+        rotZones.map(({ key, wx, wy, cursor }) => (
+          <Rect
+            key={`rot-${key}`}
+            x={wx} y={wy}
+            width={ZONE} height={ZONE}
+            fill="transparent"
+            onMouseEnter={(e) => { e.target.getStage()!.container().style.cursor = cursor; }}
+            onMouseLeave={(e) => { if (!rotateRef.current) e.target.getStage()!.container().style.cursor = ''; }}
+            onMouseDown={(e) => {
+              e.cancelBubble = true;
+              const stage = e.target.getStage()!;
+              const pointer = stage.getPointerPosition()!;
+              const camera = useBoardStore.getState().camera;
+              const mwx = (pointer.x - camera.x) / camera.scale;
+              const mwy = (pointer.y - camera.y) / camera.scale;
+              const startAngle = Math.atan2(mwy - worldCy, mwx - worldCx) * 180 / Math.PI;
+              rotateRef.current = { worldCx, worldCy, startAngle, startRot: rot, stageEl: stage.container() };
+              stage.container().style.cursor = cursor;
+            }}
+          />
+        ))}
 
       {isSelected && !isLineTool && !isEditing && (
         <Transformer
           ref={trRef}
-          rotateEnabled={false}
-          enabledAnchors={['top-left', 'top-right', 'bottom-left', 'bottom-right']}
-          anchorSize={8}
+          rotateEnabled={true}
+          anchorStyleFunc={(anchor) => {
+            // Hide rotation anchor — rotation handled via corner zones
+            if (anchor.name() === 'rotater') { anchor.opacity(0); return; }
+            const name = anchor.name();
+            const isHoriz = name.includes('top-center') || name.includes('bottom-center');
+            const isVert  = name.includes('middle-left') || name.includes('middle-right');
+            if (!isHoriz && !isVert) return;
+            anchor.opacity(0);
+            const tr = anchor.getParent();
+            if (!tr) return;
+            if (isHoriz) {
+              const aw = tr.width() * 0.75;
+              anchor.width(aw);
+              anchor.offsetX(aw / 2);
+            } else {
+              const ah = tr.height() * 0.75;
+              anchor.height(ah);
+              anchor.offsetY(ah / 2);
+            }
+          }}
+          enabledAnchors={['top-left', 'top-center', 'top-right', 'middle-right', 'bottom-right', 'bottom-center', 'bottom-left', 'middle-left']}
+          anchorSize={10}
           anchorCornerRadius={2}
           anchorStroke="#6366f1"
-          anchorFill="#6366f1"
+          anchorStrokeWidth={2}
+          anchorFill="white"
           borderStroke="#6366f1"
-          borderDash={[4, 3]}
+          borderStrokeWidth={2}
+          padding={0}
           boundBoxFunc={(oldBox, newBox) => {
-            if (newBox.width < 40 || newBox.height < 40) return oldBox;
+            if (newBox.width < 20 || newBox.height < 20) return oldBox;
             return newBox;
           }}
         />
