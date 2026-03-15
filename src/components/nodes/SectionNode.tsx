@@ -4,6 +4,14 @@ import Konva from 'konva';
 import { SectionNode as SectionNodeType, CanvasNode } from '../../types';
 import { useBoardStore } from '../../store/boardStore';
 
+const NEUTRAL_DARK  = '#64748b';
+const NEUTRAL_LIGHT = '#94a3b8';
+
+function resolveColor(color: string, theme: string): string {
+  if (color === 'neutral') return theme === 'light' ? NEUTRAL_LIGHT : NEUTRAL_DARK;
+  return color;
+}
+
 function hexToRgba(hex: string, alpha: number): string {
   const r = parseInt(hex.slice(1, 3), 16);
   const g = parseInt(hex.slice(3, 5), 16);
@@ -37,7 +45,7 @@ interface Props {
 export default function SectionNodeComponent({ node, isSelected, isEditing }: Props) {
   const groupRef = useRef<Konva.Group>(null);
   const trRef    = useRef<Konva.Transformer>(null);
-  const { updateNode, updateNodes, selectIds, setEditingId, saveHistory } = useBoardStore();
+  const { updateNode, updateNodes, selectIds, setEditingId, saveHistory, theme } = useBoardStore();
 
   const dragStartRef = useRef<{
     sectionX: number;
@@ -119,8 +127,9 @@ export default function SectionNodeComponent({ node, isSelected, isEditing }: Pr
     group.scaleY(1);
   };
 
-  const fillColor   = hexToRgba(node.color, 0.1);
-  const borderColor = hexToRgba(node.color, 0.55);
+  const resolvedColor = resolveColor(node.color, theme);
+  const fillColor   = hexToRgba(resolvedColor, 0.1);
+  const borderColor = hexToRgba(resolvedColor, 0.55);
   const labelText   = node.name || 'Section';
   const pillW = Math.max(72, labelText.length * 8 + 24);
   const pillH = 26;
@@ -156,7 +165,7 @@ export default function SectionNodeComponent({ node, isSelected, isEditing }: Pr
           y={-pillH / 2}
           width={pillW}
           height={pillH}
-          fill={node.color}
+          fill={resolvedColor}
           cornerRadius={8}
           opacity={isEditing ? 0 : 1}
         />
@@ -183,9 +192,9 @@ export default function SectionNodeComponent({ node, isSelected, isEditing }: Pr
           ]}
           anchorSize={8}
           anchorCornerRadius={2}
-          anchorStroke={node.color}
-          anchorFill={node.color}
-          borderStroke={node.color}
+          anchorStroke={resolvedColor}
+          anchorFill={resolvedColor}
+          borderStroke={resolvedColor}
           borderDash={[4, 3]}
           boundBoxFunc={(oldBox, newBox) => {
             if (newBox.width < 200 || newBox.height < 150) return oldBox;

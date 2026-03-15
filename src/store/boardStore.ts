@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { CanvasNode, ConnectorNode, StickyNoteNode, Camera, Tool, BoardData, ShapeKind } from '../types';
+import { CanvasNode, ConnectorNode, StickyNoteNode, Camera, Tool, BoardData, ShapeKind, TableNode } from '../types';
+
+export interface TableCellRef { nodeId: string; row: number; col: number; }
 
 function generateId(): string {
   return Math.random().toString(36).slice(2, 11);
@@ -19,6 +21,11 @@ interface BoardState {
   activeShapeKind: ShapeKind; // not persisted
   activeSticker: string; // not persisted
   theme: 'dark' | 'light';
+  tableEditState: TableCellRef | null;       // not persisted
+  tableSelectionState: TableCellRef | null;  // not persisted
+  tableHoverDivider: { nodeId: string; kind: 'col' | 'row'; idx: number } | null; // not persisted
+  tableHoverEdge: { nodeId: string; showBottom: boolean; showRight: boolean } | null; // not persisted
+  tableHoverCell: { nodeId: string; row: number; col: number } | null; // not persisted
 
   // Actions
   setBoardTitle: (title: string) => void;
@@ -33,6 +40,11 @@ interface BoardState {
   setEditingId: (id: string | null) => void;
   setActiveShapeKind: (kind: ShapeKind) => void;
   setActiveSticker: (src: string) => void;
+  setTableEditState: (s: TableCellRef | null) => void;
+  setTableSelectionState: (s: TableCellRef | null) => void;
+  setTableHoverDivider: (s: { nodeId: string; kind: 'col' | 'row'; idx: number } | null) => void;
+  setTableHoverEdge: (s: { nodeId: string; showBottom: boolean; showRight: boolean } | null) => void;
+  setTableHoverCell: (s: { nodeId: string; row: number; col: number } | null) => void;
   loadBoard: (data: BoardData) => void;
   exportData: () => BoardData;
   copySelected: () => void;
@@ -58,6 +70,11 @@ export const useBoardStore = create<BoardState>()(
       activeShapeKind: 'rect',
       activeSticker: '/stickers/sticker__0004_Layer-6_happy.png',
       theme: 'dark',
+      tableEditState: null,
+      tableSelectionState: null,
+      tableHoverDivider: null,
+      tableHoverEdge: null,
+      tableHoverCell: null,
 
       setBoardTitle: (title) => set({ boardTitle: title }),
 
@@ -108,12 +125,18 @@ export const useBoardStore = create<BoardState>()(
         }),
 
       setActiveTool: (tool) =>
-        set({ activeTool: tool, selectedIds: [], editingId: null }),
+        set({ activeTool: tool, selectedIds: [], editingId: null, tableEditState: null, tableSelectionState: null }),
 
       setCamera: (camera) =>
         set((state) => ({ camera: { ...state.camera, ...camera } })),
 
-      selectIds: (ids) => set({ selectedIds: ids }),
+      selectIds: (ids) => set((s) => ({
+        selectedIds: ids,
+        ...(ids.length === 0 ? { tableEditState: null, tableSelectionState: null } : {}),
+        // Clear table state when switching to a different node
+        ...(ids.length > 0 && s.tableSelectionState && !ids.includes(s.tableSelectionState.nodeId)
+          ? { tableEditState: null, tableSelectionState: null } : {}),
+      })),
 
       setEditingId: (id) => set({ editingId: id }),
 
@@ -121,12 +144,24 @@ export const useBoardStore = create<BoardState>()(
 
       setActiveSticker: (src) => set({ activeSticker: src }),
 
+      setTableEditState: (s) => set({ tableEditState: s }),
+
+      setTableSelectionState: (s) => set({ tableSelectionState: s }),
+
+      setTableHoverDivider: (s) => set({ tableHoverDivider: s }),
+
+      setTableHoverEdge: (s) => set({ tableHoverEdge: s }),
+
+      setTableHoverCell: (s) => set({ tableHoverCell: s }),
+
       loadBoard: (data) =>
         set({
           boardTitle: data.boardTitle,
           nodes: data.nodes,
           selectedIds: [],
           editingId: null,
+          tableEditState: null,
+          tableSelectionState: null,
           camera: { x: 0, y: 0, scale: 1 },
           past: [],
           future: [],

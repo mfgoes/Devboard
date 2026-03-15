@@ -64,11 +64,100 @@ Builds universal binaries for both x64 (Intel) and arm64 (Apple Silicon).
 
 ### 4. Desktop — Linux AppImage
 
+#### Prerequisites (Linux only)
+
+Electron Builder requires several native libraries to produce an AppImage on Linux. Install them before running the build:
+
+**Debian / Ubuntu / Linux Mint:**
+
+```bash
+sudo apt-get update
+sudo apt-get install -y \
+  rpm \
+  fakeroot \
+  dpkg \
+  libarchive-tools \
+  libnss3 \
+  libnspr4 \
+  libatk1.0-0 \
+  libatk-bridge2.0-0 \
+  libcups2 \
+  libdrm2 \
+  libxkbcommon0 \
+  libxcomposite1 \
+  libxdamage1 \
+  libxfixes3 \
+  libxrandr2 \
+  libgbm1 \
+  libasound2
+```
+
+**Fedora / RHEL / CentOS:**
+
+```bash
+sudo dnf install -y \
+  rpm-build \
+  fakeroot \
+  nss \
+  nspr \
+  atk \
+  at-spi2-atk \
+  cups-libs \
+  libdrm \
+  libxkbcommon \
+  libXcomposite \
+  libXdamage \
+  libXfixes \
+  libXrandr \
+  mesa-libgbm \
+  alsa-lib
+```
+
+**Arch Linux:**
+
+```bash
+sudo pacman -S --needed \
+  fakeroot \
+  rpm-tools \
+  nss \
+  atk \
+  at-spi2-atk \
+  libcups \
+  libdrm \
+  libxkbcommon \
+  libxcomposite \
+  libxdamage \
+  libxfixes \
+  libxrandr \
+  mesa \
+  alsa-lib
+```
+
+> If you hit a `FUSE` error when testing the AppImage locally, run:
+> `sudo apt-get install fuse libfuse2` (Debian/Ubuntu) or the equivalent for your distro,
+> then re-run the AppImage with `./DevBoard-*.AppImage --no-sandbox`.
+
+#### Build
+
 ```bash
 npm run electron:build:linux
 ```
 
 Output: `dist-electron/DevBoard-<version>.AppImage`
+
+#### Upload to itch.io
+
+Via the web UI:
+
+1. Go to your itch.io game page → Edit game
+2. Under **Uploads**, add the `.AppImage` file
+3. Set platform to **Linux**
+
+Via butler:
+
+```bash
+butler push "dist-electron/DevBoard-0.1.0.AppImage" mischa/devboard:linux
+```
 
 ---
 
@@ -138,6 +227,15 @@ butler push dist-electron/win-unpacked mischa/devboard:windows
 brew install itchio/itchio/butler
 ```
 
+**Install (Linux):**
+
+```bash
+# Download the linux-amd64 build, unzip, and put it on your PATH
+curl -L -o butler.zip https://broth.itch.ovh/butler/linux-amd64/LATEST/archive/default
+unzip butler.zip -d ~/.local/bin/
+chmod +x ~/.local/bin/butler
+```
+
 Or download manually from https://itchio.itch.io/butler and add to your PATH.
 
 **Authenticate once:**
@@ -161,6 +259,9 @@ butler push "dist-electron/DevBoard-0.1.0-arm64.dmg" mischa/devboard:mac
 
 # 4. Push Windows portable build (if built on Windows or via cross-compile)
 butler push dist-electron/win-unpacked mischa/devboard:windows
+
+# 5. Push Linux AppImage (if built on Linux)
+butler push "dist-electron/DevBoard-0.1.0.AppImage" mischa/devboard:linux
 ```
 
 Replace `mischa/devboard` with your itch.io `username/game-slug` and update the version number to match `package.json`.

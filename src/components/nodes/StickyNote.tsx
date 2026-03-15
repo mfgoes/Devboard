@@ -5,8 +5,41 @@ import { StickyNoteNode, AnchorSide, ConnectorNode } from '../../types';
 import { useBoardStore } from '../../store/boardStore';
 import { anchorCoords, cpOffset } from './ConnectorLine';
 import { useTheme } from '../../theme';
+import { isRichText, layoutRichText } from '../../utils/richText';
 
 function generateId() { return Math.random().toString(36).slice(2, 11); }
+
+// ── Rich text renderer ────────────────────────────────────────────────────────
+function StickyRichText({ node }: { node: StickyNoteNode }) {
+  const runs = layoutRichText(
+    node.text,
+    node.width - 20,
+    node.fontSize ?? 13,
+    1.5,
+    node.bold ?? false,
+    node.italic ?? false,
+  );
+  const fs = node.fontSize ?? 13;
+  return (
+    <>
+      {runs.map((run, i) => (
+        <Text
+          key={i}
+          x={10 + run.x}
+          y={10 + run.y}
+          text={run.text}
+          fontSize={fs}
+          fontStyle={[run.bold ? 'bold' : '', run.italic ? 'italic' : ''].filter(Boolean).join(' ') || 'normal'}
+          textDecoration={run.underline ? 'underline' : ''}
+          lineHeight={1}
+          fontFamily="'JetBrains Mono', 'Fira Code', monospace"
+          fill="#1a1a2e"
+          listening={false}
+        />
+      ))}
+    </>
+  );
+}
 
 interface Props {
   node: StickyNoteNode;
@@ -170,9 +203,8 @@ export default function StickyNote({
         onDragMove={(e) => setDragPos({ x: e.target.x(), y: e.target.y() })}
         onDragEnd={(e) => { setDragPos(null); handleDragEnd(e); }}
         onTransformEnd={handleTransformEnd}
-        opacity={isEditing ? 0 : 1}
       >
-        {/* Card body */}
+        {/* Card body — always visible (even while editing) */}
         <Rect
           width={node.width}
           height={node.height}
@@ -192,8 +224,8 @@ export default function StickyNote({
           fill="rgba(0,0,0,0.12)"
           cornerRadius={[0, 3, 0, 0]}
         />
-        {/* Placeholder */}
-        {!node.text && (
+        {/* Placeholder — hide while editing */}
+        {!node.text && !isEditing && (
           <Text
             x={10}
             y={10}
@@ -211,23 +243,29 @@ export default function StickyNote({
             listening={false}
           />
         )}
-        {/* Text */}
-        <Text
-          x={10}
-          y={10}
-          width={node.width - 20}
-          height={node.height - 20}
-          text={node.text || ''}
-          fontSize={node.fontSize ?? 13}
-          fontStyle={[node.bold ? 'bold' : '', node.italic ? 'italic' : ''].filter(Boolean).join(' ') || 'normal'}
-          lineHeight={1.5}
-          fontFamily="'JetBrains Mono', 'Fira Code', monospace"
-          fill="#1a1a2e"
-          wrap="word"
-          align="left"
-          verticalAlign="top"
-          listening={false}
-        />
+        {/* Text — hide while editing (contenteditable overlay takes over) */}
+        {node.text && !isEditing && !isRichText(node.text) && (
+          <Text
+            x={10}
+            y={10}
+            width={node.width - 20}
+            height={node.height - 20}
+            text={node.text}
+            fontSize={node.fontSize ?? 13}
+            fontStyle={[node.bold ? 'bold' : '', node.italic ? 'italic' : ''].filter(Boolean).join(' ') || 'normal'}
+            textDecoration={node.underline ? 'underline' : ''}
+            lineHeight={1.5}
+            fontFamily="'JetBrains Mono', 'Fira Code', monospace"
+            fill="#1a1a2e"
+            wrap="word"
+            align="left"
+            verticalAlign="top"
+            listening={false}
+          />
+        )}
+        {node.text && !isEditing && isRichText(node.text) && (
+          <StickyRichText node={node} />
+        )}
       </Group>
 
       {/* Anchor dots — rendered OUTSIDE the Group so Transformer bbox is not affected */}

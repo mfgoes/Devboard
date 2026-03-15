@@ -8,7 +8,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "zip": "npm run build && cd dist && zip -r ../devboard-itchio.zip index.html && echo '✓ devboard-itchio.zip ready'",
+    "zip": "npm run build && cp README.txt dist/ && cd dist && zip -r ../devboard-itchio.zip index.html stickers favicon.ico README.txt && echo '✓ devboard-itchio.zip ready'",
     "electron:dev": "npm run build && electron .",
     "electron:build:win": "npm run build && electron-builder --win",
     "electron:build:mac": "npm run build && electron-builder --mac",

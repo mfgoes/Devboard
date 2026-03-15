@@ -7,7 +7,9 @@ export type Tool =
   | 'line'
   | 'pen'
   | 'section'
-  | 'sticker';
+  | 'sticker'
+  | 'table'
+  | 'code';
 
 export type AnchorSide = 'top' | 'right' | 'bottom' | 'left';
 
@@ -24,6 +26,7 @@ export interface StickyNoteNode {
   fontSize?: number;
   bold?: boolean;
   italic?: boolean;
+  underline?: boolean;
 }
 
 export type LineStyle      = 'curved' | 'straight' | 'orthogonal';
@@ -116,7 +119,40 @@ export interface SectionNode {
   color: string; // accent hex
 }
 
-export type CanvasNode = StickyNoteNode | ConnectorNode | TextBlockNode | ShapeNode | SectionNode | StickerNode;
+export interface TableNode {
+  id: string;
+  type: 'table';
+  x: number;
+  y: number;
+  colWidths: number[];
+  rowHeights: number[];
+  cells: string[][];      // cells[row][col]
+  headerRow: boolean;
+  fill: string;           // cell background
+  headerFill: string;     // header row background
+  stroke: string;         // border color
+  fontSize: number;
+  merges?: Array<{ row: number; col: number; colSpan: number }>;
+}
+
+export type CodeLanguage = 'sql' | 'python' | 'javascript' | 'typescript' | 'json' | 'bash' | 'text';
+
+export interface CodeBlockNode {
+  id: string;
+  type: 'codeblock';
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  code: string;
+  language: CodeLanguage;
+  title: string;
+  showLineNumbers: boolean;
+  result?: string;
+  description?: string;
+}
+
+export type CanvasNode = StickyNoteNode | ConnectorNode | TextBlockNode | ShapeNode | SectionNode | StickerNode | TableNode | CodeBlockNode;
 
 export interface Camera {
   x: number;

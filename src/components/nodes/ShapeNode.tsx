@@ -276,12 +276,11 @@ export default function ShapeNode({
         onDragMove={(e) => setDragPos({ x: e.target.x() - e.target.offsetX(), y: e.target.y() - e.target.offsetY() })}
         onDragEnd={handleDragEnd}
         onTransformEnd={handleTransformEnd}
-        opacity={isEditing ? 0 : 1}
       >
         {renderShape()}
 
-        {/* Label */}
-        {node.text && (
+        {/* Label — hidden while editing (textarea overlay takes over) */}
+        {node.text && !isEditing && (
           <Text
             x={8}
             y={8}

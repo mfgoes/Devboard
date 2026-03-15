@@ -118,24 +118,26 @@ export default function TextBlock({ node, isSelected, isEditing }: Props) {
         onDblTap={handleDblTap}
         onDragEnd={handleDragEnd}
         onTransformEnd={handleTransformEnd}
-        opacity={isEditing ? 0 : 1}
       >
         {/* Transparent hit area */}
         <Rect width={node.width} height={hitHeight} fill="transparent" />
 
-        <Text
-          width={node.width}
-          text={node.text || 'Double-click to edit'}
-          fontSize={node.fontSize}
-          fontStyle={fontStyle}
-          textDecoration={textDecoration}
-          lineHeight={1.5}
-          fontFamily="'JetBrains Mono', 'Fira Code', monospace"
-          fill={node.text ? (node.color === 'auto' ? t.textHi : node.color) : t.textOff}
-          wrap="word"
-          align="left"
-          listening={false}
-        />
+        {/* Hide text while editing — textarea overlay takes over */}
+        {!isEditing && (
+          <Text
+            width={node.width}
+            text={node.text || 'Double-click to edit'}
+            fontSize={node.fontSize}
+            fontStyle={fontStyle}
+            textDecoration={textDecoration}
+            lineHeight={1.5}
+            fontFamily="'JetBrains Mono', 'Fira Code', monospace"
+            fill={node.text ? (node.color === 'auto' ? t.textHi : node.color) : t.textOff}
+            wrap="word"
+            align="left"
+            listening={false}
+          />
+        )}
       </Group>
 
       {isSelected && !isEditing && (

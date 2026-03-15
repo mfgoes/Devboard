@@ -18,6 +18,7 @@ export { STICKY_COLORS };
 
 interface Props {
   nodeId: string;
+  isEditing?: boolean;
 }
 
 function BulletListIcon() {
@@ -33,7 +34,7 @@ function BulletListIcon() {
   );
 }
 
-export default function StickyColorPicker({ nodeId }: Props) {
+export default function StickyColorPicker({ nodeId, isEditing = false }: Props) {
   const { nodes, updateNode, camera, saveHistory } = useBoardStore();
   const node = nodes.find((n) => n.id === nodeId) as StickyNoteNode | undefined;
   const [showColors, setShowColors] = useState(false);
@@ -42,6 +43,36 @@ export default function StickyColorPicker({ nodeId }: Props) {
 
   const sx = node.x * camera.scale + camera.x;
   const sy = node.y * camera.scale + camera.y;
+  const sw = node.width * camera.scale;
+
+  // Anchor dot sits DOT_OFFSET (20) world-units above the node top edge.
+  const anchorDotY = sy - 20 * camera.scale;
+  const toolbarTop = anchorDotY - 36 - 8;
+
+  // ── Sync helper: read innerHTML from the active contenteditable ──────────────
+  const syncAfterExec = () => {
+    const div = document.querySelector<HTMLDivElement>('[data-sticky-editor="true"]');
+    if (!div) return;
+    updateNode(nodeId, { text: div.innerHTML });
+  };
+
+  // ── Formatting buttons — preventDefault keeps focus + selection in editor ───
+  const execFormat = (command: string) => {
+    if (isEditing) {
+      document.execCommand(command);
+      syncAfterExec();
+    } else {
+      saveHistory();
+      if (command === 'bold')      updateNode(nodeId, { bold: !node.bold });
+      if (command === 'italic')    updateNode(nodeId, { italic: !node.italic });
+      if (command === 'underline') updateNode(nodeId, { underline: !node.underline });
+    }
+  };
+
+  // Detect active format at cursor (when editing)
+  const isBold      = isEditing ? document.queryCommandState('bold')      : (node.bold ?? false);
+  const isItalic    = isEditing ? document.queryCommandState('italic')    : (node.italic ?? false);
+  const isUnderline = isEditing ? document.queryCommandState('underline') : (node.underline ?? false);
 
   const toggleBulletList = () => {
     saveHistory();
@@ -62,11 +93,21 @@ export default function StickyColorPicker({ nodeId }: Props) {
     updateNode(nodeId, { bulletList: next, text: newText });
   };
 
-  const sw = node.width * camera.scale;
-  // Anchor dot sits DOT_OFFSET (20) world-units above the node top edge.
-  // Toolbar height is ~36px. Add 8px gap below the toolbar.
-  const anchorDotY = sy - 20 * camera.scale;
-  const toolbarTop = anchorDotY - 36 - 8;
+  const fmtBtn = (label: React.ReactNode, command: string, active: boolean, title: string) => (
+    <button
+      title={title}
+      onMouseDown={(e) => e.preventDefault()} // keep focus + selection
+      onClick={() => execFormat(command)}
+      className={[
+        'w-6 h-6 flex items-center justify-center rounded transition-colors text-[13px]',
+        active
+          ? 'bg-[#6366f1] text-white'
+          : 'text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
+      ].join(' ')}
+    >
+      {label}
+    </button>
+  );
 
   return (
     <div
@@ -80,9 +121,19 @@ export default function StickyColorPicker({ nodeId }: Props) {
       className="flex items-center gap-1 bg-[var(--c-panel)] border border-[var(--c-border)] rounded-md px-2 py-1.5 shadow-lg"
       onMouseDown={(e) => e.stopPropagation()}
     >
+      {/* Bold */}
+      {fmtBtn(<span style={{ fontFamily: 'serif', fontWeight: 700 }}>B</span>, 'bold', isBold, 'Bold')}
+      {/* Italic */}
+      {fmtBtn(<span style={{ fontFamily: 'serif', fontStyle: 'italic' }}>I</span>, 'italic', isItalic, 'Italic')}
+      {/* Underline */}
+      {fmtBtn(<span style={{ fontFamily: 'serif', textDecoration: 'underline' }}>U</span>, 'underline', isUnderline, 'Underline')}
+
+      <div className="w-px h-4 bg-[var(--c-border)]" />
+
       {/* Bullet list toggle */}
       <button
         title={node.bulletList ? 'Remove bullet list' : 'Bullet list'}
+        onMouseDown={(e) => e.preventDefault()}
         onClick={toggleBulletList}
         className={[
           'w-6 h-6 flex items-center justify-center rounded transition-colors',
@@ -100,6 +151,7 @@ export default function StickyColorPicker({ nodeId }: Props) {
       <div className="relative">
         <button
           title="Note color"
+          onMouseDown={(e) => e.preventDefault()}
           onClick={() => setShowColors((v) => !v)}
           className="flex items-center gap-1.5 h-6 px-2 rounded text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
         >

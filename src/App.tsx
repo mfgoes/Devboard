@@ -6,6 +6,7 @@ import Toolbar from './components/Toolbar';
 import ZoomToolbar from './components/ZoomToolbar';
 import TopBar from './components/TopBar';
 import WelcomeModal from './components/WelcomeModal';
+import TimerWidget from './components/TimerWidget';
 import { useBoardStore } from './store/boardStore';
 
 
@@ -36,6 +37,7 @@ export default function App() {
   });
   const [showBraveNotice, setShowBraveNotice] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [showTimer, setShowTimer] = useState(false);
 
   useEffect(() => {
     setToastListener((msg) => {
@@ -129,7 +131,12 @@ export default function App() {
           {toastMsg}
         </div>
       )}
-      <TopBar onShowAbout={() => setShowWelcome(true)} />
+      <TopBar
+        onShowAbout={() => setShowWelcome(true)}
+        timerVisible={showTimer}
+        onToggleTimer={() => setShowTimer((v) => !v)}
+      />
+      {showTimer && <TimerWidget onClose={() => setShowTimer(false)} />}
       {showBraveNotice && (
         <div className="absolute top-11 left-0 right-0 z-50 flex items-center justify-between gap-3 bg-orange-500 text-white text-xs px-4 py-2">
           <span>

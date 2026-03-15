@@ -7,15 +7,21 @@ import ShapeNodeComponent from './nodes/ShapeNode';
 import TextBlock from './nodes/TextBlock';
 import SectionNodeComponent from './nodes/SectionNode';
 import StickerNodeComponent from './nodes/StickerNode';
+import TableNodeComponent from './nodes/TableNode';
 import ConnectorLine, { anchorCoords, cpOffset, smartAnchors } from './nodes/ConnectorLine';
 import TextEditor from './TextEditor';
+import TableCellEditor from './TableCellEditor';
 import StickyColorPicker from './StickyColorPicker';
 import ShapeToolbar from './ShapeToolbar';
 import TextBlockToolbar from './TextBlockToolbar';
 import ConnectorToolbar from './ConnectorToolbar';
 import SectionToolbar from './SectionToolbar';
+import TableToolbar from './TableToolbar';
+import TableInsertControls from './TableInsertControls';
+import TableReorderControls from './TableReorderControls';
 import MultiSelectToolbar from './MultiSelectToolbar';
-import { AnchorSide, ConnectorNode, StickyNoteNode, ShapeNode, TextBlockNode, SectionNode, StickerNode } from '../types';
+import { AnchorSide, ConnectorNode, StickyNoteNode, ShapeNode, TextBlockNode, SectionNode, StickerNode, TableNode, CodeBlockNode } from '../types';
+import CodeBlockComponent from './nodes/CodeBlock';
 import { STICKY_COLORS } from './StickyColorPicker';
 import { useTheme } from '../theme';
 
@@ -89,6 +95,9 @@ export default function Canvas() {
   // Section drag-to-size state
   const [sectionDraw, setSectionDraw] = useState<ShapeDraw | null>(null);
 
+  // Table drag-to-size state
+  const [tableDraw, setTableDraw] = useState<ShapeDraw | null>(null);
+
   // Marquee (drag-to-select) state
   const [marqueeDraw, setMarqueeDraw] = useState<MarqueeDraw | null>(null);
 
@@ -103,6 +112,7 @@ export default function Canvas() {
     activeSticker,
     selectedIds,
     editingId,
+    tableEditState,
     setCamera,
     addNode,
     selectIds,
@@ -143,6 +153,8 @@ export default function Canvas() {
           KeyT: 'text',
           KeyL: 'line',
           KeyF: 'section',
+          KeyG: 'table',
+          KeyK: 'code',
         };
         if (shortcuts[e.code]) setActiveTool(shortcuts[e.code]);
       }
@@ -154,6 +166,7 @@ export default function Canvas() {
         setTextCursorPos(null);
         setShapeDraw(null);
         setSectionDraw(null);
+        setTableDraw(null);
         setMarqueeDraw(null);
         setStickerCursorPos(null);
         selectIds([]);
@@ -249,6 +262,26 @@ export default function Canvas() {
         return;
       }
 
+      if (activeTool === 'code' && clickedStage) {
+        const pos = stageRef.current!.getPointerPosition()!;
+        const worldX = (pos.x - camera.x) / camera.scale;
+        const worldY = (pos.y - camera.y) / camera.scale;
+        addNode({
+          id: generateId(),
+          type: 'codeblock',
+          x: worldX - 250,
+          y: worldY - 40,
+          width: 500,
+          height: 220,
+          code: `SELECT\n  user_id,\n  COUNT(*) AS event_count,\n  DATE_TRUNC('day', created_at) AS day\nFROM user_events\nWHERE created_at >= '2024-01-01'\nGROUP BY 1, 3\nORDER BY 3 DESC, 2 DESC\nLIMIT 100`,
+          language: 'sql',
+          title: 'Query: User Activity Summary',
+          showLineNumbers: true,
+        } satisfies CodeBlockNode);
+        setActiveTool('select');
+        return;
+      }
+
       if (activeTool === 'sticker') {
         const pos = stageRef.current!.getPointerPosition()!;
         const worldX = (pos.x - camera.x) / camera.scale;
@@ -289,6 +322,23 @@ export default function Canvas() {
         const worldX = (pos.x - camera.x) / camera.scale;
         const worldY = (pos.y - camera.y) / camera.scale;
         setSectionDraw({
+          startScreenX: pos.x,
+          startScreenY: pos.y,
+          startWorldX: worldX,
+          startWorldY: worldY,
+          currentScreenX: pos.x,
+          currentScreenY: pos.y,
+          currentWorldX: worldX,
+          currentWorldY: worldY,
+        });
+        return;
+      }
+
+      if (activeTool === 'table') {
+        const pos = stageRef.current!.getPointerPosition()!;
+        const worldX = (pos.x - camera.x) / camera.scale;
+        const worldY = (pos.y - camera.y) / camera.scale;
+        setTableDraw({
           startScreenX: pos.x,
           startScreenY: pos.y,
           startWorldX: worldX,
@@ -400,6 +450,18 @@ export default function Canvas() {
         if (pos) setStickerCursorPos({ x: pos.x, y: pos.y });
       }
 
+      // Track table drag preview
+      if (activeTool === 'table' && tableDraw) {
+        const pos = stageRef.current?.getPointerPosition();
+        if (pos) {
+          const worldX = (pos.x - camera.x) / camera.scale;
+          const worldY = (pos.y - camera.y) / camera.scale;
+          setTableDraw((prev) =>
+            prev ? { ...prev, currentScreenX: pos.x, currentScreenY: pos.y, currentWorldX: worldX, currentWorldY: worldY } : null
+          );
+        }
+      }
+
       // Track cursor for text ghost / drag preview
       if (activeTool === 'text') {
         const pos = stageRef.current?.getPointerPosition();
@@ -414,7 +476,7 @@ export default function Canvas() {
         }
       }
     },
-    [camera, setCamera, drawingLine, activeTool, shapeDraw, sectionDraw, textDraw, marqueeDraw, stickerCursorPos]
+    [camera, setCamera, drawingLine, activeTool, shapeDraw, sectionDraw, tableDraw, textDraw, marqueeDraw, stickerCursorPos]
   );
 
   // ── Mouse up ────────────────────────────────────────────────────────────────
@@ -543,6 +605,41 @@ export default function Canvas() {
       setActiveTool('select');
       setSectionDraw(null);
     }
+    // Table drag-to-size placement
+    if (tableDraw) {
+      const dragW = Math.abs(tableDraw.currentScreenX - tableDraw.startScreenX);
+      const dragH = Math.abs(tableDraw.currentScreenY - tableDraw.startScreenY);
+      const isDrag = dragW > 8 || dragH > 8;
+      const worldW = Math.abs(tableDraw.currentWorldX - tableDraw.startWorldX);
+      const worldH = Math.abs(tableDraw.currentWorldY - tableDraw.startWorldY);
+      const NUM_COLS = isDrag ? Math.max(1, Math.round(worldW / 120)) : 3;
+      const NUM_ROWS = isDrag ? Math.max(1, Math.round(worldH / 36)) : 3;
+      const useW = isDrag ? Math.max(40 * NUM_COLS, Math.round(worldW)) : 360;
+      const useH = isDrag ? Math.max(20 * NUM_ROWS, Math.round(worldH)) : 108;
+      const placeX = isDrag ? Math.min(tableDraw.startWorldX, tableDraw.currentWorldX) : tableDraw.startWorldX - 180;
+      const placeY = isDrag ? Math.min(tableDraw.startWorldY, tableDraw.currentWorldY) : tableDraw.startWorldY - 54;
+      const colW = Math.max(40, Math.round(useW / NUM_COLS));
+      const rowH = Math.max(20, Math.round(useH / NUM_ROWS));
+      const { theme } = useBoardStore.getState();
+      const isDark = theme === 'dark';
+      addNode({
+        id: generateId(),
+        type: 'table',
+        x: placeX,
+        y: placeY,
+        colWidths: Array(NUM_COLS).fill(colW),
+        rowHeights: Array(NUM_ROWS).fill(rowH),
+        cells: Array.from({ length: NUM_ROWS }, () => Array(NUM_COLS).fill('')),
+        headerRow: true,
+        fill: isDark ? '#1e293b' : '#ffffff',
+        headerFill: '#6366f1',
+        stroke: isDark ? '#475569' : '#e2e8f0',
+        fontSize: 13,
+      } satisfies TableNode);
+      setActiveTool('select');
+      setTableDraw(null);
+    }
+
     // Text drag-to-place
     if (textDraw) {
       const dragScreenPx = Math.abs(textDraw.currentScreenX - textDraw.startScreenX);
@@ -572,7 +669,7 @@ export default function Canvas() {
       setTextDraw(null);
       setTextCursorPos(null);
     }
-  }, [drawingLine, snapTarget, addNode, shapeDraw, sectionDraw, activeShapeKind, textDraw, setActiveTool, setEditingId, marqueeDraw, selectIds]);
+  }, [drawingLine, snapTarget, addNode, shapeDraw, sectionDraw, tableDraw, activeShapeKind, textDraw, setActiveTool, setEditingId, marqueeDraw, selectIds]);
 
   // ── Touch: single-finger pan (pan tool) + two-finger pinch/pan (always) ────
   const handleTouchStart = useCallback(
@@ -714,6 +811,8 @@ export default function Canvas() {
     pen: 'crosshair',
     section: 'crosshair',
     sticker: 'crosshair',
+    table: 'crosshair',
+    code: 'crosshair',
   };
   // If a line draw is in progress (e.g. started from an anchor in select mode), always crosshair
   const cursor = cursorOverride ?? (drawingLine ? 'crosshair' : toolCursor[activeTool] ?? 'default');
@@ -743,6 +842,12 @@ export default function Canvas() {
     (selectedIds.length === 1 &&
       nodes.find((n) => n.id === selectedIds[0] && n.type === 'textblock')?.id) ||
     (editingId && nodes.find((n) => n.id === editingId && n.type === 'textblock')?.id) ||
+    null;
+
+  // ── Selected or editing sticky (for sticky toolbar) ──────────────────────────
+  const activeStickyId =
+    (singleSelected?.type === 'sticky' ? singleSelected.id : null) ||
+    (editingId && nodes.find((n) => n.id === editingId && n.type === 'sticky')?.id) ||
     null;
 
   // ── Text ghost / drag-preview geometry ──────────────────────────────────────
@@ -869,6 +974,17 @@ export default function Canvas() {
               />
             ))}
 
+          {/* Tables */}
+          {nodes
+            .filter((n) => n.type === 'table')
+            .map((n) => (
+              <TableNodeComponent
+                key={n.id}
+                node={n as TableNode}
+                isSelected={selectedIds.includes(n.id)}
+              />
+            ))}
+
           {/* In-progress line preview */}
           {drawingLine && prevPoints.length === 8 && (
             <Line
@@ -990,6 +1106,40 @@ export default function Canvas() {
         />
       )}
 
+      {/* ── Table drag-to-size preview ────────────────────────────────── */}
+      {activeTool === 'table' && tableDraw && (() => {
+        const pdW = Math.abs(tableDraw.currentScreenX - tableDraw.startScreenX);
+        const pdH = Math.abs(tableDraw.currentScreenY - tableDraw.startScreenY);
+        const pIsDrag = pdW > 8 || pdH > 8;
+        const pwW = Math.abs(tableDraw.currentWorldX - tableDraw.startWorldX);
+        const pwH = Math.abs(tableDraw.currentWorldY - tableDraw.startWorldY);
+        const pCols = pIsDrag ? Math.max(1, Math.round(pwW / 120)) : 3;
+        const pRows = pIsDrag ? Math.max(1, Math.round(pwH / 36)) : 3;
+        const pW = Math.max(2, pdW);
+        const pH = Math.max(2, pdH);
+        const colPct = 100 / pCols;
+        const rowPct = 100 / pRows;
+        return (
+          <div
+            style={{
+              position: 'absolute',
+              left: Math.min(tableDraw.startScreenX, tableDraw.currentScreenX),
+              top: Math.min(tableDraw.startScreenY, tableDraw.currentScreenY),
+              width: pW,
+              height: pH,
+              border: `1.5px dashed ${t.connectorColor}`,
+              borderRadius: 2,
+              background: 'rgba(99,102,241,0.07)',
+              pointerEvents: 'none',
+              backgroundImage: [
+                `repeating-linear-gradient(to right, ${t.connectorColor}55 0, ${t.connectorColor}55 1px, transparent 1px, transparent ${colPct}%)`,
+                `repeating-linear-gradient(to bottom, ${t.connectorColor}55 0, ${t.connectorColor}55 1px, transparent 1px, transparent ${rowPct}%)`,
+              ].join(', '),
+            }}
+          />
+        );
+      })()}
+
       {/* Sticker hover placeholder */}
       {activeTool === 'sticker' && stickerCursorPos && (
         <img
@@ -1026,16 +1176,33 @@ export default function Canvas() {
         />
       )}
 
+      {/* ── CodeBlock overlays ──────────────────────────────────────────────── */}
+      {nodes.filter((n) => n.type === 'codeblock').map((n) => (
+        <CodeBlockComponent
+          key={n.id}
+          node={n as CodeBlockNode}
+          isSelected={selectedIds.includes(n.id)}
+        />
+      ))}
+
       {/* HTML overlays */}
       <TextEditor />
-      {singleSelected?.type === 'sticky' && (
-        <StickyColorPicker nodeId={singleSelected.id} />
+      <TableCellEditor />
+      {activeStickyId && (
+        <StickyColorPicker nodeId={activeStickyId} isEditing={!!editingId && editingId === activeStickyId} />
       )}
       {singleSelected?.type === 'shape' && (
         <ShapeToolbar nodeId={singleSelected.id} />
       )}
       {singleSelected?.type === 'section' && (
         <SectionToolbar nodeId={singleSelected.id} />
+      )}
+      {singleSelected?.type === 'table' && (
+        <>
+          <TableToolbar nodeId={singleSelected.id} />
+          <TableInsertControls nodeId={singleSelected.id} />
+          <TableReorderControls nodeId={singleSelected.id} />
+        </>
       )}
       {activeTextBlockId && (
         <TextBlockToolbar nodeId={activeTextBlockId} />

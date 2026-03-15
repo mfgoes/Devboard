@@ -91,6 +91,17 @@ function IconSticker() {
     </svg>
   );
 }
+function IconTable() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <rect x="1.5" y="1.5" width="13" height="13" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
+      <line x1="1.5" y1="5.5" x2="14.5" y2="5.5" stroke="currentColor" strokeWidth="1.2" />
+      <line x1="1.5" y1="9.5" x2="14.5" y2="9.5" stroke="currentColor" strokeWidth="1.2" />
+      <line x1="6" y1="5.5" x2="6" y2="14.5" stroke="currentColor" strokeWidth="1.2" />
+      <line x1="10.5" y1="5.5" x2="10.5" y2="14.5" stroke="currentColor" strokeWidth="1.2" />
+    </svg>
+  );
+}
 function IconSection() {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -108,6 +119,15 @@ function IconSection() {
     </svg>
   );
 }
+function IconCode() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <path d="M5 4L1.5 8L5 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M11 4L14.5 8L11 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <line x1="9.5" y1="3" x2="6.5" y2="13" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+    </svg>
+  );
+}
 
 const TOOLS: ToolDef[] = [
   { id: 'select', label: 'Select', shortcut: 'V', icon: <IconSelect /> },
@@ -117,8 +137,10 @@ const TOOLS: ToolDef[] = [
   { id: 'text', label: 'Text', shortcut: 'T', icon: <IconText /> },
   { id: 'line', label: 'Line', shortcut: 'L', icon: <IconLine /> },
   { id: 'pen', label: 'Pen', shortcut: '', icon: <IconPen /> },
+  { id: 'table', label: 'Table', shortcut: 'G', icon: <IconTable /> },
   { id: 'section', label: 'Section', shortcut: 'F', icon: <IconSection /> },
   { id: 'sticker', label: 'Sticker', shortcut: '', icon: <IconSticker /> },
+  { id: 'code', label: 'Code', shortcut: 'K', icon: <IconCode /> },
 ];
 
 type ShapeKindDef = { kind: ShapeKind; label: string; icon: React.ReactNode };
@@ -197,7 +219,7 @@ export default function Toolbar() {
       <div className="flex items-center px-1 py-1 gap-0.5">
         {TOOLS.map((tool) => {
           const isActive = activeTool === tool.id;
-          const isComingSoon = ['pen', 'section'].includes(tool.id);
+          const isComingSoon = ['pen'].includes(tool.id);
           return (
             <button
               key={tool.id}

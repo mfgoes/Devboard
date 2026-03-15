@@ -9,7 +9,9 @@
       "Bash(mkdir -p /Users/mischavandergoes/Documents/GitHub/CollaboCanvas/public && mv /Users/mischavandergoes/Documents/GitHub/CollaboCanvas/favicon/favicon.ico /Users/mischavandergoes/Documents/GitHub/CollaboCanvas/public/ && mv /Users/mischavandergoes/Documents/GitHub/CollaboCanvas/favicon/favicon.svg /Users/mischavandergoes/Documents/GitHub/CollaboCanvas/public/ && mv /Users/mischavandergoes/Documents/GitHub/CollaboCanvas/favicon/favicon-96x96.png /Users/mischavandergoes/Documents/GitHub/CollaboCanvas/public/ && rm -rf /Users/mischavandergoes/Documents/GitHub/CollaboCanvas/favicon && echo \"done\")",
       "Bash(cp -r /Users/mischavandergoes/Documents/GitHub/CollaboCanvas/stickers /Users/mischavandergoes/Documents/GitHub/CollaboCanvas/public/stickers && rm -rf /Users/mischavandergoes/Documents/GitHub/CollaboCanvas/stickers && echo \"done\")",
       "Bash(npm run:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(kill %1 2>/dev/null; true)",
+      "Bash(git stash:*)"
     ]
   }
 }

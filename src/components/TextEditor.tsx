@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useBoardStore } from '../store/boardStore';
 import { StickyNoteNode, TextBlockNode, ShapeNode, SectionNode } from '../types';
 import { useTheme } from '../theme';
+import { isRichText, textToHtml } from '../utils/richText';
 
 function autoResize(el: HTMLTextAreaElement) {
   el.style.height = 'auto';
@@ -11,7 +12,7 @@ function autoResize(el: HTMLTextAreaElement) {
 // Hidden div used for text measurement — created once, reused.
 let _measureDiv: HTMLDivElement | null = null;
 
-function measureStickyHeight(text: string, contentWidth: number): number {
+function measureStickyHeight(content: string, contentWidth: number, fontSize = 13, html = false): number {
   if (!_measureDiv) {
     _measureDiv = document.createElement('div');
     Object.assign(_measureDiv.style, {
@@ -20,16 +21,22 @@ function measureStickyHeight(text: string, contentWidth: number): number {
       pointerEvents: 'none',
       top: '-9999px',
       fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-      fontSize: '13px',
       lineHeight: '1.5',
-      wordBreak: 'break-word',
-      whiteSpace: 'pre-wrap',
       padding: '0',
     });
     document.body.appendChild(_measureDiv);
   }
   _measureDiv.style.width = `${Math.max(1, contentWidth)}px`;
-  _measureDiv.textContent = text || '\u00a0';
+  _measureDiv.style.fontSize = `${fontSize}px`;
+  if (html) {
+    _measureDiv.style.whiteSpace = 'normal';
+    _measureDiv.style.wordBreak = 'break-word';
+    _measureDiv.innerHTML = content || '&nbsp;';
+  } else {
+    _measureDiv.style.whiteSpace = 'pre-wrap';
+    _measureDiv.style.wordBreak = 'break-word';
+    _measureDiv.textContent = content || '\u00a0';
+  }
   return Math.max(80, _measureDiv.scrollHeight + 20); // 10px top + 10px bottom padding
 }
 
@@ -37,6 +44,7 @@ export default function TextEditor() {
   const t = useTheme();
   const { editingId, nodes, camera, updateNode, setEditingId, saveHistory } = useBoardStore();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const stickyEditorRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const editingNode = nodes.find((n) => n.id === editingId) as
@@ -51,6 +59,20 @@ export default function TextEditor() {
     if (editingNode?.type === 'section') {
       inputRef.current?.focus();
       inputRef.current?.select();
+    } else if (editingNode?.type === 'sticky') {
+      const div = stickyEditorRef.current;
+      if (!div) return;
+      const sn = editingNode as StickyNoteNode;
+      // Set initial HTML (convert plain text to HTML for contenteditable)
+      div.innerHTML = isRichText(sn.text) ? sn.text : textToHtml(sn.text);
+      div.focus();
+      // Place cursor at end
+      const range = document.createRange();
+      range.selectNodeContents(div);
+      range.collapse(false);
+      const sel = window.getSelection();
+      sel?.removeAllRanges();
+      sel?.addRange(range);
     } else if (textareaRef.current) {
       textareaRef.current.focus();
       const len = textareaRef.current.value.length;
@@ -98,19 +120,8 @@ export default function TextEditor() {
       }
     }
 
-    // Bullet list: auto-insert bullet on Enter
-    const isStickyBullet = e.key === 'Enter' && editingNode?.type === 'sticky' && (editingNode as StickyNoteNode).bulletList;
-    const isTextBullet   = e.key === 'Enter' && editingNode?.type === 'textblock' && (editingNode as TextBlockNode).bulletList;
-
-    if (isStickyBullet) {
-      e.preventDefault();
-      const newValue = value.slice(0, start) + '\n• ' + value.slice(end);
-      const newHeight = Math.max((editingNode as StickyNoteNode).height, measureStickyHeight(newValue, (editingNode as StickyNoteNode).width - 20));
-      updateNode(editingId!, { text: newValue, height: newHeight });
-      requestAnimationFrame(() => {
-        ta.selectionStart = ta.selectionEnd = start + 3;
-      });
-    }
+    // Bullet list: auto-insert bullet on Enter (textblock only — sticky uses its own handler)
+    const isTextBullet = e.key === 'Enter' && editingNode?.type === 'textblock' && (editingNode as TextBlockNode).bulletList;
 
     if (isTextBullet) {
       e.preventDefault();
@@ -181,8 +192,15 @@ export default function TextEditor() {
     };
     const autoColor = lum(shapeNode.fill) < 128 ? '#e2e8f0' : '#1a1a2e';
     const textColor = shapeNode.fontColor ?? autoColor;
-    const pad = 12 * camera.scale;
+    // Match Konva Text's x={8} y={8} padding exactly
+    const pad = 8 * camera.scale;
+    const innerH = shapeSH - pad * 2;
     const fs = Math.round((shapeNode.fontSize ?? 14) * camera.scale);
+    // Approximate Konva's verticalAlign="middle": offset textarea down by half the empty space
+    const lineH = fs * 1.45;
+    const lineCount = Math.max(1, (shapeNode.text ?? '').split('\n').length);
+    const textH = lineH * lineCount;
+    const vOffset = Math.max(0, (innerH - textH) / 2);
     return (
       <textarea
         ref={textareaRef}
@@ -195,9 +213,9 @@ export default function TextEditor() {
         style={{
           position: 'absolute',
           left: sx + pad,
-          top: sy + pad,
+          top: sy + pad + vOffset,
           width: sw - pad * 2,
-          height: shapeSH - pad * 2,
+          height: innerH - vOffset,
           background: 'transparent',
           border: 'none',
           outline: 'none',
@@ -259,43 +277,71 @@ export default function TextEditor() {
     );
   }
 
-  // Sticky note
+  // Sticky note — contenteditable for inline rich text support
   const stickyNode = editingNode as StickyNoteNode;
-  const sh = stickyNode.height * camera.scale;
   const fs = Math.round((stickyNode.fontSize ?? 13) * camera.scale);
+
+  const syncStickyContent = () => {
+    const div = stickyEditorRef.current;
+    if (!div) return;
+    const html = div.innerHTML;
+    const newHeight = Math.max(
+      stickyNode.height,
+      measureStickyHeight(html, stickyNode.width - 20, stickyNode.fontSize ?? 13, true),
+    );
+    updateNode(editingId, { text: html, height: newHeight });
+  };
+
+  const handleStickyKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      setEditingId(null);
+      return;
+    }
+    e.stopPropagation();
+
+    if (e.key === 'Enter' && stickyNode.bulletList) {
+      e.preventDefault();
+      document.execCommand('insertHTML', false, '<br>• ');
+      syncStickyContent();
+    }
+  };
+
   return (
-    <textarea
-      ref={textareaRef}
-      value={editingNode.text}
-      placeholder="Type anything."
-      onChange={(e) => {
-        const newText = e.target.value;
-        const newHeight = Math.max(stickyNode.height, measureStickyHeight(newText, stickyNode.width - 20));
-        updateNode(editingId, { text: newText, height: newHeight });
-      }}
+    <div
+      ref={stickyEditorRef}
+      contentEditable
+      suppressContentEditableWarning
+      data-sticky-editor="true"
+      onInput={syncStickyContent}
       onFocus={saveHistory}
-      onBlur={handleBlur}
-      onKeyDown={handleKeyDown}
+      onBlur={() => setTimeout(() => {
+        if (document.activeElement !== stickyEditorRef.current) setEditingId(null);
+      }, 150)}
+      onKeyDown={handleStickyKeyDown}
       style={{
         position: 'absolute',
-        left: sx + 10,
-        top: sy + 10,
-        width: sw - 20,
-        height: sh - 20,
-        background: stickyNode.color,
+        // Sit exactly over the Konva text area (10 world-units of padding, scaled)
+        left: sx + 10 * camera.scale,
+        top: sy + 10 * camera.scale,
+        width: sw - 20 * camera.scale,
+        minHeight: (stickyNode.height - 20) * camera.scale,
+        // Transparent so the Konva card (background, shadow, corner fold) shows through
+        background: 'transparent',
         border: 'none',
         outline: 'none',
-        resize: 'none',
         fontSize: fs,
         lineHeight: 1.5,
         fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
         fontWeight: stickyNode.bold ? 'bold' : 'normal',
         fontStyle: stickyNode.italic ? 'italic' : 'normal',
+        textDecoration: stickyNode.underline ? 'underline' : 'none',
         color: '#1a1a2e',
+        caretColor: '#1a1a2e',
         padding: 0,
         zIndex: 100,
         overflow: 'hidden',
-        caretColor: '#1a1a2e',
+        wordBreak: 'break-word',
       }}
     />
   );
