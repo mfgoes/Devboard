@@ -22,6 +22,7 @@ import TableReorderControls from './TableReorderControls';
 import MultiSelectToolbar from './MultiSelectToolbar';
 import { AnchorSide, ConnectorNode, StickyNoteNode, ShapeNode, TextBlockNode, SectionNode, StickerNode, TableNode, CodeBlockNode } from '../types';
 import CodeBlockComponent from './nodes/CodeBlock';
+import CodeBlockToolbar from './CodeBlockToolbar';
 import { STICKY_COLORS } from './StickyColorPicker';
 import { useTheme } from '../theme';
 
@@ -982,6 +983,11 @@ export default function Canvas() {
                 key={n.id}
                 node={n as TableNode}
                 isSelected={selectedIds.includes(n.id)}
+                isDrawingLine={drawingLine !== null}
+                onAnchorDown={handleAnchorDown}
+                onAnchorEnter={handleAnchorEnter}
+                onAnchorLeave={handleAnchorLeave}
+                snapAnchor={snapTarget?.nodeId === n.id ? snapTarget.side : null}
               />
             ))}
 
@@ -1182,6 +1188,11 @@ export default function Canvas() {
           key={n.id}
           node={n as CodeBlockNode}
           isSelected={selectedIds.includes(n.id)}
+          isDrawingLine={drawingLine !== null}
+          onAnchorDown={handleAnchorDown}
+          onAnchorEnter={handleAnchorEnter}
+          onAnchorLeave={handleAnchorLeave}
+          snapAnchor={snapTarget?.nodeId === n.id ? snapTarget.side : null}
         />
       ))}
 
@@ -1193,6 +1204,9 @@ export default function Canvas() {
       )}
       {singleSelected?.type === 'shape' && (
         <ShapeToolbar nodeId={singleSelected.id} />
+      )}
+      {singleSelected?.type === 'codeblock' && (
+        <CodeBlockToolbar nodeId={singleSelected.id} />
       )}
       {singleSelected?.type === 'section' && (
         <SectionToolbar nodeId={singleSelected.id} />

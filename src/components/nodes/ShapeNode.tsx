@@ -124,7 +124,7 @@ export default function ShapeNode({
   }, [isSelected, isLineTool]);
 
   const handleClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
-    if (isLineTool || activeTool === 'shape' || activeTool === 'sticker') return;
+    if (isLineTool || activeTool === 'pan' || activeTool === 'shape' || activeTool === 'sticker') return;
     e.cancelBubble = true;
     const { selectedIds } = useBoardStore.getState();
     if (e.evt.shiftKey) {
@@ -149,7 +149,7 @@ export default function ShapeNode({
     if (isLineTool) return;
     e.cancelBubble = true;
     const { selectedIds, activeTool: tool } = useBoardStore.getState();
-    if (tool === 'sticker') return;
+    if (tool === 'sticker' || tool === 'pan') return;
     if (selectedIds.includes(node.id)) {
       setEditingId(node.id);
     } else {
@@ -371,8 +371,10 @@ export default function ShapeNode({
                   const PROXIMITY = 280;
                   let best: { nodeId: string; side: AnchorSide; dist: number; wx: number; wy: number } | null = null;
                   for (const n of useBoardStore.getState().nodes) {
-                    if (n.id === node.id || (n.type !== 'sticky' && n.type !== 'shape')) continue;
-                    const rn = n as { x: number; y: number; width: number; height: number };
+                    if (n.id === node.id || (n.type !== 'sticky' && n.type !== 'shape' && n.type !== 'table' && n.type !== 'codeblock')) continue;
+                    const rn = n.type === 'table'
+                      ? { x: n.x, y: n.y, width: (n as import('../../types').TableNode).colWidths.reduce((a: number, b: number) => a + b, 0), height: (n as import('../../types').TableNode).rowHeights.reduce((a: number, b: number) => a + b, 0) }
+                      : n as { x: number; y: number; width: number; height: number };
                     for (const ts of ['top', 'right', 'bottom', 'left'] as AnchorSide[]) {
                       const a = anchorCoords(rn, ts);
                       const d = Math.hypot(a.x - bx, a.y - by);

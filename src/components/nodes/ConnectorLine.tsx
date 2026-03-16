@@ -1,7 +1,7 @@
 import { Group, Line, Circle } from 'react-konva';
 import Konva from 'konva';
 import {
-  ConnectorNode, StickyNoteNode, ShapeNode, AnchorSide,
+  ConnectorNode, StickyNoteNode, ShapeNode, TableNode, CodeBlockNode, AnchorSide,
   LineStyle, StrokeStyle, ArrowHeadStyle,
 } from '../../types';
 
@@ -214,17 +214,28 @@ interface Props {
 export default function ConnectorLine({ node, isSelected }: Props) {
   const { nodes, selectIds, selectedIds, setActiveTool } = useBoardStore();
 
-  const fromNode = nodes.find(n => n.id === node.fromNodeId && (n.type === 'sticky' || n.type === 'shape')) as (StickyNoteNode | ShapeNode) | undefined;
-  const toNode   = nodes.find(n => n.id === node.toNodeId   && (n.type === 'sticky' || n.type === 'shape')) as (StickyNoteNode | ShapeNode) | undefined;
+  type Connectable = StickyNoteNode | ShapeNode | TableNode | CodeBlockNode;
+  const isConnectable = (n: { type: string }) =>
+    n.type === 'sticky' || n.type === 'shape' || n.type === 'table' || n.type === 'codeblock';
+  const fromNode = nodes.find(n => n.id === node.fromNodeId && isConnectable(n)) as Connectable | undefined;
+  const toNode   = nodes.find(n => n.id === node.toNodeId   && isConnectable(n)) as Connectable | undefined;
+
+  // TableNode stores colWidths/rowHeights; normalise to RectLike for anchorCoords/smartAnchors
+  const toRectLike = (n: Connectable): RectLike => {
+    if (n.type === 'table') {
+      return { x: n.x, y: n.y, width: n.colWidths.reduce((a, b) => a + b, 0), height: n.rowHeights.reduce((a, b) => a + b, 0) };
+    }
+    return n as RectLike;
+  };
 
   let resolvedFrom: AnchorSide = node.fromAnchor ?? 'right';
   let resolvedTo:   AnchorSide = node.toAnchor   ?? 'left';
   if (!node.fromAnchor && !node.toAnchor && fromNode && toNode) {
-    [resolvedFrom, resolvedTo] = smartAnchors(fromNode, toNode);
+    [resolvedFrom, resolvedTo] = smartAnchors(toRectLike(fromNode), toRectLike(toNode));
   }
 
-  const from = fromNode ? anchorCoords(fromNode, resolvedFrom) : { x: node.fromX, y: node.fromY };
-  const to   = toNode   ? anchorCoords(toNode,   resolvedTo)   : { x: node.toX,   y: node.toY   };
+  const from = fromNode ? anchorCoords(toRectLike(fromNode), resolvedFrom) : { x: node.fromX, y: node.fromY };
+  const to   = toNode   ? anchorCoords(toRectLike(toNode),   resolvedTo)   : { x: node.toX,   y: node.toY   };
 
   // Resolve styles — fall back to legacy fields for old saved boards
   const lineStyle:      LineStyle      = node.lineStyle      ?? 'curved';
@@ -255,13 +266,14 @@ export default function ConnectorLine({ node, isSelected }: Props) {
   const strokeColor = isSelected ? '#818cf8' : node.color;
 
   const handleClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
-    if (useBoardStore.getState().activeTool === 'shape') return;
+    if (['shape', 'pan'].includes(useBoardStore.getState().activeTool)) return;
     e.cancelBubble = true;
     selectIds(e.evt.shiftKey ? [...selectedIds, node.id] : [node.id]);
     if (!['select', 'pan'].includes(useBoardStore.getState().activeTool)) setActiveTool('line');
   };
 
   const handleTap = (e: Konva.KonvaEventObject<TouchEvent>) => {
+    if (useBoardStore.getState().activeTool === 'pan') return;
     e.cancelBubble = true;
     selectIds([node.id]);
     if (!['select', 'pan'].includes(useBoardStore.getState().activeTool)) setActiveTool('line');

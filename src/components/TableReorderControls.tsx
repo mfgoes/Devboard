@@ -2,6 +2,15 @@ import { useEffect, useRef, useState } from 'react';
 import { useBoardStore } from '../store/boardStore';
 import { TableNode } from '../types';
 
+function contrastText(hex: string): string {
+  const h = hex.replace('#', '');
+  if (h.length < 6) return '#000000';
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return (r * 299 + g * 587 + b * 114) / 1000 >= 128 ? '#1a1a2e' : '#ffffff';
+}
+
 function computeColX(colWidths: number[]): number[] {
   const result: number[] = [];
   let acc = 0;
@@ -280,7 +289,7 @@ export default function TableReorderControls({ nodeId }: { nodeId: string }) {
               fontSize: node.fontSize * sc,
               fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
               fontWeight: isHeader ? 'bold' : 'normal',
-              color: isHeader ? '#ffffff' : 'var(--c-text-hi)',
+              color: contrastText(isHeader ? node.headerFill : node.fill),
               borderRight: c < numCols - 1 ? `1px solid ${node.stroke}` : 'none',
               overflow: 'hidden',
               whiteSpace: 'nowrap',
@@ -323,7 +332,7 @@ export default function TableReorderControls({ nodeId }: { nodeId: string }) {
                 fontSize: node.fontSize * sc,
                 fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
                 fontWeight: isHeader ? 'bold' : 'normal',
-                color: isHeader ? '#ffffff' : 'var(--c-text-hi)',
+                color: contrastText(isHeader ? node.headerFill : node.fill),
                 borderBottom: r < numRows - 1 ? `1px solid ${node.stroke}` : 'none',
                 overflow: 'hidden',
                 whiteSpace: 'nowrap',

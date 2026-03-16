@@ -62,7 +62,7 @@ export default function SectionNodeComponent({ node, isSelected, isEditing }: Pr
 
   const handleClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
     e.cancelBubble = true;
-    if (useBoardStore.getState().activeTool === 'section') return;
+    if (['section', 'pan'].includes(useBoardStore.getState().activeTool)) return;
     selectIds([node.id]);
   };
 
@@ -73,7 +73,8 @@ export default function SectionNodeComponent({ node, isSelected, isEditing }: Pr
 
   const handleTap = (e: Konva.KonvaEventObject<TouchEvent>) => {
     e.cancelBubble = true;
-    const { selectedIds } = useBoardStore.getState();
+    const { selectedIds, activeTool: tool } = useBoardStore.getState();
+    if (tool === 'pan') return;
     if (selectedIds.includes(node.id)) {
       setEditingId(node.id);
     } else {

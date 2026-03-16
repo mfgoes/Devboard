@@ -25,7 +25,7 @@ export default function TextBlock({ node, isSelected, isEditing }: Props) {
   }, [isSelected]);
 
   const handleClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
-    if (useBoardStore.getState().activeTool === 'shape') return;
+    if (['shape', 'pan'].includes(useBoardStore.getState().activeTool)) return;
     e.cancelBubble = true;
     const { selectedIds } = useBoardStore.getState();
     if (e.evt.shiftKey) {
@@ -48,6 +48,7 @@ export default function TextBlock({ node, isSelected, isEditing }: Props) {
   const handleTap = (e: Konva.KonvaEventObject<TouchEvent>) => {
     e.cancelBubble = true;
     const { selectedIds, activeTool: tool } = useBoardStore.getState();
+    if (tool === 'pan') return;
     if (selectedIds.includes(node.id)) {
       setEditingId(node.id);
     } else {

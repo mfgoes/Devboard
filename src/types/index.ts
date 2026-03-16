@@ -135,7 +135,7 @@ export interface TableNode {
   merges?: Array<{ row: number; col: number; colSpan: number }>;
 }
 
-export type CodeLanguage = 'sql' | 'python' | 'javascript' | 'typescript' | 'json' | 'bash' | 'text';
+export type CodeLanguage = 'sql' | 'python' | 'javascript' | 'typescript' | 'json' | 'bash' | 'gdscript' | 'csharp' | 'text';
 
 export interface CodeBlockNode {
   id: string;

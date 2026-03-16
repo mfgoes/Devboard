@@ -1,4 +1,4 @@
-export type CodeLanguage = 'sql' | 'python' | 'javascript' | 'typescript' | 'json' | 'bash' | 'text';
+export type CodeLanguage = 'sql' | 'python' | 'javascript' | 'typescript' | 'json' | 'bash' | 'gdscript' | 'csharp' | 'text';
 
 export type TokenType = 'keyword' | 'string' | 'comment' | 'number' | 'operator' | 'plain' | 'function' | 'decorator';
 
@@ -37,10 +37,41 @@ const JS_KW = new Set([
   'protected','readonly','static','abstract','console','require','module','exports',
 ]);
 
+const GD_KW = new Set([
+  'func','var','const','class','class_name','extends','enum','signal','export','onready',
+  'static','remote','master','puppet','slave','remotesync','mastersync','puppetsync',
+  'if','elif','else','for','while','match','break','continue','return','pass',
+  'and','or','not','in','is','as','null','true','false','self','tool','preload','load',
+  'yield','await','super','new','PI','TAU','INF','NAN',
+  'void','bool','int','float','String','Array','Dictionary','Vector2','Vector3','Vector4',
+  'Color','Rect2','Transform2D','Transform3D','Basis','Quaternion','NodePath','Object',
+  'Node','Node2D','Node3D','Resource','RefCounted','print','push_error','push_warning',
+  'get_node','$','%',
+]);
+
+const CS_KW = new Set([
+  'using','namespace','class','interface','struct','enum','delegate','event',
+  'public','private','protected','internal','static','abstract','virtual','override','sealed',
+  'readonly','const','new','this','base','null','true','false','default','typeof','sizeof',
+  'void','bool','byte','sbyte','short','ushort','int','uint','long','ulong',
+  'float','double','decimal','char','string','object','dynamic','var','let',
+  'if','else','switch','case','for','foreach','while','do','break','continue','return',
+  'try','catch','finally','throw','lock','checked','unchecked','unsafe','fixed',
+  'async','await','yield','params','ref','out','in','is','as',
+  'get','set','add','remove','value','partial','where','select','from','into','orderby',
+  'ascending','descending','join','on','equals','group','by','let',
+  'SerializeField','RequireComponent','Header','Tooltip','HideInInspector',
+  'MonoBehaviour','Start','Update','Awake','OnEnable','OnDisable','OnDestroy',
+  'Debug','GameObject','Transform','Vector2','Vector3','Quaternion','Color','Time',
+  'Input','Physics','Rigidbody','Collider','Mathf','List','Dictionary','IEnumerator',
+]);
+
 function getKeywords(lang: CodeLanguage): Set<string> {
   if (lang === 'sql') return SQL_KW;
   if (lang === 'python') return PY_KW;
   if (lang === 'javascript' || lang === 'typescript') return JS_KW;
+  if (lang === 'gdscript') return GD_KW;
+  if (lang === 'csharp') return CS_KW;
   return new Set();
 }
 
@@ -60,11 +91,11 @@ export function tokenizeLine(line: string, lang: CodeLanguage): Token[] {
       tokens.push({ text: line.slice(i), type: 'comment' });
       break;
     }
-    if (lang === 'python' && line[i] === '#') {
+    if ((lang === 'python' || lang === 'gdscript') && line[i] === '#') {
       tokens.push({ text: line.slice(i), type: 'comment' });
       break;
     }
-    if ((lang === 'javascript' || lang === 'typescript') && line[i] === '/' && line[i + 1] === '/') {
+    if ((lang === 'javascript' || lang === 'typescript' || lang === 'csharp') && line[i] === '/' && line[i + 1] === '/') {
       tokens.push({ text: line.slice(i), type: 'comment' });
       break;
     }
@@ -83,10 +114,18 @@ export function tokenizeLine(line: string, lang: CodeLanguage): Token[] {
       continue;
     }
 
-    // Decorator (Python)
-    if (lang === 'python' && line[i] === '@') {
+    // Decorator/annotation (Python, GDScript @annotation, C# [Attribute])
+    if ((lang === 'python' || lang === 'gdscript') && line[i] === '@') {
       let j = i + 1;
       while (j < n && /[\w.]/.test(line[j])) j++;
+      tokens.push({ text: line.slice(i, j), type: 'decorator' });
+      i = j;
+      continue;
+    }
+    if (lang === 'csharp' && line[i] === '[') {
+      let j = i + 1;
+      while (j < n && line[j] !== ']') j++;
+      if (j < n) j++;
       tokens.push({ text: line.slice(i, j), type: 'decorator' });
       i = j;
       continue;

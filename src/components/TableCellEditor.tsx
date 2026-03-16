@@ -1,7 +1,14 @@
 import { useEffect, useRef } from 'react';
 import { useBoardStore } from '../store/boardStore';
 import { TableNode } from '../types';
-import { useTheme } from '../theme';
+function contrastText(hex: string): string {
+  const h = hex.replace('#', '');
+  if (h.length < 6) return '#000000';
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return (r * 299 + g * 587 + b * 114) / 1000 >= 128 ? '#1a1a2e' : '#ffffff';
+}
 
 function computeColX(colWidths: number[]): number[] {
   const result: number[] = [];
@@ -18,7 +25,6 @@ function computeRowY(rowHeights: number[]): number[] {
 }
 
 export default function TableCellEditor() {
-  const t = useTheme();
   const { nodes, camera, tableEditState, setTableEditState, setTableSelectionState, updateNode, saveHistory } = useBoardStore();
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -116,8 +122,8 @@ export default function TableCellEditor() {
         fontSize: fs,
         fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
         fontWeight: isHeader ? 'bold' : 'normal',
-        color: isHeader ? '#ffffff' : t.textHi,
-        caretColor: isHeader ? '#ffffff' : t.textHi,
+        color: contrastText(isHeader ? node.headerFill : node.fill),
+        caretColor: contrastText(isHeader ? node.headerFill : node.fill),
         padding: 0,
         zIndex: 200,
         verticalAlign: 'middle',

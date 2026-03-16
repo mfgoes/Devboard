@@ -398,6 +398,9 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer }: Top
                 <MenuItem onClick={() => menuAction(() => { setActiveShapeKind('diamond');  setActiveTool('shape'); })} icon={<IconShapeDiamond />}  badge="R">Diamond</MenuItem>
                 <MenuItem onClick={() => menuAction(() => { setActiveShapeKind('triangle'); setActiveTool('shape'); })} icon={<IconShapeTriangle />} badge="R">Triangle</MenuItem>
                 <MenuDivider />
+                <MenuLabel>Code</MenuLabel>
+                <MenuItem onClick={() => menuAction(() => setActiveTool('code'))} icon={<IconCode />} badge="C">Code snippet</MenuItem>
+                <MenuDivider />
                 <MenuLabel>Table</MenuLabel>
                 <MenuItem onClick={() => menuAction(() => setActiveTool('table'))} icon={<IconTableNew />} badge="G">Table (new)</MenuItem>
                 <MenuItem onClick={() => { setMenuOpen(false); csvInputRef.current?.click(); }} icon={<IconCsv />}>Table from CSV</MenuItem>
@@ -695,6 +698,14 @@ function IconTemplate() {
       <rect x="1" y="1" width="11" height="4" rx="1" stroke="currentColor" strokeWidth="1.3" />
       <rect x="1" y="7" width="4.5" height="5" rx="1" stroke="currentColor" strokeWidth="1.3" />
       <rect x="7.5" y="7" width="4.5" height="5" rx="1" stroke="currentColor" strokeWidth="1.3" />
+    </svg>
+  );
+}
+function IconCode() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+      <rect x="1" y="2" width="11" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.3" />
+      <path d="M4.5 5L3 6.5l1.5 1.5M8.5 5L10 6.5 8.5 8M6 8l1-4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

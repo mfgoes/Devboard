@@ -1,13 +1,39 @@
-import { useRef, useEffect } from 'react';
-import { Group, Rect, Line, Text, Transformer } from 'react-konva';
+import { useRef, useEffect, useState } from 'react';
+import { Group, Rect, Line, Text, Transformer, Circle } from 'react-konva';
 import Konva from 'konva';
-import { TableNode as TableNodeType } from '../../types';
+import { TableNode as TableNodeType, AnchorSide, ConnectorNode } from '../../types';
 import { useBoardStore } from '../../store/boardStore';
-import { useTheme } from '../../theme';
+import { anchorCoords, cpOffset } from './ConnectorLine';
+
+function blendHex(base: string, or_: number, og: number, ob: number, alpha: number): string {
+  const h = base.replace('#', '');
+  if (h.length < 6) return base;
+  const r = Math.round(parseInt(h.slice(0, 2), 16) * (1 - alpha) + or_ * alpha);
+  const g = Math.round(parseInt(h.slice(2, 4), 16) * (1 - alpha) + og * alpha);
+  const b = Math.round(parseInt(h.slice(4, 6), 16) * (1 - alpha) + ob * alpha);
+  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+}
+
+function contrastText(hex: string): string {
+  const h = hex.replace('#', '');
+  if (h.length < 6) return '#000000';
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return (r * 299 + g * 587 + b * 114) / 1000 >= 128 ? '#1a1a2e' : '#ffffff';
+}
+
+// Accent = #6366f1 (r=99, g=102, b=241) blended at 25% over cell fill
+function focusedFill(fill: string): string {
+  return blendHex(fill, 99, 102, 241, 0.25);
+}
 
 const MIN_COL_W = 40;
 const MIN_ROW_H = 20;
 const RESIZE_HIT = 8; // hit area px for resize handles
+
+const DOT_OFFSET = 28;
+const ANCHOR_SIDES: AnchorSide[] = ['top', 'right', 'bottom', 'left'];
 
 function computeColX(colWidths: number[]): number[] {
   const result: number[] = [];
@@ -26,20 +52,28 @@ function computeRowY(rowHeights: number[]): number[] {
 interface Props {
   node: TableNodeType;
   isSelected: boolean;
+  isDrawingLine?: boolean;
+  onAnchorDown?: (nodeId: string, side: AnchorSide, worldX: number, worldY: number) => void;
+  onAnchorEnter?: (nodeId: string, side: AnchorSide) => void;
+  onAnchorLeave?: () => void;
+  snapAnchor?: AnchorSide | null;
 }
 
-export default function TableNode({ node, isSelected }: Props) {
+function generateId() { return Math.random().toString(36).slice(2, 11); }
+
+export default function TableNode({ node, isSelected, isDrawingLine, onAnchorDown, onAnchorEnter, onAnchorLeave, snapAnchor }: Props) {
   const groupRef = useRef<Konva.Group>(null);
   const trRef = useRef<Konva.Transformer>(null);
-  const t = useTheme();
+  const [hoveredAnchor, setHoveredAnchor] = useState<AnchorSide | null>(null);
   const {
-    updateNode, selectIds, activeTool, saveHistory,
+    updateNode, selectIds, activeTool, saveHistory, addNode,
     tableEditState, setTableEditState,
     tableSelectionState, setTableSelectionState,
     setTableHoverDivider, setTableHoverEdge, setTableHoverCell,
   } = useBoardStore();
 
   const isLineTool = activeTool === 'line';
+  const showAnchors = isSelected || isLineTool || isDrawingLine === true;
 
   // Attach transformer
   useEffect(() => {
@@ -121,7 +155,7 @@ export default function TableNode({ node, isSelected }: Props) {
   }, [node.id, updateNode, saveHistory]);
 
   const handleClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
-    if (isLineTool || activeTool === 'table') return;
+    if (isLineTool || activeTool === 'table' || activeTool === 'pan') return;
     e.cancelBubble = true;
     const { selectedIds } = useBoardStore.getState();
     if (e.evt.shiftKey) {
@@ -134,7 +168,7 @@ export default function TableNode({ node, isSelected }: Props) {
   };
 
   const handleCellClick = (row: number, col: number, e: Konva.KonvaEventObject<MouseEvent>) => {
-    if (isLineTool || activeTool === 'table') return;
+    if (isLineTool || activeTool === 'table' || activeTool === 'pan') return;
     e.cancelBubble = true;
     selectIds([node.id]);
     setTableSelectionState({ nodeId: node.id, row, col });
@@ -226,7 +260,7 @@ export default function TableNode({ node, isSelected }: Props) {
                 y={rowY[r]}
                 width={node.colWidths[c]}
                 height={node.rowHeights[r]}
-                fill={isFocused ? '#6366f133' : isHeader ? node.headerFill : node.fill}
+                fill={isFocused ? focusedFill(isHeader ? node.headerFill : node.fill) : isHeader ? node.headerFill : node.fill}
                 onClick={(e) => handleCellClick(r, c, e)}
                 onDblClick={(e) => handleCellDblClick(r, c, e)}
               />
@@ -242,6 +276,9 @@ export default function TableNode({ node, isSelected }: Props) {
             const text = node.cells[r]?.[c] ?? '';
             if (!text || isEditingCell) return null;
             const isHeader = node.headerRow && r === 0;
+            const isFocusedText = selectedCell?.row === r && selectedCell?.col === c;
+            const baseFill = isHeader ? node.headerFill : node.fill;
+            const effectiveFill = isFocusedText ? focusedFill(baseFill) : baseFill;
             return (
               <Text
                 key={`text-${r}-${c}`}
@@ -253,7 +290,7 @@ export default function TableNode({ node, isSelected }: Props) {
                 fontSize={node.fontSize}
                 fontFamily="'JetBrains Mono', 'Fira Code', monospace"
                 fontStyle={isHeader ? 'bold' : 'normal'}
-                fill={isHeader ? '#ffffff' : t.textHi}
+                fill={contrastText(effectiveFill)}
                 verticalAlign="middle"
                 wrap="word"
                 listening={false}
@@ -422,6 +459,68 @@ export default function TableNode({ node, isSelected }: Props) {
           }}
         />
       )}
+
+      {/* Anchor dots */}
+      {showAnchors && ANCHOR_SIDES.map((side) => {
+        const rectLike = { x: node.x, y: node.y, width: totalW, height: totalH };
+        const anchor = anchorCoords(rectLike, side);
+        const offsets: Record<AnchorSide, { dx: number; dy: number }> = {
+          top:    { dx: 0,           dy: -DOT_OFFSET },
+          bottom: { dx: 0,           dy:  DOT_OFFSET },
+          left:   { dx: -DOT_OFFSET, dy: 0           },
+          right:  { dx:  DOT_OFFSET, dy: 0           },
+        };
+        const { dx, dy } = offsets[side];
+        const vx = anchor.x + dx;
+        const vy = anchor.y + dy;
+        const snapped = snapAnchor === side;
+        const hovered = hoveredAnchor === side;
+        const active  = snapped || hovered;
+        return (
+          <Circle
+            key={side}
+            x={vx} y={vy}
+            radius={active ? 8 : 5}
+            fill={active ? '#6366f1' : 'white'}
+            stroke="#6366f1" strokeWidth={2}
+            opacity={active ? 1 : 0.85}
+            shadowEnabled={active} shadowColor="#6366f1" shadowBlur={12}
+            onMouseDown={(e) => {
+              e.cancelBubble = true;
+              // Check for smart auto-connect
+              const PROXIMITY = 280;
+              let best: { nodeId: string; side: AnchorSide; dist: number; wx: number; wy: number } | null = null;
+              for (const n of useBoardStore.getState().nodes) {
+                if (n.id === node.id || (n.type !== 'sticky' && n.type !== 'shape' && n.type !== 'table' && n.type !== 'codeblock')) continue;
+                const rn = n.type === 'table'
+                  ? { x: n.x, y: n.y, width: (n as TableNodeType).colWidths.reduce((a, b) => a + b, 0), height: (n as TableNodeType).rowHeights.reduce((a, b) => a + b, 0) }
+                  : n as { x: number; y: number; width: number; height: number };
+                for (const ts of ANCHOR_SIDES) {
+                  const a = anchorCoords(rn, ts);
+                  const d = Math.hypot(a.x - anchor.x, a.y - anchor.y);
+                  if (d < PROXIMITY && (!best || d < best.dist)) best = { nodeId: n.id, side: ts, dist: d, wx: a.x, wy: a.y };
+                }
+              }
+              if (best) {
+                addNode({
+                  id: generateId(), type: 'connector',
+                  fromNodeId: node.id, fromAnchor: side,
+                  fromX: anchor.x, fromY: anchor.y,
+                  toNodeId: best.nodeId, toAnchor: best.side,
+                  toX: best.wx, toY: best.wy,
+                  color: '#6366f1', strokeWidth: 2,
+                  lineStyle: 'curved', strokeStyle: 'solid',
+                  arrowHeadStart: 'none', arrowHeadEnd: 'arrow',
+                } as ConnectorNode);
+              } else {
+                onAnchorDown?.(node.id, side, anchor.x, anchor.y);
+              }
+            }}
+            onMouseEnter={() => { setHoveredAnchor(side); onAnchorEnter?.(node.id, side); }}
+            onMouseLeave={() => { setHoveredAnchor(null); onAnchorLeave?.(); }}
+          />
+        );
+      })}
     </>
   );
 }

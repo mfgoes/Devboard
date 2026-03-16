@@ -62,8 +62,8 @@ export default function StickerNodeComponent({ node, isSelected }: Props) {
         offsetX={node.width / 2}
         offsetY={node.height / 2}
         draggable
-        onClick={() => { if (activeTool !== 'sticker') selectIds([node.id]); }}
-        onTap={() => { if (activeTool !== 'sticker') selectIds([node.id]); }}
+        onClick={() => { if (activeTool !== 'sticker' && activeTool !== 'pan') selectIds([node.id]); }}
+        onTap={() => { if (activeTool !== 'sticker' && activeTool !== 'pan') selectIds([node.id]); }}
         onDragStart={() => {
           saveHistory();
           selectIds([node.id]);

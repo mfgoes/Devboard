@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState } from 'react';
 import { useBoardStore } from '../../store/boardStore';
-import { CodeBlockNode } from '../../types';
+import { CodeBlockNode, AnchorSide } from '../../types';
 import { tokenizeLine, TOKEN_COLORS, CodeLanguage } from '../../utils/syntaxHighlight';
 
 const FONT_FAMILY = "'JetBrains Mono', 'Fira Code', Consolas, 'Courier New', monospace";
@@ -10,16 +10,6 @@ const CODE_PADDING = '10px 14px';
 const MIN_WIDTH = 320;
 // 3 lines × (fontSize × lineHeight) + top/bottom padding
 const MIN_HEIGHT = Math.ceil(3 * FONT_SIZE * LINE_HEIGHT) + 20;
-
-const LANGUAGES: { value: CodeLanguage; label: string }[] = [
-  { value: 'sql',        label: 'SQL' },
-  { value: 'python',     label: 'Python' },
-  { value: 'javascript', label: 'JavaScript' },
-  { value: 'typescript', label: 'TypeScript' },
-  { value: 'json',       label: 'JSON' },
-  { value: 'bash',       label: 'Bash' },
-  { value: 'text',       label: 'Plain' },
-];
 
 // ── Syntax-highlighted code renderer ────────────────────────────────────────
 
@@ -89,31 +79,6 @@ function HighlightedCode({
 
 // ── Icon buttons ─────────────────────────────────────────────────────────────
 
-function IconCopy() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
-      <rect x="4" y="4" width="9" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.4" />
-      <path d="M2 10V2h8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-function IconHash() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
-      <line x1="4" y1="2" x2="3" y2="12" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-      <line x1="10" y1="2" x2="9" y2="12" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-      <line x1="1.5" y1="5.5" x2="12.5" y2="5.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-      <line x1="1" y1="9" x2="12" y2="9" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-    </svg>
-  );
-}
-function IconTrash() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
-      <path d="M2 4h10M5 4V2h4v2M6 6.5v4M8 6.5v4M3 4l1 8h6l1-8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
 function IconGrip() {
   return (
     <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
@@ -127,19 +92,34 @@ function IconGrip() {
 
 // ── Main component ───────────────────────────────────────────────────────────
 
+const ANCHOR_SIDES: { side: AnchorSide; sx: (w: number) => number; sy: (h: number) => number; ox: number; oy: number }[] = [
+  { side: 'top',    sx: (w) => w / 2, sy: () => 0,    ox: 0,   oy: -28 },
+  { side: 'bottom', sx: (w) => w / 2, sy: (h) => h,   ox: 0,   oy:  28 },
+  { side: 'left',   sx: () => 0,      sy: (h) => h/2, ox: -28, oy: 0   },
+  { side: 'right',  sx: (w) => w,     sy: (h) => h/2, ox:  28, oy: 0   },
+];
+
 interface Props {
   node: CodeBlockNode;
   isSelected: boolean;
+  isDrawingLine?: boolean;
+  onAnchorDown?: (nodeId: string, side: AnchorSide, worldX: number, worldY: number) => void;
+  onAnchorEnter?: (nodeId: string, side: AnchorSide) => void;
+  onAnchorLeave?: () => void;
+  snapAnchor?: AnchorSide | null;
 }
 
-export default function CodeBlock({ node, isSelected }: Props) {
-  const { camera, updateNode, selectIds, deleteSelected, selectedIds } = useBoardStore();
+export default function CodeBlock({ node, isSelected, isDrawingLine, onAnchorDown, onAnchorEnter, onAnchorLeave, snapAnchor }: Props) {
+  const { camera, updateNode, selectIds, activeTool } = useBoardStore();
 
   const dragRef = useRef<{ startMX: number; startMY: number; startNX: number; startNY: number } | null>(null);
   const resizeRef = useRef<{ startMX: number; startMY: number; startW: number; startH: number } | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const [copied, setCopied] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
+  const [hoveredAnchor, setHoveredAnchor] = useState<AnchorSide | null>(null);
+
+  const isLineTool = activeTool === 'line';
+  const showAnchors = isSelected || isLineTool || isDrawingLine === true;
 
   // Global mouse handlers for drag/resize
   useEffect(() => {
@@ -173,21 +153,6 @@ export default function CodeBlock({ node, isSelected }: Props) {
     };
   }, [camera.scale, node.id, updateNode]);
 
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(node.code);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      // fallback: select all
-    }
-  };
-
-  const handleDelete = () => {
-    selectIds([node.id]);
-    deleteSelected();
-  };
-
   const handleCardMouseDown = (e: React.MouseEvent) => {
     // Don't interfere with interactive elements
     const target = e.target as HTMLElement;
@@ -201,7 +166,7 @@ export default function CodeBlock({ node, isSelected }: Props) {
       target.closest('input')
     ) return;
     e.stopPropagation();
-    selectIds([node.id]);
+    if (useBoardStore.getState().activeTool !== 'pan') selectIds([node.id]);
   };
 
   const handleHeaderDragStart = (e: React.MouseEvent) => {
@@ -215,7 +180,7 @@ export default function CodeBlock({ node, isSelected }: Props) {
       target.closest('input')
     ) return;
     e.stopPropagation();
-    selectIds([node.id]);
+    if (useBoardStore.getState().activeTool !== 'pan') selectIds([node.id]);
     dragRef.current = {
       startMX: e.clientX,
       startMY: e.clientY,
@@ -228,6 +193,7 @@ export default function CodeBlock({ node, isSelected }: Props) {
   const screenY = camera.y + node.y * camera.scale;
 
   return (
+    <>
     <div
       onMouseDown={handleCardMouseDown}
       style={{
@@ -269,34 +235,6 @@ export default function CodeBlock({ node, isSelected }: Props) {
         <span style={{ color: '#3a3a5a', flexShrink: 0, marginRight: 2 }}>
           <IconGrip />
         </span>
-
-        {/* Language dropdown */}
-        <select
-          value={node.language}
-          onChange={(e) => updateNode(node.id, { language: e.target.value as CodeLanguage } as Partial<CodeBlockNode>)}
-          onMouseDown={(e) => e.stopPropagation()}
-          style={{
-            fontFamily: FONT_FAMILY,
-            fontSize: 11,
-            background: 'rgba(255,255,255,0.06)',
-            border: '1px solid rgba(255,255,255,0.1)',
-            borderRadius: 5,
-            color: '#79b8ff',
-            padding: '2px 6px',
-            cursor: 'pointer',
-            flexShrink: 0,
-            outline: 'none',
-            appearance: 'none',
-            paddingRight: 20,
-            backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'10\' height=\'6\' viewBox=\'0 0 10 6\'%3E%3Cpath d=\'M1 1l4 4 4-4\' stroke=\'%2379b8ff\' stroke-width=\'1.5\' fill=\'none\' stroke-linecap=\'round\'/%3E%3C/svg%3E")',
-            backgroundRepeat: 'no-repeat',
-            backgroundPosition: 'right 6px center',
-          }}
-        >
-          {LANGUAGES.map((l) => (
-            <option key={l.value} value={l.value}>{l.label}</option>
-          ))}
-        </select>
 
         {/* Title */}
         {editingTitle ? (
@@ -343,76 +281,6 @@ export default function CodeBlock({ node, isSelected }: Props) {
           </span>
         )}
 
-        {/* Action buttons */}
-        <div style={{ display: 'flex', gap: 2, alignItems: 'center', flexShrink: 0 }}>
-          {/* Copy */}
-          <button
-            title={copied ? 'Copied!' : 'Copy code'}
-            onClick={handleCopy}
-            onMouseDown={(e) => e.stopPropagation()}
-            style={{
-              background: copied ? 'rgba(99,102,241,0.2)' : 'transparent',
-              border: 'none',
-              borderRadius: 5,
-              width: 26,
-              height: 26,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: copied ? '#6366f1' : '#5a5a7a',
-              cursor: 'pointer',
-              transition: 'color 0.15s, background 0.15s',
-            }}
-          >
-            <IconCopy />
-          </button>
-
-          {/* Line numbers toggle */}
-          <button
-            title={node.showLineNumbers ? 'Hide line numbers' : 'Show line numbers'}
-            onClick={() => updateNode(node.id, { showLineNumbers: !node.showLineNumbers } as Partial<CodeBlockNode>)}
-            onMouseDown={(e) => e.stopPropagation()}
-            style={{
-              background: node.showLineNumbers ? 'rgba(99,102,241,0.2)' : 'transparent',
-              border: 'none',
-              borderRadius: 5,
-              width: 26,
-              height: 26,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: node.showLineNumbers ? '#6366f1' : '#5a5a7a',
-              cursor: 'pointer',
-              transition: 'color 0.15s, background 0.15s',
-            }}
-          >
-            <IconHash />
-          </button>
-
-          {/* Trash */}
-          <button
-            title="Delete"
-            onClick={handleDelete}
-            onMouseDown={(e) => e.stopPropagation()}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              borderRadius: 5,
-              width: 26,
-              height: 26,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#5a5a7a',
-              cursor: 'pointer',
-              transition: 'color 0.15s',
-            }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#f97583'; }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#5a5a7a'; }}
-          >
-            <IconTrash />
-          </button>
-        </div>
       </div>
 
       {/* ── Code area ───────────────────────────────────────────────────────── */}
@@ -597,5 +465,44 @@ export default function CodeBlock({ node, isSelected }: Props) {
         </svg>
       </div>
     </div>
+
+    {/* Anchor dots — positioned in screen space around the card */}
+    {showAnchors && ANCHOR_SIDES.map(({ side, sx, sy, ox, oy }) => {
+      const scale = camera.scale;
+      const dotX = screenX + sx(node.width) * scale + ox * scale;
+      const dotY = screenY + sy(node.height) * scale + oy * scale;
+      const worldX = node.x + sx(node.width);
+      const worldY = node.y + sy(node.height);
+      const active = snapAnchor === side || hoveredAnchor === side;
+      const DOT = active ? 9 : 6;
+      return (
+        <div
+          key={side}
+          onMouseDown={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            onAnchorDown?.(node.id, side, worldX, worldY);
+          }}
+          onMouseEnter={() => { setHoveredAnchor(side); onAnchorEnter?.(node.id, side); }}
+          onMouseLeave={() => { setHoveredAnchor(null); onAnchorLeave?.(); }}
+          style={{
+            position: 'absolute',
+            left: dotX - DOT,
+            top:  dotY - DOT,
+            width:  DOT * 2,
+            height: DOT * 2,
+            borderRadius: '50%',
+            background: active ? '#6366f1' : '#ffffff',
+            border: '2px solid #6366f1',
+            boxShadow: active ? '0 0 10px rgba(99,102,241,0.7)' : 'none',
+            cursor: 'crosshair',
+            zIndex: 300,
+            pointerEvents: 'auto',
+            transition: 'width 0.1s, height 0.1s, left 0.1s, top 0.1s',
+          }}
+        />
+      );
+    })}
+    </>
   );
 }
