@@ -9,9 +9,17 @@ interface Props {
   node: TextBlockNode;
   isSelected: boolean;
   isEditing: boolean;
+  onSnapMove?: (nodeId: string, x: number, y: number, w: number, h: number) => { x: number; y: number };
+  onSnapEnd?: () => void;
+  onAltDragStart?: (nodeId: string) => void;
+  onAltDragEnd?: () => void;
+  onMultiDragStart?: (nodeId: string, worldX: number, worldY: number) => void;
+  onMultiDragMove?: (nodeId: string, worldX: number, worldY: number) => void;
+  onMultiDragEnd?: () => void;
+  getShouldSaveHistory?: () => boolean;
 }
 
-export default function TextBlock({ node, isSelected, isEditing }: Props) {
+export default function TextBlock({ node, isSelected, isEditing, onSnapMove, onSnapEnd, onAltDragStart, onAltDragEnd, onMultiDragStart, onMultiDragMove, onMultiDragEnd, getShouldSaveHistory }: Props) {
   const t = useTheme();
   const groupRef = useRef<Konva.Group>(null);
   const trRef    = useRef<Konva.Transformer>(null);
@@ -63,7 +71,7 @@ export default function TextBlock({ node, isSelected, isEditing }: Props) {
   };
 
   const handleDragEnd = (e: Konva.KonvaEventObject<DragEvent>) => {
-    saveHistory();
+    if (!getShouldSaveHistory || getShouldSaveHistory()) saveHistory();
     updateNode(node.id, { x: e.target.x(), y: e.target.y() });
   };
 
@@ -117,7 +125,21 @@ export default function TextBlock({ node, isSelected, isEditing }: Props) {
         onDblClick={handleDblClick}
         onTap={handleTap}
         onDblTap={handleDblTap}
-        onDragEnd={handleDragEnd}
+        onDragStart={(e) => {
+          if (e.evt.altKey) onAltDragStart?.(node.id);
+          onMultiDragStart?.(node.id, e.target.x(), e.target.y());
+        }}
+        onDragMove={(e) => {
+          let nx = e.target.x(), ny = e.target.y();
+          if (onSnapMove) {
+            const lineH = Math.max(node.fontSize * 1.5, node.fontSize * 2);
+            const snapped = onSnapMove(node.id, nx, ny, node.width, lineH);
+            nx = snapped.x; ny = snapped.y;
+            e.target.x(nx); e.target.y(ny);
+          }
+          onMultiDragMove?.(node.id, nx, ny);
+        }}
+        onDragEnd={(e) => { onSnapEnd?.(); onAltDragEnd?.(); onMultiDragEnd?.(); handleDragEnd(e); }}
         onTransformEnd={handleTransformEnd}
       >
         {/* Transparent hit area */}
@@ -135,7 +157,7 @@ export default function TextBlock({ node, isSelected, isEditing }: Props) {
             fontFamily="'JetBrains Mono', 'Fira Code', monospace"
             fill={node.text ? (node.color === 'auto' ? t.textHi : node.color) : t.textOff}
             wrap="word"
-            align="left"
+            align={node.textAlign ?? 'left'}
             listening={false}
           />
         )}

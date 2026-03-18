@@ -97,42 +97,53 @@ src/
 - [x] Canvas with pan, zoom, dot grid
 - [x] Sticky notes — place, drag, resize, edit, color picker
 - [x] Connector lines (bezier arrows between stickies)
-- [x] Copy / paste / duplicate
+- [x] Copy / paste / duplicate (`⌘C` / `⌘V` / `⌘D`)
+- [x] **Alt+drag to duplicate** — hold Alt while dragging any node to leave a copy at the origin
 - [x] Board title, Export PNG, Save/Load JSON, Share link (base64 URL)
 - [x] Welcome modal with keyboard cheatsheet
 - [x] Single-file build for itch.io
 - [x] Fullscreen button
-
-### Up next
 - [x] Text blocks (standalone text, no background)
 - [x] Basic shapes — rectangle, ellipse, diamond, triangle
 - [x] Allow moving multiple sections together (left mouse + shift select)
-- [x] Clicking doesn't work well on Brave browser on Windows, but works fine on Mac. On Chrome Windows it seems to work fine. 
-      -> Check if browser is brave -> Then give a notice to disable shields or download the app. Brave users: If interactions don’t work, click the 🦁 icon in the address bar and disable Shields for this page.
-- [ ] Templates to choose from (make it more dev focused)
-- [ ] Freehand pen / draw tool
-- [ ] sticker tool
-- [x] Split zoom control to separate toolbar (and make it stack on mobile)
+- [x] Brave browser shield notice
+- [x] Split zoom control to separate toolbar
 - [x] Sections / grouping areas
-- [x] Undo / redo (Ctrl+Z / Ctrl+Shift+Z)
+- [x] Undo / redo (`⌘Z` / `⌘⇧Z`)
+- [x] Context-sensitive toolbars per node type
+- [x] Align option when multiple objects are selected
+- [x] Re-center button (press zoom number)
+- [x] Themes (dark mode, color schemes)
+- [x] Sticker tool (emoji stickers with picker)
+- [x] **Snap / alignment guides** — subtle guides appear when dragging near other nodes’ edges or centers
+- [x] **Canvas start screen** — first visit seeds the board with a welcome note instead of a modal
+- [x] Shape + text tool stays selected after placing (multi-place)
+- [x] Text alignment (left / center / right) in text block toolbar
+- [x] Code block node with syntax highlighting
+
+### Up next
+
+- [ ] **Multi-node Alt+drag** — when multiple nodes are selected, Alt+drag duplicates all of them together
+- [x] **Keyboard nudge** — arrow keys move selected node(s) by 1px; Shift+arrow moves by 10px
+- [ ] **Group / ungroup** (`⌘G`) — bundle selected nodes so they move and resize as one
+- [ ] **Lock nodes** — prevent accidental moves on static layout elements
+- [ ] **Right-click context menu** — quick access to duplicate, delete, lock, bring to front, etc.
+- [ ] Templates to choose from (dev-focused: planning board, retro, architecture diagram)
+- [ ] Freehand pen / draw tool
+- [ ] Image upload (drop PNG/JPG onto canvas) -> Requires app + workspace
+- [ ] Mini-map / overview panel
+- [ ] Load folder/workspace -> Allows saving images (works similar to ie VS Code) + Better handling of multiple pages + ability to reference code snippets better
 
 ### Later / ideas
 
-- [x] When selecting a different object type (ie text or post it) change the toolbar to that one. When pressing escape switch back to Select tool.
-- [x] Align option when multiple objects are selected
-- [x] Re-center button (press zoom number)
-- [ ] More export options (ie entire board, screen, PDF, with background)
-- [ ] Insert 'sticker' option (from a selection of stickers, such as thumbs up/down/fire emoji, surprise, etc)
+- [ ] More export options (entire board, PDF, with background)
 - [ ] Advertise on Reddit + X
-- [ ] Enable pages (see Figjam / Figma) which makes organising your boards easier. 
-- [ ] Dropdown menu from the top left (like Figjam) giving even more options (ie saving, settings, etc)
+- [ ] Enable pages (see Figjam / Figma) which makes organising your boards easier
+- [ ] Dropdown menu from the top left (like Figjam) giving even more options (saving, settings, etc)
   - [ ] Allow inserting code sections and comments (toggle to show in toolbar)
   - [ ] Open a template (enable different templates, ie planning board or note taking)
-- [ ] Image upload (drop PNG/JPG onto canvas)
-- [ ] Mini-map / overview panel
 - [ ] Multiple boards / tabs
-- [x] Themes (dark mode, color schemes)
-- [ ] Real-time collaboration (WebSocket / WebRTC via ie QN database)
+- [ ] Real-time collaboration (WebSocket / WebRTC)
 
 ### Much later / Post release
 - [ ] Mobile-friendly posting of items on board

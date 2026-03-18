@@ -14,6 +14,28 @@ const TEXT_COLORS = [
   { label: 'Orange', hex: '#fb923c' },
 ];
 
+function AlignIcon({ align }: { align: 'left' | 'center' | 'right' }) {
+  return (
+    <svg width="12" height="10" viewBox="0 0 12 10" fill="none">
+      {align === 'left' && <>
+        <rect x="0" y="0" width="12" height="1.5" rx="0.75" fill="currentColor" />
+        <rect x="0" y="4" width="8"  height="1.5" rx="0.75" fill="currentColor" />
+        <rect x="0" y="8" width="10" height="1.5" rx="0.75" fill="currentColor" />
+      </>}
+      {align === 'center' && <>
+        <rect x="0" y="0" width="12" height="1.5" rx="0.75" fill="currentColor" />
+        <rect x="2" y="4" width="8"  height="1.5" rx="0.75" fill="currentColor" />
+        <rect x="1" y="8" width="10" height="1.5" rx="0.75" fill="currentColor" />
+      </>}
+      {align === 'right' && <>
+        <rect x="0" y="0" width="12" height="1.5" rx="0.75" fill="currentColor" />
+        <rect x="4" y="4" width="8"  height="1.5" rx="0.75" fill="currentColor" />
+        <rect x="2" y="8" width="10" height="1.5" rx="0.75" fill="currentColor" />
+      </>}
+    </svg>
+  );
+}
+
 const SIZE_PRESETS = [
   { label: 'Small',       value: 14 },
   { label: 'Medium',      value: 20 },
@@ -28,6 +50,7 @@ export default function TextBlockToolbar({ nodeId }: { nodeId: string }) {
   const [showColors, setShowColors] = useState(false);
   const [showSizes, setShowSizes]   = useState(false);
   const [showLink, setShowLink]     = useState(false);
+  const [showAlign, setShowAlign]   = useState(false);
   const [customSize, setCustomSize] = useState('');
   const [linkValue, setLinkValue]   = useState('');
 
@@ -47,7 +70,7 @@ export default function TextBlockToolbar({ nodeId }: { nodeId: string }) {
     updateNode(nodeId, updates as Parameters<typeof updateNode>[1]);
   };
 
-  const closeAll = () => { setShowColors(false); setShowSizes(false); setShowLink(false); };
+  const closeAll = () => { setShowColors(false); setShowSizes(false); setShowLink(false); setShowAlign(false); };
 
   const matchedPreset = SIZE_PRESETS.find((p) => p.value === node.fontSize);
   const sizeLabel = matchedPreset?.label ?? `${node.fontSize}px`;
@@ -241,6 +264,41 @@ export default function TextBlockToolbar({ nodeId }: { nodeId: string }) {
             <rect x="5" y="9.8" width="8" height="1.4" rx="0.7" fill="currentColor" />
           </svg>
         </button>
+      </div>
+
+      <div className="w-px h-6 bg-[var(--c-border)]" />
+
+      {/* ── Text alignment dropdown ─────────────────────────────────── */}
+      <div className="relative px-1 py-1">
+        <button
+          title="Text alignment"
+          onClick={() => { closeAll(); setShowAlign((v) => !v); }}
+          className="flex items-center gap-1 h-8 px-2 rounded-lg text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
+        >
+          <AlignIcon align={node.textAlign ?? 'left'} />
+          <svg width="8" height="5" viewBox="0 0 8 5" fill="currentColor">
+            <path d="M0 0l4 5 4-5z" />
+          </svg>
+        </button>
+        {showAlign && (
+          <div className="absolute top-full left-0 mt-1 py-1.5 bg-[var(--c-panel)] border border-[var(--c-border)] rounded-xl shadow-2xl z-50 min-w-[110px]">
+            {(['left', 'center', 'right'] as const).map((align) => (
+              <button
+                key={align}
+                onClick={() => { update({ textAlign: align }); setShowAlign(false); }}
+                className={[
+                  'w-full flex items-center gap-2.5 px-3 py-2 text-[12px] font-mono transition-colors capitalize',
+                  (node.textAlign ?? 'left') === align
+                    ? 'bg-[#6366f1] text-white'
+                    : 'text-[var(--c-text-md)] hover:bg-[var(--c-hover)]',
+                ].join(' ')}
+              >
+                <AlignIcon align={align} />
+                {align}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="w-px h-6 bg-[var(--c-border)]" />

@@ -70,12 +70,31 @@ interface MarqueeDraw {
   currentScreenY: number;
 }
 
+interface SnapGuide {
+  orientation: 'h' | 'v';
+  pos: number;
+  start: number;
+  end: number;
+}
+
+const SNAP_THRESHOLD = 8;
+
 export default function Canvas() {
   const t = useTheme();
   const stageRef = useRef<Konva.Stage>(null);
   const [size, setSize] = useState({ width: window.innerWidth, height: window.innerHeight });
   const isPanning = useRef(false);
   const lastPointer = useRef({ x: 0, y: 0 });
+  const altDragInProgress = useRef(false);
+  const nudging = useRef(false); // true while an arrow-key nudge gesture is in progress
+
+  // Multi-drag: tracks peers that should follow the dragged node
+  const multiDragBase = useRef<{
+    draggingId: string;
+    startX: number;
+    startY: number;
+    peers: { id: string; origX: number; origY: number }[];
+  } | null>(null);
   // Touch tracking for mobile pan/pinch
   const lastTouchPos = useRef<{ x: number; y: number } | null>(null);
   const lastPinchDist = useRef<number | null>(null);
@@ -106,6 +125,9 @@ export default function Canvas() {
   // Sticker hover position
   const [stickerCursorPos, setStickerCursorPos] = useState<{ x: number; y: number } | null>(null);
 
+  // Snap alignment guides
+  const [snapGuides, setSnapGuides] = useState<SnapGuide[]>([]);
+
   const {
     nodes,
     camera,
@@ -122,6 +144,119 @@ export default function Canvas() {
     setEditingId,
     deleteSelected,
   } = useBoardStore();
+
+  // ── Snap computation ────────────────────────────────────────────────────────
+  const computeSnap = useCallback((
+    nodeId: string, nx: number, ny: number, nw: number, nh: number
+  ): { x: number; y: number } => {
+    const others = useBoardStore.getState().nodes.filter(
+      n => n.id !== nodeId && n.type !== 'connector'
+    );
+    const nXs = [nx, nx + nw / 2, nx + nw];
+    const nYs = [ny, ny + nh / 2, ny + nh];
+
+    let snapDx = 0, bestDx = SNAP_THRESHOLD + 1;
+    let snapDy = 0, bestDy = SNAP_THRESHOLD + 1;
+    let xGuide: SnapGuide | null = null;
+    let yGuide: SnapGuide | null = null;
+
+    for (const other of others) {
+      const o = other as { x?: number; y?: number; width?: number; height?: number };
+      const ox = o.x ?? 0, oy = o.y ?? 0;
+      const ow = o.width ?? 160, oh = o.height ?? 120;
+      const oXs = [ox, ox + ow / 2, ox + ow];
+      const oYs = [oy, oy + oh / 2, oy + oh];
+
+      for (const nVal of nXs) {
+        for (const oVal of oXs) {
+          const d = Math.abs(nVal - oVal);
+          if (d < bestDx) {
+            bestDx = d; snapDx = oVal - nVal;
+            xGuide = { orientation: 'v', pos: oVal, start: Math.min(ny, oy) - 20, end: Math.max(ny + nh, oy + oh) + 20 };
+          }
+        }
+      }
+      for (const nVal of nYs) {
+        for (const oVal of oYs) {
+          const d = Math.abs(nVal - oVal);
+          if (d < bestDy) {
+            bestDy = d; snapDy = oVal - nVal;
+            yGuide = { orientation: 'h', pos: oVal, start: Math.min(nx, ox) - 20, end: Math.max(nx + nw, ox + ow) + 20 };
+          }
+        }
+      }
+    }
+
+    const guides: SnapGuide[] = [];
+    if (bestDx <= SNAP_THRESHOLD && xGuide) guides.push(xGuide);
+    if (bestDy <= SNAP_THRESHOLD && yGuide) guides.push(yGuide);
+    setSnapGuides(guides);
+    return {
+      x: nx + (bestDx <= SNAP_THRESHOLD ? snapDx : 0),
+      y: ny + (bestDy <= SNAP_THRESHOLD ? snapDy : 0),
+    };
+  }, []);
+
+  const clearSnap = useCallback(() => setSnapGuides([]), []);
+
+  // ── Alt+drag to duplicate ────────────────────────────────────────────────────
+  // On alt+drag start: clone all selected nodes in-place; originals stay, user drags the originals away.
+  const handleAltDragStart = useCallback((nodeId: string) => {
+    if (altDragInProgress.current) return;
+    altDragInProgress.current = true;
+    const { nodes, selectedIds, saveHistory, addNode } = useBoardStore.getState();
+    const idsToClone = selectedIds.includes(nodeId) && selectedIds.length > 1
+      ? selectedIds
+      : [nodeId];
+    const toClone = idsToClone
+      .map(id => nodes.find(n => n.id === id))
+      .filter((n): n is NonNullable<typeof n> => !!n && n.type !== 'connector');
+    if (toClone.length === 0) return;
+    saveHistory();
+    for (const original of toClone) {
+      addNode({ ...original, id: generateId() } as (typeof original));
+    }
+  }, []);
+
+  const handleAltDragEnd = useCallback(() => {
+    altDragInProgress.current = false;
+  }, []);
+
+  // ── Multi-node drag ──────────────────────────────────────────────────────────
+  // Returns true when a node should save its own history (single drag, no alt/multi in progress).
+  const getShouldSaveHistory = useCallback(() => {
+    return multiDragBase.current === null && !altDragInProgress.current;
+  }, []);
+
+  const handleMultiDragStart = useCallback((nodeId: string, worldX: number, worldY: number) => {
+    const { selectedIds, nodes } = useBoardStore.getState();
+    if (!selectedIds.includes(nodeId) || selectedIds.length < 2) return;
+    const peers = selectedIds
+      .filter(id => id !== nodeId)
+      .map(id => {
+        const n = nodes.find(x => x.id === id);
+        if (!n || n.type === 'connector') return null;
+        return { id, origX: (n as { x?: number }).x ?? 0, origY: (n as { y?: number }).y ?? 0 };
+      })
+      .filter((x): x is { id: string; origX: number; origY: number } => x !== null);
+    if (peers.length === 0) return;
+    if (!altDragInProgress.current) useBoardStore.getState().saveHistory();
+    multiDragBase.current = { draggingId: nodeId, startX: worldX, startY: worldY, peers };
+  }, []);
+
+  const handleMultiDragMove = useCallback((nodeId: string, worldX: number, worldY: number) => {
+    if (!multiDragBase.current || multiDragBase.current.draggingId !== nodeId) return;
+    const { startX, startY, peers } = multiDragBase.current;
+    const dx = worldX - startX, dy = worldY - startY;
+    const { updateNode } = useBoardStore.getState();
+    for (const peer of peers) {
+      updateNode(peer.id, { x: peer.origX + dx, y: peer.origY + dy } as Parameters<typeof updateNode>[1]);
+    }
+  }, []);
+
+  const handleMultiDragEnd = useCallback(() => {
+    multiDragBase.current = null;
+  }, []);
 
   // ── Window resize ───────────────────────────────────────────────────────────
   useEffect(() => {
@@ -144,6 +279,25 @@ export default function Canvas() {
       }
       if (e.code === 'Backspace' || e.code === 'Delete') {
         deleteSelected();
+      }
+      // Arrow key nudge — move selected nodes (1px; Shift = 10px)
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        const state = useBoardStore.getState();
+        if (state.selectedIds.length > 0) {
+          e.preventDefault();
+          if (!e.repeat) state.saveHistory();
+          const delta = e.shiftKey ? 10 : 1;
+          const dx = e.key === 'ArrowLeft' ? -delta : e.key === 'ArrowRight' ? delta : 0;
+          const dy = e.key === 'ArrowUp' ? -delta : e.key === 'ArrowDown' ? delta : 0;
+          for (const id of state.selectedIds) {
+            const n = state.nodes.find(x => x.id === id);
+            if (!n || n.type === 'connector') continue;
+            state.updateNode(id, {
+              x: ((n as { x?: number }).x ?? 0) + dx,
+              y: ((n as { y?: number }).y ?? 0) + dy,
+            } as Parameters<typeof state.updateNode>[1]);
+          }
+        }
       }
       // Tool shortcuts (no modifier)
       if (!e.metaKey && !e.ctrlKey) {
@@ -576,7 +730,7 @@ export default function Canvas() {
         italic: false,
         textAlign: 'center',
       } satisfies ShapeNode);
-      setActiveTool('select');
+      // Keep shape tool active so user can place multiple shapes in a row
       setShapeDraw(null);
     }
     // Section drag-to-size placement
@@ -666,7 +820,7 @@ export default function Canvas() {
         italic: false,
         underline: false,
       } satisfies TextBlockNode);
-      setActiveTool('select');
+      // Keep text tool active; open editor for this block
       setEditingId(newId);
       setTextDraw(null);
       setTextCursorPos(null);
@@ -931,6 +1085,14 @@ export default function Canvas() {
                 snapAnchor={
                   snapTarget?.nodeId === n.id ? snapTarget.side : null
                 }
+                onSnapMove={computeSnap}
+                onSnapEnd={clearSnap}
+                onAltDragStart={handleAltDragStart}
+                onAltDragEnd={handleAltDragEnd}
+                onMultiDragStart={handleMultiDragStart}
+                onMultiDragMove={handleMultiDragMove}
+                onMultiDragEnd={handleMultiDragEnd}
+                getShouldSaveHistory={getShouldSaveHistory}
               />
             ))}
 
@@ -950,6 +1112,14 @@ export default function Canvas() {
                 snapAnchor={
                   snapTarget?.nodeId === n.id ? snapTarget.side : null
                 }
+                onSnapMove={computeSnap}
+                onSnapEnd={clearSnap}
+                onAltDragStart={handleAltDragStart}
+                onAltDragEnd={handleAltDragEnd}
+                onMultiDragStart={handleMultiDragStart}
+                onMultiDragMove={handleMultiDragMove}
+                onMultiDragEnd={handleMultiDragEnd}
+                getShouldSaveHistory={getShouldSaveHistory}
               />
             ))}
 
@@ -962,6 +1132,14 @@ export default function Canvas() {
                 node={n as TextBlockNode}
                 isSelected={selectedIds.includes(n.id)}
                 isEditing={editingId === n.id}
+                onSnapMove={computeSnap}
+                onSnapEnd={clearSnap}
+                onAltDragStart={handleAltDragStart}
+                onAltDragEnd={handleAltDragEnd}
+                onMultiDragStart={handleMultiDragStart}
+                onMultiDragMove={handleMultiDragMove}
+                onMultiDragEnd={handleMultiDragEnd}
+                getShouldSaveHistory={getShouldSaveHistory}
               />
             ))}
 
@@ -973,6 +1151,14 @@ export default function Canvas() {
                 key={n.id}
                 node={n as StickerNode}
                 isSelected={selectedIds.includes(n.id)}
+                onSnapMove={computeSnap}
+                onSnapEnd={clearSnap}
+                onAltDragStart={handleAltDragStart}
+                onAltDragEnd={handleAltDragEnd}
+                onMultiDragStart={handleMultiDragStart}
+                onMultiDragMove={handleMultiDragMove}
+                onMultiDragEnd={handleMultiDragEnd}
+                getShouldSaveHistory={getShouldSaveHistory}
               />
             ))}
 
@@ -991,6 +1177,22 @@ export default function Canvas() {
                 snapAnchor={snapTarget?.nodeId === n.id ? snapTarget.side : null}
               />
             ))}
+
+          {/* Snap alignment guides */}
+          {snapGuides.map((g, i) => (
+            <Line
+              key={`snap-${i}`}
+              points={g.orientation === 'v'
+                ? [g.pos, g.start, g.pos, g.end]
+                : [g.start, g.pos, g.end, g.pos]
+              }
+              stroke="#6366f1"
+              strokeWidth={1}
+              opacity={0.55}
+              dash={[6, 4]}
+              listening={false}
+            />
+          ))}
 
           {/* In-progress line preview */}
           {drawingLine && prevPoints.length === 8 && (

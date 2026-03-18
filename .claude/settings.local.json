@@ -20,7 +20,9 @@
       "Bash(butler version:*)",
       "Bash(bash \"src-tauri/target/release/bundle/dmg/bundle_dmg.sh\" 2>&1 | tail -20)",
       "Bash(hdiutil create:*)",
-      "Bash(butler push:*)"
+      "Bash(butler push:*)",
+      "Bash(find /Users/mischavandergoes/Documents/GitHub/CollaboCanvas/src -name *.png -o -name *.svg -o -name *.webp)",
+      "Bash(ls:*)"
     ]
   }
 }

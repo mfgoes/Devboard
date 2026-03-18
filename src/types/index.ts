@@ -74,6 +74,7 @@ export interface TextBlockNode {
   underline: boolean;
   bulletList?: boolean;
   link?: string;
+  textAlign?: 'left' | 'center' | 'right';
 }
 
 export type ShapeKind = 'rect' | 'ellipse' | 'diamond' | 'triangle';

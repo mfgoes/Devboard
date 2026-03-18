@@ -28,6 +28,7 @@ import WelcomeModal from './components/WelcomeModal';
 import PagesPanel from './components/PagesPanel';
 import TimerWidget from './components/TimerWidget';
 import { useBoardStore } from './store/boardStore';
+import { STICKER_KEYS } from './assets/stickerAssets';
 
 
 function loadFromHash() {
@@ -51,10 +52,11 @@ async function isBraveBrowser(): Promise<boolean> {
     && await (navigator as Navigator & { brave?: { isBrave?: () => Promise<boolean> } }).brave!.isBrave!();
 }
 
+function generateId() { return Math.random().toString(36).slice(2, 11); }
+
 export default function App() {
-  const [showWelcome, setShowWelcome] = useState(() => {
-    return !localStorage.getItem('devboard-visited');
-  });
+  // Only show welcome modal when explicitly triggered (logo click)
+  const [showWelcome, setShowWelcome] = useState(false);
   const [showBraveNotice, setShowBraveNotice] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [showTimer, setShowTimer] = useState(false);
@@ -87,6 +89,24 @@ export default function App() {
   // Load from URL hash once on mount
   useEffect(() => {
     loadFromHash();
+  }, []);
+
+  // Seed welcome board on first visit (canvas-native start screen)
+  useEffect(() => {
+    const isFirstVisit = !localStorage.getItem('devboard-visited');
+    if (!isFirstVisit) return;
+    // Wait for hash-loading to settle, then check if board is still empty
+    setTimeout(() => {
+      const { nodes, addNode } = useBoardStore.getState();
+      if (nodes.length > 0) return; // board was loaded from hash
+      localStorage.setItem('devboard-visited', '1');
+      const happySticker = STICKER_KEYS.find(k => k.includes('happy')) ?? STICKER_KEYS[0];
+      const cx = Math.round(window.innerWidth / 2);
+      const cy = Math.round(window.innerHeight / 2);
+      addNode({ id: generateId(), type: 'sticker', src: happySticker, x: cx - 390, y: cy - 220, width: 130, height: 130, rotation: 0 } as import('./types').StickerNode);
+      addNode({ id: generateId(), type: 'textblock', x: cx - 240, y: cy - 195, text: 'Welcome to Devboard!', fontSize: 26, width: 500, color: 'auto', bold: true, italic: false, underline: false } as import('./types').TextBlockNode);
+      addNode({ id: generateId(), type: 'sticky', x: cx - 240, y: cy - 110, text: '', color: '#bbf7d0', width: 320, height: 240 } as import('./types').StickyNoteNode);
+    }, 0);
   }, []);
 
   // Global copy / paste / duplicate shortcuts
@@ -162,10 +182,7 @@ export default function App() {
     return () => cleanup();
   }, []);
 
-  const handleCloseWelcome = () => {
-    localStorage.setItem('devboard-visited', '1');
-    setShowWelcome(false);
-  };
+  const handleCloseWelcome = () => setShowWelcome(false);
 
   return (
     <div className="relative w-full h-full overflow-hidden bg-[var(--c-canvas)] font-mono">

@@ -50,6 +50,14 @@ interface Props {
   onAnchorEnter?: (nodeId: string, side: AnchorSide) => void;
   onAnchorLeave?: () => void;
   snapAnchor?: AnchorSide | null;
+  onSnapMove?: (nodeId: string, x: number, y: number, w: number, h: number) => { x: number; y: number };
+  onSnapEnd?: () => void;
+  onAltDragStart?: (nodeId: string) => void;
+  onAltDragEnd?: () => void;
+  onMultiDragStart?: (nodeId: string, worldX: number, worldY: number) => void;
+  onMultiDragMove?: (nodeId: string, worldX: number, worldY: number) => void;
+  onMultiDragEnd?: () => void;
+  getShouldSaveHistory?: () => boolean;
 }
 
 // Distance the dot sits outside the node border (world units)
@@ -96,6 +104,14 @@ export default function StickyNote({
   onAnchorEnter,
   onAnchorLeave,
   snapAnchor,
+  onSnapMove,
+  onSnapEnd,
+  onAltDragStart,
+  onAltDragEnd,
+  onMultiDragStart,
+  onMultiDragMove,
+  onMultiDragEnd,
+  getShouldSaveHistory,
 }: Props) {
   const groupRef = useRef<Konva.Group>(null);
   const trRef    = useRef<Konva.Transformer>(null);
@@ -162,7 +178,7 @@ export default function StickyNote({
   };
 
   const handleDragEnd = (e: Konva.KonvaEventObject<DragEvent>) => {
-    saveHistory();
+    if (!getShouldSaveHistory || getShouldSaveHistory()) saveHistory();
     updateNode(node.id, { x: e.target.x(), y: e.target.y() });
   };
 
@@ -200,8 +216,21 @@ export default function StickyNote({
         onDblClick={handleDblClick}
         onTap={handleTap}
         onDblTap={handleDblTap}
-        onDragMove={(e) => setDragPos({ x: e.target.x(), y: e.target.y() })}
-        onDragEnd={(e) => { setDragPos(null); handleDragEnd(e); }}
+        onDragStart={(e) => {
+          if (e.evt.altKey) onAltDragStart?.(node.id);
+          onMultiDragStart?.(node.id, e.target.x(), e.target.y());
+        }}
+        onDragMove={(e) => {
+          let nx = e.target.x(), ny = e.target.y();
+          if (onSnapMove) {
+            const snapped = onSnapMove(node.id, nx, ny, node.width, node.height);
+            nx = snapped.x; ny = snapped.y;
+            e.target.x(nx); e.target.y(ny);
+          }
+          setDragPos({ x: nx, y: ny });
+          onMultiDragMove?.(node.id, nx, ny);
+        }}
+        onDragEnd={(e) => { setDragPos(null); onSnapEnd?.(); onAltDragEnd?.(); onMultiDragEnd?.(); handleDragEnd(e); }}
         onTransformEnd={handleTransformEnd}
       >
         {/* Card body — always visible (even while editing) */}

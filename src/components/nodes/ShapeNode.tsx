@@ -17,6 +17,14 @@ interface Props {
   onAnchorEnter?: (nodeId: string, side: AnchorSide) => void;
   onAnchorLeave?: () => void;
   snapAnchor?: AnchorSide | null;
+  onSnapMove?: (nodeId: string, x: number, y: number, w: number, h: number) => { x: number; y: number };
+  onSnapEnd?: () => void;
+  onAltDragStart?: (nodeId: string) => void;
+  onAltDragEnd?: () => void;
+  onMultiDragStart?: (nodeId: string, worldX: number, worldY: number) => void;
+  onMultiDragMove?: (nodeId: string, worldX: number, worldY: number) => void;
+  onMultiDragEnd?: () => void;
+  getShouldSaveHistory?: () => boolean;
 }
 
 const DOT_OFFSET = 32;
@@ -73,6 +81,14 @@ export default function ShapeNode({
   onAnchorEnter,
   onAnchorLeave,
   snapAnchor,
+  onSnapMove,
+  onSnapEnd,
+  onAltDragStart,
+  onAltDragEnd,
+  onMultiDragStart,
+  onMultiDragMove,
+  onMultiDragEnd,
+  getShouldSaveHistory,
 }: Props) {
   const groupRef = useRef<Konva.Group>(null);
   const trRef    = useRef<Konva.Transformer>(null);
@@ -166,7 +182,7 @@ export default function ShapeNode({
 
   const handleDragEnd = (e: Konva.KonvaEventObject<DragEvent>) => {
     setDragPos(null);
-    saveHistory();
+    if (!getShouldSaveHistory || getShouldSaveHistory()) saveHistory();
     // Group is center-offset, so x/y from target is the center; subtract offset to get top-left
     updateNode(node.id, {
       x: e.target.x() - e.target.offsetX(),
@@ -273,8 +289,23 @@ export default function ShapeNode({
         onDblClick={handleDblClick}
         onTap={handleTap}
         onDblTap={handleDblTap}
-        onDragMove={(e) => setDragPos({ x: e.target.x() - e.target.offsetX(), y: e.target.y() - e.target.offsetY() })}
-        onDragEnd={handleDragEnd}
+        onDragStart={(e) => {
+          if (e.evt.altKey) onAltDragStart?.(node.id);
+          const ox = e.target.offsetX(), oy = e.target.offsetY();
+          onMultiDragStart?.(node.id, e.target.x() - ox, e.target.y() - oy);
+        }}
+        onDragMove={(e) => {
+          const ox = e.target.offsetX(), oy = e.target.offsetY();
+          let tlx = e.target.x() - ox, tly = e.target.y() - oy;
+          if (onSnapMove) {
+            const snapped = onSnapMove(node.id, tlx, tly, node.width, node.height);
+            tlx = snapped.x; tly = snapped.y;
+            e.target.x(tlx + ox); e.target.y(tly + oy);
+          }
+          setDragPos({ x: tlx, y: tly });
+          onMultiDragMove?.(node.id, tlx, tly);
+        }}
+        onDragEnd={(e) => { onSnapEnd?.(); onAltDragEnd?.(); onMultiDragEnd?.(); handleDragEnd(e); }}
         onTransformEnd={handleTransformEnd}
       >
         {renderShape()}

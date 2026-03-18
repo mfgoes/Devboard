@@ -8,9 +8,17 @@ import { resolveStickerSrc } from '../../assets/stickerAssets';
 interface Props {
   node: StickerNodeType;
   isSelected: boolean;
+  onSnapMove?: (nodeId: string, x: number, y: number, w: number, h: number) => { x: number; y: number };
+  onSnapEnd?: () => void;
+  onAltDragStart?: (nodeId: string) => void;
+  onAltDragEnd?: () => void;
+  onMultiDragStart?: (nodeId: string, worldX: number, worldY: number) => void;
+  onMultiDragMove?: (nodeId: string, worldX: number, worldY: number) => void;
+  onMultiDragEnd?: () => void;
+  getShouldSaveHistory?: () => boolean;
 }
 
-export default function StickerNodeComponent({ node, isSelected }: Props) {
+export default function StickerNodeComponent({ node, isSelected, onSnapMove, onSnapEnd, onAltDragStart, onAltDragEnd, onMultiDragStart, onMultiDragMove, onMultiDragEnd, getShouldSaveHistory }: Props) {
   const { updateNode, selectIds, saveHistory, activeTool } = useBoardStore();
   const [img, setImg] = useState<HTMLImageElement | null>(null);
   const imgRef = useRef<Konva.Image>(null);
@@ -64,13 +72,28 @@ export default function StickerNodeComponent({ node, isSelected }: Props) {
         draggable
         onClick={() => { if (activeTool !== 'sticker' && activeTool !== 'pan') selectIds([node.id]); }}
         onTap={() => { if (activeTool !== 'sticker' && activeTool !== 'pan') selectIds([node.id]); }}
-        onDragStart={() => {
-          saveHistory();
+        onDragStart={(e) => {
+          if (e.evt.altKey) onAltDragStart?.(node.id);
+          onMultiDragStart?.(node.id, e.target.x(), e.target.y());
+          if (!getShouldSaveHistory || getShouldSaveHistory()) saveHistory();
           selectIds([node.id]);
         }}
-        onDragEnd={(e) =>
-          updateNode(node.id, { x: e.target.x(), y: e.target.y() })
-        }
+        onDragMove={(e) => {
+          // Sticker x/y is center; convert to TL for snap, restore after
+          let cx = e.target.x(), cy = e.target.y();
+          if (onSnapMove) {
+            const snapped = onSnapMove(node.id, cx - node.width / 2, cy - node.height / 2, node.width, node.height);
+            cx = snapped.x + node.width / 2; cy = snapped.y + node.height / 2;
+            e.target.x(cx); e.target.y(cy);
+          }
+          onMultiDragMove?.(node.id, cx, cy);
+        }}
+        onDragEnd={(e) => {
+          onSnapEnd?.();
+          onAltDragEnd?.();
+          onMultiDragEnd?.();
+          updateNode(node.id, { x: e.target.x(), y: e.target.y() });
+        }}
         onTransformStart={() => saveHistory()}
         onTransformEnd={handleTransformEnd}
       />

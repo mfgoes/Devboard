@@ -267,6 +267,7 @@ export default function TextEditor() {
           fontWeight: tb.bold ? 'bold' : 'normal',
           fontStyle: tb.italic ? 'italic' : 'normal',
           textDecoration: tb.underline ? 'underline' : 'none',
+          textAlign: tb.textAlign ?? 'left',
           color: tbColor,
           padding: 0,
           zIndex: 100,
