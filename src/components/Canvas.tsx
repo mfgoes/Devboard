@@ -12,6 +12,7 @@ import ConnectorLine, { anchorCoords, cpOffset, smartAnchors } from './nodes/Con
 import TextEditor from './TextEditor';
 import TableCellEditor from './TableCellEditor';
 import StickyColorPicker from './StickyColorPicker';
+import EmojiReactionPicker from './EmojiReactionPicker';
 import ShapeToolbar from './ShapeToolbar';
 import TextBlockToolbar from './TextBlockToolbar';
 import ConnectorToolbar from './ConnectorToolbar';
@@ -1202,6 +1203,20 @@ export default function Canvas() {
       {activeStickyId && (
         <StickyColorPicker nodeId={activeStickyId} isEditing={!!editingId && editingId === activeStickyId} />
       )}
+      {nodes
+        .filter((n) => n.type === 'sticky')
+        .map((n) => {
+          const isNodeSelected = selectedIds.includes(n.id) && !editingId;
+          const hasReaction = !!(n as import('../types').StickyNoteNode).reaction;
+          if (!hasReaction && !isNodeSelected) return null;
+          return (
+            <EmojiReactionPicker
+              key={n.id}
+              nodeId={n.id}
+              isSelected={isNodeSelected}
+            />
+          );
+        })}
       {singleSelected?.type === 'shape' && (
         <ShapeToolbar nodeId={singleSelected.id} />
       )}

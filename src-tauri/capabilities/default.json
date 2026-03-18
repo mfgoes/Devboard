@@ -1,0 +1,9 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/schema/capabilities.json",
+  "identifier": "default",
+  "description": "Default permissions for DevBoard",
+  "windows": ["main"],
+  "permissions": [
+    "core:default"
+  ]
+}

@@ -1,11 +1,31 @@
 import { useEffect, useState } from 'react';
 import { saveBoard } from './utils/fileSave';
 import { setToastListener } from './utils/toast';
+
+// Tauri event listener — only active when running inside a Tauri window
+async function listenTauriMenus(handlers: Record<string, () => void>) {
+  try {
+    const { listen } = await import('@tauri-apps/api/event');
+    const unlisten: Array<() => void> = [];
+    for (const [event, handler] of Object.entries(handlers)) {
+      unlisten.push(await listen(event, handler));
+    }
+    // URL opener (help menu links)
+    const { listen: listenUrl } = await import('@tauri-apps/api/event');
+    unlisten.push(await listenUrl('menu:open_url', (e) => {
+      window.open(e.payload as string, '_blank', 'noopener');
+    }));
+    return () => unlisten.forEach((u) => u());
+  } catch {
+    return () => {};
+  }
+}
 import Canvas from './components/Canvas';
 import Toolbar from './components/Toolbar';
 import ZoomToolbar from './components/ZoomToolbar';
 import TopBar from './components/TopBar';
 import WelcomeModal from './components/WelcomeModal';
+import PagesPanel from './components/PagesPanel';
 import TimerWidget from './components/TimerWidget';
 import { useBoardStore } from './store/boardStore';
 
@@ -38,6 +58,7 @@ export default function App() {
   const [showBraveNotice, setShowBraveNotice] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [showTimer, setShowTimer] = useState(false);
+  const [pagesOpen, setPagesOpen] = useState(false);
 
   useEffect(() => {
     setToastListener((msg) => {
@@ -119,6 +140,28 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
+  // Wire macOS native menu events → app actions
+  useEffect(() => {
+    let cleanup = () => {};
+    listenTauriMenus({
+      'menu:new_board':    () => useBoardStore.getState().loadBoard({ boardTitle: 'Untitled Board', nodes: [] }),
+      'menu:save':         () => saveBoard(useBoardStore.getState().exportData()),
+      'menu:save_as':      () => import('./utils/fileSave').then(m => m.saveBoardAs(useBoardStore.getState().exportData())),
+      'menu:export_png':   () => {
+        const c = document.querySelector<HTMLCanvasElement>('.konvajs-content canvas');
+        c?.toBlob(b => {
+          if (!b) return;
+          import('file-saver').then(({ saveAs }) => saveAs(b, `${useBoardStore.getState().boardTitle}.png`));
+        });
+      },
+      'menu:zoom_in':      () => { const s = useBoardStore.getState(); s.setCamera({ scale: Math.min(s.camera.scale * 1.2, 8) }); },
+      'menu:zoom_out':     () => { const s = useBoardStore.getState(); s.setCamera({ scale: Math.max(s.camera.scale / 1.2, 0.08) }); },
+      'menu:zoom_reset':   () => useBoardStore.getState().setCamera({ scale: 1, x: 0, y: 0 }),
+      'menu:toggle_theme': () => useBoardStore.getState().toggleTheme(),
+    }).then(fn => { cleanup = fn; });
+    return () => cleanup();
+  }, []);
+
   const handleCloseWelcome = () => {
     localStorage.setItem('devboard-visited', '1');
     setShowWelcome(false);
@@ -135,8 +178,11 @@ export default function App() {
         onShowAbout={() => setShowWelcome(true)}
         timerVisible={showTimer}
         onToggleTimer={() => setShowTimer((v) => !v)}
+        pagesOpen={pagesOpen}
+        onTogglePages={() => setPagesOpen((v) => !v)}
       />
       {showTimer && <TimerWidget onClose={() => setShowTimer(false)} />}
+      {pagesOpen && <PagesPanel onClose={() => setPagesOpen(false)} />}
       {showBraveNotice && (
         <div className="absolute top-11 left-0 right-0 z-50 flex items-center justify-between gap-3 bg-orange-500 text-white text-xs px-4 py-2">
           <span>

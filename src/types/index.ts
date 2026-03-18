@@ -27,6 +27,7 @@ export interface StickyNoteNode {
   bold?: boolean;
   italic?: boolean;
   underline?: boolean;
+  reaction?: string;
 }
 
 export type LineStyle      = 'curved' | 'straight' | 'orthogonal';
@@ -160,7 +161,15 @@ export interface Camera {
   scale: number;
 }
 
+export interface PageMeta {
+  id: string;
+  name: string;
+}
+
 export interface BoardData {
   boardTitle: string;
   nodes: CanvasNode[];
+  // Multi-page (v2) — absent in legacy saves
+  pages?: Array<{ id: string; name: string; nodes: CanvasNode[]; camera: Camera }>;
+  activePageId?: string;
 }

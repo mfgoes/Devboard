@@ -1,297 +1,220 @@
-# DevBoard — Build Guide
-
-How to compile DevBoard for different targets and upload to itch.io.
-
----
+# DevBoard — Build & Release Guide
 
 ## Prerequisites
 
-Install all dependencies (first time only):
+| Tool | Install |
+|------|---------|
+| Node.js 20+ | https://nodejs.org |
+| Rust (stable) | `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \| sh` |
+| Butler (itch.io) | https://itch.io/docs/butler/installing.html |
 
+**Linux build deps (Ubuntu/Debian):**
 ```bash
-npm install
+sudo apt-get install -y \
+  libgtk-3-dev libwebkit2gtk-4.1-dev \
+  libayatana-appindicator3-dev librsvg2-dev patchelf
 ```
-
-This installs everything including `electron` and `electron-builder`.
 
 ---
 
-## Targets
+## First-time setup
 
-### 1. Web — single HTML file (current itch.io release)
+```bash
+# Install JS dependencies (includes @tauri-apps/cli)
+npm install
+
+# Generate all icon sizes from public/favicon.ico
+npm run tauri:icon
+```
+
+This produces `src-tauri/icons/` with `.icns`, `.ico`, and all required PNG sizes.
+
+---
+
+## Local development
+
+```bash
+# Web dev server (browser only)
+npm run dev
+
+# Tauri desktop dev window (hot-reload via localhost:5173)
+npm run tauri:dev
+```
+
+---
+
+## Building
+
+### Web build — single HTML file (itch.io)
+
+Produces a self-contained `dist/index.html` via `vite-plugin-singlefile` (all JS/CSS inlined, no server needed).
 
 ```bash
 npm run build
 ```
 
-Output: `dist/index.html` — a self-contained single file, no server needed.
-
-To zip it for itch.io:
+To zip for itch.io upload:
 
 ```bash
 npm run zip
+# → devboard-itchio.zip
 ```
 
-Output: `devboard-itchio.zip` in the repo root. Upload this zip to itch.io as an HTML game/tool.
+### Desktop build — current platform
+
+```bash
+npm run tauri:build
+```
+
+Output locations:
+
+| Platform | Path |
+|----------|------|
+| macOS DMG | `src-tauri/target/release/bundle/dmg/DevBoard_*.dmg` |
+| macOS .app | `src-tauri/target/release/bundle/macos/DevBoard.app` |
+| Windows NSIS | `src-tauri/target/release/bundle/nsis/DevBoard_*_x64-setup.exe` |
+| Windows MSI | `src-tauri/target/release/bundle/msi/DevBoard_*.msi` |
+| Linux .deb | `src-tauri/target/release/bundle/deb/devboard_*.deb` |
+| Linux AppImage | `src-tauri/target/release/bundle/appimage/devboard_*.AppImage` |
+
+### Cross-platform (explicit targets)
+
+```bash
+npm run tauri:build:mac-arm   # macOS Apple Silicon
+npm run tauri:build:mac-x64   # macOS Intel
+npm run tauri:build:win       # Windows x64 (must run on Windows)
+npm run tauri:build:linux     # Linux x64 (must run on Linux)
+```
+
+> Tauri does not support true cross-compilation to Windows or Linux from macOS.
+> Use GitHub Actions CI for those platforms (see below).
 
 ---
 
-### 2. Desktop — Windows `.exe`
+## Release workflow (itch.io via Butler)
 
-```bash
-npm run electron:build:win
-```
-
-Output: `dist-electron/DevBoard Setup <version>.exe`
-
-This produces an NSIS installer that users can run to install DevBoard on Windows.
-
----
-
-### 3. Desktop — macOS `.dmg`
-
-```bash
-npm run electron:build:mac
-```
-
-Output: `dist-electron/DevBoard-<version>.dmg`
-
-Builds universal binaries for both x64 (Intel) and arm64 (Apple Silicon).
-
-> Note: macOS builds must be signed and notarized for Gatekeeper. For unsigned local testing, users need to right-click → Open.
-
----
-
-### 4. Desktop — Linux AppImage
-
-#### Prerequisites (Linux only)
-
-Electron Builder requires several native libraries to produce an AppImage on Linux. Install them before running the build:
-
-**Debian / Ubuntu / Linux Mint:**
-
-```bash
-sudo apt-get update
-sudo apt-get install -y \
-  rpm \
-  fakeroot \
-  dpkg \
-  libarchive-tools \
-  libnss3 \
-  libnspr4 \
-  libatk1.0-0 \
-  libatk-bridge2.0-0 \
-  libcups2 \
-  libdrm2 \
-  libxkbcommon0 \
-  libxcomposite1 \
-  libxdamage1 \
-  libxfixes3 \
-  libxrandr2 \
-  libgbm1 \
-  libasound2
-```
-
-**Fedora / RHEL / CentOS:**
-
-```bash
-sudo dnf install -y \
-  rpm-build \
-  fakeroot \
-  nss \
-  nspr \
-  atk \
-  at-spi2-atk \
-  cups-libs \
-  libdrm \
-  libxkbcommon \
-  libXcomposite \
-  libXdamage \
-  libXfixes \
-  libXrandr \
-  mesa-libgbm \
-  alsa-lib
-```
-
-**Arch Linux:**
-
-```bash
-sudo pacman -S --needed \
-  fakeroot \
-  rpm-tools \
-  nss \
-  atk \
-  at-spi2-atk \
-  libcups \
-  libdrm \
-  libxkbcommon \
-  libxcomposite \
-  libxdamage \
-  libxfixes \
-  libxrandr \
-  mesa \
-  alsa-lib
-```
-
-> If you hit a `FUSE` error when testing the AppImage locally, run:
-> `sudo apt-get install fuse libfuse2` (Debian/Ubuntu) or the equivalent for your distro,
-> then re-run the AppImage with `./DevBoard-*.AppImage --no-sandbox`.
-
-#### Build
-
-```bash
-npm run electron:build:linux
-```
-
-Output: `dist-electron/DevBoard-<version>.AppImage`
-
-#### Upload to itch.io
-
-Via the web UI:
-
-1. Go to your itch.io game page → Edit game
-2. Under **Uploads**, add the `.AppImage` file
-3. Set platform to **Linux**
-
-Via butler:
-
-```bash
-butler push "dist-electron/DevBoard-0.1.0.AppImage" mischa/devboard:linux
-```
-
----
-
-### 5. All platforms at once
-
-```bash
-npm run electron:build:all
-```
-
-Cross-compiling from macOS to Windows requires Wine (`brew install --cask wine-stable`).
-Cross-compiling from Windows to macOS is not possible — macOS builds need a Mac.
-
----
-
-## Local Electron dev (test without packaging)
-
-```bash
-npm run electron:dev
-```
-
-This builds `dist/index.html` then opens it in an Electron window. Useful for checking window chrome, minimum size, and external link handling before packaging.
-
----
-
-## Uploading to itch.io
-
-### HTML version (recommended for web play)
-
-1. Run `npm run zip` → produces `devboard-itchio.zip`
-2. Go to your itch.io game page → Edit game
-3. Under **Uploads**, add the zip and set kind to **HTML**
-4. Check **This file will be played in the browser**
-5. Set viewport size to `1280 × 720` (or larger)
-
-### Desktop version — macOS `.dmg`
-
-1. Run `npm run electron:build:mac` → produces `dist-electron/DevBoard-<version>-arm64.dmg`
-2. On itch.io, add a new upload → select the `.dmg`
-3. Set platform to **macOS**
-
-Via butler:
-
-```bash
-butler push "dist-electron/DevBoard-0.1.0-arm64.dmg" mischa/devboard:mac
-```
-
-### Desktop version — Windows portable (no installer)
-
-1. Run `npm run electron:build:win` → produces `dist-electron/win-unpacked/` (portable folder, no installer)
-2. Users run `DevBoard.exe` directly from the folder — no install needed
-
-Via butler (pushes the whole folder, butler zips it automatically):
-
-```bash
-butler push dist-electron/win-unpacked mischa/devboard:windows
-```
-
----
-
-## butler CLI setup
-
-[butler](https://itchio.itch.io/butler) is the itch.io command-line upload tool. Faster than the web UI and tracks build history.
+### butler CLI setup
 
 **Install (macOS):**
-
 ```bash
 brew install itchio/itchio/butler
 ```
 
 **Install (Linux):**
-
 ```bash
-# Download the linux-amd64 build, unzip, and put it on your PATH
 curl -L -o butler.zip https://broth.itch.ovh/butler/linux-amd64/LATEST/archive/default
 unzip butler.zip -d ~/.local/bin/
 chmod +x ~/.local/bin/butler
 ```
 
-Or download manually from https://itchio.itch.io/butler and add to your PATH.
-
 **Authenticate once:**
-
 ```bash
 butler login
 ```
 
-**Full release workflow (HTML + Mac):**
+### Full release workflow
 
 ```bash
-# 1. Build everything
+# 1. Build web version
 npm run build
-npm run electron:build:mac
+npm run zip
 
-# 2. Push HTML web build
+# 2. Build desktop (on each platform, or pull from CI artifacts — see below)
+npm run tauri:build
+
+# 3. Push HTML web build
 butler push devboard-itchio.zip mischa/devboard:html
 
-# 3. Push macOS build
-butler push "dist-electron/DevBoard-0.1.0-arm64.dmg" mischa/devboard:mac
+# 4. Push macOS build (run on macOS)
+butler push "src-tauri/target/release/bundle/dmg/DevBoard_0.1.0_aarch64.dmg" mischa/devboard:mac-arm
+butler push "src-tauri/target/release/bundle/dmg/DevBoard_0.1.0_x64.dmg" mischa/devboard:mac-x64
 
-# 4. Push Windows portable build (if built on Windows or via cross-compile)
-butler push dist-electron/win-unpacked mischa/devboard:windows
+# 5. Push Windows build (run on Windows or from CI artifact)
+butler push "src-tauri/target/release/bundle/nsis/DevBoard_0.1.0_x64-setup.exe" mischa/devboard:windows
 
-# 5. Push Linux AppImage (if built on Linux)
-butler push "dist-electron/DevBoard-0.1.0.AppImage" mischa/devboard:linux
+# 6. Push Linux build (run on Linux or from CI artifact)
+butler push "src-tauri/target/release/bundle/appimage/devboard_0.1.0_amd64.AppImage" mischa/devboard:linux
 ```
 
-Replace `mischa/devboard` with your itch.io `username/game-slug` and update the version number to match `package.json`.
+Replace `mischa/devboard` with your `username/game-slug` and update the version to match `package.json`.
+
+---
+
+## CI / Remote builds (GitHub Actions)
+
+The workflow at `.github/workflows/tauri-build.yml` builds all four platforms automatically — no Windows or Linux machine required locally.
+
+**Triggered by:**
+- Push to `main` — builds all platforms, uploads as downloadable artifacts
+- Git tag `v*` — builds all platforms **and creates a GitHub Release** with binaries attached
+
+**Release a new version via tag:**
+```bash
+git tag v0.2.0
+git push origin v0.2.0
+```
+
+After the run completes (~10–15 min), download the artifacts from the Actions page or the auto-created GitHub Release, then push to itch.io with butler.
 
 ---
 
 ## App icons
 
-electron-builder expects icons at:
+Icons are generated from `public/favicon.ico` and stored in `src-tauri/icons/`.
 
-| File | Used for |
-|---|---|
-| `public/icon.ico` | Windows (multi-size ICO) |
-| `public/icon.icns` | macOS |
-| `public/icon.png` | Linux (512×512 recommended) |
-
-To generate them from a single 1024×1024 PNG, use [electron-icon-maker](https://github.com/jaretburkett/electron-icon-maker):
-
+To regenerate (e.g. after updating the favicon):
 ```bash
-npx electron-icon-maker --input=public/icon-source.png --output=public/
+npm run tauri:icon
 ```
+
+To use a higher-quality source image (recommended — 1024×1024 PNG):
+```bash
+npx tauri icon path/to/icon-1024.png
+```
+
+---
+
+## Flatpak (Linux — Flathub)
+
+The manifest skeleton is at `src-tauri/io.devboard.app.yml`.
+
+Flathub requires all dependencies vendored offline. Generate them:
+```bash
+# Vendor npm deps
+npx @electron/flatpak-node-generator npm package-lock.json \
+  -o src-tauri/flatpak-node-sources.json
+
+# Vendor cargo deps
+flatpak-cargo-generator src-tauri/Cargo.lock \
+  -o src-tauri/flatpak-cargo-sources.json
+```
+
+Then add those files to the manifest `sources` section (see comments in `io.devboard.app.yml`) and open a PR to https://github.com/flathub/flathub.
 
 ---
 
 ## Version bumps
 
-Update `version` in `package.json` before each release:
+Update `version` in both `package.json` and `src-tauri/tauri.conf.json` before each release:
 
 ```json
 "version": "0.2.0"
 ```
 
-electron-builder uses this for the installer filename and About dialog.
+Tauri uses the version from `tauri.conf.json` for installer filenames and the About dialog.
+
+---
+
+## What changed from Electron
+
+| | Electron (removed) | Tauri (current) |
+|---|---|---|
+| Bundle size | ~150 MB | ~5–10 MB |
+| Runtime | Ships Chromium | Uses system WebView |
+| Backend language | Node.js (`electron/main.cjs`) | Rust (`src-tauri/src/`) |
+| Build tool | `electron-builder` | `@tauri-apps/cli` |
+| Config | `electron-builder.yml` | `src-tauri/tauri.conf.json` |
+| Output dir | `dist-electron/` | `src-tauri/target/release/bundle/` |
+| Linux targets | AppImage | `.deb` + AppImage + Flatpak |
+| CI | none | `.github/workflows/tauri-build.yml` |
+| Icons | `public/icon.{ico,icns,png}` | `src-tauri/icons/` (auto-generated) |

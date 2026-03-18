@@ -3,19 +3,21 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "main": "electron/main.cjs",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "zip": "npm run build && cp README.txt dist/ && cd dist && zip -r ../devboard-itchio.zip index.html stickers favicon.ico README.txt && echo '✓ devboard-itchio.zip ready'",
-    "electron:dev": "npm run build && electron .",
-    "electron:build:win": "npm run build && electron-builder --win",
-    "electron:build:mac": "npm run build && electron-builder --mac",
-    "electron:build:linux": "npm run build && electron-builder --linux",
-    "electron:build:all": "npm run build && electron-builder --win --mac --linux"
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
+    "tauri:build:linux": "tauri build --target x86_64-unknown-linux-gnu",
+    "tauri:build:win": "tauri build --target x86_64-pc-windows-msvc",
+    "tauri:build:mac-arm": "tauri build --target aarch64-apple-darwin",
+    "tauri:build:mac-x64": "tauri build --target x86_64-apple-darwin",
+    "tauri:icon": "tauri icon public/favicon.ico"
   },
   "dependencies": {
+    "@tauri-apps/api": "^2",
     "file-saver": "^2.0.5",
     "konva": "^9.3.6",
     "react": "^18.2.0",
@@ -24,13 +26,12 @@
     "zustand": "^4.5.2"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2",
     "@types/file-saver": "^2.0.7",
     "@types/react": "^18.2.66",
     "@types/react-dom": "^18.2.22",
     "@vitejs/plugin-react": "^4.2.1",
     "autoprefixer": "^10.4.19",
-    "electron": "^41.0.0",
-    "electron-builder": "^26.8.1",
     "postcss": "^8.4.38",
     "tailwindcss": "^3.4.3",
     "typescript": "^5.2.2",

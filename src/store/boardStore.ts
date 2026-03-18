@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { CanvasNode, ConnectorNode, StickyNoteNode, Camera, Tool, BoardData, ShapeKind, TableNode } from '../types';
+import { CanvasNode, ConnectorNode, StickyNoteNode, Camera, Tool, BoardData, ShapeKind, TableNode, PageMeta } from '../types';
 
 export interface TableCellRef { nodeId: string; row: number; col: number; }
 
@@ -12,6 +12,10 @@ interface BoardState {
   boardTitle: string;
   nodes: CanvasNode[];
   camera: Camera;
+  // Pages
+  pages: PageMeta[];
+  activePageId: string;
+  pageSnapshots: Record<string, { nodes: CanvasNode[]; camera: Camera }>;
   activeTool: Tool;
   selectedIds: string[];
   editingId: string | null;
@@ -45,6 +49,13 @@ interface BoardState {
   setTableHoverDivider: (s: { nodeId: string; kind: 'col' | 'row'; idx: number } | null) => void;
   setTableHoverEdge: (s: { nodeId: string; showBottom: boolean; showRight: boolean } | null) => void;
   setTableHoverCell: (s: { nodeId: string; row: number; col: number } | null) => void;
+  setReaction: (nodeId: string, emoji: string | null) => void;
+  // Page actions
+  addPage: (name?: string) => void;
+  deletePage: (id: string) => void;
+  renamePage: (id: string, name: string) => void;
+  switchPage: (id: string) => void;
+  duplicatePage: (id: string) => void;
   loadBoard: (data: BoardData) => void;
   exportData: () => BoardData;
   copySelected: () => void;
@@ -61,6 +72,9 @@ export const useBoardStore = create<BoardState>()(
       boardTitle: 'Untitled Board',
       nodes: [],
       camera: { x: 0, y: 0, scale: 1 },
+      pages: [{ id: 'page-1', name: 'Page 1' }],
+      activePageId: 'page-1',
+      pageSnapshots: {},
       activeTool: 'select',
       selectedIds: [],
       editingId: null,
@@ -154,22 +168,156 @@ export const useBoardStore = create<BoardState>()(
 
       setTableHoverCell: (s) => set({ tableHoverCell: s }),
 
-      loadBoard: (data) =>
+      setReaction: (nodeId, emoji) =>
+        set((state) => ({
+          nodes: state.nodes.map((n) =>
+            n.id === nodeId && n.type === 'sticky'
+              ? ({ ...n, reaction: emoji ?? undefined } as CanvasNode)
+              : n
+          ),
+        })),
+
+      addPage: (name) => {
+        const { nodes, camera, activePageId, pages, pageSnapshots } = get();
+        const newId = generateId();
+        const newName = name ?? `Page ${pages.length + 1}`;
         set({
-          boardTitle: data.boardTitle,
-          nodes: data.nodes,
+          pageSnapshots: { ...pageSnapshots, [activePageId]: { nodes, camera } },
+          pages: [...pages, { id: newId, name: newName }],
+          activePageId: newId,
+          nodes: [],
+          camera: { x: 0, y: 0, scale: 1 },
+          selectedIds: [],
+          editingId: null,
+          past: [],
+          future: [],
+        });
+      },
+
+      deletePage: (id) => {
+        const { nodes, camera, activePageId, pages, pageSnapshots } = get();
+        if (pages.length <= 1) return; // never delete last page
+        const idx = pages.findIndex((p) => p.id === id);
+        const newPages = pages.filter((p) => p.id !== id);
+        const newSnapshots = { ...pageSnapshots };
+        delete newSnapshots[id];
+        if (id === activePageId) {
+          // Switch to adjacent page
+          const nextPage = newPages[Math.max(0, idx - 1)];
+          const snap = newSnapshots[nextPage.id] ?? { nodes: [], camera: { x: 0, y: 0, scale: 1 } };
+          delete newSnapshots[nextPage.id];
+          set({
+            pages: newPages,
+            pageSnapshots: newSnapshots,
+            activePageId: nextPage.id,
+            nodes: snap.nodes,
+            camera: snap.camera,
+            selectedIds: [],
+            editingId: null,
+            past: [],
+            future: [],
+          });
+        } else {
+          // Save current active page back
+          set({
+            pages: newPages,
+            pageSnapshots: { ...newSnapshots, [activePageId]: { nodes, camera } },
+          });
+        }
+      },
+
+      renamePage: (id, name) =>
+        set((state) => ({
+          pages: state.pages.map((p) => (p.id === id ? { ...p, name } : p)),
+        })),
+
+      switchPage: (id) => {
+        const { nodes, camera, activePageId, pageSnapshots } = get();
+        if (id === activePageId) return;
+        const snap = pageSnapshots[id] ?? { nodes: [], camera: { x: 0, y: 0, scale: 1 } };
+        set({
+          pageSnapshots: { ...pageSnapshots, [activePageId]: { nodes, camera } },
+          activePageId: id,
+          nodes: snap.nodes,
+          camera: snap.camera,
           selectedIds: [],
           editingId: null,
           tableEditState: null,
           tableSelectionState: null,
-          camera: { x: 0, y: 0, scale: 1 },
           past: [],
           future: [],
-        }),
+        });
+      },
+
+      duplicatePage: (id) => {
+        const { nodes, camera, activePageId, pages, pageSnapshots } = get();
+        // Get the source page's data
+        const srcData = id === activePageId
+          ? { nodes, camera }
+          : (pageSnapshots[id] ?? { nodes: [], camera: { x: 0, y: 0, scale: 1 } });
+        const srcMeta = pages.find((p) => p.id === id);
+        const newId = generateId();
+        const newName = `${srcMeta?.name ?? 'Page'} copy`;
+        const newNodes = srcData.nodes.map((n) => ({ ...n, id: generateId() }));
+        set({
+          pageSnapshots: {
+            ...pageSnapshots,
+            [activePageId]: { nodes, camera },
+            [newId]: { nodes: newNodes, camera: { ...srcData.camera } },
+          },
+          pages: [...pages, { id: newId, name: newName }],
+        });
+      },
+
+      loadBoard: (data) => {
+        if (data.pages && data.pages.length > 0 && data.activePageId) {
+          const activePg = data.pages.find((p) => p.id === data.activePageId) ?? data.pages[0];
+          const snapshots: Record<string, { nodes: CanvasNode[]; camera: Camera }> = {};
+          for (const p of data.pages) {
+            if (p.id !== activePg.id) {
+              snapshots[p.id] = { nodes: p.nodes, camera: p.camera };
+            }
+          }
+          set({
+            boardTitle: data.boardTitle,
+            pages: data.pages.map((p) => ({ id: p.id, name: p.name })),
+            activePageId: activePg.id,
+            pageSnapshots: snapshots,
+            nodes: activePg.nodes,
+            camera: activePg.camera ?? { x: 0, y: 0, scale: 1 },
+            selectedIds: [],
+            editingId: null,
+            tableEditState: null,
+            tableSelectionState: null,
+            past: [],
+            future: [],
+          });
+        } else {
+          set({
+            boardTitle: data.boardTitle,
+            nodes: data.nodes,
+            pages: [{ id: 'page-1', name: 'Page 1' }],
+            activePageId: 'page-1',
+            pageSnapshots: {},
+            selectedIds: [],
+            editingId: null,
+            tableEditState: null,
+            tableSelectionState: null,
+            camera: { x: 0, y: 0, scale: 1 },
+            past: [],
+            future: [],
+          });
+        }
+      },
 
       exportData: () => {
-        const { boardTitle, nodes } = get();
-        return { boardTitle, nodes };
+        const { boardTitle, nodes, camera, pages, activePageId, pageSnapshots } = get();
+        const allPages = pages.map((p) => {
+          if (p.id === activePageId) return { ...p, nodes, camera };
+          const snap = pageSnapshots[p.id] ?? { nodes: [], camera: { x: 0, y: 0, scale: 1 } };
+          return { ...p, ...snap };
+        });
+        return { boardTitle, nodes, pages: allPages, activePageId };
       },
 
       copySelected: () => {
@@ -253,12 +401,15 @@ export const useBoardStore = create<BoardState>()(
       },
     }),
     {
-      name: 'devboard-v1',
+      name: 'devboard-v2',
       partialize: (state) => ({
         boardTitle: state.boardTitle,
         nodes: state.nodes,
         camera: state.camera,
         theme: state.theme,
+        pages: state.pages,
+        activePageId: state.activePageId,
+        pageSnapshots: state.pageSnapshots,
       }),
     }
   )

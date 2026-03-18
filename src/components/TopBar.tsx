@@ -13,6 +13,8 @@ interface TopBarProps {
   onShowAbout: () => void;
   timerVisible: boolean;
   onToggleTimer: () => void;
+  pagesOpen: boolean;
+  onTogglePages: () => void;
 }
 
 function IconExpand() {
@@ -83,8 +85,8 @@ function parseCSV(text: string): string[][] {
   return rows;
 }
 
-export default function TopBar({ onShowAbout, timerVisible, onToggleTimer }: TopBarProps) {
-  const { boardTitle, setBoardTitle, exportData, loadBoard, setActiveTool, setActiveShapeKind, toggleTheme, theme, addNode } = useBoardStore();
+export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pagesOpen, onTogglePages }: TopBarProps) {
+  const { boardTitle, setBoardTitle, exportData, loadBoard, setActiveTool, setActiveShapeKind, toggleTheme, theme, addNode, pages, activePageId } = useBoardStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const csvInputRef = useRef<HTMLInputElement>(null);
   const [editingTitle, setEditingTitle] = useState(false);
@@ -141,6 +143,14 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer }: Top
   const handleSaveJSON = () => saveBoard(exportData()).then(playExportSound);
   const handleSaveAsJSON = () => saveBoardAs(exportData()).then(playExportSound);
 
+  const handleExportAllPages = () => {
+    const data = exportData();
+    const json = JSON.stringify(data, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    saveAs(blob, `${boardTitle.replace(/\s+/g, '_')}_all-pages.json`);
+    playExportSound();
+  };
+
   const handleLoadJSON = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -148,7 +158,9 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer }: Top
     reader.onload = (ev) => {
       try {
         const parsed = JSON.parse(ev.target?.result as string);
-        if (parsed.nodes && Array.isArray(parsed.nodes)) {
+        const isLegacy = parsed.nodes && Array.isArray(parsed.nodes);
+        const isMultiPage = parsed.pages && Array.isArray(parsed.pages) && parsed.activePageId;
+        if (isLegacy || isMultiPage) {
           loadBoard(parsed);
           clearFileHandle();
         } else {
@@ -253,10 +265,11 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer }: Top
   };
 
   const handleNewBoard = () => {
-    const { nodes } = useBoardStore.getState();
-    if (nodes.length > 0) {
+    const { nodes, pageSnapshots } = useBoardStore.getState();
+    const hasContent = nodes.length > 0 || Object.values(pageSnapshots).some((s) => s.nodes.length > 0);
+    if (hasContent) {
       setConfirmDialog({
-        message: 'Start a new board? The current board will be lost.',
+        message: 'Start a new board? All pages will be lost.',
         onConfirm: () => {
           loadBoard({ boardTitle: 'Untitled Board', nodes: [] });
           clearFileHandle();
@@ -419,6 +432,9 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer }: Top
               <MenuItemSub label="Export" icon={<IconImg />}>
                 <MenuItem onClick={() => menuAction(handleExportPNG)} icon={<IconImg />}>Export PNG</MenuItem>
                 <MenuItem onClick={() => menuAction(handleExportTablesCSV)} icon={<IconCsv />}>Export tables as CSV</MenuItem>
+                {pages.length > 1 && (
+                  <MenuItem onClick={() => menuAction(handleExportAllPages)} icon={<IconJson />}>Export all pages</MenuItem>
+                )}
                 {!isItchIo && (
                   <>
                     <MenuDivider />
@@ -440,6 +456,47 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer }: Top
             </div>
           )}
         </div>
+
+        {/* Pages toggle */}
+        {(() => {
+          const activePage = pages.find((p) => p.id === activePageId);
+          return (
+            <button
+              onClick={onTogglePages}
+              title="Pages"
+              className={[
+                'flex items-center gap-1.5 h-7 px-2 rounded transition-colors shrink-0',
+                pagesOpen
+                  ? 'bg-[#6366f1] text-white'
+                  : 'text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
+              ].join(' ')}
+            >
+              {/* Stacked pages icon with page count */}
+              <span className="relative flex items-center justify-center w-[18px] h-[18px]">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <rect x="1" y="3" width="14" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.3" />
+                  <path d="M4 3V2.5A1.5 1.5 0 0 1 5.5 1h5A1.5 1.5 0 0 1 12 2.5V3" stroke="currentColor" strokeWidth="1.3" />
+                </svg>
+                <span
+                  className="absolute bottom-[-3px] right-[-4px] flex items-center justify-center rounded-full text-[8px] font-bold leading-none"
+                  style={{
+                    minWidth: 12,
+                    height: 12,
+                    padding: '0 2px',
+                    background: pagesOpen ? 'rgba(255,255,255,0.25)' : '#6366f1',
+                    color: pagesOpen ? 'white' : 'white',
+                  }}
+                >
+                  {pages.length}
+                </span>
+              </span>
+              {/* Active page name */}
+              <span className="font-mono text-[11px] tracking-wide max-w-[100px] truncate">
+                {activePage?.name ?? 'Page 1'}
+              </span>
+            </button>
+          );
+        })()}
 
         <span className="text-[var(--c-border)]">/</span>
         {editingTitle ? (
@@ -500,6 +557,9 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer }: Top
             <div className="absolute top-full right-0 mt-1.5 w-48 rounded-xl border border-[var(--c-border)] bg-[var(--c-panel)] shadow-2xl py-1.5 z-[100]">
               <MenuItem onClick={() => { setExportOpen(false); handleSaveJSON(); }} icon={<IconJson />} badge="⌘S">Save</MenuItem>
               <MenuItem onClick={() => { setExportOpen(false); handleSaveAsJSON(); }} icon={<IconLoad />}>Save as…</MenuItem>
+              {pages.length > 1 && (
+                <MenuItem onClick={() => { setExportOpen(false); handleExportAllPages(); }} icon={<IconJson />}>Export all pages</MenuItem>
+              )}
               <MenuDivider />
               <MenuItem onClick={() => { setExportOpen(false); handleExportPNG(); }} icon={<IconImg />}>Export PNG</MenuItem>
               {!isItchIo && (
