@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { saveBoard } from './utils/fileSave';
+import { saveWorkspace, getWorkspaceName } from './utils/workspaceManager';
 import { setToastListener } from './utils/toast';
 
 // Tauri event listener — only active when running inside a Tauri window
@@ -27,6 +28,7 @@ import TopBar from './components/TopBar';
 import WelcomeModal from './components/WelcomeModal';
 import PagesPanel from './components/PagesPanel';
 import TimerWidget from './components/TimerWidget';
+import WorkspaceExplorer from './components/WorkspaceExplorer';
 import { useBoardStore } from './store/boardStore';
 import { STICKER_KEYS } from './assets/stickerAssets';
 
@@ -61,6 +63,7 @@ export default function App() {
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [showTimer, setShowTimer] = useState(false);
   const [pagesOpen, setPagesOpen] = useState(false);
+  const [explorerOpen, setExplorerOpen] = useState(false);
 
   useEffect(() => {
     setToastListener((msg) => {
@@ -135,7 +138,12 @@ export default function App() {
         useBoardStore.getState().redo();
       } else if (e.key === 's') {
         e.preventDefault();
-        saveBoard(useBoardStore.getState().exportData());
+        const data = useBoardStore.getState().exportData();
+        if (getWorkspaceName()) {
+          saveWorkspace(data);
+        } else {
+          saveBoard(data);
+        }
       } else if (e.key === 'b') {
         e.preventDefault();
         const { selectedIds, nodes, updateNode } = useBoardStore.getState();
@@ -213,9 +221,13 @@ export default function App() {
         onToggleTimer={() => setShowTimer((v) => !v)}
         pagesOpen={pagesOpen}
         onTogglePages={() => setPagesOpen((v) => !v)}
+        explorerOpen={explorerOpen}
+        onToggleExplorer={() => setExplorerOpen((v) => !v)}
+        onWorkspaceOpened={() => setExplorerOpen(true)}
       />
       {showTimer && <TimerWidget onClose={() => setShowTimer(false)} />}
       {pagesOpen && <PagesPanel onClose={() => setPagesOpen(false)} />}
+      {explorerOpen && <WorkspaceExplorer onClose={() => setExplorerOpen(false)} />}
       {showBraveNotice && (
         <div className="absolute top-11 left-0 right-0 z-50 flex items-center justify-between gap-3 bg-orange-500 text-white text-xs px-4 py-2">
           <span>

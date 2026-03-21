@@ -134,6 +134,7 @@ src/
 - [x] **Right-click context menu** — duplicate, delete, lock/unlock, bring to front/back, group/ungroup
 - [ ] Templates to choose from (dev-focused: planning board, retro, architecture diagram)
 - [ ] Freehand pen / draw tool
+- [ ] Board wide text search (ensure it works with a lot of post-its, load state, etc)
 - [ ] Image upload (drop PNG/JPG onto canvas) -> Requires app + workspace
 - [ ] Mini-map / overview panel
 - [ ] Load folder/workspace -> Allows saving images (works similar to ie VS Code) + Better handling of multiple pages + ability to reference code snippets better

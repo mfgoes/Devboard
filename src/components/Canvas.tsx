@@ -22,8 +22,12 @@ import TableInsertControls from './TableInsertControls';
 import TableReorderControls from './TableReorderControls';
 import MultiSelectToolbar from './MultiSelectToolbar';
 import ContextMenu, { ContextMenuState } from './ContextMenu';
-import { AnchorSide, ConnectorNode, StickyNoteNode, ShapeNode, TextBlockNode, SectionNode, StickerNode, TableNode, CodeBlockNode } from '../types';
+import { AnchorSide, ConnectorNode, StickyNoteNode, ShapeNode, TextBlockNode, SectionNode, StickerNode, TableNode, CodeBlockNode, ImageNode } from '../types';
 import CodeBlockComponent from './nodes/CodeBlock';
+import ImageNodeComponent from './nodes/ImageNode';
+import { saveImageAsset, getWorkspaceName, openWorkspace } from '../utils/workspaceManager';
+import { hasSeenImageNotice, markImageNoticeSeen } from './ImageFirstUseModal';
+import ImageFirstUseModal from './ImageFirstUseModal';
 import CodeBlockToolbar from './CodeBlockToolbar';
 import { STICKY_COLORS } from './StickyColorPicker';
 import { useTheme } from '../theme';
@@ -88,6 +92,8 @@ export default function Canvas() {
   const lastPointer = useRef({ x: 0, y: 0 });
   const altDragInProgress = useRef(false);
   const nudging = useRef(false); // true while an arrow-key nudge gesture is in progress
+  const pendingImagePos = useRef<{ x: number; y: number } | null>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
 
   // Multi-drag: tracks peers that should follow the dragged node
   const multiDragBase = useRef<{
@@ -133,6 +139,10 @@ export default function Canvas() {
 
   // Context menu
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+
+  // Image first-use notice
+  const [showImageNotice, setShowImageNotice] = useState(false);
+  const pendingImageFile = useRef<{ file: File; worldX: number; worldY: number } | null>(null);
 
   const {
     nodes,
@@ -329,6 +339,7 @@ export default function Canvas() {
           KeyF: 'section',
           KeyG: 'table',
           KeyK: 'code',
+          KeyI: 'image',
         };
         if (shortcuts[e.code]) setActiveTool(shortcuts[e.code]);
       }
@@ -453,6 +464,16 @@ export default function Canvas() {
           showLineNumbers: true,
         } satisfies CodeBlockNode);
         setActiveTool('select');
+        return;
+      }
+
+      if (activeTool === 'image' && clickedStage) {
+        const pos = stageRef.current!.getPointerPosition()!;
+        pendingImagePos.current = {
+          x: (pos.x - camera.x) / camera.scale,
+          y: (pos.y - camera.y) / camera.scale,
+        };
+        imageInputRef.current?.click();
         return;
       }
 
@@ -997,6 +1018,87 @@ export default function Canvas() {
   }, [activeTool, activeSticker, addNode, setActiveTool, shapeDraw, sectionDraw, tableDraw, textDraw, handleMouseUp]);
 
   // ── Anchor callbacks (passed to StickyNote) ─────────────────────────────────
+  // ── Shared image placement logic ─────────────────────────────────────────────
+  const placeImage = useCallback(
+    (file: File, worldX: number, worldY: number, offsetIdx = 0) => {
+      const inWorkspace = !!getWorkspaceName();
+
+      const doPlace = (src: string, assetName: string) => {
+        const imgEl = new window.Image();
+        imgEl.onload = () => {
+          const maxW = 600;
+          const w = Math.min(imgEl.width, maxW);
+          const h = Math.round(imgEl.height * (w / imgEl.width));
+          addNode({
+            id: generateId(),
+            type: 'image',
+            x: worldX - w / 2 + offsetIdx * 24,
+            y: worldY - h / 2 + offsetIdx * 24,
+            width: w,
+            height: h,
+            src,
+            assetName,
+          } satisfies ImageNode);
+          setActiveTool('select');
+        };
+        imgEl.src = src;
+      };
+
+      if (inWorkspace) {
+        // Workspace mode: save as file, use a short object URL — no base64 in JSON
+        const ext = file.name.match(/\.[^.]+$/)?.[0] ?? '.png';
+        const uniqueName = generateId() + ext;
+        const objectUrl = URL.createObjectURL(file);
+        saveImageAsset(uniqueName, file); // async, fire-and-forget
+        doPlace(objectUrl, uniqueName);
+      } else {
+        // Standalone mode: embed as base64 (warn user first time)
+        if (!hasSeenImageNotice()) {
+          pendingImageFile.current = { file, worldX, worldY };
+          setShowImageNotice(true);
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          const src = ev.target?.result as string;
+          doPlace(src, file.name);
+        };
+        reader.readAsDataURL(file);
+      }
+    },
+    [addNode, setActiveTool]
+  );
+
+  // ── Image file input handler ─────────────────────────────────────────────────
+  const handleImageFileChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      e.target.value = '';
+      if (!file || !pendingImagePos.current) return;
+      const pos = pendingImagePos.current;
+      pendingImagePos.current = null;
+      placeImage(file, pos.x, pos.y);
+    },
+    [placeImage]
+  );
+
+  // ── Image drag-drop onto canvas ──────────────────────────────────────────────
+  const handleDrop = useCallback(
+    (e: React.DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      const files = Array.from(e.dataTransfer.files).filter((f) =>
+        f.type.startsWith('image/')
+      );
+      if (!files.length) return;
+      const rect = e.currentTarget.getBoundingClientRect();
+      const { camera: cam } = useBoardStore.getState();
+      const worldX = (e.clientX - rect.left - cam.x) / cam.scale;
+      const worldY = (e.clientY - rect.top - cam.y) / cam.scale;
+      files.forEach((file, i) => placeImage(file, worldX, worldY, i));
+    },
+    [placeImage]
+  );
+
   const handleAnchorDown = useCallback(
     (nodeId: string, side: AnchorSide, worldX: number, worldY: number) => {
       setDrawingLine({
@@ -1065,6 +1167,7 @@ export default function Canvas() {
     sticker: 'crosshair',
     table: 'crosshair',
     code: 'crosshair',
+    image: 'crosshair',
   };
   // If a line draw is in progress (e.g. started from an anchor in select mode), always crosshair
   const cursor = cursorOverride ?? (drawingLine ? 'crosshair' : toolCursor[activeTool] ?? 'default');
@@ -1130,7 +1233,17 @@ export default function Canvas() {
           setContextMenu({ x: e.clientX, y: e.clientY, nodeIds: [] });
         }
       }}
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={handleDrop}
     >
+      {/* Hidden file input for the Image tool */}
+      <input
+        ref={imageInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleImageFileChange}
+      />
       <Stage
         ref={stageRef}
         width={size.width}
@@ -1270,6 +1383,22 @@ export default function Canvas() {
                   onAnchorEnter={handleAnchorEnter}
                   onAnchorLeave={handleAnchorLeave}
                   snapAnchor={snapTarget?.nodeId === n.id ? snapTarget.side : null}
+                />
+              );
+              if (n.type === 'image') return (
+                <ImageNodeComponent
+                  key={n.id}
+                  node={n as ImageNode}
+                  isSelected={selectedIds.includes(n.id)}
+                  onSnapMove={computeSnap}
+                  onSnapEnd={clearSnap}
+                  onAltDragStart={handleAltDragStart}
+                  onAltDragEnd={handleAltDragEnd}
+                  onMultiDragStart={handleMultiDragStart}
+                  onMultiDragMove={handleMultiDragMove}
+                  onMultiDragEnd={handleMultiDragEnd}
+                  getShouldSaveHistory={getShouldSaveHistory}
+                  onContextMenu={handleNodeContextMenu}
                 />
               );
               return null;
@@ -1586,6 +1715,60 @@ export default function Canvas() {
 
       {contextMenu && (
         <ContextMenu menu={contextMenu} onClose={() => setContextMenu(null)} />
+      )}
+
+      {/* Image first-use notice */}
+      {showImageNotice && (
+        <ImageFirstUseModal
+          isWorkspaceOpen={!!getWorkspaceName()}
+          onClose={() => {
+            markImageNoticeSeen();
+            setShowImageNotice(false);
+            // Place the pending image now that the user dismissed the notice
+            const pending = pendingImageFile.current;
+            pendingImageFile.current = null;
+            if (pending) {
+              const reader = new FileReader();
+              reader.onload = (ev) => {
+                const src = ev.target?.result as string;
+                const imgEl = new window.Image();
+                imgEl.onload = () => {
+                  const maxW = 600;
+                  const w = Math.min(imgEl.width, maxW);
+                  const h = Math.round(imgEl.height * (w / imgEl.width));
+                  addNode({
+                    id: generateId(),
+                    type: 'image',
+                    x: pending.worldX - w / 2,
+                    y: pending.worldY - h / 2,
+                    width: w,
+                    height: h,
+                    src,
+                    assetName: pending.file.name,
+                  } satisfies ImageNode);
+                  setActiveTool('select');
+                };
+                imgEl.src = src;
+              };
+              reader.readAsDataURL(pending.file);
+            }
+          }}
+          onOpenFolder={async () => {
+            markImageNoticeSeen();
+            setShowImageNotice(false);
+            const result = await openWorkspace();
+            if (result) {
+              useBoardStore.getState().setWorkspaceName(result.name);
+              if (result.data) {
+                useBoardStore.getState().loadBoard(result.data);
+              }
+              // Re-place the pending image now in workspace mode
+              const pending = pendingImageFile.current;
+              pendingImageFile.current = null;
+              if (pending) placeImage(pending.file, pending.worldX, pending.worldY);
+            }
+          }}
+        />
       )}
     </div>
   );

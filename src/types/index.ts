@@ -9,7 +9,8 @@ export type Tool =
   | 'section'
   | 'sticker'
   | 'table'
-  | 'code';
+  | 'code'
+  | 'image';
 
 export type AnchorSide = 'top' | 'right' | 'bottom' | 'left';
 
@@ -166,9 +167,24 @@ export interface CodeBlockNode {
   showLineNumbers: boolean;
   result?: string;
   description?: string;
+  linkedFile?: string; // path relative to workspace root
 }
 
-export type CanvasNode = StickyNoteNode | ConnectorNode | TextBlockNode | ShapeNode | SectionNode | StickerNode | TableNode | CodeBlockNode;
+export interface ImageNode {
+  id: string;
+  type: 'image';
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  src: string; // base64 data URL
+  assetName?: string; // filename in workspace assets/
+  rotation?: number;
+  locked?: boolean;
+  groupId?: string;
+}
+
+export type CanvasNode = StickyNoteNode | ConnectorNode | TextBlockNode | ShapeNode | SectionNode | StickerNode | TableNode | CodeBlockNode | ImageNode;
 
 export interface Camera {
   x: number;

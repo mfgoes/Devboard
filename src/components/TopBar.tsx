@@ -4,6 +4,7 @@ import { useBoardStore } from '../store/boardStore';
 import { TEMPLATES } from '../templates';
 import ConfirmDialog from './ConfirmDialog';
 import { saveBoard, saveBoardAs, clearFileHandle } from '../utils/fileSave';
+import { openWorkspace, saveWorkspace } from '../utils/workspaceManager';
 import { toast } from '../utils/toast';
 import exportSound from '../assets/get1.mp3';
 
@@ -15,6 +16,9 @@ interface TopBarProps {
   onToggleTimer: () => void;
   pagesOpen: boolean;
   onTogglePages: () => void;
+  explorerOpen: boolean;
+  onToggleExplorer: () => void;
+  onWorkspaceOpened: () => void;
 }
 
 function IconExpand() {
@@ -85,8 +89,8 @@ function parseCSV(text: string): string[][] {
   return rows;
 }
 
-export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pagesOpen, onTogglePages }: TopBarProps) {
-  const { boardTitle, setBoardTitle, exportData, loadBoard, setActiveTool, setActiveShapeKind, toggleTheme, theme, addNode, pages, activePageId } = useBoardStore();
+export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pagesOpen, onTogglePages, explorerOpen, onToggleExplorer, onWorkspaceOpened }: TopBarProps) {
+  const { boardTitle, setBoardTitle, exportData, loadBoard, setActiveTool, setActiveShapeKind, toggleTheme, theme, addNode, pages, activePageId, workspaceName, setWorkspaceName } = useBoardStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const csvInputRef = useRef<HTMLInputElement>(null);
   const [editingTitle, setEditingTitle] = useState(false);
@@ -140,8 +144,26 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
     setEditingTitle(false);
   };
 
-  const handleSaveJSON = () => saveBoard(exportData()).then(playExportSound);
+  const handleSaveJSON = () => {
+    if (workspaceName) {
+      saveWorkspace(exportData()).then(playExportSound);
+    } else {
+      saveBoard(exportData()).then(playExportSound);
+    }
+  };
   const handleSaveAsJSON = () => saveBoardAs(exportData()).then(playExportSound);
+
+  const handleOpenFolder = async () => {
+    setMenuOpen(false);
+    const result = await openWorkspace();
+    if (!result) return;
+    setWorkspaceName(result.name);
+    if (result.data) {
+      loadBoard(result.data);
+      clearFileHandle();
+    }
+    onWorkspaceOpened(); // auto-open the file explorer
+  };
 
   const handleExportAllPages = () => {
     const data = exportData();
@@ -183,6 +205,12 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
       toast('Share link copied!');
     }).catch(() => {
       toast('Failed to copy link.');
+    });
+  };
+
+  const handleExportZip = () => {
+    import('../utils/exportZip').then(({ exportBoardAsZip }) => {
+      exportBoardAsZip(exportData(), boardTitle).then(playExportSound);
     });
   };
 
@@ -385,6 +413,10 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
               <MenuItem onClick={() => menuAction(handleNewBoard)} icon={<IconNewBoard />}>New board</MenuItem>
               <MenuItem onClick={() => menuAction(() => fileInputRef.current?.click())} icon={<IconLoad />}>Load board…</MenuItem>
               <MenuItem onClick={() => menuAction(handleSaveJSON)} icon={<IconJson />} badge="⌘S">Save board</MenuItem>
+              <MenuItem onClick={handleOpenFolder} icon={<IconFolder />}>
+                Open folder…
+                {workspaceName && <span className="ml-auto text-[9px] text-[#6366f1] font-mono truncate max-w-[80px]">{workspaceName}</span>}
+              </MenuItem>
 
               <MenuDivider />
               <MenuLabel>Templates</MenuLabel>
@@ -417,8 +449,18 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
                 <MenuLabel>Table</MenuLabel>
                 <MenuItem onClick={() => menuAction(() => setActiveTool('table'))} icon={<IconTableNew />} badge="G">Table (new)</MenuItem>
                 <MenuItem onClick={() => { setMenuOpen(false); csvInputRef.current?.click(); }} icon={<IconCsv />}>Table from CSV</MenuItem>
+                <MenuDivider />
+                <MenuLabel>Image</MenuLabel>
+                <MenuItem onClick={() => menuAction(() => setActiveTool('image'))} icon={<IconImageMenu />} badge="I">Place image</MenuItem>
               </MenuItemSub>
               <MenuItemSub label="Tools" icon={<IconTools />}>
+                <MenuItem
+                  onClick={() => { setMenuOpen(false); onToggleExplorer(); }}
+                  icon={<IconFolder />}
+                  checked={explorerOpen}
+                >
+                  File explorer
+                </MenuItem>
                 <MenuItem
                   onClick={() => { setMenuOpen(false); onToggleTimer(); }}
                   icon={<IconTimerMenu />}
@@ -431,6 +473,7 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
               <MenuDivider />
               <MenuItemSub label="Export" icon={<IconImg />}>
                 <MenuItem onClick={() => menuAction(handleExportPNG)} icon={<IconImg />}>Export PNG</MenuItem>
+                <MenuItem onClick={() => menuAction(handleExportZip)} icon={<IconZip />}>Export as ZIP</MenuItem>
                 <MenuItem onClick={() => menuAction(handleExportTablesCSV)} icon={<IconCsv />}>Export tables as CSV</MenuItem>
                 {pages.length > 1 && (
                   <MenuItem onClick={() => menuAction(handleExportAllPages)} icon={<IconJson />}>Export all pages</MenuItem>
@@ -520,6 +563,13 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
           >
             {boardTitle}
           </button>
+        )}
+        {/* Workspace indicator */}
+        {workspaceName && (
+          <span className="hidden sm:flex items-center gap-1 ml-1 px-1.5 py-0.5 rounded text-[9px] font-mono text-[#6366f1] border border-[#6366f1]/30 bg-[#6366f1]/10 shrink-0 max-w-[140px] truncate" title={`Workspace: ${workspaceName}`}>
+            <IconFolder />
+            {workspaceName}
+          </span>
         )}
       </div>
 
@@ -708,6 +758,30 @@ function IconLoad() {
     <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
       <path d="M2 8.5v2a.5.5 0 0 0 .5.5h8a.5.5 0 0 0 .5-.5v-2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
       <path d="M6.5 1.5v6M4 5l2.5 2.5L9 5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+function IconFolder() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+      <path d="M1 3.5a1 1 0 0 1 1-1h3l1.5 1.5H11a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V3.5z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+    </svg>
+  );
+}
+function IconZip() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+      <rect x="1" y="1" width="11" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.3" />
+      <path d="M5 1v11M5 3h2M5 5h2M5 7h2M5 9h2" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
+    </svg>
+  );
+}
+function IconImageMenu() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+      <rect x="1" y="2" width="11" height="9" rx="1.2" stroke="currentColor" strokeWidth="1.3" />
+      <circle cx="4.5" cy="5.5" r="1.2" stroke="currentColor" strokeWidth="1.1" />
+      <path d="M1 9.5L4 7l2.5 2.5L8.5 7l3.5 3" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

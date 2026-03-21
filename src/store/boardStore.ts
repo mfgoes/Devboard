@@ -30,6 +30,7 @@ interface BoardState {
   tableHoverDivider: { nodeId: string; kind: 'col' | 'row'; idx: number } | null; // not persisted
   tableHoverEdge: { nodeId: string; showBottom: boolean; showRight: boolean } | null; // not persisted
   tableHoverCell: { nodeId: string; row: number; col: number } | null; // not persisted
+  workspaceName: string | null; // not persisted — set when a folder is open
 
   // Actions
   setBoardTitle: (title: string) => void;
@@ -50,6 +51,7 @@ interface BoardState {
   setTableHoverEdge: (s: { nodeId: string; showBottom: boolean; showRight: boolean } | null) => void;
   setTableHoverCell: (s: { nodeId: string; row: number; col: number } | null) => void;
   setReaction: (nodeId: string, emoji: string | null) => void;
+  setWorkspaceName: (name: string | null) => void;
   // Page actions
   addPage: (name?: string) => void;
   deletePage: (id: string) => void;
@@ -94,6 +96,7 @@ export const useBoardStore = create<BoardState>()(
       tableHoverDivider: null,
       tableHoverEdge: null,
       tableHoverCell: null,
+      workspaceName: null,
 
       setBoardTitle: (title) => set({ boardTitle: title }),
 
@@ -172,6 +175,8 @@ export const useBoardStore = create<BoardState>()(
       setTableHoverEdge: (s) => set({ tableHoverEdge: s }),
 
       setTableHoverCell: (s) => set({ tableHoverCell: s }),
+
+      setWorkspaceName: (name) => set({ workspaceName: name }),
 
       setReaction: (nodeId, emoji) =>
         set((state) => ({
@@ -477,15 +482,31 @@ export const useBoardStore = create<BoardState>()(
     }),
     {
       name: 'devboard-v2',
-      partialize: (state) => ({
-        boardTitle: state.boardTitle,
-        nodes: state.nodes,
-        camera: state.camera,
-        theme: state.theme,
-        pages: state.pages,
-        activePageId: state.activePageId,
-        pageSnapshots: state.pageSnapshots,
-      }),
+      partialize: (state) => {
+        // Strip object-URL src from workspace image nodes — they can't survive a page reload
+        // and the actual files live in the workspace assets/ folder.
+        const sanitiseNodes = (nodes: CanvasNode[]) =>
+          nodes.map((n) => {
+            if (n.type === 'image' && n.assetName && n.src && !n.src.startsWith('data:')) {
+              return { ...n, src: '' };
+            }
+            return n;
+          });
+        return {
+          boardTitle: state.boardTitle,
+          nodes: sanitiseNodes(state.nodes),
+          camera: state.camera,
+          theme: state.theme,
+          pages: state.pages,
+          activePageId: state.activePageId,
+          pageSnapshots: Object.fromEntries(
+            Object.entries(state.pageSnapshots).map(([id, snap]) => [
+              id,
+              { ...snap, nodes: sanitiseNodes(snap.nodes) },
+            ])
+          ),
+        };
+      },
     }
   )
 );

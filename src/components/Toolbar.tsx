@@ -129,6 +129,15 @@ function IconCode() {
     </svg>
   );
 }
+function IconImage() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
+      <circle cx="5.5" cy="6" r="1.5" stroke="currentColor" strokeWidth="1.2" />
+      <path d="M1.5 11L5 7.5L8 10.5L10.5 8L14.5 12" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
 
 const TOOLS: ToolDef[] = [
   { id: 'select',  label: 'Select',  shortcut: 'V', icon: <IconSelect /> },
@@ -137,11 +146,11 @@ const TOOLS: ToolDef[] = [
   { id: 'shape',   label: 'Shape',   shortcut: 'R', icon: <IconShape /> },
   { id: 'text',    label: 'Text',    shortcut: 'T', icon: <IconText /> },
   { id: 'line',    label: 'Line',    shortcut: 'L', icon: <IconLine /> },
-  { id: 'section', label: 'Section', shortcut: 'F', icon: <IconSection /> },
-  { id: 'sticker', label: 'Sticker', shortcut: '',  icon: <IconSticker /> },
-  { id: 'pen',     label: 'Pen',     shortcut: '',  icon: <IconPen />,   mobileHidden: true },
-  { id: 'table',   label: 'Table',   shortcut: 'G', icon: <IconTable />, mobileHidden: true },
-  { id: 'code',    label: 'Code',    shortcut: 'K', icon: <IconCode />,  mobileHidden: true },
+  { id: 'section', label: 'Section', shortcut: 'F', icon: <IconSection />, mobileHidden: true },
+  { id: 'sticker', label: 'Sticker', shortcut: '',  icon: <IconSticker />, mobileHidden: true },
+  { id: 'table',   label: 'Table',   shortcut: 'G', icon: <IconTable />,  mobileHidden: true },
+  { id: 'code',    label: 'Code',    shortcut: 'K', icon: <IconCode />,   mobileHidden: true },
+  { id: 'image',   label: 'Image',   shortcut: 'I', icon: <IconImage />,  mobileHidden: true },
 ];
 
 type ShapeKindDef = { kind: ShapeKind; label: string; icon: React.ReactNode };
