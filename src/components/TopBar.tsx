@@ -465,7 +465,7 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
               onClick={onTogglePages}
               title="Pages"
               className={[
-                'flex items-center gap-1.5 h-7 px-2 rounded transition-colors shrink-0',
+                'flex items-center gap-1.5 h-7 px-2 rounded transition-colors shrink-0 min-w-0',
                 pagesOpen
                   ? 'bg-[#6366f1] text-white'
                   : 'text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
@@ -490,15 +490,16 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
                   {pages.length}
                 </span>
               </span>
-              {/* Active page name */}
-              <span className="font-mono text-[11px] tracking-wide max-w-[100px] truncate">
+              {/* Active page name — hidden on mobile */}
+              <span className="hidden sm:inline font-mono text-[11px] tracking-wide max-w-[100px] truncate">
                 {activePage?.name ?? 'Page 1'}
               </span>
             </button>
           );
         })()}
 
-        <span className="text-[var(--c-border)]">/</span>
+        {/* Separator + board title — hidden on mobile */}
+        <span className="hidden sm:block text-[var(--c-border)]">/</span>
         {editingTitle ? (
           <input
             autoFocus
@@ -509,13 +510,13 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
               if (e.key === 'Enter') commitTitle();
               if (e.key === 'Escape') { setTitleDraft(boardTitle); setEditingTitle(false); }
             }}
-            className="bg-transparent border-b border-[#6366f1] text-[var(--c-text-hi)] font-mono text-sm outline-none min-w-0 max-w-[220px]"
+            className="hidden sm:block bg-transparent border-b border-[#6366f1] text-[var(--c-text-hi)] font-mono text-sm outline-none min-w-0 max-w-[220px]"
           />
         ) : (
           <button
             onClick={() => { setTitleDraft(boardTitle); setEditingTitle(true); }}
             title="Rename board"
-            className="font-mono text-sm text-[var(--c-text-hi)] hover:text-[var(--c-text-hi)] truncate max-w-[220px] text-left"
+            className="hidden sm:block font-mono text-sm text-[var(--c-text-hi)] hover:text-[var(--c-text-hi)] truncate max-w-[220px] text-left"
           >
             {boardTitle}
           </button>
@@ -525,12 +526,12 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
       {/* Right: Actions */}
       <div className="flex items-center gap-1">
 
-        {/* Templates button */}
+        {/* Templates button — hidden on mobile (available in DevBoard menu) */}
         <Tooltip label="Load a starter template">
           <button
             onClick={() => setTemplatesModalOpen(true)}
             title="Templates"
-            className="flex items-center gap-1 px-2 h-7 rounded font-mono text-[11px] tracking-wide transition-colors text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]"
+            className="hidden sm:flex items-center gap-1 px-2 h-7 rounded font-mono text-[11px] tracking-wide transition-colors text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]"
           >
             <IconTemplate />
           </button>
@@ -541,7 +542,7 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
           <Tooltip label="Save or export your board">
           <button
             onClick={() => setExportOpen((v) => !v)}
-            title="Export"
+            title="Save / Export"
             className={[
               'flex items-center gap-1 px-2.5 h-7 rounded font-mono text-[11px] tracking-wide transition-colors',
               exportOpen
@@ -549,7 +550,8 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
                 : 'bg-[#6366f1] text-white hover:bg-[#4f46e5]',
             ].join(' ')}
           >
-            <span>Save</span>
+            <span className="hidden sm:inline">Save</span>
+            <IconJson />
             <IconChevronDown />
           </button>
           </Tooltip>
@@ -572,13 +574,13 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
           )}
         </div>
 
-        <div className="w-px h-5 bg-[var(--c-border)] mx-1" />
+        <div className="hidden sm:block w-px h-5 bg-[var(--c-border)] mx-1" />
 
-        {/* Fullscreen */}
+        {/* Fullscreen — hidden on mobile */}
         <button
           onClick={toggleFullscreen}
           title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
-          className="w-7 h-7 flex items-center justify-center rounded text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
+          className="hidden sm:flex w-7 h-7 items-center justify-center rounded text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
         >
           {isFullscreen ? <IconCompress /> : <IconExpand />}
         </button>

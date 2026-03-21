@@ -120,14 +120,18 @@ src/
 - [x] Shape + text tool stays selected after placing (multi-place)
 - [x] Text alignment (left / center / right) in text block toolbar
 - [x] Code block node with syntax highlighting
+- [x] **Multi-node Alt+drag** — hold Alt while dragging any node; if multiple are selected, all are duplicated together
+- [x] **Group / ungroup** — `⌘G` to group selected nodes, `⌘G` again to ungroup; click a group member to select the whole group
+- [x] **Lock nodes** — right-click any node → Lock to prevent moves/edits; small 🔒 badge appears
+- [x] **Right-click context menu** — duplicate, copy, lock/unlock, bring to front/back, group/ungroup, delete
 
 ### Up next
 
-- [ ] **Multi-node Alt+drag** — when multiple nodes are selected, Alt+drag duplicates all of them together
+- [x] **Multi-node Alt+drag** — when multiple nodes are selected, Alt+drag duplicates all of them together
 - [x] **Keyboard nudge** — arrow keys move selected node(s) by 1px; Shift+arrow moves by 10px
-- [ ] **Group / ungroup** (`⌘G`) — bundle selected nodes so they move and resize as one
-- [ ] **Lock nodes** — prevent accidental moves on static layout elements
-- [ ] **Right-click context menu** — quick access to duplicate, delete, lock, bring to front, etc.
+- [x] **Group / ungroup** (`⌘G`) — bundle selected nodes so they move together; clicking a group member selects the whole group
+- [x] **Lock nodes** — prevent accidental moves on static layout elements; right-click → Lock or use context menu
+- [x] **Right-click context menu** — duplicate, delete, lock/unlock, bring to front/back, group/ungroup
 - [ ] Templates to choose from (dev-focused: planning board, retro, architecture diagram)
 - [ ] Freehand pen / draw tool
 - [ ] Image upload (drop PNG/JPG onto canvas) -> Requires app + workspace

@@ -28,6 +28,8 @@ export interface StickyNoteNode {
   italic?: boolean;
   underline?: boolean;
   reaction?: string;
+  locked?: boolean;
+  groupId?: string;
 }
 
 export type LineStyle      = 'curved' | 'straight' | 'orthogonal';
@@ -75,6 +77,8 @@ export interface TextBlockNode {
   bulletList?: boolean;
   link?: string;
   textAlign?: 'left' | 'center' | 'right';
+  locked?: boolean;
+  groupId?: string;
 }
 
 export type ShapeKind = 'rect' | 'ellipse' | 'diamond' | 'triangle';
@@ -97,6 +101,8 @@ export interface ShapeNode {
   italic?: boolean;
   textAlign?: 'left' | 'center' | 'right';
   rotation?: number;
+  locked?: boolean;
+  groupId?: string;
 }
 
 export interface StickerNode {
@@ -108,6 +114,8 @@ export interface StickerNode {
   width: number;
   height: number;
   rotation: number; // degrees
+  locked?: boolean;
+  groupId?: string;
 }
 
 export interface SectionNode {
@@ -119,11 +127,15 @@ export interface SectionNode {
   height: number;
   name: string;
   color: string; // accent hex
+  locked?: boolean;
+  groupId?: string;
 }
 
 export interface TableNode {
   id: string;
   type: 'table';
+  locked?: boolean;
+  groupId?: string;
   x: number;
   y: number;
   colWidths: number[];
@@ -142,6 +154,8 @@ export type CodeLanguage = 'sql' | 'python' | 'javascript' | 'typescript' | 'jso
 export interface CodeBlockNode {
   id: string;
   type: 'codeblock';
+  locked?: boolean;
+  groupId?: string;
   x: number;
   y: number;
   width: number;

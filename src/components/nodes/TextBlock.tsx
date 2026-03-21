@@ -17,33 +17,42 @@ interface Props {
   onMultiDragMove?: (nodeId: string, worldX: number, worldY: number) => void;
   onMultiDragEnd?: () => void;
   getShouldSaveHistory?: () => boolean;
+  onContextMenu?: (nodeId: string, x: number, y: number) => void;
 }
 
-export default function TextBlock({ node, isSelected, isEditing, onSnapMove, onSnapEnd, onAltDragStart, onAltDragEnd, onMultiDragStart, onMultiDragMove, onMultiDragEnd, getShouldSaveHistory }: Props) {
+export default function TextBlock({ node, isSelected, isEditing, onSnapMove, onSnapEnd, onAltDragStart, onAltDragEnd, onMultiDragStart, onMultiDragMove, onMultiDragEnd, getShouldSaveHistory, onContextMenu }: Props) {
   const t = useTheme();
   const groupRef = useRef<Konva.Group>(null);
   const trRef    = useRef<Konva.Transformer>(null);
   const { updateNode, selectIds, setEditingId, setActiveTool, saveHistory } = useBoardStore();
 
   useEffect(() => {
-    if (isSelected && trRef.current && groupRef.current) {
+    if (isSelected && !node.locked && trRef.current && groupRef.current) {
       trRef.current.nodes([groupRef.current]);
       trRef.current.getLayer()?.batchDraw();
+    } else if (trRef.current) {
+      trRef.current.nodes([]);
+      trRef.current.getLayer()?.batchDraw();
     }
-  }, [isSelected]);
+  }, [isSelected, node.locked]);
 
   const handleClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
     if (['shape', 'pan'].includes(useBoardStore.getState().activeTool)) return;
     e.cancelBubble = true;
-    const { selectedIds } = useBoardStore.getState();
+    const { selectedIds, nodes: allNodes } = useBoardStore.getState();
+    const groupId = node.groupId;
+    const idsToSelect = groupId
+      ? allNodes.filter((n) => (n as { groupId?: string }).groupId === groupId).map((n) => n.id)
+      : [node.id];
     if (e.evt.shiftKey) {
-      if (selectedIds.includes(node.id)) {
-        selectIds(selectedIds.filter((id) => id !== node.id));
+      const alreadySelected = idsToSelect.every((id) => selectedIds.includes(id));
+      if (alreadySelected) {
+        selectIds(selectedIds.filter((id) => !idsToSelect.includes(id)));
       } else {
-        selectIds([...selectedIds, node.id]);
+        selectIds([...new Set([...selectedIds, ...idsToSelect])]);
       }
     } else {
-      selectIds([node.id]);
+      selectIds(idsToSelect);
     }
     if (!['select', 'pan'].includes(useBoardStore.getState().activeTool)) setActiveTool('text');
   };
@@ -120,11 +129,16 @@ export default function TextBlock({ node, isSelected, isEditing, onSnapMove, onS
         x={node.x}
         y={node.y}
         width={node.width}
-        draggable
+        draggable={!node.locked}
         onClick={handleClick}
         onDblClick={handleDblClick}
         onTap={handleTap}
         onDblTap={handleDblTap}
+        onContextMenu={(e) => {
+          e.evt.preventDefault();
+          e.evt.stopPropagation();
+          onContextMenu?.(node.id, e.evt.clientX, e.evt.clientY);
+        }}
         onDragStart={(e) => {
           if (e.evt.altKey) onAltDragStart?.(node.id);
           onMultiDragStart?.(node.id, e.target.x(), e.target.y());
@@ -160,6 +174,9 @@ export default function TextBlock({ node, isSelected, isEditing, onSnapMove, onS
             align={node.textAlign ?? 'left'}
             listening={false}
           />
+        )}
+        {node.locked && (
+          <Text x={node.width - 16} y={0} text="🔒" fontSize={11} listening={false} />
         )}
       </Group>
 

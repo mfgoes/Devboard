@@ -64,6 +64,11 @@ interface BoardState {
   saveHistory: () => void;
   undo: () => void;
   redo: () => void;
+  toggleLock: (ids: string[]) => void;
+  groupSelected: () => void;
+  ungroupNodes: (groupId: string) => void;
+  bringToFront: (ids: string[]) => void;
+  sendToBack: (ids: string[]) => void;
 }
 
 export const useBoardStore = create<BoardState>()(
@@ -399,6 +404,76 @@ export const useBoardStore = create<BoardState>()(
           selectedIds: [],
         });
       },
+
+      toggleLock: (ids) =>
+        set((state) => {
+          const set_ = new Set(ids);
+          const anyUnlocked = state.nodes.some(
+            (n) => set_.has(n.id) && !(n as { locked?: boolean }).locked
+          );
+          return {
+            past: [...state.past, state.nodes],
+            future: [],
+            nodes: state.nodes.map((n) =>
+              set_.has(n.id)
+                ? ({ ...n, locked: anyUnlocked } as CanvasNode)
+                : n
+            ),
+          };
+        }),
+
+      groupSelected: () => {
+        const { selectedIds, nodes } = get();
+        const eligible = nodes.filter(
+          (n) => selectedIds.includes(n.id) && n.type !== 'connector'
+        );
+        if (eligible.length < 2) return;
+        const newGroupId = generateId();
+        set((state) => ({
+          past: [...state.past, state.nodes],
+          future: [],
+          nodes: state.nodes.map((n) =>
+            selectedIds.includes(n.id) && n.type !== 'connector'
+              ? ({ ...n, groupId: newGroupId } as CanvasNode)
+              : n
+          ),
+        }));
+      },
+
+      ungroupNodes: (groupId) =>
+        set((state) => ({
+          past: [...state.past, state.nodes],
+          future: [],
+          nodes: state.nodes.map((n) =>
+            (n as { groupId?: string }).groupId === groupId
+              ? ({ ...n, groupId: undefined } as CanvasNode)
+              : n
+          ),
+        })),
+
+      bringToFront: (ids) =>
+        set((state) => {
+          const set_ = new Set(ids);
+          const rest = state.nodes.filter((n) => !set_.has(n.id));
+          const moved = state.nodes.filter((n) => set_.has(n.id));
+          return {
+            past: [...state.past, state.nodes],
+            future: [],
+            nodes: [...rest, ...moved],
+          };
+        }),
+
+      sendToBack: (ids) =>
+        set((state) => {
+          const set_ = new Set(ids);
+          const rest = state.nodes.filter((n) => !set_.has(n.id));
+          const moved = state.nodes.filter((n) => set_.has(n.id));
+          return {
+            past: [...state.past, state.nodes],
+            future: [],
+            nodes: [...moved, ...rest],
+          };
+        }),
     }),
     {
       name: 'devboard-v2',

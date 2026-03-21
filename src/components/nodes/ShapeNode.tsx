@@ -25,6 +25,7 @@ interface Props {
   onMultiDragMove?: (nodeId: string, worldX: number, worldY: number) => void;
   onMultiDragEnd?: () => void;
   getShouldSaveHistory?: () => boolean;
+  onContextMenu?: (nodeId: string, x: number, y: number) => void;
 }
 
 const DOT_OFFSET = 32;
@@ -89,6 +90,7 @@ export default function ShapeNode({
   onMultiDragMove,
   onMultiDragEnd,
   getShouldSaveHistory,
+  onContextMenu,
 }: Props) {
   const groupRef = useRef<Konva.Group>(null);
   const trRef    = useRef<Konva.Transformer>(null);
@@ -133,24 +135,32 @@ export default function ShapeNode({
   }, [node.id, updateNode, saveHistory]);
 
   useEffect(() => {
-    if (isSelected && !isLineTool && trRef.current && groupRef.current) {
+    if (isSelected && !isLineTool && !node.locked && trRef.current && groupRef.current) {
       trRef.current.nodes([groupRef.current]);
       trRef.current.getLayer()?.batchDraw();
+    } else if (trRef.current) {
+      trRef.current.nodes([]);
+      trRef.current.getLayer()?.batchDraw();
     }
-  }, [isSelected, isLineTool]);
+  }, [isSelected, isLineTool, node.locked]);
 
   const handleClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
     if (isLineTool || activeTool === 'pan' || activeTool === 'shape' || activeTool === 'sticker') return;
     e.cancelBubble = true;
-    const { selectedIds } = useBoardStore.getState();
+    const { selectedIds, nodes: allNodes } = useBoardStore.getState();
+    const groupId = node.groupId;
+    const idsToSelect = groupId
+      ? allNodes.filter((n) => (n as { groupId?: string }).groupId === groupId).map((n) => n.id)
+      : [node.id];
     if (e.evt.shiftKey) {
-      if (selectedIds.includes(node.id)) {
-        selectIds(selectedIds.filter((id) => id !== node.id));
+      const alreadySelected = idsToSelect.every((id) => selectedIds.includes(id));
+      if (alreadySelected) {
+        selectIds(selectedIds.filter((id) => !idsToSelect.includes(id)));
       } else {
-        selectIds([...selectedIds, node.id]);
+        selectIds([...new Set([...selectedIds, ...idsToSelect])]);
       }
     } else {
-      selectIds([node.id]);
+      selectIds(idsToSelect);
     }
     if (!['select', 'pan'].includes(activeTool)) setActiveTool('shape');
   };
@@ -284,11 +294,16 @@ export default function ShapeNode({
         rotation={rot}
         width={w}
         height={h}
-        draggable={!isLineTool}
+        draggable={!isLineTool && !node.locked}
         onClick={handleClick}
         onDblClick={handleDblClick}
         onTap={handleTap}
         onDblTap={handleDblTap}
+        onContextMenu={(e) => {
+          e.evt.preventDefault();
+          e.evt.stopPropagation();
+          onContextMenu?.(node.id, e.evt.clientX, e.evt.clientY);
+        }}
         onDragStart={(e) => {
           if (e.evt.altKey) onAltDragStart?.(node.id);
           const ox = e.target.offsetX(), oy = e.target.offsetY();
@@ -326,6 +341,16 @@ export default function ShapeNode({
             align={node.textAlign ?? 'center'}
             verticalAlign="middle"
             wrap="word"
+            listening={false}
+          />
+        )}
+        {/* Lock indicator */}
+        {node.locked && (
+          <Text
+            x={w - 18}
+            y={4}
+            text="🔒"
+            fontSize={11}
             listening={false}
           />
         )}

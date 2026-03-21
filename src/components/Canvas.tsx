@@ -21,6 +21,7 @@ import TableToolbar from './TableToolbar';
 import TableInsertControls from './TableInsertControls';
 import TableReorderControls from './TableReorderControls';
 import MultiSelectToolbar from './MultiSelectToolbar';
+import ContextMenu, { ContextMenuState } from './ContextMenu';
 import { AnchorSide, ConnectorNode, StickyNoteNode, ShapeNode, TextBlockNode, SectionNode, StickerNode, TableNode, CodeBlockNode } from '../types';
 import CodeBlockComponent from './nodes/CodeBlock';
 import CodeBlockToolbar from './CodeBlockToolbar';
@@ -99,6 +100,8 @@ export default function Canvas() {
   const lastTouchPos = useRef<{ x: number; y: number } | null>(null);
   const lastPinchDist = useRef<number | null>(null);
   const lastPinchMid = useRef<{ x: number; y: number } | null>(null);
+  // Touch tool placement: records the client position when a tool-draw begins
+  const touchToolStart = useRef<{ clientX: number; clientY: number } | null>(null);
   const spacePressed = useRef(false);
   const [cursorOverride, setCursorOverride] = useState<string | null>(null);
 
@@ -127,6 +130,9 @@ export default function Canvas() {
 
   // Snap alignment guides
   const [snapGuides, setSnapGuides] = useState<SnapGuide[]>([]);
+
+  // Context menu
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
 
   const {
     nodes,
@@ -204,7 +210,7 @@ export default function Canvas() {
   const handleAltDragStart = useCallback((nodeId: string) => {
     if (altDragInProgress.current) return;
     altDragInProgress.current = true;
-    const { nodes, selectedIds, saveHistory, addNode } = useBoardStore.getState();
+    const { nodes, selectedIds, saveHistory, addNode, selectIds: sel } = useBoardStore.getState();
     const idsToClone = selectedIds.includes(nodeId) && selectedIds.length > 1
       ? selectedIds
       : [nodeId];
@@ -216,10 +222,22 @@ export default function Canvas() {
     for (const original of toClone) {
       addNode({ ...original, id: generateId() } as (typeof original));
     }
+    // addNode replaces selectedIds with the last clone's id on each call,
+    // so restore selection to the originals so multi-drag still works.
+    sel(idsToClone);
   }, []);
 
   const handleAltDragEnd = useCallback(() => {
     altDragInProgress.current = false;
+  }, []);
+
+  // ── Context menu ──────────────────────────────────────────────────────────────
+  const handleNodeContextMenu = useCallback((nodeId: string, x: number, y: number) => {
+    // If right-clicked node isn't selected, select it first
+    const { selectedIds, selectIds: sel } = useBoardStore.getState();
+    if (!selectedIds.includes(nodeId)) sel([nodeId]);
+    const ids = selectedIds.includes(nodeId) ? selectedIds : [nodeId];
+    setContextMenu({ x, y, nodeIds: ids });
   }, []);
 
   // ── Multi-node drag ──────────────────────────────────────────────────────────
@@ -836,6 +854,27 @@ export default function Canvas() {
         if (isPanMode) {
           isPanning.current = true;
           lastTouchPos.current = { x: touches[0].clientX, y: touches[0].clientY };
+        } else {
+          // Tool placement — get stage pointer position for draw tools
+          const stage = stageRef.current;
+          if (!stage) return;
+          const pos = stage.getPointerPosition();
+          if (!pos) return;
+          const cam = useBoardStore.getState().camera;
+          const worldX = (pos.x - cam.x) / cam.scale;
+          const worldY = (pos.y - cam.y) / cam.scale;
+          touchToolStart.current = { clientX: touches[0].clientX, clientY: touches[0].clientY };
+
+          if (activeTool === 'shape') {
+            setShapeDraw({ startScreenX: pos.x, startScreenY: pos.y, startWorldX: worldX, startWorldY: worldY, currentScreenX: pos.x, currentScreenY: pos.y, currentWorldX: worldX, currentWorldY: worldY });
+          } else if (activeTool === 'section') {
+            setSectionDraw({ startScreenX: pos.x, startScreenY: pos.y, startWorldX: worldX, startWorldY: worldY, currentScreenX: pos.x, currentScreenY: pos.y, currentWorldX: worldX, currentWorldY: worldY });
+          } else if (activeTool === 'table') {
+            setTableDraw({ startScreenX: pos.x, startScreenY: pos.y, startWorldX: worldX, startWorldY: worldY, currentScreenX: pos.x, currentScreenY: pos.y, currentWorldX: worldX, currentWorldY: worldY });
+          } else if (activeTool === 'text') {
+            setTextDraw({ startScreenX: pos.x, startScreenY: pos.y, startWorldX: worldX, startWorldY: worldY, currentScreenX: pos.x, currentWorldX: worldX });
+          }
+          // sticky / code / sticker: placed on touchEnd after detecting a tap (minimal movement)
         }
       } else if (touches.length === 2) {
         e.evt.preventDefault();
@@ -848,7 +887,7 @@ export default function Canvas() {
         };
       }
     },
-    [activeTool]
+    [activeTool, setShapeDraw, setSectionDraw, setTableDraw, setTextDraw]
   );
 
   const handleTouchMove = useCallback(
@@ -862,6 +901,19 @@ export default function Canvas() {
         lastTouchPos.current = { x: touches[0].clientX, y: touches[0].clientY };
         const { camera: cam } = useBoardStore.getState();
         setCamera({ x: cam.x + dx, y: cam.y + dy });
+      } else if (touches.length === 1 && touchToolStart.current) {
+        // Update draw states for drag-to-size tools
+        const stage = stageRef.current;
+        const pos = stage?.getPointerPosition();
+        if (pos) {
+          const { camera: cam } = useBoardStore.getState();
+          const worldX = (pos.x - cam.x) / cam.scale;
+          const worldY = (pos.y - cam.y) / cam.scale;
+          if (shapeDraw) setShapeDraw(prev => prev ? { ...prev, currentScreenX: pos.x, currentScreenY: pos.y, currentWorldX: worldX, currentWorldY: worldY } : null);
+          if (sectionDraw) setSectionDraw(prev => prev ? { ...prev, currentScreenX: pos.x, currentScreenY: pos.y, currentWorldX: worldX, currentWorldY: worldY } : null);
+          if (tableDraw) setTableDraw(prev => prev ? { ...prev, currentScreenX: pos.x, currentScreenY: pos.y, currentWorldX: worldX, currentWorldY: worldY } : null);
+          if (textDraw) setTextDraw(prev => prev ? { ...prev, currentScreenX: pos.x, currentWorldX: worldX } : null);
+        }
       } else if (touches.length === 2 && lastPinchDist.current !== null && lastPinchMid.current !== null) {
         const t0 = touches[0], t1 = touches[1];
         const newDist = Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY);
@@ -883,7 +935,7 @@ export default function Canvas() {
         lastPinchMid.current = newMid;
       }
     },
-    [setCamera]
+    [setCamera, shapeDraw, sectionDraw, tableDraw, textDraw]
   );
 
   const handleTouchEnd = useCallback((e: Konva.KonvaEventObject<TouchEvent>) => {
@@ -894,11 +946,55 @@ export default function Canvas() {
     if (e.evt.touches.length === 0) {
       isPanning.current = false;
       lastTouchPos.current = null;
+
+      // Commit tool placement if a tool draw was in progress
+      if (touchToolStart.current) {
+        const start = touchToolStart.current;
+        touchToolStart.current = null;
+        const changedTouches = e.evt.changedTouches;
+        const endX = changedTouches[0]?.clientX ?? start.clientX;
+        const endY = changedTouches[0]?.clientY ?? start.clientY;
+        const moved = Math.hypot(endX - start.clientX, endY - start.clientY);
+        const isTap = moved < 10;
+
+        // For drag-to-size tools: call handleMouseUp logic via state already set
+        if (shapeDraw || sectionDraw || tableDraw || textDraw) {
+          // These are committed by handleMouseUp which watches the draw states,
+          // but touch doesn't trigger mouseup — fire it manually via the shared logic.
+          // We call handleMouseUp directly since it reads from state.
+          handleMouseUp();
+          return;
+        }
+
+        // Tap-placement tools: sticky, sticker, code
+        if (isTap) {
+          const stage = stageRef.current;
+          if (!stage) return;
+          // Reconstruct world position from touch start (stage may not have pointer from changedTouches)
+          const stageBox = stage.container().getBoundingClientRect();
+          const screenX = start.clientX - stageBox.left;
+          const screenY = start.clientY - stageBox.top;
+          const { camera: cam } = useBoardStore.getState();
+          const worldX = (screenX - cam.x) / cam.scale;
+          const worldY = (screenY - cam.y) / cam.scale;
+
+          if (activeTool === 'sticky') {
+            addNode({ id: generateId(), type: 'sticky', x: worldX - 100, y: worldY - 80, text: '', color: randomStickyColor(), width: 200, height: 160 } satisfies StickyNoteNode);
+            setActiveTool('select');
+          } else if (activeTool === 'sticker') {
+            const rotation = Math.round((Math.random() * 30 - 15) * 10) / 10;
+            addNode({ id: generateId(), type: 'sticker', src: activeSticker, x: worldX, y: worldY, width: 100, height: 100, rotation } satisfies StickerNode);
+          } else if (activeTool === 'code') {
+            addNode({ id: generateId(), type: 'codeblock', x: worldX - 250, y: worldY - 40, width: 500, height: 220, code: `SELECT\n  user_id,\n  COUNT(*) AS event_count\nFROM user_events\nGROUP BY 1\nLIMIT 100`, language: 'sql', title: 'Query', showLineNumbers: true } satisfies CodeBlockNode);
+            setActiveTool('select');
+          }
+        }
+      }
     } else if (e.evt.touches.length === 1) {
       // Transitioned from 2→1 fingers: restart single-touch tracking
       lastTouchPos.current = { x: e.evt.touches[0].clientX, y: e.evt.touches[0].clientY };
     }
-  }, []);
+  }, [activeTool, activeSticker, addNode, setActiveTool, shapeDraw, sectionDraw, tableDraw, textDraw, handleMouseUp]);
 
   // ── Anchor callbacks (passed to StickyNote) ─────────────────────────────────
   const handleAnchorDown = useCallback(
@@ -1027,6 +1123,13 @@ export default function Canvas() {
         if (activeTool === 'text' && !textDraw) setTextCursorPos(null);
         if (activeTool === 'sticker') setStickerCursorPos(null);
       }}
+      onContextMenu={(e) => {
+        // Only fire if the target is the canvas background (not a node)
+        if (e.target === e.currentTarget || (e.target as HTMLElement).tagName === 'CANVAS') {
+          e.preventDefault();
+          setContextMenu({ x: e.clientX, y: e.clientY, nodeIds: [] });
+        }
+      }}
     >
       <Stage
         ref={stageRef}
@@ -1043,6 +1146,13 @@ export default function Canvas() {
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
+        onContextMenu={(e) => {
+          e.evt.preventDefault();
+          // Only show canvas menu if no node was directly right-clicked
+          if (e.target === e.currentTarget) {
+            setContextMenu({ x: e.evt.clientX, y: e.evt.clientY, nodeIds: [] });
+          }
+        }}
         style={{ position: 'absolute', top: 0, left: 0 }}
       >
         <Layer>
@@ -1069,114 +1179,143 @@ export default function Canvas() {
               />
             ))}
 
-          {/* Sticky notes */}
+          {/* All content nodes in insertion order — newer nodes render on top */}
           {nodes
-            .filter((n) => n.type === 'sticky')
-            .map((n) => (
-              <StickyNote
-                key={n.id}
-                node={n as StickyNoteNode}
-                isSelected={selectedIds.includes(n.id)}
-                isEditing={editingId === n.id}
-                isDrawingLine={drawingLine !== null}
-                onAnchorDown={handleAnchorDown}
-                onAnchorEnter={handleAnchorEnter}
-                onAnchorLeave={handleAnchorLeave}
-                snapAnchor={
-                  snapTarget?.nodeId === n.id ? snapTarget.side : null
-                }
-                onSnapMove={computeSnap}
-                onSnapEnd={clearSnap}
-                onAltDragStart={handleAltDragStart}
-                onAltDragEnd={handleAltDragEnd}
-                onMultiDragStart={handleMultiDragStart}
-                onMultiDragMove={handleMultiDragMove}
-                onMultiDragEnd={handleMultiDragEnd}
-                getShouldSaveHistory={getShouldSaveHistory}
-              />
-            ))}
+            .filter((n) => n.type !== 'section' && n.type !== 'connector')
+            .map((n) => {
+              if (n.type === 'sticky') return (
+                <StickyNote
+                  key={n.id}
+                  node={n as StickyNoteNode}
+                  isSelected={selectedIds.includes(n.id)}
+                  isEditing={editingId === n.id}
+                  isDrawingLine={drawingLine !== null}
+                  onAnchorDown={handleAnchorDown}
+                  onAnchorEnter={handleAnchorEnter}
+                  onAnchorLeave={handleAnchorLeave}
+                  snapAnchor={snapTarget?.nodeId === n.id ? snapTarget.side : null}
+                  onSnapMove={computeSnap}
+                  onSnapEnd={clearSnap}
+                  onAltDragStart={handleAltDragStart}
+                  onAltDragEnd={handleAltDragEnd}
+                  onMultiDragStart={handleMultiDragStart}
+                  onMultiDragMove={handleMultiDragMove}
+                  onMultiDragEnd={handleMultiDragEnd}
+                  getShouldSaveHistory={getShouldSaveHistory}
+                  onContextMenu={handleNodeContextMenu}
+                />
+              );
+              if (n.type === 'shape') return (
+                <ShapeNodeComponent
+                  key={n.id}
+                  node={n as ShapeNode}
+                  isSelected={selectedIds.includes(n.id)}
+                  isEditing={editingId === n.id}
+                  isDrawingLine={drawingLine !== null}
+                  onAnchorDown={handleAnchorDown}
+                  onAnchorEnter={handleAnchorEnter}
+                  onAnchorLeave={handleAnchorLeave}
+                  snapAnchor={snapTarget?.nodeId === n.id ? snapTarget.side : null}
+                  onSnapMove={computeSnap}
+                  onSnapEnd={clearSnap}
+                  onAltDragStart={handleAltDragStart}
+                  onAltDragEnd={handleAltDragEnd}
+                  onMultiDragStart={handleMultiDragStart}
+                  onMultiDragMove={handleMultiDragMove}
+                  onMultiDragEnd={handleMultiDragEnd}
+                  getShouldSaveHistory={getShouldSaveHistory}
+                  onContextMenu={handleNodeContextMenu}
+                />
+              );
+              if (n.type === 'textblock') return (
+                <TextBlock
+                  key={n.id}
+                  node={n as TextBlockNode}
+                  isSelected={selectedIds.includes(n.id)}
+                  isEditing={editingId === n.id}
+                  onSnapMove={computeSnap}
+                  onSnapEnd={clearSnap}
+                  onAltDragStart={handleAltDragStart}
+                  onAltDragEnd={handleAltDragEnd}
+                  onMultiDragStart={handleMultiDragStart}
+                  onMultiDragMove={handleMultiDragMove}
+                  onMultiDragEnd={handleMultiDragEnd}
+                  getShouldSaveHistory={getShouldSaveHistory}
+                  onContextMenu={handleNodeContextMenu}
+                />
+              );
+              if (n.type === 'sticker') return (
+                <StickerNodeComponent
+                  key={n.id}
+                  node={n as StickerNode}
+                  isSelected={selectedIds.includes(n.id)}
+                  onSnapMove={computeSnap}
+                  onSnapEnd={clearSnap}
+                  onAltDragStart={handleAltDragStart}
+                  onAltDragEnd={handleAltDragEnd}
+                  onMultiDragStart={handleMultiDragStart}
+                  onMultiDragMove={handleMultiDragMove}
+                  onMultiDragEnd={handleMultiDragEnd}
+                  getShouldSaveHistory={getShouldSaveHistory}
+                  onContextMenu={handleNodeContextMenu}
+                />
+              );
+              if (n.type === 'table') return (
+                <TableNodeComponent
+                  key={n.id}
+                  node={n as TableNode}
+                  isSelected={selectedIds.includes(n.id)}
+                  isDrawingLine={drawingLine !== null}
+                  onAnchorDown={handleAnchorDown}
+                  onAnchorEnter={handleAnchorEnter}
+                  onAnchorLeave={handleAnchorLeave}
+                  snapAnchor={snapTarget?.nodeId === n.id ? snapTarget.side : null}
+                />
+              );
+              return null;
+            })}
 
-          {/* Shape nodes */}
-          {nodes
-            .filter((n) => n.type === 'shape')
-            .map((n) => (
-              <ShapeNodeComponent
-                key={n.id}
-                node={n as ShapeNode}
-                isSelected={selectedIds.includes(n.id)}
-                isEditing={editingId === n.id}
-                isDrawingLine={drawingLine !== null}
-                onAnchorDown={handleAnchorDown}
-                onAnchorEnter={handleAnchorEnter}
-                onAnchorLeave={handleAnchorLeave}
-                snapAnchor={
-                  snapTarget?.nodeId === n.id ? snapTarget.side : null
-                }
-                onSnapMove={computeSnap}
-                onSnapEnd={clearSnap}
-                onAltDragStart={handleAltDragStart}
-                onAltDragEnd={handleAltDragEnd}
-                onMultiDragStart={handleMultiDragStart}
-                onMultiDragMove={handleMultiDragMove}
-                onMultiDragEnd={handleMultiDragEnd}
-                getShouldSaveHistory={getShouldSaveHistory}
+          {/* Group bounding boxes */}
+          {(() => {
+            const groupMap = new Map<string, { x: number; y: number; r: number; b: number }>();
+            for (const n of nodes) {
+              const gid = (n as { groupId?: string }).groupId;
+              if (!gid) continue;
+              const nx_ = (n as { x?: number }).x ?? 0;
+              const ny_ = (n as { y?: number }).y ?? 0;
+              const nw_ = (n as { width?: number }).width ?? 0;
+              const nh_ = (n as { height?: number }).height ?? 0;
+              const prev = groupMap.get(gid);
+              if (prev) {
+                groupMap.set(gid, {
+                  x: Math.min(prev.x, nx_), y: Math.min(prev.y, ny_),
+                  r: Math.max(prev.r, nx_ + nw_), b: Math.max(prev.b, ny_ + nh_),
+                });
+              } else {
+                groupMap.set(gid, { x: nx_, y: ny_, r: nx_ + nw_, b: ny_ + nh_ });
+              }
+            }
+            const PAD = 14;
+            return Array.from(groupMap.entries()).map(([gid, bb]) => (
+              <Line
+                key={`group-${gid}`}
+                x={bb.x - PAD}
+                y={bb.y - PAD}
+                points={[
+                  0, 0,
+                  bb.r - bb.x + PAD * 2, 0,
+                  bb.r - bb.x + PAD * 2, bb.b - bb.y + PAD * 2,
+                  0, bb.b - bb.y + PAD * 2,
+                  0, 0,
+                ]}
+                stroke="#6366f1"
+                strokeWidth={1.5}
+                dash={[8, 5]}
+                opacity={0.5}
+                listening={false}
               />
-            ))}
-
-          {/* Text blocks */}
-          {nodes
-            .filter((n) => n.type === 'textblock')
-            .map((n) => (
-              <TextBlock
-                key={n.id}
-                node={n as TextBlockNode}
-                isSelected={selectedIds.includes(n.id)}
-                isEditing={editingId === n.id}
-                onSnapMove={computeSnap}
-                onSnapEnd={clearSnap}
-                onAltDragStart={handleAltDragStart}
-                onAltDragEnd={handleAltDragEnd}
-                onMultiDragStart={handleMultiDragStart}
-                onMultiDragMove={handleMultiDragMove}
-                onMultiDragEnd={handleMultiDragEnd}
-                getShouldSaveHistory={getShouldSaveHistory}
-              />
-            ))}
-
-          {/* Stickers */}
-          {nodes
-            .filter((n) => n.type === 'sticker')
-            .map((n) => (
-              <StickerNodeComponent
-                key={n.id}
-                node={n as StickerNode}
-                isSelected={selectedIds.includes(n.id)}
-                onSnapMove={computeSnap}
-                onSnapEnd={clearSnap}
-                onAltDragStart={handleAltDragStart}
-                onAltDragEnd={handleAltDragEnd}
-                onMultiDragStart={handleMultiDragStart}
-                onMultiDragMove={handleMultiDragMove}
-                onMultiDragEnd={handleMultiDragEnd}
-                getShouldSaveHistory={getShouldSaveHistory}
-              />
-            ))}
-
-          {/* Tables */}
-          {nodes
-            .filter((n) => n.type === 'table')
-            .map((n) => (
-              <TableNodeComponent
-                key={n.id}
-                node={n as TableNode}
-                isSelected={selectedIds.includes(n.id)}
-                isDrawingLine={drawingLine !== null}
-                onAnchorDown={handleAnchorDown}
-                onAnchorEnter={handleAnchorEnter}
-                onAnchorLeave={handleAnchorLeave}
-                snapAnchor={snapTarget?.nodeId === n.id ? snapTarget.side : null}
-              />
-            ))}
+            ));
+          })()}
 
           {/* Snap alignment guides */}
           {snapGuides.map((g, i) => (
@@ -1443,6 +1582,10 @@ export default function Canvas() {
       )}
       {selectedIds.length > 1 && !editingId && (
         <MultiSelectToolbar />
+      )}
+
+      {contextMenu && (
+        <ContextMenu menu={contextMenu} onClose={() => setContextMenu(null)} />
       )}
     </div>
   );

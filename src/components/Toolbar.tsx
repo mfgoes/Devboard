@@ -7,6 +7,7 @@ interface ToolDef {
   label: string;
   shortcut: string;
   icon: React.ReactNode;
+  mobileHidden?: boolean;
 }
 
 // Minimal SVG icons — dev-tool aesthetic
@@ -130,17 +131,17 @@ function IconCode() {
 }
 
 const TOOLS: ToolDef[] = [
-  { id: 'select', label: 'Select', shortcut: 'V', icon: <IconSelect /> },
-  { id: 'pan', label: 'Pan', shortcut: 'H', icon: <IconPan /> },
-  { id: 'sticky', label: 'Sticky', shortcut: 'S', icon: <IconSticky /> },
-  { id: 'shape', label: 'Shape', shortcut: 'R', icon: <IconShape /> },
-  { id: 'text', label: 'Text', shortcut: 'T', icon: <IconText /> },
-  { id: 'line', label: 'Line', shortcut: 'L', icon: <IconLine /> },
-  { id: 'pen', label: 'Pen', shortcut: '', icon: <IconPen /> },
-  { id: 'table', label: 'Table', shortcut: 'G', icon: <IconTable /> },
+  { id: 'select',  label: 'Select',  shortcut: 'V', icon: <IconSelect /> },
+  { id: 'pan',     label: 'Pan',     shortcut: 'H', icon: <IconPan /> },
+  { id: 'sticky',  label: 'Sticky',  shortcut: 'S', icon: <IconSticky /> },
+  { id: 'shape',   label: 'Shape',   shortcut: 'R', icon: <IconShape /> },
+  { id: 'text',    label: 'Text',    shortcut: 'T', icon: <IconText /> },
+  { id: 'line',    label: 'Line',    shortcut: 'L', icon: <IconLine /> },
   { id: 'section', label: 'Section', shortcut: 'F', icon: <IconSection /> },
-  { id: 'sticker', label: 'Sticker', shortcut: '', icon: <IconSticker /> },
-  { id: 'code', label: 'Code', shortcut: 'K', icon: <IconCode /> },
+  { id: 'sticker', label: 'Sticker', shortcut: '',  icon: <IconSticker /> },
+  { id: 'pen',     label: 'Pen',     shortcut: '',  icon: <IconPen />,   mobileHidden: true },
+  { id: 'table',   label: 'Table',   shortcut: 'G', icon: <IconTable />, mobileHidden: true },
+  { id: 'code',    label: 'Code',    shortcut: 'K', icon: <IconCode />,  mobileHidden: true },
 ];
 
 type ShapeKindDef = { kind: ShapeKind; label: string; icon: React.ReactNode };
@@ -197,7 +198,7 @@ export default function Toolbar() {
               title={label}
               onClick={() => setActiveShapeKind(kind)}
               className={[
-                'w-8 h-8 flex items-center justify-center rounded-lg transition-colors',
+                'w-11 h-11 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg transition-colors',
                 activeShapeKind === kind
                   ? 'bg-[#6366f1] text-white'
                   : 'text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
@@ -212,38 +213,51 @@ export default function Toolbar() {
       {/* Sticker picker */}
       {activeTool === 'sticker' && <StickerPicker />}
 
-    {/* Scrollable row — centered on wide screens, scrollable on narrow */}
-    <div className="pointer-events-auto w-full overflow-x-auto flex justify-center" style={{ WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }}>
-    <div className="flex items-center gap-0 rounded-xl border border-[var(--c-border)] bg-[var(--c-panel)] shadow-2xl overflow-hidden mx-4 shrink-0">
-      {/* Tool buttons */}
-      <div className="flex items-center px-1 py-1 gap-0.5">
-        {TOOLS.map((tool) => {
-          const isActive = activeTool === tool.id;
-          const isComingSoon = ['pen'].includes(tool.id);
-          return (
-            <button
-              key={tool.id}
-              title={`${tool.label}${tool.shortcut ? ` (${tool.shortcut})` : ''}${isComingSoon ? ' — coming soon' : ''}`}
-              onClick={() => setActiveTool(tool.id)}
-              className={[
-                'relative flex flex-col items-center justify-center w-10 h-10 rounded-lg transition-all duration-100 font-mono text-[10px] gap-0.5',
-                isActive
-                  ? 'bg-[#6366f1] text-white shadow-sm'
-                  : isComingSoon
-                  ? 'text-[var(--c-text-off)] hover:text-[var(--c-text-lo)] hover:bg-[var(--c-hover)] cursor-not-allowed'
-                  : 'text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
-              ].join(' ')}
-              disabled={isComingSoon}
-            >
-              {tool.icon}
-              <span className="leading-none">{tool.label.slice(0, 3)}</span>
-            </button>
-          );
-        })}
+    {/* Toolbar row */}
+    <div className="pointer-events-auto w-full overflow-x-auto flex sm:justify-center"
+      style={{ WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' } as React.CSSProperties}
+    >
+      {/* Pill — shrink-0 prevents compression; ml-4 gives left breathing room */}
+      <div className="flex items-center gap-0 rounded-xl border border-[var(--c-border)] bg-[var(--c-panel)] shadow-2xl overflow-hidden ml-4 mr-4 shrink-0">
+        <div className="flex items-center px-1 py-1 gap-0.5">
+          {TOOLS.map((tool) => {
+            const isActive = activeTool === tool.id;
+            const isComingSoon = tool.id === 'pen';
+            return (
+              <button
+                key={tool.id}
+                title={`${tool.label}${tool.shortcut ? ` (${tool.shortcut})` : ''}${isComingSoon ? ' — coming soon' : ''}`}
+                onClick={() => !isComingSoon && setActiveTool(tool.id)}
+                className={[
+                  tool.mobileHidden ? 'hidden sm:flex' : 'flex',
+                  'relative flex-col items-center justify-center rounded-lg transition-all duration-100 font-mono text-[10px] gap-0.5',
+                  'w-12 h-12 sm:w-10 sm:h-10 focus:outline-none',
+                  isActive
+                    ? 'bg-[#6366f1] text-white shadow-sm'
+                    : isComingSoon
+                    ? 'text-[var(--c-text-off)] cursor-not-allowed'
+                    : 'text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
+                ].join(' ')}
+                disabled={isComingSoon}
+              >
+                {tool.icon}
+                <span className="leading-none">{tool.label.slice(0, 3)}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
+      {/* Right-side padding spacer — gives the pill breathing room on mobile */}
+      <div className="sm:hidden w-4 shrink-0" />
+
+      {/* Sticky gradient — stays at right viewport edge, exactly as tall as the pill.
+          Lives inside the scroll container so it never bleeds outside. */}
+      <div
+        className="sm:hidden sticky right-0 self-stretch w-14 shrink-0 -ml-14 pointer-events-none"
+        style={{ background: 'linear-gradient(to right, transparent, var(--c-panel) 80%)' }}
+      />
     </div>
-    </div>{/* end scrollable row */}
     </div>
   );
 }

@@ -154,6 +154,22 @@ export default function App() {
             updateNode(id, { italic: !(n as { italic?: boolean }).italic } as never);
           }
         }
+      } else if (e.key === 'g') {
+        e.preventDefault();
+        const { selectedIds: sids, nodes: ns, groupSelected, ungroupNodes } = useBoardStore.getState();
+        const selected = ns.filter((n) => sids.includes(n.id) && n.type !== 'connector');
+        const groupIds = [...new Set(
+          selected
+            .map((n) => (n as { groupId?: string }).groupId)
+            .filter(Boolean) as string[]
+        )];
+        const allGrouped = selected.length >= 2 && groupIds.length === 1 &&
+          selected.every((n) => !!(n as { groupId?: string }).groupId);
+        if (allGrouped) {
+          ungroupNodes(groupIds[0]);
+        } else if (selected.length >= 2) {
+          groupSelected();
+        }
       }
     };
     window.addEventListener('keydown', onKeyDown);

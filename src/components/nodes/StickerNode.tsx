@@ -16,9 +16,10 @@ interface Props {
   onMultiDragMove?: (nodeId: string, worldX: number, worldY: number) => void;
   onMultiDragEnd?: () => void;
   getShouldSaveHistory?: () => boolean;
+  onContextMenu?: (nodeId: string, x: number, y: number) => void;
 }
 
-export default function StickerNodeComponent({ node, isSelected, onSnapMove, onSnapEnd, onAltDragStart, onAltDragEnd, onMultiDragStart, onMultiDragMove, onMultiDragEnd, getShouldSaveHistory }: Props) {
+export default function StickerNodeComponent({ node, isSelected, onSnapMove, onSnapEnd, onAltDragStart, onAltDragEnd, onMultiDragStart, onMultiDragMove, onMultiDragEnd, getShouldSaveHistory, onContextMenu }: Props) {
   const { updateNode, selectIds, saveHistory, activeTool } = useBoardStore();
   const [img, setImg] = useState<HTMLImageElement | null>(null);
   const imgRef = useRef<Konva.Image>(null);
@@ -31,11 +32,14 @@ export default function StickerNodeComponent({ node, isSelected, onSnapMove, onS
   }, [node.src]);
 
   useEffect(() => {
-    if (isSelected && trRef.current && imgRef.current) {
+    if (isSelected && !node.locked && trRef.current && imgRef.current) {
       trRef.current.nodes([imgRef.current]);
       trRef.current.getLayer()?.batchDraw();
+    } else if (trRef.current) {
+      trRef.current.nodes([]);
+      trRef.current.getLayer()?.batchDraw();
     }
-  }, [isSelected]);
+  }, [isSelected, node.locked]);
 
   const handleTransformEnd = () => {
     const img = imgRef.current!;
@@ -69,9 +73,14 @@ export default function StickerNodeComponent({ node, isSelected, onSnapMove, onS
         rotation={node.rotation}
         offsetX={node.width / 2}
         offsetY={node.height / 2}
-        draggable
+        draggable={!node.locked}
         onClick={() => { if (activeTool !== 'sticker' && activeTool !== 'pan') selectIds([node.id]); }}
         onTap={() => { if (activeTool !== 'sticker' && activeTool !== 'pan') selectIds([node.id]); }}
+        onContextMenu={(e) => {
+          e.evt.preventDefault();
+          e.evt.stopPropagation();
+          onContextMenu?.(node.id, e.evt.clientX, e.evt.clientY);
+        }}
         onDragStart={(e) => {
           if (e.evt.altKey) onAltDragStart?.(node.id);
           onMultiDragStart?.(node.id, e.target.x(), e.target.y());
