@@ -1223,7 +1223,7 @@ export default function Canvas() {
     <div
       className="absolute inset-0 overflow-hidden select-none"
       style={{
-        background: t.canvasBg,
+        backgroundColor: t.canvasBg,
         cursor,
         backgroundImage: `radial-gradient(circle, ${t.dotColor} ${dotRadius}px, transparent ${dotRadius}px)`,
         backgroundSize: `${dotSpacing}px ${dotSpacing}px`,

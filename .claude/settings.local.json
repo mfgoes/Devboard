@@ -22,7 +22,8 @@
       "Bash(hdiutil create:*)",
       "Bash(butler push:*)",
       "Bash(find /Users/mischavandergoes/Documents/GitHub/CollaboCanvas/src -name *.png -o -name *.svg -o -name *.webp)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "WebFetch(domain:localhost)"
     ]
   }
 }

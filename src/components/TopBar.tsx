@@ -476,7 +476,7 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
         </div>
       </div>
     )}
-    <div className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between px-4 h-11 bg-[var(--c-panel)] border-b border-[var(--c-border)]">
+    <div className="absolute top-0 left-0 right-0 z-[190] flex items-center justify-between px-4 h-11 bg-[var(--c-panel)] border-b border-[var(--c-border)]">
       {/* Left: Logo + dropdown + title */}
       <div className="flex items-center gap-3 min-w-0">
 
@@ -498,7 +498,7 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
 
           {/* Dropdown */}
           {menuOpen && (
-            <div className="absolute top-full left-0 mt-1.5 w-52 rounded-xl border border-[var(--c-border)] bg-[var(--c-panel)] shadow-2xl py-1.5 z-[100]">
+            <div className="absolute top-full left-0 mt-1.5 w-52 rounded-xl border border-[var(--c-border)] bg-[var(--c-panel)] shadow-2xl py-1.5 z-[220]">
 
               <MenuItem onClick={() => menuAction(handleNewBoard)} icon={<IconNewBoard />}>New board</MenuItem>
               <MenuItem onClick={() => menuAction(() => fileInputRef.current?.click())} icon={<IconLoad />}>Load board…</MenuItem>
@@ -733,6 +733,7 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
             className="hidden sm:flex items-center gap-1 px-2 h-7 rounded font-mono text-[11px] tracking-wide transition-colors text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]"
           >
             <IconTemplate />
+            <span>Templates</span>
           </button>
         </Tooltip>
 
@@ -755,7 +756,7 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
           </button>
           </Tooltip>
           {exportOpen && (
-            <div className="absolute top-full right-0 mt-1.5 w-48 rounded-xl border border-[var(--c-border)] bg-[var(--c-panel)] shadow-2xl py-1.5 z-[100]">
+            <div className="absolute top-full right-0 mt-1.5 w-48 rounded-xl border border-[var(--c-border)] bg-[var(--c-panel)] shadow-2xl py-1.5 z-[220]">
               <MenuItem onClick={() => { setExportOpen(false); handleSaveJSON(); }} icon={<IconJson />} badge="⌘S">Save</MenuItem>
               <MenuItem onClick={() => { setExportOpen(false); handleSaveAsJSON(); }} icon={<IconLoad />}>Save as…</MenuItem>
               {pages.length > 1 && (
@@ -1096,7 +1097,7 @@ function MenuItemSub({ label, icon, children }: { label: string; icon?: React.Re
       </button>
       {open && (
         <div
-          className="absolute left-full top-0 ml-1 w-48 rounded-xl border border-[var(--c-border)] bg-[var(--c-panel)] shadow-2xl py-1.5 z-[110]"
+          className="absolute left-full top-0 ml-1 w-48 rounded-xl border border-[var(--c-border)] bg-[var(--c-panel)] shadow-2xl py-1.5 z-[230]"
           onMouseEnter={show}
           onMouseLeave={hide}
         >

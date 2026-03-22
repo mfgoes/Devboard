@@ -1,3 +1,4 @@
+import { useRef, useState, useEffect } from 'react';
 import { useBoardStore } from '../store/boardStore';
 import { Tool, ShapeKind } from '../types';
 import StickerPicker from './StickerPicker';
@@ -195,6 +196,19 @@ const SHAPE_KINDS: ShapeKindDef[] = [
 
 export default function Toolbar() {
   const { activeTool, setActiveTool, activeShapeKind, setActiveShapeKind } = useBoardStore();
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [showGradient, setShowGradient] = useState(false);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const check = () => setShowGradient(el.scrollWidth > el.clientWidth);
+    check();
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    el.addEventListener('scroll', check);
+    return () => { ro.disconnect(); el.removeEventListener('scroll', check); };
+  }, []);
 
   return (
     <div className="absolute bottom-5 left-0 right-0 z-50 flex flex-col items-center gap-2 pointer-events-none">
@@ -223,7 +237,7 @@ export default function Toolbar() {
       {activeTool === 'sticker' && <StickerPicker />}
 
     {/* Toolbar row */}
-    <div className="pointer-events-auto w-full overflow-x-auto flex sm:justify-center"
+    <div ref={scrollRef} className="pointer-events-auto w-full overflow-x-auto flex sm:justify-center"
       style={{ WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' } as React.CSSProperties}
     >
       {/* Pill — shrink-0 prevents compression; ml-4 gives left breathing room */}
@@ -262,10 +276,12 @@ export default function Toolbar() {
 
       {/* Sticky gradient — stays at right viewport edge, exactly as tall as the pill.
           Lives inside the scroll container so it never bleeds outside. */}
-      <div
-        className="sm:hidden sticky right-0 self-stretch w-14 shrink-0 -ml-14 pointer-events-none"
-        style={{ background: 'linear-gradient(to right, transparent, var(--c-panel) 80%)' }}
-      />
+      {showGradient && (
+        <div
+          className="sm:hidden sticky right-0 self-stretch w-14 shrink-0 -ml-14 pointer-events-none"
+          style={{ background: 'linear-gradient(to right, transparent, var(--c-panel) 80%)' }}
+        />
+      )}
     </div>
     </div>
   );

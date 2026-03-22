@@ -596,10 +596,10 @@ const timeline: Template = {
       { id: 'tl-m3', type: 'shape', kind: 'rect', x: TL_MONTH3_X, y: TL_HDR_Y, width: TL_MONTH_W, height: TL_HDR_H, text: 'The month after that', ...darkHdr },
 
       // ── Row labels ─────────────────────────────────────────────────────────
-      { id: 'tl-l1', type: 'textblock', x: TL_LABEL_X, y: tlRowY(0) + 11, width: 120, text: 'Person 1', fontSize: 13, color: '#1e293b', bold: true,  italic: false, underline: false },
-      { id: 'tl-l2', type: 'textblock', x: TL_LABEL_X, y: tlRowY(1) + 11, width: 120, text: 'Person 2', fontSize: 13, color: '#1e293b', bold: true,  italic: false, underline: false },
-      { id: 'tl-l3', type: 'textblock', x: TL_LABEL_X, y: tlRowY(2) + 11, width: 120, text: 'Person 3', fontSize: 13, color: '#1e293b', bold: true,  italic: false, underline: false },
-      { id: 'tl-l4', type: 'textblock', x: TL_LABEL_X, y: tlRowY(3) + 11, width: 120, text: 'Person 4', fontSize: 13, color: '#1e293b', bold: true,  italic: false, underline: false },
+      { id: 'tl-l1', type: 'textblock', x: TL_LABEL_X, y: tlRowY(0) + 11, width: 120, text: 'Person 1', fontSize: 13, color: 'auto', bold: true,  italic: false, underline: false },
+      { id: 'tl-l2', type: 'textblock', x: TL_LABEL_X, y: tlRowY(1) + 11, width: 120, text: 'Person 2', fontSize: 13, color: 'auto', bold: true,  italic: false, underline: false },
+      { id: 'tl-l3', type: 'textblock', x: TL_LABEL_X, y: tlRowY(2) + 11, width: 120, text: 'Person 3', fontSize: 13, color: 'auto', bold: true,  italic: false, underline: false },
+      { id: 'tl-l4', type: 'textblock', x: TL_LABEL_X, y: tlRowY(3) + 11, width: 120, text: 'Person 4', fontSize: 13, color: 'auto', bold: true,  italic: false, underline: false },
 
       // ── Person 1 bars ──────────────────────────────────────────────────────
       // Project 1 (purple): first ~45% of "This month"
@@ -998,4 +998,83 @@ const dataEngineerFlow: Template = {
   },
 };
 
-export const TEMPLATES: Template[] = [gameplayLoop, levelFlow, mechanicDesign, kanbanBoard, timeline, dataEngineerFlow];
+// ── Template 7: Start from Scratch ───────────────────────────────────────────
+const SC_TL_X  = 40;
+const SC_TL_Y  = 30;
+const SC_USP_W = 200;
+const SC_USP_G = 16;
+const SC_USP_Y = 130;
+const SC_TIP_W = 260;
+const SC_TIP_G = 14;
+
+// USP texts
+const SC_U1 = 'Infinite Canvas\n\nPan with spacebar+drag or middle mouse. Zoom with scroll wheel. The dot grid scales with you.';
+const SC_U2 = 'Sticky Notes\n\nPress S, click to place. Double-click to edit. Drag corners to resize. Pick colors and copy/paste with ⌘C / ⌘V.';
+const SC_U3 = 'Images, Code & More\n\nR = shapes    T = text\nL = arrows    I = images\n\nAdd code blocks and tables. Connect any two nodes with an arrow.';
+const SC_U4 = 'Local-First Files\n\nYour board and images live in your browser — no account needed. Open the file explorer (⌘E) to insert and manage local images.';
+
+// Tip texts
+const SC_T1 = 'Open the File Explorer\n\nPress ⌘E or click the folder icon in the toolbar. Browse images from your computer — stored locally in your browser, never sent to any server.';
+const SC_T2 = 'Save, Load & Share\n\nSave JSON exports your board as a file. Load JSON restores it anytime. Share builds a URL-encoded link you can send to teammates.';
+const SC_T3 = 'Keyboard Shortcuts\n\nV  select     H  pan\nS  sticky     R  shape\nT  text       L  line\nI  image\n\n⌫  delete    ⌘Z  undo\n⌘D  duplicate\n⌘C  copy     ⌘V  paste';
+
+// Heights
+const SC_U1H = stickyHeight(SC_U1, SC_USP_W, 12);
+const SC_U2H = stickyHeight(SC_U2, SC_USP_W, 12);
+const SC_U3H = stickyHeight(SC_U3, SC_USP_W, 12);
+const SC_U4H = stickyHeight(SC_U4, SC_USP_W, 12);
+const SC_USP_ROW_W = 4 * SC_USP_W + 3 * SC_USP_G;  // 848
+
+const SC_T1H = stickyHeight(SC_T1, SC_TIP_W, 12);
+const SC_T2H = stickyHeight(SC_T2, SC_TIP_W, 12);
+const SC_T3H = stickyHeight(SC_T3, SC_TIP_W, 12);
+
+const SC_USP_MAX_H = Math.max(SC_U1H, SC_U2H, SC_U3H, SC_U4H);
+const SC_TIP_MAX_H = Math.max(SC_T1H, SC_T2H, SC_T3H);
+
+const SC_SEC_Y = SC_USP_Y + SC_USP_MAX_H + 36;
+const SC_ROW_Y = SC_SEC_Y + 55;
+const SC_SEC_H = SC_TIP_MAX_H + 90;
+
+const startFromScratch: Template = {
+  id: 'scratch',
+  name: 'Start from Scratch',
+  description: "Blank canvas with a quick overview of DevBoard's features and shortcuts",
+  data: {
+    boardTitle: 'New Board',
+    nodes: [
+      // ── Title + subtitle ───────────────────────────────────────────────────
+      {
+        id: 'sc-title', type: 'textblock',
+        x: SC_TL_X, y: SC_TL_Y, width: SC_USP_ROW_W,
+        text: 'Welcome to DevBoard',
+        fontSize: 22, color: 'auto', bold: true, italic: false, underline: false,
+      },
+      {
+        id: 'sc-sub', type: 'textblock',
+        x: SC_TL_X, y: SC_TL_Y + 40, width: SC_USP_ROW_W,
+        text: 'Your infinite canvas for ideas, plans, and projects. Press S to drop a sticky note — or explore the features below.',
+        fontSize: 13, color: 'auto', bold: false, italic: false, underline: false,
+      },
+
+      // ── USP stickies ───────────────────────────────────────────────────────
+      { id: 'sc-u1', type: 'sticky', x: SC_TL_X,                             y: SC_USP_Y, width: SC_USP_W, height: SC_U1H, color: '#dbeafe', fontSize: 12, text: SC_U1 },
+      { id: 'sc-u2', type: 'sticky', x: SC_TL_X +   (SC_USP_W + SC_USP_G),  y: SC_USP_Y, width: SC_USP_W, height: SC_U2H, color: '#fef9c3', fontSize: 12, text: SC_U2 },
+      { id: 'sc-u3', type: 'sticky', x: SC_TL_X + 2*(SC_USP_W + SC_USP_G),  y: SC_USP_Y, width: SC_USP_W, height: SC_U3H, color: '#dcfce7', fontSize: 12, text: SC_U3 },
+      { id: 'sc-u4', type: 'sticky', x: SC_TL_X + 3*(SC_USP_W + SC_USP_G),  y: SC_USP_Y, width: SC_USP_W, height: SC_U4H, color: '#fce7f3', fontSize: 12, text: SC_U4 },
+
+      // ── Quick Start section ────────────────────────────────────────────────
+      {
+        id: 'sc-sec', type: 'section',
+        x: SC_TL_X - 10, y: SC_SEC_Y - 10,
+        width: SC_USP_ROW_W + 20, height: SC_SEC_H,
+        name: 'Quick Start', color: '#64748b',
+      },
+      { id: 'sc-t1', type: 'sticky', x: SC_TL_X,                             y: SC_ROW_Y, width: SC_TIP_W, height: SC_T1H, color: '#e0f2fe', fontSize: 12, text: SC_T1 },
+      { id: 'sc-t2', type: 'sticky', x: SC_TL_X +   (SC_TIP_W + SC_TIP_G),  y: SC_ROW_Y, width: SC_TIP_W, height: SC_T2H, color: '#f0fdf4', fontSize: 12, text: SC_T2 },
+      { id: 'sc-t3', type: 'sticky', x: SC_TL_X + 2*(SC_TIP_W + SC_TIP_G),  y: SC_ROW_Y, width: SC_TIP_W, height: SC_T3H, color: '#fef3c7', fontSize: 12, text: SC_T3 },
+    ],
+  },
+};
+
+export const TEMPLATES: Template[] = [startFromScratch, gameplayLoop, levelFlow, mechanicDesign, kanbanBoard, timeline, dataEngineerFlow];

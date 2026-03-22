@@ -1,0 +1,1114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DevBoard — Infinite canvas for developer thinking</title>
+  <meta name="description" content="A lightweight FigJam-style whiteboard for solo devs and small teams. System design, sprint planning, debug flows, feature mapping. No accounts, no backend." />
+  <meta property="og:title" content="DevBoard — Infinite canvas for developer thinking" />
+  <meta property="og:description" content="Sticky notes, smart connectors, shapes, code blocks. Everything lives in your browser." />
+  <meta property="og:image" content="assets_landing/main_board.png" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --c-canvas:  #111118;
+      --c-panel:   #1a1a2a;
+      --c-hover:   #22223a;
+      --c-border:  #2e2e46;
+      --c-text-hi: #e2e8f0;
+      --c-text-md: #a0a0c0;
+      --c-text-lo: #8888aa;
+      --c-dot:     #3a3a4a;
+      --c-accent:  #6366f1;
+      --c-accent2: #818cf8;
+      --c-green:   #4ade80;
+      --c-yellow:  #fde68a;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--c-canvas);
+      color: var(--c-text-hi);
+      font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+      line-height: 1.6;
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* dot grid */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: radial-gradient(circle, var(--c-dot) 1px, transparent 1px);
+      background-size: 24px 24px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── layout ── */
+    .wrap {
+      position: relative;
+      z-index: 1;
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 0 28px;
+    }
+
+    /* ── nav ── */
+    nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 18px 0;
+      border-bottom: 1px solid var(--c-border);
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 0.95rem;
+      color: var(--c-text-hi);
+      text-decoration: none;
+      letter-spacing: -0.01em;
+    }
+
+    .logo-mark {
+      width: 30px;
+      height: 30px;
+      background: var(--c-accent);
+      border-radius: 7px;
+      display: grid;
+      place-items: center;
+      flex-shrink: 0;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      list-style: none;
+    }
+
+    .nav-links a {
+      color: var(--c-text-lo);
+      text-decoration: none;
+      font-size: 0.8rem;
+      padding: 6px 12px;
+      border-radius: 6px;
+      transition: color 0.15s, background 0.15s;
+    }
+
+    .nav-links a:hover {
+      color: var(--c-text-hi);
+      background: var(--c-hover);
+    }
+
+    .nav-cta {
+      background: var(--c-accent) !important;
+      color: #fff !important;
+      font-weight: 600;
+    }
+    .nav-cta:hover { opacity: 0.88; background: var(--c-accent) !important; }
+
+    /* ── hero ── */
+    .hero {
+      padding: 88px 0 64px;
+      text-align: center;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(99,102,241,0.12);
+      border: 1px solid rgba(99,102,241,0.3);
+      color: var(--c-accent2);
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 4px 12px;
+      border-radius: 20px;
+      margin-bottom: 28px;
+    }
+
+    .badge::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      background: var(--c-green);
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    h1 {
+      font-size: clamp(2rem, 5.5vw, 3.4rem);
+      font-weight: 700;
+      line-height: 1.1;
+      letter-spacing: -0.04em;
+      margin-bottom: 20px;
+    }
+
+    h1 em {
+      font-style: normal;
+      color: var(--c-accent2);
+    }
+
+    .hero-checks {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 6px 24px;
+      margin-bottom: 36px;
+    }
+
+    .hero-checks li {
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 0.82rem;
+      color: var(--c-text-md);
+      font-weight: 400;
+    }
+
+    .hero-checks li::before {
+      content: '✓';
+      color: var(--c-green);
+      font-weight: 700;
+      font-size: 0.85rem;
+    }
+
+    .cta-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .platform-bar {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      margin-top: 16px;
+      font-size: 0.72rem;
+      color: var(--c-text-lo);
+      font-weight: 400;
+    }
+
+    .platform-bar a {
+      color: var(--c-text-lo);
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 10px;
+      border: 1px solid var(--c-border);
+      border-radius: 5px;
+      background: var(--c-panel);
+      transition: color 0.15s, border-color 0.15s, background 0.15s;
+    }
+
+    .platform-bar a:hover {
+      color: var(--c-text-hi);
+      border-color: var(--c-accent);
+      background: var(--c-hover);
+    }
+
+    .platform-sep {
+      color: var(--c-border);
+      padding: 0 2px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 11px 22px;
+      border-radius: 8px;
+      font-family: inherit;
+      font-size: 0.85rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: opacity 0.15s, transform 0.15s, background 0.15s;
+      cursor: pointer;
+      border: none;
+    }
+
+    .btn-primary {
+      background: var(--c-accent);
+      color: #fff;
+    }
+    .btn-primary:hover { opacity: 0.88; transform: translateY(-1px); }
+
+    .btn-ghost {
+      background: var(--c-panel);
+      border: 1px solid var(--c-border);
+      color: var(--c-text-md);
+    }
+    .btn-ghost:hover { background: var(--c-hover); color: var(--c-text-hi); }
+
+    /* ── hero screenshot ── */
+    .hero-shot {
+      margin: 52px 0 0;
+      position: relative;
+    }
+
+    .hero-shot-inner {
+      border: 1px solid var(--c-border);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 0 0 1px rgba(99,102,241,0.08), 0 32px 80px rgba(0,0,0,0.6);
+    }
+
+    .hero-shot img {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+
+    /* gradient fade at bottom of screenshot */
+    .hero-shot-inner::after {
+      content: '';
+      position: absolute;
+      inset: auto 0 0 0;
+      height: 80px;
+      background: linear-gradient(to bottom, transparent, var(--c-canvas));
+      pointer-events: none;
+    }
+
+    /* ── section divider ── */
+    .divider {
+      border: none;
+      border-top: 1px solid var(--c-border);
+    }
+
+    /* ── feature strips ── */
+    .feature-strip {
+      padding: 80px 0;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 56px;
+      align-items: center;
+    }
+
+    .feature-strip.flip { direction: rtl; }
+    .feature-strip.flip > * { direction: ltr; }
+
+    .feature-text {}
+
+    .feature-eyebrow {
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--c-accent2);
+      margin-bottom: 14px;
+    }
+
+    .feature-strip h2 {
+      font-size: 1.55rem;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      line-height: 1.15;
+      margin-bottom: 14px;
+    }
+
+    .feature-strip p {
+      font-size: 0.85rem;
+      color: var(--c-text-md);
+      line-height: 1.75;
+      font-weight: 400;
+    }
+
+    .feature-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 20px;
+    }
+
+    .pill {
+      background: var(--c-hover);
+      border: 1px solid var(--c-border);
+      color: var(--c-text-md);
+      font-size: 0.72rem;
+      font-weight: 500;
+      padding: 4px 10px;
+      border-radius: 4px;
+    }
+
+    .feature-img {
+      border: 1px solid var(--c-border);
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+    }
+
+    .feature-img img {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+
+    /* ── feature grid ── */
+    .features-section {
+      padding: 80px 0;
+    }
+
+    .section-header {
+      margin-bottom: 40px;
+    }
+
+    .section-eyebrow {
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--c-accent2);
+      margin-bottom: 12px;
+    }
+
+    .section-header h2 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      margin-bottom: 10px;
+    }
+
+    .section-header p {
+      font-size: 0.85rem;
+      color: var(--c-text-md);
+      font-weight: 400;
+      max-width: 480px;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+      gap: 12px;
+    }
+
+    .card {
+      background: var(--c-panel);
+      border: 1px solid var(--c-border);
+      border-radius: 8px;
+      padding: 22px;
+      transition: border-color 0.2s, background 0.2s;
+    }
+
+    .card:hover {
+      border-color: rgba(99,102,241,0.4);
+      background: var(--c-hover);
+    }
+
+    .card-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      margin-bottom: 14px;
+      flex-shrink: 0;
+    }
+
+    .card-icon svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    .ic-indigo { background: rgba(99,102,241,0.15); color: #818cf8; }
+    .ic-yellow { background: rgba(250,204,21,0.13);  color: #facc15; }
+    .ic-sky    { background: rgba(56,189,248,0.13);  color: #38bdf8; }
+    .ic-purple { background: rgba(168,85,247,0.13);  color: #c084fc; }
+    .ic-teal   { background: rgba(45,212,191,0.13);  color: #2dd4bf; }
+    .ic-green  { background: rgba(74,222,128,0.13);  color: #4ade80; }
+    .ic-orange { background: rgba(251,146,60,0.13);  color: #fb923c; }
+    .ic-violet { background: rgba(139,92,246,0.13);  color: #a78bfa; }
+    .ic-pink   { background: rgba(244,114,182,0.13); color: #f472b6; }
+    .ic-slate  { background: rgba(148,163,184,0.13); color: #94a3b8; }
+    .ic-cyan   { background: rgba(34,211,238,0.13);  color: #22d3ee; }
+    .ic-lime   { background: rgba(163,230,53,0.13);  color: #a3e635; }
+
+    .card h3 {
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin-bottom: 6px;
+      letter-spacing: -0.01em;
+    }
+
+    .card p {
+      font-size: 0.78rem;
+      color: var(--c-text-lo);
+      line-height: 1.6;
+      font-weight: 400;
+    }
+
+    /* ── shortcuts ── */
+    .shortcuts-section {
+      padding: 80px 0;
+    }
+
+    .kbd-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+      gap: 6px;
+      margin-top: 32px;
+    }
+
+    .kbd-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--c-panel);
+      border: 1px solid var(--c-border);
+      border-radius: 6px;
+      padding: 9px 14px;
+      font-size: 0.75rem;
+      color: var(--c-text-lo);
+      font-weight: 400;
+    }
+
+    .kkeys {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      flex-shrink: 0;
+    }
+
+    kbd {
+      background: var(--c-hover);
+      border: 1px solid var(--c-border);
+      border-bottom: 2px solid var(--c-border);
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-family: inherit;
+      font-size: 0.72rem;
+      color: var(--c-text-hi);
+      white-space: nowrap;
+    }
+
+    /* ── callout ── */
+    .callout {
+      margin: 20px 0 80px;
+      background: var(--c-panel);
+      border: 1px solid var(--c-border);
+      border-radius: 10px;
+      padding: 52px 40px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .callout::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at 50% 0%, rgba(99,102,241,0.12) 0%, transparent 65%);
+      pointer-events: none;
+    }
+
+    .callout h2 {
+      font-size: 1.55rem;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      margin-bottom: 12px;
+      position: relative;
+    }
+
+    .callout p {
+      color: var(--c-text-md);
+      font-size: 0.85rem;
+      max-width: 420px;
+      margin: 0 auto 28px;
+      font-weight: 400;
+      line-height: 1.75;
+      position: relative;
+    }
+
+    .callout-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: center;
+      margin-bottom: 32px;
+      position: relative;
+    }
+
+    .callout-pill {
+      background: var(--c-hover);
+      border: 1px solid var(--c-border);
+      color: var(--c-text-md);
+      font-size: 0.75rem;
+      padding: 5px 12px;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 400;
+    }
+
+    .green-dot {
+      width: 6px;
+      height: 6px;
+      background: var(--c-green);
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    /* ── footer ── */
+    footer {
+      border-top: 1px solid var(--c-border);
+      padding: 28px 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    footer p { color: var(--c-text-lo); font-size: 0.75rem; font-weight: 400; }
+    footer a { color: var(--c-text-lo); text-decoration: none; transition: color 0.15s; }
+    footer a:hover { color: var(--c-text-hi); }
+
+    .footer-links { display: flex; gap: 20px; font-size: 0.75rem; }
+
+    /* ── animations ── */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .hero h1             { animation: fadeUp 0.45s 0.05s both; }
+    .hero .hero-checks   { animation: fadeUp 0.45s 0.14s both; }
+    .hero .cta-row       { animation: fadeUp 0.45s 0.22s both; }
+    .hero .platform-bar  { animation: fadeUp 0.45s 0.28s both; }
+    .hero-shot           { animation: fadeUp 0.5s  0.34s both; }
+
+    /* ── tabs ── */
+    .tabs-section {
+      padding: 72px 0 60px;
+    }
+
+    .tab-bar {
+      display: flex;
+      gap: 2px;
+      background: var(--c-panel);
+      border: 1px solid var(--c-border);
+      border-radius: 8px;
+      padding: 4px;
+      width: fit-content;
+      margin-bottom: 36px;
+    }
+
+    .tab-btn {
+      padding: 7px 18px;
+      border-radius: 5px;
+      font-family: inherit;
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: var(--c-text-lo);
+      background: none;
+      border: none;
+      cursor: pointer;
+      transition: color 0.15s, background 0.15s;
+      white-space: nowrap;
+    }
+
+    .tab-btn:hover { color: var(--c-text-hi); background: var(--c-hover); }
+    .tab-btn.active { background: var(--c-hover); color: var(--c-text-hi); }
+
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* ── comparison table ── */
+    .comparison {
+      padding: 72px 0;
+    }
+
+    .cmp-table {
+      border: 1px solid var(--c-border);
+      border-radius: 10px;
+      overflow: hidden;
+      background: var(--c-panel);
+      box-shadow: 0 0 0 1px rgba(99,102,241,0.1), 0 20px 60px rgba(0,0,0,0.4);
+    }
+
+    .cmp-head,
+    .cmp-row,
+    .cmp-cta {
+      display: grid;
+      grid-template-columns: 1fr 160px 120px 120px;
+      align-items: center;
+    }
+
+    .cmp-head {
+      background: var(--c-hover);
+      border-bottom: 1px solid var(--c-border);
+    }
+
+    .cmp-row {
+      border-bottom: 1px solid var(--c-border);
+      transition: background 0.12s;
+    }
+
+    .cmp-row:hover { background: rgba(255,255,255,0.025); }
+
+    .cmp-row:last-of-type { border-bottom: none; }
+
+
+    .cmp-label {
+      padding: 15px 22px;
+      font-size: 0.82rem;
+      color: var(--c-text-md);
+      font-weight: 400;
+    }
+
+    .cmp-head .cmp-label {
+      font-size: 0.7rem;
+      color: var(--c-text-lo);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .cmp-col {
+      padding: 15px 0;
+      text-align: center;
+      font-size: 0.82rem;
+      color: var(--c-text-lo);
+    }
+
+    .cmp-col--devboard {
+      background: rgba(99,102,241,0.1);
+      border-left: 1px solid rgba(99,102,241,0.3);
+      border-right: 1px solid rgba(99,102,241,0.3);
+    }
+
+    .cmp-head .cmp-col--devboard {
+      border-top: 2px solid var(--c-accent);
+      padding: 14px 0;
+    }
+
+
+    .cmp-product-name {
+      display: block;
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: var(--c-text-hi);
+    }
+
+
+    .cmp-yes  { color: var(--c-green); font-size: 1.1rem; font-weight: 700; }
+    .cmp-no   { color: var(--c-border); font-size: 1.1rem; }
+    .cmp-ltd  { color: #fb923c; font-size: 0.72rem; font-weight: 500; background: rgba(251,146,60,0.1); padding: 2px 8px; border-radius: 4px; }
+
+    /* ── end cta ── */
+    .end-cta {
+      margin: 20px 0 72px;
+      padding: 64px 40px;
+      text-align: center;
+      border: 1px solid var(--c-border);
+      border-radius: 10px;
+      background: var(--c-panel);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .end-cta::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at 50% 0%, rgba(99,102,241,0.14) 0%, transparent 65%);
+      pointer-events: none;
+    }
+
+    .end-cta h2 {
+      font-size: 1.8rem;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      margin-bottom: 12px;
+      position: relative;
+    }
+
+    .end-cta p {
+      font-size: 0.85rem;
+      color: var(--c-text-md);
+      font-weight: 400;
+      margin-bottom: 28px;
+      position: relative;
+    }
+
+    .end-cta .cta-row { position: relative; }
+
+    /* ── responsive ── */
+    @media (max-width: 700px) {
+      .feature-strip {
+        grid-template-columns: 1fr;
+        gap: 28px;
+      }
+      .feature-strip.flip { direction: ltr; }
+      nav .nav-links .hide-mobile { display: none; }
+      h1 { font-size: 1.9rem; }
+      .cmp-head, .cmp-row, .cmp-cta { grid-template-columns: 1fr 100px 80px 80px; }
+      .cmp-label { padding: 12px 12px; font-size: 0.75rem; }
+      .cmp-col { font-size: 0.75rem; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <!-- nav -->
+  <nav>
+    <a class="logo" href="#">
+      <div class="logo-mark">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      </div>
+      DEVBOARD
+    </a>
+    <ul class="nav-links">
+      <li class="hide-mobile"><a href="#features">Features</a></li>
+      <li class="hide-mobile"><a href="#shortcuts">Shortcuts</a></li>
+      <li class="hide-mobile"><a href="https://github.com/mfgoes/Devboard" target="_blank" rel="noopener">GitHub ↗</a></li>
+      <li><a class="nav-cta" href="https://mishawave.itch.io/devboard" target="_blank" rel="noopener">Download free →</a></li>
+    </ul>
+  </nav>
+
+  <!-- hero -->
+  <div class="hero">
+    <h1>Infinite canvas for<br><em>developer thinking</em></h1>
+
+    <ul class="hero-checks">
+      <li>FigJam-style — built for devs</li>
+      <li>Local-first, no account needed</li>
+      <li>Multi-page canvases with a file browser</li>
+    </ul>
+
+    <div class="cta-row">
+      <a class="btn btn-primary" href="https://mishawave.itch.io/devboard" target="_blank" rel="noopener">
+        Download free →
+      </a>
+      <a class="btn btn-ghost" href="https://mishawave.itch.io/devboard" target="_blank" rel="noopener">
+        Try in browser
+      </a>
+      <a class="btn btn-ghost" href="https://github.com/mfgoes/Devboard" target="_blank" rel="noopener">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        GitHub
+      </a>
+    </div>
+
+    <div class="platform-bar">
+      <a href="https://mishawave.itch.io/devboard" target="_blank" rel="noopener">
+        <!-- Apple logo -->
+        <svg width="12" height="12" viewBox="0 0 814 1000" fill="currentColor"><path d="M788.1 340.9c-5.8 4.5-108.2 62.2-108.2 190.5 0 148.4 130.3 200.9 134.2 202.2-.6 3.2-20.7 71.9-68.7 141.9-42.8 61.6-87.5 123.1-155.5 123.1s-85.5-39.5-164-39.5c-76 0-103.7 40.8-165.9 40.8s-105-57.8-155.5-127.4C46 790.7 0 663 0 541.8c0-207.5 135.4-317.5 268.5-317.5 96.9 0 177.4 64.4 236.4 64.4 56.4 0 147.6-68.4 260.6-68.4 20.1 0 113.3 1.9 178.8 73.3zm-234-181.5c28.1-36.1 48.1-86.5 48.1-136.9 0-7.1-.6-14.3-1.9-20.7-44.6 1.9-97.7 29.4-130.4 69.1-25.7 30.4-50 81.2-50 132.3 0 7.4.6 14.3 1.3 16.6 3.2.6 8.4 1.3 13.6 1.3 39.5 0 90.9-26.2 119.3-61.7z"/></svg>
+        macOS
+      </a>
+      <a href="https://mishawave.itch.io/devboard" target="_blank" rel="noopener">
+        <!-- Windows logo -->
+        <svg width="12" height="12" viewBox="0 0 88 88" fill="currentColor"><path d="M0 12.4L35.7 7.5v34H0zM40 6.8L88 0v41.5H40zM0 46.4h35.7V80L0 75.2zM40 47h48v41L40 81.4z"/></svg>
+        Windows
+      </a>
+      <a href="https://mishawave.itch.io/devboard" target="_blank" rel="noopener">
+        <!-- Linux/terminal icon -->
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M20 19.59V8l-6-6H6c-1.11 0-2 .89-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2zM9.17 14.5l1.41 1.42L14 12.5l-3.42-3.42L9.17 10.5 11.58 12.5 9.17 14.5zM14 15.5h4v2h-4v-2z"/></svg>
+        Linux
+      </a>
+    </div>
+  </div>
+
+  <!-- hero screenshot -->
+  <div class="hero-shot">
+    <div class="hero-shot-inner">
+      <img src="assets_landing/main_board.png" alt="DevBoard app showing connected sticky notes and toolbar" width="1000" height="563" />
+    </div>
+  </div>
+
+  <!-- tabbed feature section -->
+  <div class="tabs-section" id="features">
+    <div class="tab-bar">
+      <button class="tab-btn active" data-tab="flows">Flows &amp; diagrams</button>
+      <button class="tab-btn" data-tab="files">Images &amp; files</button>
+      <button class="tab-btn" data-tab="shapes">Shapes &amp; sections</button>
+    </div>
+
+    <div class="tab-panel active" id="tab-flows">
+      <div class="feature-strip" style="padding-top:0;">
+        <div class="feature-text">
+          <div class="feature-eyebrow">Flows &amp; diagrams</div>
+          <h2>Map dependencies,<br>not just ideas</h2>
+          <p>Draw bezier connector lines between any two nodes. Arrows snap to anchor points and reroute when you move things around. Straight, curved, or orthogonal — pick your style.</p>
+          <div class="feature-pills">
+            <span class="pill">Bezier curves</span>
+            <span class="pill">Smart anchors</span>
+            <span class="pill">Arrowhead styles</span>
+            <span class="pill">Auto-reroute</span>
+          </div>
+        </div>
+        <div class="feature-img">
+          <img src="assets_landing/steps.png" alt="Flow diagram with connected sticky notes in DevBoard" />
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-panel" id="tab-files">
+      <div class="feature-strip flip" style="padding-top:0;">
+        <div class="feature-text">
+          <div class="feature-eyebrow">Images &amp; files</div>
+          <h2>Reference your actual codebase</h2>
+          <p>Open a project folder and browse it right in the sidebar. Drop images directly onto the canvas — screenshots, mockups, sprite sheets. Single-click to preview, double-click to place.</p>
+          <div class="feature-pills">
+            <span class="pill">Folder explorer</span>
+            <span class="pill">Drag-drop images</span>
+            <span class="pill">PNG / JPG</span>
+            <span class="pill">Multi-page workspace</span>
+          </div>
+        </div>
+        <div class="feature-img">
+          <img src="assets_landing/img feature.png" alt="File explorer sidebar and moodboard in DevBoard" />
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-panel" id="tab-shapes">
+      <div class="feature-strip" style="padding-top:0;">
+        <div class="feature-text">
+          <div class="feature-eyebrow">Shapes &amp; sections</div>
+          <h2>Structure your thinking<br>your way</h2>
+          <p>Group areas with labeled sections. Use rectangles, ellipses, diamonds, and triangles to build diagrams. Light mode included — share boards with teammates who don't work in the dark.</p>
+          <div class="feature-pills">
+            <span class="pill">Sections</span>
+            <span class="pill">Rect / Ellipse / Diamond</span>
+            <span class="pill">Light &amp; dark mode</span>
+            <span class="pill">Grouping</span>
+          </div>
+        </div>
+        <div class="feature-img">
+          <img src="assets_landing/timeline.png" alt="Timeline / Gantt board in light mode in DevBoard" />
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="divider" />
+
+  <!-- comparison -->
+  <div class="comparison">
+    <div class="section-header" style="text-align:center; margin-bottom:32px;">
+      <div class="section-eyebrow">Why DevBoard</div>
+      <h2>Built for makers, not boardrooms</h2>
+    </div>
+
+    <div class="cmp-table">
+      <div class="cmp-head">
+        <div class="cmp-label"></div>
+        <div class="cmp-col cmp-col--devboard">
+          <span class="cmp-product-name">DevBoard</span>
+        </div>
+        <div class="cmp-col">Miro</div>
+        <div class="cmp-col">FigJam</div>
+      </div>
+
+      <div class="cmp-row">
+        <div class="cmp-label">Free &amp; open source</div>
+        <div class="cmp-col cmp-col--devboard"><span class="cmp-yes">✓</span></div>
+        <div class="cmp-col"><span class="cmp-ltd">limited</span></div>
+        <div class="cmp-col"><span class="cmp-ltd">limited</span></div>
+      </div>
+      <div class="cmp-row">
+        <div class="cmp-label">No account needed</div>
+        <div class="cmp-col cmp-col--devboard"><span class="cmp-yes">✓</span></div>
+        <div class="cmp-col"><span class="cmp-no">✗</span></div>
+        <div class="cmp-col"><span class="cmp-no">✗</span></div>
+      </div>
+      <div class="cmp-row">
+        <div class="cmp-label">Works offline</div>
+        <div class="cmp-col cmp-col--devboard"><span class="cmp-yes">✓</span></div>
+        <div class="cmp-col"><span class="cmp-no">✗</span></div>
+        <div class="cmp-col"><span class="cmp-no">✗</span></div>
+      </div>
+      <div class="cmp-row">
+        <div class="cmp-label">GDPR / data never leaves device</div>
+        <div class="cmp-col cmp-col--devboard"><span class="cmp-yes">✓</span></div>
+        <div class="cmp-col"><span class="cmp-ltd">cloud</span></div>
+        <div class="cmp-col"><span class="cmp-ltd">cloud</span></div>
+      </div>
+      <div class="cmp-row">
+        <div class="cmp-label">Code blocks</div>
+        <div class="cmp-col cmp-col--devboard"><span class="cmp-yes">✓</span></div>
+        <div class="cmp-col"><span class="cmp-no">✗</span></div>
+        <div class="cmp-col"><span class="cmp-no">✗</span></div>
+      </div>
+      <div class="cmp-row">
+        <div class="cmp-label">Local file storage</div>
+        <div class="cmp-col cmp-col--devboard"><span class="cmp-yes">✓</span></div>
+        <div class="cmp-col"><span class="cmp-no">✗</span></div>
+        <div class="cmp-col"><span class="cmp-no">✗</span></div>
+      </div>
+      <div class="cmp-row">
+        <div class="cmp-label">Multi-page canvases</div>
+        <div class="cmp-col cmp-col--devboard"><span class="cmp-yes">✓</span></div>
+        <div class="cmp-col"><span class="cmp-ltd">paid</span></div>
+        <div class="cmp-col"><span class="cmp-ltd">paid</span></div>
+      </div>
+      <div class="cmp-row">
+        <div class="cmp-label">Sticky notes &amp; connectors</div>
+        <div class="cmp-col cmp-col--devboard"><span class="cmp-yes">✓</span></div>
+        <div class="cmp-col"><span class="cmp-yes">✓</span></div>
+        <div class="cmp-col"><span class="cmp-yes">✓</span></div>
+      </div>
+
+    </div>
+  </div>
+
+  <hr class="divider" />
+
+  <!-- feature grid -->
+  <section class="features-section">
+    <div class="section-header">
+      <div class="section-eyebrow">All features</div>
+      <h2>Everything on one canvas</h2>
+      <p>Built for the way developers actually think — not for slideware or stakeholder decks.</p>
+    </div>
+
+    <div class="grid-3">
+      <div class="card">
+        <div class="card-icon ic-indigo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></div>
+        <h3>Infinite canvas</h3>
+        <p>Pan with spacebar + drag or middle mouse. Pinch-to-zoom. Dot grid tracks your position. Re-center anytime.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon ic-yellow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M9 2h6M12 2v3"/></svg></div>
+        <h3>Sticky notes</h3>
+        <p>Place, drag, resize, double-click to edit. Eight color swatches. Copy, paste, duplicate — or Alt+drag for instant copies.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon ic-sky"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="12" r="2"/><circle cx="18" cy="6" r="2"/><circle cx="18" cy="18" r="2"/><path d="M8 12h4a2 2 0 002-2V8M8 12h4a2 2 0 012 2v2"/></svg></div>
+        <h3>Smart connectors</h3>
+        <p>Bezier arrows snap to anchor points and follow nodes when you move them. Straight and orthogonal styles too.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon ic-purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="8" height="8" rx="1"/><ellipse cx="17" cy="7" rx="4" ry="4"/><polygon points="3,14 7,21 11,14"/><rect x="13" y="13" width="8" height="8" rx="1" transform="rotate(45 17 17)"/></svg></div>
+        <h3>Shapes</h3>
+        <p>Rectangles, ellipses, diamonds, triangles. Each takes a text label and connects to any other node.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon ic-teal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h10M4 17h6"/></svg></div>
+        <h3>Text blocks</h3>
+        <p>Standalone text with bold, italic, underline, bullet lists, links, alignment, and color. No background in the way.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon ic-green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></div>
+        <h3>Code blocks</h3>
+        <p>Drop syntax-highlighted code snippets onto the canvas. Reference the exact function you're designing around.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon ic-orange"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14l-5-5 5-5"/><path d="M4 9h10.5a4.5 4.5 0 010 9H11"/></svg></div>
+        <h3>Undo / redo</h3>
+        <p>Full undo/redo stack. Alignment guides appear while dragging near other nodes' edges or centers.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon ic-violet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="13" height="13" rx="2"/><path d="M9 7V4a2 2 0 012-2h9a2 2 0 012 2v9a2 2 0 01-2 2h-3"/></svg></div>
+        <h3>Groups &amp; sections</h3>
+        <p>Group nodes with ⌘G so they move together. Section labels mark regions. Lock nodes to freeze layout elements.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon ic-pink"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+        <h3>Export &amp; share</h3>
+        <p>Export PNG. Save/load JSON. Generate a shareable link with the full board encoded in the URL hash — no server.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon ic-slate"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg></div>
+        <h3>Themes</h3>
+        <p>Dark mode by default. Light mode for the rest of the team. Multiple color schemes.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon ic-cyan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div>
+        <h3>Images</h3>
+        <p>Drop PNG or JPG files directly onto the canvas. Works offline. Load a whole workspace folder for multi-file projects.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon ic-lime"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9 10h.01M15 10h.01"/><path d="M9 15s1 2 3 2 3-2 3-2"/></svg></div>
+        <h3>Stickers</h3>
+        <p>Drop emoji stickers on the canvas for quick visual markers, status labels, or just vibes.</p>
+      </div>
+    </div>
+  </section>
+
+  <hr class="divider" />
+
+  <!-- keyboard shortcuts -->
+  <section class="shortcuts-section" id="shortcuts">
+    <div class="section-header">
+      <div class="section-eyebrow">Keyboard shortcuts</div>
+      <h2>Keyboard-first workflow</h2>
+      <p>Switch tools, navigate, and edit without touching the toolbar.</p>
+    </div>
+
+    <div class="kbd-grid">
+      <div class="kbd-row"><span>Select tool</span>      <div class="kkeys"><kbd>V</kbd></div></div>
+      <div class="kbd-row"><span>Pan tool</span>         <div class="kkeys"><kbd>H</kbd></div></div>
+      <div class="kbd-row"><span>Sticky note</span>      <div class="kkeys"><kbd>S</kbd></div></div>
+      <div class="kbd-row"><span>Shape</span>            <div class="kkeys"><kbd>R</kbd></div></div>
+      <div class="kbd-row"><span>Text block</span>       <div class="kkeys"><kbd>T</kbd></div></div>
+      <div class="kbd-row"><span>Connector line</span>   <div class="kkeys"><kbd>L</kbd></div></div>
+      <div class="kbd-row"><span>Delete</span>           <div class="kkeys"><kbd>⌫</kbd></div></div>
+      <div class="kbd-row"><span>Copy</span>             <div class="kkeys"><kbd>⌘</kbd><kbd>C</kbd></div></div>
+      <div class="kbd-row"><span>Paste</span>            <div class="kkeys"><kbd>⌘</kbd><kbd>V</kbd></div></div>
+      <div class="kbd-row"><span>Duplicate</span>        <div class="kkeys"><kbd>⌘</kbd><kbd>D</kbd></div></div>
+      <div class="kbd-row"><span>Alt+drag copy</span>   <div class="kkeys"><kbd>⌥</kbd> <kbd>drag</kbd></div></div>
+      <div class="kbd-row"><span>Undo</span>             <div class="kkeys"><kbd>⌘</kbd><kbd>Z</kbd></div></div>
+      <div class="kbd-row"><span>Redo</span>             <div class="kkeys"><kbd>⌘</kbd><kbd>⇧</kbd><kbd>Z</kbd></div></div>
+      <div class="kbd-row"><span>Group / ungroup</span> <div class="kkeys"><kbd>⌘</kbd><kbd>G</kbd></div></div>
+      <div class="kbd-row"><span>Nudge</span>            <div class="kkeys"><kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd></div></div>
+      <div class="kbd-row"><span>Nudge ×10</span>        <div class="kkeys"><kbd>⇧</kbd><kbd>↑↓←→</kbd></div></div>
+    </div>
+  </section>
+
+  <!-- cta -->
+  <div class="end-cta">
+    <h2>Start building on a blank canvas</h2>
+    <p>Free forever. No account. Works in your browser or as a native app on macOS, Windows &amp; Linux.</p>
+    <div class="cta-row">
+      <a class="btn btn-primary" href="https://mishawave.itch.io/devboard" target="_blank" rel="noopener">Download free →</a>
+      <a class="btn btn-ghost" href="https://mishawave.itch.io/devboard" target="_blank" rel="noopener">Try in browser</a>
+    </div>
+  </div>
+
+  <!-- footer -->
+  <footer>
+    <p>Created by <a href="https://mfgoes.github.io/portfolio-2026/" target="_blank" rel="noopener">Mischa</a></p>
+    <div class="footer-links">
+      <a href="https://github.com/mfgoes/Devboard" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://mishawave.itch.io/devboard" target="_blank" rel="noopener">itch.io</a>
+      <a href="https://x.com/MishoWave" target="_blank" rel="noopener">X / Twitter</a>
+    </div>
+  </footer>
+
+</div>
+
+<script>
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    });
+  });
+</script>
+</body>
+</html>
