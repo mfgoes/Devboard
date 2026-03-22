@@ -4,7 +4,7 @@ import { useBoardStore } from '../store/boardStore';
 import { TEMPLATES } from '../templates';
 import ConfirmDialog from './ConfirmDialog';
 import { saveBoard, saveBoardAs, clearFileHandle } from '../utils/fileSave';
-import { openWorkspace, saveWorkspace } from '../utils/workspaceManager';
+import { openWorkspace, saveWorkspace, loadImageAsset, findImageInWorkspace, hasWorkspaceHandle } from '../utils/workspaceManager';
 import { toast } from '../utils/toast';
 import exportSound from '../assets/get1.mp3';
 
@@ -89,8 +89,49 @@ function parseCSV(text: string): string[][] {
   return rows;
 }
 
+// ── Default save-folder row (used in the missing-images dropdown) ─────────────
+function DefaultFolderRow({ folder, onChange }: { folder: string; onChange: (f: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(folder);
+  const commit = () => {
+    const v = draft.trim().replace(/^\/|\/$/g, '') || 'assets';
+    onChange(v);
+    setEditing(false);
+  };
+  if (editing) {
+    return (
+      <div className="flex items-center gap-1">
+        <input
+          autoFocus
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') setEditing(false); e.stopPropagation(); }}
+          placeholder="assets"
+          className="flex-1 bg-[var(--c-canvas)] border border-[var(--c-border)] focus:border-[#6366f1] rounded px-2 py-0.5 font-mono text-[10px] text-[var(--c-text-hi)] outline-none"
+        />
+        <button onClick={commit} className="px-2 py-0.5 rounded bg-[#6366f1] text-white font-mono text-[9px]">OK</button>
+      </div>
+    );
+  }
+  return (
+    <button
+      onClick={() => { setDraft(folder); setEditing(true); }}
+      className="w-full flex items-center gap-1.5 text-left font-mono text-[9px] text-[var(--c-text-lo)] hover:text-[var(--c-text-md)] transition-colors"
+      title="Default folder for new images — click to change"
+    >
+      <svg width="9" height="9" viewBox="0 0 9 9" fill="none">
+        <path d="M1 2.5a.7.7 0 0 1 .7-.7h1.8l.7.7H7.3a.7.7 0 0 1 .7.7v3.5a.7.7 0 0 1-.7.7H1.7a.7.7 0 0 1-.7-.7V2.5z" stroke="currentColor" strokeWidth="0.9" strokeLinejoin="round" />
+      </svg>
+      Default: <span className="text-[var(--c-text-md)]">{folder}/</span>
+      <svg width="8" height="8" viewBox="0 0 8 8" fill="none" className="ml-auto">
+        <path d="M5.5 1.5l1 1-4 4H1.5v-1l4-4z" stroke="currentColor" strokeWidth="0.9" strokeLinejoin="round" />
+      </svg>
+    </button>
+  );
+}
+
 export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pagesOpen, onTogglePages, explorerOpen, onToggleExplorer, onWorkspaceOpened }: TopBarProps) {
-  const { boardTitle, setBoardTitle, exportData, loadBoard, setActiveTool, setActiveShapeKind, toggleTheme, theme, addNode, pages, activePageId, workspaceName, setWorkspaceName } = useBoardStore();
+  const { boardTitle, setBoardTitle, exportData, loadBoard, setActiveTool, setActiveShapeKind, toggleTheme, theme, addNode, pages, activePageId, workspaceName, setWorkspaceName, nodes, updateNode, imageAssetFolder, setImageAssetFolder } = useBoardStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const csvInputRef = useRef<HTMLInputElement>(null);
   const [editingTitle, setEditingTitle] = useState(false);
@@ -102,6 +143,12 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
   const exportRef = useRef<HTMLDivElement>(null);
   const [confirmDialog, setConfirmDialog] = useState<{ message: string; onConfirm: () => void } | null>(null);
   const [templatesModalOpen, setTemplatesModalOpen] = useState(false);
+  const [missingWarningOpen, setMissingWarningOpen] = useState(false);
+  const missingWarningRef = useRef<HTMLDivElement>(null);
+
+  const missingImages = nodes.filter(
+    (n) => n.type === 'image' && (n as import('../types').ImageNode).assetName && !(n as import('../types').ImageNode).src
+  ) as import('../types').ImageNode[];
 
   // Track fullscreen changes (e.g. user presses Esc)
   useEffect(() => {
@@ -128,6 +175,15 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [exportOpen]);
+
+  useEffect(() => {
+    if (!missingWarningOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (missingWarningRef.current && !missingWarningRef.current.contains(e.target as Node)) setMissingWarningOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [missingWarningOpen]);
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -163,6 +219,40 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
       clearFileHandle();
     }
     onWorkspaceOpened(); // auto-open the file explorer
+  };
+
+  const handleAutoFix = async () => {
+    if (!hasWorkspaceHandle()) { handleOpenFolder(); return; }
+    let fixed = 0;
+    for (const img of missingImages) {
+      if (!img.assetName) continue;
+
+      // 1. Try stored folder first
+      let url: string | null = null;
+      const folder = img.assetFolder ?? '';
+      if (folder) url = await loadImageAsset(img.assetName, folder);
+
+      // 2. Fallback: scan workspace for the filename
+      if (!url) {
+        const found = await findImageInWorkspace(img.assetName);
+        if (found) {
+          url = found.url;
+          // Persist the corrected folder so future reloads work
+          updateNode(img.id, { assetFolder: found.folder } as Parameters<typeof updateNode>[1]);
+        }
+      }
+
+      if (url) {
+        updateNode(img.id, { src: url } as Parameters<typeof updateNode>[1]);
+        fixed++;
+      }
+    }
+    // Persist corrected assetFolder values to workspace JSON
+    if (fixed > 0) {
+      setTimeout(() => saveWorkspace(useBoardStore.getState().exportData()), 0);
+    }
+    toast(fixed > 0 ? `Reloaded ${fixed} image${fixed > 1 ? 's' : ''}` : 'Images not found — try re-opening the folder');
+    if (fixed > 0) setMissingWarningOpen(false);
   };
 
   const handleExportAllPages = () => {
@@ -570,6 +660,65 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
             <IconFolder />
             {workspaceName}
           </span>
+        )}
+        {/* Missing images warning */}
+        {missingImages.length > 0 && (
+          <div ref={missingWarningRef} className="relative ml-1">
+            <button
+              onClick={() => setMissingWarningOpen((v) => !v)}
+              title={`${missingImages.length} missing image${missingImages.length > 1 ? 's' : ''}`}
+              className="hidden sm:flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono text-[#f59e0b] border border-[#f59e0b]/40 bg-[#f59e0b]/10 hover:bg-[#f59e0b]/20 transition-colors"
+            >
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                <path d="M5 1L9.5 9H0.5L5 1Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+                <path d="M5 4.5v2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+                <circle cx="5" cy="7.5" r="0.5" fill="currentColor" />
+              </svg>
+              {missingImages.length} missing
+            </button>
+            {missingWarningOpen && (
+              <div className="absolute top-full left-0 mt-1.5 z-[300] bg-[var(--c-panel)] border border-[#f59e0b]/40 rounded-xl shadow-2xl min-w-[220px] overflow-hidden">
+                <div className="px-3 py-2 border-b border-[var(--c-border)]">
+                  <p className="font-mono text-[10px] text-[#f59e0b] font-semibold uppercase tracking-wider">Missing images</p>
+                  <p className="font-mono text-[9px] text-[var(--c-text-lo)] mt-0.5">Re-open the workspace folder to reload.</p>
+                </div>
+                <ul className="max-h-[160px] overflow-y-auto py-1">
+                  {missingImages.map((img) => (
+                    <li key={img.id} className="flex items-center gap-2 px-3 py-1.5">
+                      <svg width="11" height="11" viewBox="0 0 11 11" fill="none" className="shrink-0 text-[#f59e0b]">
+                        <rect x="1" y="1" width="9" height="9" rx="1" stroke="currentColor" strokeWidth="1.1" />
+                        <path d="M1 8L3.5 5.5l2 2L8 5l2 2.5" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
+                        <line x1="1" y1="1" x2="10" y2="10" stroke="currentColor" strokeWidth="1" opacity="0.5" />
+                      </svg>
+                      <span className="font-mono text-[10px] text-[var(--c-text-md)] truncate" title={img.assetName}>{img.assetName}</span>
+                    </li>
+                  ))}
+                </ul>
+                <div className="px-3 py-2 border-t border-[var(--c-border)] flex flex-col gap-1.5">
+                  <button
+                    onClick={handleAutoFix}
+                    className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#6366f1] hover:bg-[#4f46e5] text-white font-mono text-[10px] font-semibold transition-colors"
+                  >
+                    <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+                      <path d="M5.5 1a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9z" stroke="currentColor" strokeWidth="1.1"/>
+                      <path d="M3.5 5.5l1.5 1.5 2.5-2.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                    {hasWorkspaceHandle() ? 'Auto-fix all' : 'Re-open workspace to fix'}
+                  </button>
+                  {hasWorkspaceHandle() && (
+                    <button
+                      onClick={() => { setMissingWarningOpen(false); handleOpenFolder(); }}
+                      className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--c-hover)] hover:bg-[#f59e0b]/15 text-[var(--c-text-lo)] hover:text-[#f59e0b] font-mono text-[10px] transition-colors"
+                    >
+                      <IconFolder />
+                      Re-open workspace folder
+                    </button>
+                  )}
+                  <DefaultFolderRow folder={imageAssetFolder} onChange={setImageAssetFolder} />
+                </div>
+              </div>
+            )}
+          </div>
         )}
       </div>
 

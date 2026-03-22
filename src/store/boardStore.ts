@@ -31,6 +31,8 @@ interface BoardState {
   tableHoverEdge: { nodeId: string; showBottom: boolean; showRight: boolean } | null; // not persisted
   tableHoverCell: { nodeId: string; row: number; col: number } | null; // not persisted
   workspaceName: string | null; // not persisted — set when a folder is open
+  explorerOpen: boolean;
+  imageAssetFolder: string; // subfolder in workspace to auto-save dragged images (persisted)
 
   // Actions
   setBoardTitle: (title: string) => void;
@@ -52,6 +54,8 @@ interface BoardState {
   setTableHoverCell: (s: { nodeId: string; row: number; col: number } | null) => void;
   setReaction: (nodeId: string, emoji: string | null) => void;
   setWorkspaceName: (name: string | null) => void;
+  setExplorerOpen: (open: boolean) => void;
+  setImageAssetFolder: (folder: string) => void;
   // Page actions
   addPage: (name?: string) => void;
   deletePage: (id: string) => void;
@@ -97,6 +101,8 @@ export const useBoardStore = create<BoardState>()(
       tableHoverEdge: null,
       tableHoverCell: null,
       workspaceName: null,
+      explorerOpen: false,
+      imageAssetFolder: 'assets',
 
       setBoardTitle: (title) => set({ boardTitle: title }),
 
@@ -177,6 +183,8 @@ export const useBoardStore = create<BoardState>()(
       setTableHoverCell: (s) => set({ tableHoverCell: s }),
 
       setWorkspaceName: (name) => set({ workspaceName: name }),
+      setExplorerOpen: (open) => set({ explorerOpen: open }),
+      setImageAssetFolder: (folder) => set({ imageAssetFolder: folder }),
 
       setReaction: (nodeId, emoji) =>
         set((state) => ({
@@ -499,6 +507,8 @@ export const useBoardStore = create<BoardState>()(
           theme: state.theme,
           pages: state.pages,
           activePageId: state.activePageId,
+          explorerOpen: state.explorerOpen,
+          imageAssetFolder: state.imageAssetFolder,
           pageSnapshots: Object.fromEntries(
             Object.entries(state.pageSnapshots).map(([id, snap]) => [
               id,

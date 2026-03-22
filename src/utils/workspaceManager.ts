@@ -30,6 +30,10 @@ export function clearWorkspaceHandle(): void {
   workspaceHandle = null;
 }
 
+export function hasWorkspaceHandle(): boolean {
+  return workspaceHandle !== null;
+}
+
 interface WorkspaceManifest {
   title: string;
   pages: Array<{ id: string; name: string }>;
@@ -62,12 +66,16 @@ function stripImageSrc(nodes: CanvasNode[]): CanvasNode[] {
   });
 }
 
-/** Load an image from workspace/assets/ and return a blob object URL. */
-export async function loadImageAsset(assetName: string): Promise<string | null> {
+/** Load an image from a workspace subfolder and return a blob object URL.
+ *  `folder` can be a nested path like 'src/assets'; an empty string means workspace root. */
+export async function loadImageAsset(assetName: string, folder = 'assets'): Promise<string | null> {
   if (!workspaceHandle) return null;
   try {
-    const assetsDir = await workspaceHandle.getDirectoryHandle('assets');
-    const fileHandle = await assetsDir.getFileHandle(assetName);
+    let dir: FileSystemDirectoryHandle = workspaceHandle;
+    for (const part of folder.split('/').filter(Boolean)) {
+      dir = await dir.getDirectoryHandle(part);
+    }
+    const fileHandle = await dir.getFileHandle(assetName);
     const file = await fileHandle.getFile();
     return URL.createObjectURL(file);
   } catch {
@@ -109,18 +117,90 @@ export async function readWorkspaceFileAsUrl(relativePath: string): Promise<stri
   }
 }
 
-/** Save an image File (or Blob) to workspace/assets/. */
-export async function saveImageAsset(assetName: string, data: File | Blob): Promise<void> {
+/** Save an image File (or Blob) to a workspace subfolder (default: 'assets').
+ *  `folder` can be a nested path like 'src/assets'. */
+export async function saveImageAsset(assetName: string, data: File | Blob, folder = 'assets'): Promise<void> {
   if (!workspaceHandle) return;
   try {
-    const assetsDir = await getOrCreateDir(workspaceHandle, 'assets');
-    const handle = await assetsDir.getFileHandle(assetName, { create: true });
+    let dir: FileSystemDirectoryHandle = workspaceHandle;
+    for (const part of folder.split('/').filter(Boolean)) {
+      dir = await dir.getDirectoryHandle(part, { create: true });
+    }
+    const handle = await dir.getFileHandle(assetName, { create: true });
     const writable = await handle.createWritable();
     await writable.write(data);
     await writable.close();
   } catch (err) {
     console.warn('Failed to save image asset', err);
   }
+}
+
+/**
+ * Move an image between workspace subfolders.
+ * Copies to the new folder, removes from the old one, returns a fresh object URL.
+ */
+export async function moveImageAsset(
+  assetName: string,
+  fromFolder: string,
+  toFolder: string,
+): Promise<string | null> {
+  if (!workspaceHandle || fromFolder === toFolder) return null;
+  try {
+    let srcDir: FileSystemDirectoryHandle = workspaceHandle;
+    for (const part of fromFolder.split('/').filter(Boolean)) srcDir = await srcDir.getDirectoryHandle(part);
+    const srcHandle = await srcDir.getFileHandle(assetName);
+    const blob = await srcHandle.getFile();
+
+    let dstDir: FileSystemDirectoryHandle = workspaceHandle;
+    for (const part of toFolder.split('/').filter(Boolean)) dstDir = await dstDir.getDirectoryHandle(part, { create: true });
+    const dstHandle = await dstDir.getFileHandle(assetName, { create: true });
+    const writable = await dstHandle.createWritable();
+    await writable.write(blob);
+    await writable.close();
+
+    // Best-effort delete from source
+    try { await srcDir.removeEntry(assetName); } catch { /* ignore */ }
+
+    return URL.createObjectURL(blob);
+  } catch (err) {
+    console.warn('Failed to move image asset', err);
+    return null;
+  }
+}
+
+const SKIP_DIRS = new Set(['node_modules', '.git', '.next', 'dist', 'build', '__pycache__', '.venv', 'venv', '.idea']);
+
+/**
+ * Recursively searches the workspace for a file with the given name.
+ * Returns { folder, url } where folder is the relative path to the containing directory
+ * (empty string = workspace root), or null if not found.
+ */
+export async function findImageInWorkspace(assetName: string): Promise<{ folder: string; url: string } | null> {
+  if (!workspaceHandle) return null;
+
+  async function search(
+    dir: FileSystemDirectoryHandle,
+    folderPath: string,
+  ): Promise<{ folder: string; url: string } | null> {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      for await (const handle of (dir as any).values() as AsyncIterable<FileSystemHandle>) {
+        if (handle.name.startsWith('.') || SKIP_DIRS.has(handle.name)) continue;
+        if (handle.kind === 'file' && handle.name === assetName) {
+          const file = await (handle as FileSystemFileHandle).getFile();
+          return { folder: folderPath, url: URL.createObjectURL(file) };
+        }
+        if (handle.kind === 'directory') {
+          const sub = folderPath ? `${folderPath}/${handle.name}` : handle.name;
+          const found = await search(handle as FileSystemDirectoryHandle, sub);
+          if (found) return found;
+        }
+      }
+    } catch { /* permission denied or other error — skip */ }
+    return null;
+  }
+
+  return search(workspaceHandle, '');
 }
 
 /**
@@ -162,12 +242,28 @@ export async function openWorkspace(): Promise<{ data: BoardData | null; name: s
       }
     }
 
-    // Populate src for image nodes from assets/
+    // Populate src for image nodes from their stored subfolder, with workspace-wide search fallback
     for (const page of pages) {
       for (const node of page.nodes) {
         if (node.type === 'image' && node.assetName && !node.src) {
-          const url = await loadImageAsset(node.assetName);
-          if (url) (node as { src: string }).src = url;
+          const imgNode = node as import('../types').ImageNode;
+          let url: string | null = null;
+
+          // Try stored folder first
+          if (imgNode.assetFolder !== undefined) {
+            url = await loadImageAsset(imgNode.assetName!, imgNode.assetFolder);
+          }
+
+          // Fallback: scan the workspace for a file with this name
+          if (!url) {
+            const found = await findImageInWorkspace(imgNode.assetName!);
+            if (found) {
+              url = found.url;
+              imgNode.assetFolder = found.folder; // correct for future saves
+            }
+          }
+
+          if (url) (imgNode as unknown as { src: string }).src = url;
         }
       }
     }
@@ -252,6 +348,68 @@ export async function readWorkspaceFile(relativePath: string): Promise<string | 
   } catch {
     return null;
   }
+}
+
+/**
+ * Creates a directory at pathParts relative to the workspace root.
+ * Throws if the workspace isn't open or creation fails.
+ */
+export async function createDirectory(pathParts: string[]): Promise<void> {
+  if (!workspaceHandle) throw new Error('No workspace open');
+  let dir: FileSystemDirectoryHandle = workspaceHandle;
+  for (const part of pathParts) {
+    dir = await dir.getDirectoryHandle(part, { create: true });
+  }
+}
+
+/**
+ * Renames a file or directory at pathParts to newName (same parent dir).
+ * Uses native FileSystemHandle.move() where available (Chrome 116+);
+ * falls back to copy-then-delete for files.
+ */
+export async function renameEntry(pathParts: string[], newName: string): Promise<void> {
+  if (!workspaceHandle) throw new Error('No workspace open');
+  if (pathParts.length === 0) throw new Error('Cannot rename workspace root');
+
+  let parentDir: FileSystemDirectoryHandle = workspaceHandle;
+  for (const part of pathParts.slice(0, -1)) {
+    parentDir = await parentDir.getDirectoryHandle(part);
+  }
+  const oldName = pathParts[pathParts.length - 1];
+
+  // ── Try file ──────────────────────────────────────────────────────────────
+  let fileHandle: FileSystemFileHandle | null = null;
+  try { fileHandle = await parentDir.getFileHandle(oldName); } catch { /* not a file */ }
+
+  if (fileHandle) {
+    // Native move() — Chrome 116+
+    if ('move' in fileHandle && typeof (fileHandle as Record<string, unknown>).move === 'function') {
+      await (fileHandle as unknown as { move(name: string): Promise<void> }).move(newName);
+      return;
+    }
+    // Fallback: copy + delete
+    const blob = await fileHandle.getFile();
+    const dst = await parentDir.getFileHandle(newName, { create: true });
+    const w = await dst.createWritable();
+    await w.write(blob);
+    await w.close();
+    await parentDir.removeEntry(oldName);
+    return;
+  }
+
+  // ── Try directory ─────────────────────────────────────────────────────────
+  let dirHandle: FileSystemDirectoryHandle | null = null;
+  try { dirHandle = await parentDir.getDirectoryHandle(oldName); } catch { /* not a dir */ }
+
+  if (dirHandle) {
+    if ('move' in dirHandle && typeof (dirHandle as Record<string, unknown>).move === 'function') {
+      await (dirHandle as unknown as { move(name: string): Promise<void> }).move(newName);
+      return;
+    }
+    throw new Error('Directory rename requires Chrome 116+ or a newer browser');
+  }
+
+  throw new Error(`"${oldName}" not found`);
 }
 
 // Local type aliases

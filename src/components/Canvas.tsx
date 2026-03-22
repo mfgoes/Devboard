@@ -14,6 +14,7 @@ import TableCellEditor from './TableCellEditor';
 import StickyColorPicker from './StickyColorPicker';
 import EmojiReactionPicker from './EmojiReactionPicker';
 import ShapeToolbar from './ShapeToolbar';
+import ImageToolbar from './ImageToolbar';
 import TextBlockToolbar from './TextBlockToolbar';
 import ConnectorToolbar from './ConnectorToolbar';
 import SectionToolbar from './SectionToolbar';
@@ -25,7 +26,7 @@ import ContextMenu, { ContextMenuState } from './ContextMenu';
 import { AnchorSide, ConnectorNode, StickyNoteNode, ShapeNode, TextBlockNode, SectionNode, StickerNode, TableNode, CodeBlockNode, ImageNode } from '../types';
 import CodeBlockComponent from './nodes/CodeBlock';
 import ImageNodeComponent from './nodes/ImageNode';
-import { saveImageAsset, getWorkspaceName, openWorkspace } from '../utils/workspaceManager';
+import { saveImageAsset, saveWorkspace, getWorkspaceName, openWorkspace } from '../utils/workspaceManager';
 import { hasSeenImageNotice, markImageNoticeSeen } from './ImageFirstUseModal';
 import ImageFirstUseModal from './ImageFirstUseModal';
 import CodeBlockToolbar from './CodeBlockToolbar';
@@ -1023,7 +1024,7 @@ export default function Canvas() {
     (file: File, worldX: number, worldY: number, offsetIdx = 0) => {
       const inWorkspace = !!getWorkspaceName();
 
-      const doPlace = (src: string, assetName: string) => {
+      const doPlace = (src: string, assetName: string, assetFolder?: string) => {
         const imgEl = new window.Image();
         imgEl.onload = () => {
           const maxW = 600;
@@ -1038,19 +1039,25 @@ export default function Canvas() {
             height: h,
             src,
             assetName,
+            ...(assetFolder ? { assetFolder } : {}),
           } satisfies ImageNode);
           setActiveTool('select');
+          // Auto-save workspace JSON so assetFolder survives a reload without a manual save
+          if (assetFolder && getWorkspaceName()) {
+            setTimeout(() => saveWorkspace(useBoardStore.getState().exportData()), 0);
+          }
         };
         imgEl.src = src;
       };
 
       if (inWorkspace) {
         // Workspace mode: save as file, use a short object URL — no base64 in JSON
+        const folder = useBoardStore.getState().imageAssetFolder;
         const ext = file.name.match(/\.[^.]+$/)?.[0] ?? '.png';
         const uniqueName = generateId() + ext;
         const objectUrl = URL.createObjectURL(file);
-        saveImageAsset(uniqueName, file); // async, fire-and-forget
-        doPlace(objectUrl, uniqueName);
+        saveImageAsset(uniqueName, file, folder); // async, fire-and-forget
+        doPlace(objectUrl, uniqueName, folder);
       } else {
         // Standalone mode: embed as base64 (warn user first time)
         if (!hasSeenImageNotice()) {
@@ -1689,6 +1696,9 @@ export default function Canvas() {
         })}
       {singleSelected?.type === 'shape' && (
         <ShapeToolbar nodeId={singleSelected.id} />
+      )}
+      {singleSelected?.type === 'image' && (
+        <ImageToolbar nodeId={singleSelected.id} />
       )}
       {singleSelected?.type === 'codeblock' && (
         <CodeBlockToolbar nodeId={singleSelected.id} />

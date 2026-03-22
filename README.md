@@ -135,9 +135,11 @@ src/
 - [ ] Templates to choose from (dev-focused: planning board, retro, architecture diagram)
 - [ ] Freehand pen / draw tool
 - [ ] Board wide text search (ensure it works with a lot of post-its, load state, etc)
-- [ ] Image upload (drop PNG/JPG onto canvas) -> Requires app + workspace
+- [x] Image upload (drop PNG/JPG onto canvas) -> Requires app + workspace
 - [ ] Mini-map / overview panel
-- [ ] Load folder/workspace -> Allows saving images (works similar to ie VS Code) + Better handling of multiple pages + ability to reference code snippets better
+- [ ] Allow adding embedded links
+- [ ] Allow export selection as .txt or .md (should work for text sizes, links, stickies as basic text, etc)
+- [x] Load folder/workspace -> Better handling of multiple pages + ability to reference code snippets better
 
 ### Later / ideas
 

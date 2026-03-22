@@ -3,9 +3,9 @@
  * Draggable, horizontally resizable floating panel.
  * Lazy-loads directory contents; click to place files on canvas.
  */
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useBoardStore } from '../store/boardStore';
-import { listDirectory, readWorkspaceFile, readWorkspaceFileAsUrl, readWorkspaceFileInfo, getWorkspaceName, openWorkspace, FSA_DIR_SUPPORTED } from '../utils/workspaceManager';
+import { listDirectory, readWorkspaceFile, readWorkspaceFileAsUrl, readWorkspaceFileInfo, getWorkspaceName, openWorkspace, createDirectory, renameEntry, FSA_DIR_SUPPORTED } from '../utils/workspaceManager';
 import { CodeLanguage, CodeBlockNode, ImageNode } from '../types';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -139,10 +139,13 @@ async function placeImageFile(pathParts: string[]) {
   const relativePath = pathParts.join('/');
   const objectUrl = await readWorkspaceFileAsUrl(relativePath);
   if (!objectUrl) return;
-  const { addNode } = useBoardStore.getState();
+  const { addNode, exportData } = useBoardStore.getState();
   const { x, y } = canvasCenter();
+  const assetName = pathParts[pathParts.length - 1];
+  // folder is everything except the filename; empty string = workspace root
+  const assetFolder = pathParts.slice(0, -1).join('/');
   const imgEl = new window.Image();
-  imgEl.onload = () => {
+  imgEl.onload = async () => {
     const maxW = 480;
     const w = Math.min(imgEl.width, maxW);
     const h = Math.round(imgEl.height * (w / imgEl.width));
@@ -154,42 +157,109 @@ async function placeImageFile(pathParts: string[]) {
       width: w,
       height: h,
       src: objectUrl,
-      assetName: pathParts[pathParts.length - 1],
+      assetName,
+      assetFolder,
     } satisfies ImageNode);
+    // Persist metadata immediately so assetFolder survives a reload
+    const { saveWorkspace } = await import('../utils/workspaceManager');
+    setTimeout(() => saveWorkspace(useBoardStore.getState().exportData()), 0);
   };
   imgEl.src = objectUrl;
+}
+
+// ── flatVisible — only entries currently rendered in the tree ─────────────────
+function flatVisible(entries: TreeEntry[]): TreeEntry[] {
+  const result: TreeEntry[] = [];
+  for (const e of entries) {
+    result.push(e);
+    if (e.kind === 'directory' && e.expanded && e.children) result.push(...flatVisible(e.children));
+  }
+  return result;
 }
 
 // ── TreeRow ───────────────────────────────────────────────────────────────────
 function TreeRow({
   entry,
   depth,
+  focusedPath,
+  renamingPath,
+  renameDraft,
+  onRenameDraftChange,
+  onRenameCommit,
+  onRenameCancel,
   onToggle,
-  onFileClick,
-  onImageHover,
-  onImageLeave,
+  onFileSingleClick,
+  onFileDblClick,
+  onContextMenu,
 }: {
   entry: TreeEntry;
   depth: number;
+  focusedPath: string | null;
+  renamingPath: string | null;
+  renameDraft: string;
+  onRenameDraftChange: (v: string) => void;
+  onRenameCommit: (entry: TreeEntry) => void;
+  onRenameCancel: () => void;
   onToggle: (path: string[]) => void;
-  onFileClick: (entry: TreeEntry) => void;
-  onImageHover?: (entry: TreeEntry, clientY: number) => void;
-  onImageLeave?: () => void;
+  onFileSingleClick: (entry: TreeEntry, clientY: number) => void;
+  onFileDblClick: (entry: TreeEntry) => void;
+  onContextMenu: (entry: TreeEntry, x: number, y: number) => void;
 }) {
   const isDir = entry.kind === 'directory';
   const isImage = !isDir && IMAGE_EXTS.has(ext(entry.name));
   const canOpen = !isDir && (CODE_EXTS[ext(entry.name)] !== undefined || isImage);
-  const tooltip = canOpen ? `${entry.path.join('/')} — click to place on canvas` : entry.path.join('/');
+  const isFocused = focusedPath === entry.path.join('/');
+  const isRenaming = renamingPath === entry.path.join('/');
+  const tooltip = canOpen
+    ? `${entry.path.join('/')} — single-click to preview · double-click or ↵ to place`
+    : entry.path.join('/');
+
+  // Distinguish single vs double click without a 300ms delay penalty
+  const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleClick = (clientY: number) => {
+    if (isRenaming) return;
+    if (isDir) { onToggle(entry.path); return; }
+    if (!canOpen) return;
+    if (clickTimerRef.current) {
+      clearTimeout(clickTimerRef.current);
+      clickTimerRef.current = null;
+      onFileDblClick(entry);
+    } else {
+      clickTimerRef.current = setTimeout(() => {
+        clickTimerRef.current = null;
+        onFileSingleClick(entry, clientY);
+      }, 220);
+    }
+  };
+
+  const sharedRowProps = {
+    depth,
+    focusedPath,
+    renamingPath,
+    renameDraft,
+    onRenameDraftChange,
+    onRenameCommit,
+    onRenameCancel,
+    onToggle,
+    onFileSingleClick,
+    onFileDblClick,
+    onContextMenu,
+  };
 
   return (
     <>
       <div
         className="group flex items-center gap-1.5 h-[22px] pr-2 rounded cursor-pointer"
-        style={{ paddingLeft: 8 + depth * 14 }}
-        onClick={() => isDir ? onToggle(entry.path) : onFileClick(entry)}
-        onMouseEnter={(e) => isImage && onImageHover?.(entry, e.clientY)}
-        onMouseLeave={() => isImage && onImageLeave?.()}
-        title={tooltip}
+        style={{
+          paddingLeft: 8 + depth * 14,
+          background: isFocused ? 'rgba(99,102,241,0.15)' : undefined,
+          outline: isFocused ? '1px solid rgba(99,102,241,0.35)' : undefined,
+          outlineOffset: -1,
+        }}
+        data-focused={isFocused ? 'true' : undefined}
+        onClick={(e) => handleClick(e.clientY)}
+        onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onContextMenu(entry, e.clientX, e.clientY); }}
+        title={isRenaming ? undefined : tooltip}
       >
         {/* Expand arrow for directories */}
         <span className="w-3 flex items-center justify-center shrink-0 text-[var(--c-text-off)]" style={{ fontSize: 9 }}>
@@ -198,22 +268,61 @@ function TreeRow({
 
         <FileIcon name={entry.name} kind={entry.kind} />
 
-        {/* Show base name (truncated) + extension (always visible) */}
-        {(() => {
-          const color = isDir ? 'var(--c-text-hi)' : canOpen ? fileColor(entry.name) : 'var(--c-text-lo)';
-          const dotIdx = isDir ? -1 : entry.name.lastIndexOf('.');
-          const base = dotIdx > 0 ? entry.name.slice(0, dotIdx) : entry.name;
-          const extn = dotIdx > 0 ? entry.name.slice(dotIdx) : '';
-          return (
-            <span className="flex-1 min-w-0 flex font-mono text-[11px]" style={{ color }}>
-              <span className="truncate">{base}</span>
-              {extn && <span className="shrink-0">{extn}</span>}
-            </span>
-          );
-        })()}
+        {isRenaming ? (
+          // ── Inline rename input ───────────────────────────────────────
+          <input
+            autoFocus
+            data-rename-input="true"
+            value={renameDraft}
+            onChange={(e) => onRenameDraftChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter')  { e.stopPropagation(); onRenameCommit(entry); }
+              if (e.key === 'Escape') { e.stopPropagation(); onRenameCancel(); }
+              e.stopPropagation();
+            }}
+            onBlur={() => onRenameCancel()}
+            onClick={(e) => e.stopPropagation()}
+            ref={(el) => {
+              if (el) {
+                // Select only the stem (before the last dot) so extension stays intact
+                const dotIdx = entry.kind === 'file' ? entry.name.lastIndexOf('.') : -1;
+                const end = dotIdx > 0 ? dotIdx : entry.name.length;
+                el.setSelectionRange(0, end);
+              }
+            }}
+            style={{
+              flex: 1,
+              minWidth: 0,
+              background: 'var(--c-canvas)',
+              border: '1px solid #6366f1',
+              borderRadius: 4,
+              outline: 'none',
+              fontFamily: "'JetBrains Mono', monospace",
+              fontSize: 11,
+              color: 'var(--c-text-hi)',
+              caretColor: '#6366f1',
+              padding: '0 4px',
+              height: 18,
+            }}
+          />
+        ) : (
+          // ── Normal name display ───────────────────────────────────────
+          (() => {
+            const color = isDir ? 'var(--c-text-hi)' : canOpen ? fileColor(entry.name) : 'var(--c-text-lo)';
+            const dotIdx = isDir ? -1 : entry.name.lastIndexOf('.');
+            const base = dotIdx > 0 ? entry.name.slice(0, dotIdx) : entry.name;
+            const extn = dotIdx > 0 ? entry.name.slice(dotIdx) : '';
+            return (
+              <span className="flex-1 min-w-0 flex font-mono text-[11px]" style={{ color }}>
+                <span className="truncate">{base}</span>
+                {extn && <span className="shrink-0">{extn}</span>}
+              </span>
+            );
+          })()
+        )}
 
-        {canOpen && (
-          <span className="hidden group-hover:inline text-[9px] text-[#6366f1] shrink-0">+</span>
+        {!isRenaming && canOpen && (
+          <span className="hidden group-hover:inline text-[9px] text-[#6366f1] shrink-0" title="double-click to place">↵</span>
         )}
       </div>
 
@@ -223,11 +332,8 @@ function TreeRow({
             <TreeRow
               key={child.path.join('/')}
               entry={child}
+              {...sharedRowProps}
               depth={depth + 1}
-              onToggle={onToggle}
-              onFileClick={onFileClick}
-              onImageHover={onImageHover}
-              onImageLeave={onImageLeave}
             />
           ))}
           {entry.children.length === 0 && (
@@ -301,45 +407,56 @@ interface Props {
 
 export default function WorkspaceExplorer({ onClose }: Props) {
   const workspaceName = useBoardStore((s) => s.workspaceName) ?? getWorkspaceName() ?? 'No folder open';
+  const imageAssetFolder = useBoardStore((s) => s.imageAssetFolder);
+  const setImageAssetFolder = useBoardStore((s) => s.setImageAssetFolder);
+  const [folderEditing, setFolderEditing] = useState(false);
+  const [folderDraft, setFolderDraft] = useState('');
   const [tree, setTree] = useState<TreeEntry[]>([]);
   const [rootLoading, setRootLoading] = useState(true);
   const [rootError, setRootError] = useState<string | null>(null);
   const [pos, setPos] = useState(_savedPos ?? { x: 8, y: 52 });
   const [width, setWidth] = useState(_savedWidth);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [focusedIdx, setFocusedIdx] = useState<number | null>(null);
+  // Rename state
+  const [renamingPath, setRenamingPath] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState('');
+  const renamingEntryRef = useRef<TreeEntry | null>(null);
+  // Explorer context menu (right-click)
+  type ExplorerMenu = { entry: TreeEntry; x: number; y: number };
+  const [explorerMenu, setExplorerMenu] = useState<ExplorerMenu | null>(null);
+  const explorerMenuRef = useRef<HTMLDivElement>(null);
+  // New folder inline input: parentPath = [] for root, or the path of the parent dir
+  const [newFolderParent, setNewFolderParent] = useState<string[] | null>(null);
+  const [newFolderName, setNewFolderName] = useState('');
+  const newFolderInputRef = useRef<HTMLInputElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const visibleEntriesRef = useRef<TreeEntry[]>([]);
 
-  // Image hover preview
-  type ImagePreview = { url: string; natW: number; natH: number; size: number; clientY: number };
-  const [imagePreview, setImagePreview] = useState<ImagePreview | null>(null);
-  const previewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // File preview (image or code)
+  type FilePreview =
+    | { kind: 'image'; entry: TreeEntry; url: string; natW: number; natH: number; size: number; anchorY: number }
+    | { kind: 'code'; entry: TreeEntry; content: string; anchorY: number };
+  const [filePreview, setFilePreview] = useState<FilePreview | null>(null);
   const previewUrlRef = useRef<string | null>(null);
 
   // Cleanup on unmount
   useEffect(() => () => {
-    if (previewTimerRef.current) clearTimeout(previewTimerRef.current);
     if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
   }, []);
 
-  const handleImageHover = useCallback((entry: TreeEntry, clientY: number) => {
-    if (previewTimerRef.current) clearTimeout(previewTimerRef.current);
-    previewTimerRef.current = setTimeout(async () => {
-      const info = await readWorkspaceFileInfo(entry.path.join('/'));
-      if (!info) return;
-      if (previewUrlRef.current && previewUrlRef.current !== info.url) {
-        URL.revokeObjectURL(previewUrlRef.current);
+  // Hide preview on click outside the explorer panel
+  useEffect(() => {
+    if (!filePreview) return;
+    const handler = (e: MouseEvent) => {
+      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
+        setFilePreview(null);
       }
-      previewUrlRef.current = info.url;
-      const img = new window.Image();
-      img.onload = () => setImagePreview({ url: info.url, natW: img.naturalWidth, natH: img.naturalHeight, size: info.size, clientY });
-      img.onerror = () => URL.revokeObjectURL(info.url);
-      img.src = info.url;
-    }, 250);
-  }, []);
-
-  const handleImageLeave = useCallback(() => {
-    if (previewTimerRef.current) clearTimeout(previewTimerRef.current);
-    setImagePreview(null);
-  }, []);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [filePreview]);
 
   // Persist across open/close
   useEffect(() => { _savedPos = pos; }, [pos]);
@@ -440,7 +557,27 @@ export default function WorkspaceExplorer({ onClose }: Props) {
     }
   }, [updateEntry]);
 
-  const handleFileClick = useCallback(async (entry: TreeEntry) => {
+  // ── Show file preview (single click / keyboard nav) ─────────────────────────
+  const showFilePreview = useCallback(async (entry: TreeEntry, anchorY: number) => {
+    const e = ext(entry.name);
+    if (IMAGE_EXTS.has(e)) {
+      const info = await readWorkspaceFileInfo(entry.path.join('/'));
+      if (!info) return;
+      if (previewUrlRef.current && previewUrlRef.current !== info.url) URL.revokeObjectURL(previewUrlRef.current);
+      previewUrlRef.current = info.url;
+      const img = new window.Image();
+      img.onload = () => setFilePreview({ kind: 'image', entry, url: info.url, natW: img.naturalWidth, natH: img.naturalHeight, size: info.size, anchorY });
+      img.onerror = () => URL.revokeObjectURL(info.url);
+      img.src = info.url;
+    } else if (CODE_EXTS[e] !== undefined) {
+      const content = await readWorkspaceFile(entry.path.join('/'));
+      if (content === null) return;
+      setFilePreview({ kind: 'code', entry, content, anchorY });
+    }
+  }, []);
+
+  // ── Place file on canvas (double click / Enter) ───────────────────────────
+  const placeFile = useCallback(async (entry: TreeEntry) => {
     const e = ext(entry.name);
     if (IMAGE_EXTS.has(e)) {
       await placeImageFile(entry.path);
@@ -449,6 +586,18 @@ export default function WorkspaceExplorer({ onClose }: Props) {
     }
   }, []);
 
+  const handleFileSingleClick = useCallback((entry: TreeEntry, clientY: number) => {
+    const idx = visibleEntriesRef.current.findIndex((e) => e.path.join('/') === entry.path.join('/'));
+    if (idx !== -1) setFocusedIdx(idx);
+    showFilePreview(entry, clientY);
+  }, [showFilePreview]);
+
+  const handleFileDblClick = useCallback((entry: TreeEntry) => {
+    setFilePreview(null);
+    placeFile(entry);
+  }, [placeFile]);
+
+  // ── Keyboard navigation ───────────────────────────────────────────────────
   const handleOpenFolder = useCallback(async () => {
     const result = await openWorkspace();
     if (result) {
@@ -470,6 +619,191 @@ export default function WorkspaceExplorer({ onClose }: Props) {
     }
   }, []);
 
+  // ── Rename ───────────────────────────────────────────────────────────────
+  const [renameExtWarning, setRenameExtWarning] = useState<{ entry: TreeEntry; newName: string } | null>(null);
+
+  const startRename = useCallback((entry: TreeEntry) => {
+    setRenamingPath(entry.path.join('/'));
+    setRenameDraft(entry.name);
+    renamingEntryRef.current = entry;
+    setExplorerMenu(null);
+  }, []);
+
+  const doRename = useCallback(async (entry: TreeEntry, newName: string) => {
+    try {
+      await renameEntry(entry.path, newName);
+      const newPath = [...entry.path.slice(0, -1), newName];
+      setTree((prev) =>
+        updateEntry(prev, entry.path, (e) => ({ ...e, name: newName, path: newPath }))
+      );
+    } catch (err) {
+      console.warn('Rename failed:', err);
+    }
+  }, [updateEntry]);
+
+  const commitRename = useCallback((entry: TreeEntry) => {
+    const newName = renameDraft.trim();
+    setRenamingPath(null);
+    renamingEntryRef.current = null;
+    if (!newName || newName === entry.name) return;
+    // Warn if extension changed on a file
+    if (entry.kind === 'file') {
+      const oldExt = entry.name.includes('.') ? entry.name.split('.').pop()!.toLowerCase() : '';
+      const newExt = newName.includes('.') ? newName.split('.').pop()!.toLowerCase() : '';
+      if (oldExt && oldExt !== newExt) {
+        setRenameExtWarning({ entry, newName });
+        return;
+      }
+    }
+    doRename(entry, newName);
+  }, [renameDraft, doRename]);
+
+  // Cancel rename when clicking outside the inline input
+  useEffect(() => {
+    if (!renamingPath) return;
+    const handler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' && target.dataset.renameInput) return;
+      setRenamingPath(null);
+      renamingEntryRef.current = null;
+    };
+    window.addEventListener('mousedown', handler);
+    return () => window.removeEventListener('mousedown', handler);
+  }, [renamingPath]);
+
+  // Dismiss explorer context menu on outside click
+  useEffect(() => {
+    if (!explorerMenu) return;
+    const handler = (e: MouseEvent) => {
+      if (explorerMenuRef.current && !explorerMenuRef.current.contains(e.target as Node)) {
+        setExplorerMenu(null);
+      }
+    };
+    window.addEventListener('mousedown', handler);
+    return () => window.removeEventListener('mousedown', handler);
+  }, [explorerMenu]);
+
+  const handleEntryContextMenu = useCallback((entry: TreeEntry, x: number, y: number) => {
+    setExplorerMenu({ entry, x, y });
+    // Also set keyboard focus to this entry
+    const idx = visibleEntriesRef.current.findIndex((e) => e.path.join('/') === entry.path.join('/'));
+    if (idx !== -1) setFocusedIdx(idx);
+  }, []);
+
+  // ── New folder ────────────────────────────────────────────────────────────
+  const startNewFolder = useCallback((parentPath: string[] = []) => {
+    setNewFolderParent(parentPath);
+    setNewFolderName('');
+  }, []);
+
+  // Focus the input once it appears
+  useEffect(() => {
+    if (newFolderParent !== null) {
+      requestAnimationFrame(() => newFolderInputRef.current?.focus());
+    }
+  }, [newFolderParent]);
+
+  const commitNewFolder = useCallback(async () => {
+    const name = newFolderName.trim();
+    if (!name || newFolderParent === null) { setNewFolderParent(null); return; }
+    try {
+      await createDirectory([...newFolderParent, name]);
+      // Refresh the affected level
+      const refreshPath = newFolderParent;
+      const rawChildren = await listDirectory(refreshPath);
+      const filtered = rawChildren.filter((e) => !e.name.startsWith('.') && !(e.kind === 'directory' && SKIP_DIRS.has(e.name)));
+      if (refreshPath.length === 0) {
+        setTree(filtered.map((e) => buildEntry(e.name, e.kind, [])));
+      } else {
+        setTree((prev) =>
+          updateEntry(prev, refreshPath, (e) => ({
+            ...e,
+            children: filtered.map((c) => buildEntry(c.name, c.kind, refreshPath)),
+          }))
+        );
+      }
+    } catch (err) {
+      console.warn('Failed to create folder', err);
+    }
+    setNewFolderParent(null);
+  }, [newFolderName, newFolderParent, updateEntry]);
+
+  // Flatten entire loaded tree for search results (includes collapsed dirs)
+  const flattenTree = useCallback((entries: TreeEntry[]): TreeEntry[] => {
+    const result: TreeEntry[] = [];
+    for (const e of entries) {
+      result.push(e);
+      if (e.children) result.push(...flattenTree(e.children));
+    }
+    return result;
+  }, []);
+
+  const searchResults = useMemo(
+    () => searchQuery.trim()
+      ? flattenTree(tree).filter((e) => e.name.toLowerCase().includes(searchQuery.toLowerCase()))
+      : null,
+    [searchQuery, tree, flattenTree]
+  );
+
+  // Flat list of currently visible rows (for keyboard nav)
+  const visibleEntries = useMemo(
+    () => searchResults ?? flatVisible(tree),
+    [searchResults, tree]
+  );
+
+  visibleEntriesRef.current = visibleEntries;
+  const focusedPath = focusedIdx !== null ? (visibleEntries[focusedIdx]?.path.join('/') ?? null) : null;
+
+  // Reset focus when search changes
+  useEffect(() => { setFocusedIdx(null); }, [searchQuery]);
+
+  // Auto-scroll focused row into view
+  useEffect(() => {
+    if (focusedIdx === null) return;
+    const el = scrollContainerRef.current?.querySelector<HTMLElement>('[data-focused="true"]');
+    el?.scrollIntoView({ block: 'nearest' });
+  }, [focusedIdx]);
+
+  // Auto-preview focused file
+  useEffect(() => {
+    if (focusedIdx === null) { setFilePreview(null); return; }
+    const entry = visibleEntries[focusedIdx];
+    if (!entry || entry.kind === 'directory') { setFilePreview(null); return; }
+    const panelMidY = pos.y + Math.min(520, window.innerHeight - pos.y - 16) / 2;
+    showFilePreview(entry, panelMidY);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusedIdx]);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (visibleEntries.length === 0) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setFocusedIdx((prev) => (prev === null ? 0 : Math.min(prev + 1, visibleEntries.length - 1)));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setFocusedIdx((prev) => (prev === null ? visibleEntries.length - 1 : Math.max(prev - 1, 0)));
+    } else if (e.key === 'Enter') {
+      if (focusedIdx === null) return;
+      const entry = visibleEntries[focusedIdx];
+      if (!entry) return;
+      e.preventDefault();
+      if (entry.kind === 'directory') {
+        handleToggle(entry.path);
+      } else {
+        setFilePreview(null);
+        placeFile(entry);
+      }
+    } else if (e.key === 'F2') {
+      if (focusedIdx === null) return;
+      const entry = visibleEntries[focusedIdx];
+      if (entry) { e.preventDefault(); startRename(entry); }
+    } else if (e.key === 'Escape') {
+      setExplorerMenu(null);
+      setFocusedIdx(null);
+      setFilePreview(null);
+    }
+  }, [visibleEntries, focusedIdx, handleToggle, placeFile, startRename]);
+
   const panelHeight = Math.min(520, window.innerHeight - pos.y - 16);
 
   return (
@@ -489,6 +823,8 @@ export default function WorkspaceExplorer({ onClose }: Props) {
         boxShadow: '0 8px 32px rgba(0,0,0,0.28)',
       }}
       onMouseDown={(e) => e.stopPropagation()}
+      tabIndex={0}
+      onKeyDown={handleKeyDown}
     >
       {/* Header — drag handle */}
       <div
@@ -506,16 +842,32 @@ export default function WorkspaceExplorer({ onClose }: Props) {
         <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, fontWeight: 600, color: 'var(--c-text-hi)', letterSpacing: '0.04em' }}>
           Explorer
         </span>
-        <button
-          onClick={onClose}
-          title="Close explorer"
-          className="w-5 h-5 flex items-center justify-center rounded text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
-          style={{ border: 'none', background: 'transparent', cursor: 'pointer', flexShrink: 0 }}
-        >
-          <svg width="9" height="9" viewBox="0 0 9 9" fill="none">
-            <path d="M1 1l7 7M8 1L1 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-          </svg>
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          {getWorkspaceName() && (
+            <button
+              onClick={() => startNewFolder([])}
+              title="New folder at root"
+              className="w-5 h-5 flex items-center justify-center rounded text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
+              style={{ border: 'none', background: 'transparent', cursor: 'pointer', flexShrink: 0 }}
+            >
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                <path d="M1 3a1 1 0 0 1 1-1h2.5L5.5 3H10a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V3z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" fill="none" />
+                <line x1="6" y1="5.5" x2="6" y2="8.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+                <line x1="4.5" y1="7" x2="7.5" y2="7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+              </svg>
+            </button>
+          )}
+          <button
+            onClick={onClose}
+            title="Close explorer"
+            className="w-5 h-5 flex items-center justify-center rounded text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
+            style={{ border: 'none', background: 'transparent', cursor: 'pointer', flexShrink: 0 }}
+          >
+            <svg width="9" height="9" viewBox="0 0 9 9" fill="none">
+              <path d="M1 1l7 7M8 1L1 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+          </button>
+        </div>
       </div>
 
       {/* Workspace root label */}
@@ -531,25 +883,146 @@ export default function WorkspaceExplorer({ onClose }: Props) {
         </span>
       </div>
 
+      {/* Search bar */}
+      {getWorkspaceName() && (
+        <div style={{ padding: '6px 10px', borderBottom: '1px solid var(--c-border)', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <svg width="11" height="11" viewBox="0 0 11 11" fill="none" style={{ flexShrink: 0, opacity: 0.45 }}>
+            <circle cx="4.5" cy="4.5" r="3.5" stroke="var(--c-text-hi)" strokeWidth="1.3" />
+            <line x1="7.5" y1="7.5" x2="10" y2="10" stroke="var(--c-text-hi)" strokeWidth="1.3" strokeLinecap="round" />
+          </svg>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (['ArrowUp', 'ArrowDown', 'Enter', 'Escape'].includes(e.key)) handleKeyDown(e as unknown as React.KeyboardEvent);
+            }}
+            placeholder="Search files…"
+            style={{
+              flex: 1,
+              background: 'transparent',
+              border: 'none',
+              outline: 'none',
+              fontFamily: "'JetBrains Mono', monospace",
+              fontSize: 11,
+              color: 'var(--c-text-hi)',
+              caretColor: '#6366f1',
+            }}
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, lineHeight: 1, color: 'var(--c-text-lo)' }}
+              title="Clear search"
+            >
+              <svg width="9" height="9" viewBox="0 0 9 9" fill="none">
+                <path d="M1 1l7 7M8 1L1 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              </svg>
+            </button>
+          )}
+        </div>
+      )}
+
       {/* File tree */}
-      <div className="flex-1 overflow-y-auto py-1" style={{ scrollbarWidth: 'thin', overflowX: 'hidden' }}>
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto py-1" style={{ scrollbarWidth: 'thin', overflowX: 'hidden' }}>
+        {/* Inline new-folder input at root */}
+        {newFolderParent !== null && newFolderParent.length === 0 && (
+          <div className="flex items-center gap-1.5 h-[26px] px-2 mx-1 rounded" style={{ background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.35)' }}>
+            <svg width="11" height="11" viewBox="0 0 12 12" fill="none" style={{ flexShrink: 0, opacity: 0.6 }}>
+              <path d="M1 3a1 1 0 0 1 1-1h2.5L5.5 3H10a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V3z" stroke="#6366f1" strokeWidth="1.2" strokeLinejoin="round" />
+            </svg>
+            <input
+              ref={newFolderInputRef}
+              type="text"
+              value={newFolderName}
+              onChange={(e) => setNewFolderName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') { e.preventDefault(); commitNewFolder(); }
+                if (e.key === 'Escape') { e.preventDefault(); setNewFolderParent(null); }
+                e.stopPropagation();
+              }}
+              onBlur={() => { if (!newFolderName.trim()) setNewFolderParent(null); }}
+              placeholder="folder name…"
+              style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: 'var(--c-text-hi)', caretColor: '#6366f1' }}
+            />
+          </div>
+        )}
         {rootLoading ? (
           <div style={{ padding: '10px 16px', fontSize: 10, color: 'var(--c-text-off)', fontFamily: 'monospace' }}>Loading…</div>
         ) : !getWorkspaceName() ? (
           <NoWorkspaceState onOpen={handleOpenFolder} />
+        ) : searchResults !== null ? (
+          searchResults.length === 0 ? (
+            <div style={{ padding: '10px 16px', fontSize: 10, color: 'var(--c-text-off)', fontFamily: 'monospace', fontStyle: 'italic' }}>No matches</div>
+          ) : (
+            searchResults.map((entry) => (
+              <TreeRow key={entry.path.join('/')} entry={entry} depth={0} focusedPath={focusedPath} renamingPath={renamingPath} renameDraft={renameDraft} onRenameDraftChange={setRenameDraft} onRenameCommit={commitRename} onRenameCancel={() => setRenamingPath(null)} onToggle={handleToggle} onFileSingleClick={handleFileSingleClick} onFileDblClick={handleFileDblClick} onContextMenu={handleEntryContextMenu} />
+            ))
+          )
         ) : tree.length === 0 ? (
           <div style={{ padding: '10px 16px', fontSize: 10, color: 'var(--c-text-off)', fontFamily: 'monospace', fontStyle: 'italic' }}>Folder is empty</div>
         ) : (
           tree.map((entry) => (
-            <TreeRow key={entry.path.join('/')} entry={entry} depth={0} onToggle={handleToggle} onFileClick={handleFileClick} onImageHover={handleImageHover} onImageLeave={handleImageLeave} />
+            <TreeRow key={entry.path.join('/')} entry={entry} depth={0} focusedPath={focusedPath} renamingPath={renamingPath} renameDraft={renameDraft} onRenameDraftChange={setRenameDraft} onRenameCommit={commitRename} onRenameCancel={() => setRenamingPath(null)} onToggle={handleToggle} onFileSingleClick={handleFileSingleClick} onFileDblClick={handleFileDblClick} onContextMenu={handleEntryContextMenu} />
           ))
         )}
       </div>
 
+      {/* Default save folder — only shown when a workspace is open */}
+      {getWorkspaceName() && (
+        <div style={{ padding: '6px 12px', borderTop: '1px solid var(--c-border)', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" style={{ flexShrink: 0, opacity: 0.5 }}>
+            <path d="M1 2.5a1 1 0 0 1 1-1h1.8L5 3H8.5a1 1 0 0 1 1 1v3.5a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V2.5z" stroke="var(--c-text-off)" strokeWidth="1" strokeLinejoin="round" />
+          </svg>
+          {folderEditing ? (
+            <input
+              autoFocus
+              type="text"
+              value={folderDraft}
+              onChange={(e) => setFolderDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  const v = folderDraft.trim().replace(/^\/+|\/+$/g, '');
+                  if (v) setImageAssetFolder(v);
+                  setFolderEditing(false);
+                  e.stopPropagation();
+                }
+                if (e.key === 'Escape') { setFolderEditing(false); e.stopPropagation(); }
+                e.stopPropagation();
+              }}
+              onBlur={() => {
+                const v = folderDraft.trim().replace(/^\/+|\/+$/g, '');
+                if (v) setImageAssetFolder(v);
+                setFolderEditing(false);
+              }}
+              placeholder="assets"
+              style={{ flex: 1, background: 'transparent', border: 'none', borderBottom: '1px solid #6366f1', outline: 'none', fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--c-text-hi)', caretColor: '#6366f1', paddingBottom: 1 }}
+            />
+          ) : (
+            <>
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--c-text-off)', flex: 1 }}>
+                Save images to: <span style={{ color: 'var(--c-text-md)' }}>{imageAssetFolder}/</span>
+              </span>
+              <button
+                onClick={() => { setFolderDraft(imageAssetFolder); setFolderEditing(true); }}
+                title="Change default save folder"
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: 'var(--c-text-lo)', lineHeight: 1, flexShrink: 0 }}
+                onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--c-text-hi)')}
+                onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--c-text-lo)')}
+              >
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                  <path d="M7 1.5l1.5 1.5-5 5H2V6.5l5-5z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round" />
+                </svg>
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
       {/* Footer hint */}
       <div style={{ padding: '8px 12px', borderTop: '1px solid var(--c-border)', flexShrink: 0, borderRadius: '0 0 12px 12px' }}>
         <p style={{ fontSize: 9, color: 'var(--c-text-off)', fontFamily: 'monospace', lineHeight: 1.4, margin: 0 }}>
-          Click a file to place it on the canvas.
+          Single-click to preview · double-click or ↵ to place · ↑↓ navigate
         </p>
       </div>
 
@@ -560,12 +1033,66 @@ export default function WorkspaceExplorer({ onClose }: Props) {
         title="Drag to resize"
       />
 
-      {/* Image hover preview */}
-      {imagePreview && (() => {
-        const previewW = 220;
+      {/* Extension-change warning */}
+      {renameExtWarning && (
+        <div
+          style={{ position: 'fixed', inset: 0, zIndex: 9200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.45)' }}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <div style={{ background: 'var(--c-panel)', border: '1px solid var(--c-border)', borderRadius: 14, padding: '20px 24px', maxWidth: 340, boxShadow: '0 16px 48px rgba(0,0,0,0.4)' }}>
+            <p style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 700, color: 'var(--c-text-hi)', margin: '0 0 8px' }}>Change file extension?</p>
+            <p style={{ fontFamily: 'monospace', fontSize: 11, color: 'var(--c-text-off)', margin: '0 0 16px', lineHeight: 1.5 }}>
+              Renaming <span style={{ color: 'var(--c-text-md)' }}>{renameExtWarning.entry.name}</span> to{' '}
+              <span style={{ color: '#f59e0b' }}>{renameExtWarning.newName}</span> changes the extension.
+              The file may no longer open correctly.
+            </p>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                onClick={() => { doRename(renameExtWarning.entry, renameExtWarning.newName); setRenameExtWarning(null); }}
+                style={{ flex: 1, padding: '7px 0', background: '#f59e0b', border: 'none', borderRadius: 8, fontFamily: 'monospace', fontSize: 11, fontWeight: 700, color: '#000', cursor: 'pointer' }}
+              >
+                Rename anyway
+              </button>
+              <button
+                onClick={() => setRenameExtWarning(null)}
+                style={{ flex: 1, padding: '7px 0', background: 'var(--c-hover)', border: 'none', borderRadius: 8, fontFamily: 'monospace', fontSize: 11, color: 'var(--c-text-hi)', cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Explorer entry context menu */}
+      {explorerMenu && (() => {
+        const MENU_W = 160;
+        const left = Math.min(explorerMenu.x, window.innerWidth - MENU_W - 8);
+        const top  = Math.min(explorerMenu.y, window.innerHeight - 80);
+        return (
+          <div
+            ref={explorerMenuRef}
+            style={{ position: 'fixed', left, top, zIndex: 9100, minWidth: MENU_W }}
+            className="py-1.5 rounded-xl border border-[var(--c-border)] bg-[var(--c-panel)] shadow-2xl"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <button
+              className="w-full flex items-center justify-between px-3 py-1.5 text-[12px] font-mono rounded transition-colors text-left text-[var(--c-text-md)] hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]"
+              onClick={() => startRename(explorerMenu.entry)}
+            >
+              <span>Rename</span>
+              <span className="text-[10px] text-[var(--c-text-off)] ml-3">F2</span>
+            </button>
+          </div>
+        );
+      })()}
+
+      {/* File preview panel */}
+      {filePreview && (() => {
+        const previewW = 240;
         const spaceRight = window.innerWidth - (pos.x + width + 8);
         const left = spaceRight >= previewW ? pos.x + width + 8 : pos.x - previewW - 8;
-        const top = Math.max(8, Math.min(imagePreview.clientY - 70, window.innerHeight - 220));
+        const top = Math.max(8, Math.min(filePreview.anchorY - 80, window.innerHeight - 260));
         return (
           <div
             style={{
@@ -573,6 +1100,7 @@ export default function WorkspaceExplorer({ onClose }: Props) {
               left,
               top,
               width: previewW,
+              maxHeight: 340,
               zIndex: 200,
               borderRadius: 10,
               border: '1px solid var(--c-border)',
@@ -580,22 +1108,41 @@ export default function WorkspaceExplorer({ onClose }: Props) {
               boxShadow: '0 8px 28px rgba(0,0,0,0.36)',
               overflow: 'hidden',
               pointerEvents: 'none',
+              display: 'flex',
+              flexDirection: 'column',
             }}
           >
-            <div style={{ background: 'rgba(0,0,0,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 80, maxHeight: 160, overflow: 'hidden' }}>
-              <img
-                src={imagePreview.url}
-                style={{ maxWidth: '100%', maxHeight: 160, display: 'block', objectFit: 'contain' }}
-                alt=""
-              />
+            {/* Filename bar */}
+            <div style={{ padding: '7px 10px', borderBottom: '1px solid var(--c-border)', flexShrink: 0 }}>
+              <span style={{ fontFamily: 'monospace', fontSize: 10, fontWeight: 700, color: fileColor(filePreview.entry.name) }}>
+                {filePreview.entry.name}
+              </span>
+              <span style={{ fontFamily: 'monospace', fontSize: 9, color: 'var(--c-text-off)', marginLeft: 6 }}>
+                {filePreview.entry.path.slice(0, -1).join('/')}
+              </span>
             </div>
-            <div style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 3 }}>
-              <span style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 600, color: 'var(--c-text-hi)' }}>
-                {imagePreview.natW} × {imagePreview.natH}
-              </span>
-              <span style={{ fontFamily: 'monospace', fontSize: 10, color: 'var(--c-text-off)' }}>
-                {formatSize(imagePreview.size)}
-              </span>
+
+            {filePreview.kind === 'image' ? (
+              <>
+                <div style={{ background: 'rgba(0,0,0,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 80, maxHeight: 180, overflow: 'hidden', flexShrink: 0 }}>
+                  <img src={filePreview.url} style={{ maxWidth: '100%', maxHeight: 180, display: 'block', objectFit: 'contain' }} alt="" />
+                </div>
+                <div style={{ padding: '7px 10px', display: 'flex', gap: 10, flexShrink: 0 }}>
+                  <span style={{ fontFamily: 'monospace', fontSize: 10, fontWeight: 600, color: 'var(--c-text-hi)' }}>{filePreview.natW} × {filePreview.natH}</span>
+                  <span style={{ fontFamily: 'monospace', fontSize: 10, color: 'var(--c-text-off)' }}>{formatSize(filePreview.size)}</span>
+                </div>
+              </>
+            ) : (
+              <div style={{ overflow: 'auto', flex: 1, padding: '6px 0' }}>
+                <pre style={{ margin: 0, padding: '0 10px', fontFamily: "'JetBrains Mono', monospace", fontSize: 10, lineHeight: 1.5, color: 'var(--c-text-hi)', whiteSpace: 'pre', tabSize: 2 }}>
+                  {filePreview.content.split('\n').slice(0, 40).join('\n')}
+                  {filePreview.content.split('\n').length > 40 && '\n…'}
+                </pre>
+              </div>
+            )}
+
+            <div style={{ padding: '5px 10px', borderTop: '1px solid var(--c-border)', flexShrink: 0 }}>
+              <span style={{ fontFamily: 'monospace', fontSize: 9, color: 'var(--c-text-off)' }}>double-click or ↵ to place on canvas</span>
             </div>
           </div>
         );

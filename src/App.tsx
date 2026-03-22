@@ -63,7 +63,8 @@ export default function App() {
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [showTimer, setShowTimer] = useState(false);
   const [pagesOpen, setPagesOpen] = useState(false);
-  const [explorerOpen, setExplorerOpen] = useState(false);
+  const explorerOpen = useBoardStore((s) => s.explorerOpen);
+  const setExplorerOpen = useBoardStore((s) => s.setExplorerOpen);
 
   useEffect(() => {
     setToastListener((msg) => {
@@ -222,7 +223,7 @@ export default function App() {
         pagesOpen={pagesOpen}
         onTogglePages={() => setPagesOpen((v) => !v)}
         explorerOpen={explorerOpen}
-        onToggleExplorer={() => setExplorerOpen((v) => !v)}
+        onToggleExplorer={() => setExplorerOpen(!explorerOpen)}
         onWorkspaceOpened={() => setExplorerOpen(true)}
       />
       {showTimer && <TimerWidget onClose={() => setShowTimer(false)} />}

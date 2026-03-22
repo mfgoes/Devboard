@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useBoardStore } from '../store/boardStore';
 import { CanvasNode } from '../types';
 
@@ -41,6 +41,7 @@ export default function ContextMenu({ menu, onClose }: Props) {
 
   const nodes = store.nodes.filter((n) => selectedIds.includes(n.id));
   const nonConnectors = nodes.filter((n) => n.type !== 'connector');
+  const imageNodes = nodes.filter((n) => n.type === 'image') as import('../types').ImageNode[];
 
   const anyLocked = nonConnectors.some((n) => (n as { locked?: boolean }).locked);
   const allLocked = nonConnectors.length > 0 && nonConnectors.every((n) => (n as { locked?: boolean }).locked);
@@ -97,6 +98,67 @@ export default function ContextMenu({ menu, onClose }: Props) {
 
   const Sep = () => <div className="my-1 h-px bg-[var(--c-border)]" />;
 
+  // Submenu item — shows a flyout panel on hover
+  const SubMenu = ({
+    label,
+    children,
+  }: {
+    label: string;
+    children: React.ReactNode;
+  }) => {
+    const [open, setOpen] = useState(false);
+    const itemRef = useRef<HTMLDivElement>(null);
+    const flyoutRef = useRef<HTMLDivElement>(null);
+    const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const show = () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      setOpen(true);
+    };
+    const hide = () => {
+      timerRef.current = setTimeout(() => setOpen(false), 80);
+    };
+
+    // Position flyout: prefer right, fall back to left
+    const [flyoutLeft, setFlyoutLeft] = useState(0);
+    const [flyoutTop, setFlyoutTop] = useState(0);
+    useEffect(() => {
+      if (!open || !itemRef.current) return;
+      const rect = itemRef.current.getBoundingClientRect();
+      const flyoutW = 180;
+      const spaceRight = window.innerWidth - rect.right - 4;
+      setFlyoutLeft(spaceRight >= flyoutW ? rect.right + 4 : rect.left - flyoutW - 4);
+      setFlyoutTop(rect.top - 4);
+    }, [open]);
+
+    return (
+      <div
+        ref={itemRef}
+        className="relative"
+        onMouseEnter={show}
+        onMouseLeave={hide}
+      >
+        <button
+          className="w-full flex items-center justify-between px-3 py-1.5 text-[12px] font-mono rounded transition-colors text-left text-[var(--c-text-md)] hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]"
+        >
+          <span>{label}</span>
+          <span className="text-[10px] text-[var(--c-text-off)] ml-3">▶</span>
+        </button>
+        {open && (
+          <div
+            ref={flyoutRef}
+            style={{ position: 'fixed', left: flyoutLeft, top: flyoutTop, zIndex: 9100, minWidth: 180 }}
+            className="py-1.5 rounded-xl border border-[var(--c-border)] bg-[var(--c-panel)] shadow-2xl"
+            onMouseEnter={show}
+            onMouseLeave={hide}
+          >
+            {children}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div
       ref={ref}
@@ -146,6 +208,27 @@ export default function ContextMenu({ menu, onClose }: Props) {
             label="Send to back"
             onClick={() => run(() => useBoardStore.getState().sendToBack(selectedIds))}
           />
+
+          {imageNodes.length > 0 && (
+            <>
+              <Sep />
+              <SubMenu label="Render style">
+                {(['smooth', 'pixelated'] as const).map((mode) => {
+                  const label = mode === 'smooth' ? 'Smooth (default)' : 'Pixelated (nearest)';
+                  const active = imageNodes.every((n) => (n.imageRendering ?? 'smooth') === mode);
+                  return (
+                    <Item
+                      key={mode}
+                      label={active ? `✓  ${label}` : `    ${label}`}
+                      onClick={() => run(() => {
+                        for (const n of imageNodes) useBoardStore.getState().updateNode(n.id, { imageRendering: mode });
+                      })}
+                    />
+                  );
+                })}
+              </SubMenu>
+            </>
+          )}
 
           {canGroup && (
             <>

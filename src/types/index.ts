@@ -178,10 +178,12 @@ export interface ImageNode {
   width: number;
   height: number;
   src: string; // base64 data URL
-  assetName?: string; // filename in workspace assets/
+  assetName?: string;   // filename in workspace subfolder
+  assetFolder?: string; // subfolder within workspace (default: 'assets')
   rotation?: number;
   locked?: boolean;
   groupId?: string;
+  imageRendering?: 'smooth' | 'pixelated';
 }
 
 export type CanvasNode = StickyNoteNode | ConnectorNode | TextBlockNode | ShapeNode | SectionNode | StickerNode | TableNode | CodeBlockNode | ImageNode;
