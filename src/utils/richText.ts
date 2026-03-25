@@ -5,6 +5,8 @@ export interface RichRun {
   bold: boolean;
   italic: boolean;
   underline: boolean;
+  link?: boolean;
+  href?: string;
 }
 
 export interface PositionedRun extends RichRun {
@@ -54,19 +56,19 @@ export function parseRichText(html: string): RichRun[][] {
     currentLine = [];
   }
 
-  function append(text: string, b: boolean, i: boolean, u: boolean) {
+  function append(text: string, b: boolean, i: boolean, u: boolean, lk: boolean, href?: string) {
     if (!text) return;
     const last = currentLine[currentLine.length - 1];
-    if (last && last.bold === b && last.italic === i && last.underline === u) {
+    if (last && last.bold === b && last.italic === i && last.underline === u && !!last.link === lk && last.href === href) {
       last.text += text;
     } else {
-      currentLine.push({ text, bold: b, italic: i, underline: u });
+      currentLine.push({ text, bold: b, italic: i, underline: u, link: lk || undefined, href });
     }
   }
 
-  function walk(node: Node, b: boolean, i: boolean, u: boolean) {
+  function walk(node: Node, b: boolean, i: boolean, u: boolean, lk: boolean, href?: string) {
     if (node.nodeType === Node.TEXT_NODE) {
-      append(node.textContent ?? '', b, i, u);
+      append(node.textContent ?? '', b, i, u, lk, href);
       return;
     }
     if (node.nodeType !== Node.ELEMENT_NODE) return;
@@ -78,6 +80,7 @@ export function parseRichText(html: string): RichRun[][] {
     if (tag === 'b' || tag === 'strong') b = true;
     if (tag === 'i' || tag === 'em') i = true;
     if (tag === 'u') u = true;
+    if (tag === 'a') { u = true; lk = true; href = (el as HTMLAnchorElement).getAttribute('href') || undefined; }
     if (tag === 'span') {
       if (el.style.fontWeight === 'bold') b = true;
       if (el.style.fontStyle === 'italic') i = true;
@@ -93,14 +96,14 @@ export function parseRichText(html: string): RichRun[][] {
     if (isBlock && (currentLine.length > 0 || lines.length > 0)) flush();
 
     for (const child of Array.from(el.childNodes)) {
-      walk(child, b, i, u);
+      walk(child, b, i, u, lk);
     }
 
     if (isBlock) flush();
   }
 
   for (const child of Array.from(div.childNodes)) {
-    walk(child, false, false, false);
+    walk(child, false, false, false, false);
   }
   if (currentLine.length > 0) flush();
 
@@ -160,19 +163,43 @@ export function layoutRichText(
       bold: boolean;
       italic: boolean;
       underline: boolean;
+      link?: boolean;
       w: number;
     }
     const tokens: Token[] = [];
     for (const run of runs) {
       const parts = run.text.match(/\S+\s*|\s+/g) ?? [];
       for (const p of parts) {
-        tokens.push({
-          text: p,
-          bold: run.bold,
-          italic: run.italic,
-          underline: run.underline,
-          w: measureText(p, run.bold, run.italic, fontSize),
-        });
+        const tw = measureText(p, run.bold, run.italic, fontSize);
+        // Break tokens wider than the container into character chunks
+        if (tw > containerWidth && p.trim().length > 1) {
+          let remaining = p;
+          while (remaining.length > 0) {
+            let end = 1;
+            while (end < remaining.length && measureText(remaining.slice(0, end + 1), run.bold, run.italic, fontSize) <= containerWidth) {
+              end++;
+            }
+            const chunk = remaining.slice(0, end);
+            tokens.push({
+              text: chunk,
+              bold: run.bold,
+              italic: run.italic,
+              underline: run.underline,
+              link: run.link,
+              w: measureText(chunk, run.bold, run.italic, fontSize),
+            });
+            remaining = remaining.slice(end);
+          }
+        } else {
+          tokens.push({
+            text: p,
+            bold: run.bold,
+            italic: run.italic,
+            underline: run.underline,
+            link: run.link,
+            w: tw,
+          });
+        }
       }
     }
 
@@ -187,7 +214,7 @@ export function layoutRichText(
         rowTokens.pop();
       }
       for (const rt of rowTokens) {
-        result.push({ x: rt.x, y, text: rt.text, bold: rt.bold, italic: rt.italic, underline: rt.underline });
+        result.push({ x: rt.x, y, text: rt.text, bold: rt.bold, italic: rt.italic, underline: rt.underline, link: rt.link });
       }
       rowTokens = [];
       x = 0;

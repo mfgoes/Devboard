@@ -24,7 +24,13 @@
       "Bash(find /Users/mischavandergoes/Documents/GitHub/CollaboCanvas/src -name *.png -o -name *.svg -o -name *.webp)",
       "Bash(ls:*)",
       "WebFetch(domain:localhost)",
-      "Bash(mkdir:*)"
+      "Bash(mkdir:*)",
+      "Bash(sass assets/sass/main.scss assets/css/main.css --style=compressed --no-source-map)",
+      "Bash(sass assets/sass/cards.scss assets/css/cards.css --style=compressed --no-source-map)",
+      "Bash(npx sass:*)",
+      "Bash(node -e \"require\\(''sass''\\)\")",
+      "Bash(open -a 'Google Chrome' http://localhost:5500/index.html)",
+      "Bash(npx vite:*)"
     ]
   }
 }

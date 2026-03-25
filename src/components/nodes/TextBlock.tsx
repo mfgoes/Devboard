@@ -116,7 +116,8 @@ export default function TextBlock({ node, isSelected, isEditing, onSnapMove, onS
     node.italic ? 'italic' : '',
   ].filter(Boolean).join(' ') || 'normal';
 
-  const textDecoration = node.underline ? 'underline' : '';
+  const hasLink = !!node.link;
+  const textDecoration = (node.underline || hasLink) ? 'underline' : '';
 
   // Rough hit area height
   const lineCount  = (node.text || ' ').split('\n').length;
@@ -169,7 +170,7 @@ export default function TextBlock({ node, isSelected, isEditing, onSnapMove, onS
             textDecoration={textDecoration}
             lineHeight={1.5}
             fontFamily="'JetBrains Mono', 'Fira Code', monospace"
-            fill={node.text ? (node.color === 'auto' ? t.textHi : node.color) : t.textOff}
+            fill={node.text ? (hasLink ? '#60a5fa' : node.color === 'auto' ? t.textHi : node.color) : t.textOff}
             wrap="word"
             align={node.textAlign ?? 'left'}
             listening={false}

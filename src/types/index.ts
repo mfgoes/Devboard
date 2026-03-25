@@ -10,7 +10,8 @@ export type Tool =
   | 'sticker'
   | 'table'
   | 'code'
-  | 'image';
+  | 'image'
+  | 'link';
 
 export type AnchorSide = 'top' | 'right' | 'bottom' | 'left';
 
@@ -186,7 +187,27 @@ export interface ImageNode {
   imageRendering?: 'smooth' | 'pixelated';
 }
 
-export type CanvasNode = StickyNoteNode | ConnectorNode | TextBlockNode | ShapeNode | SectionNode | StickerNode | TableNode | CodeBlockNode | ImageNode;
+export type LinkDisplayMode = 'compact' | 'embed';
+
+export interface LinkNode {
+  id: string;
+  type: 'link';
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  url: string;
+  displayMode: LinkDisplayMode;
+  title?: string;
+  description?: string;
+  favicon?: string;
+  image?: string;    // og:image URL
+  siteName?: string; // og:site_name
+  locked?: boolean;
+  groupId?: string;
+}
+
+export type CanvasNode = StickyNoteNode | ConnectorNode | TextBlockNode | ShapeNode | SectionNode | StickerNode | TableNode | CodeBlockNode | ImageNode | LinkNode;
 
 export interface Camera {
   x: number;

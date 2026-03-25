@@ -139,6 +139,15 @@ function IconImage() {
     </svg>
   );
 }
+function IconLink() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <path d="M6.5 9.5L9.5 6.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M9 5L10.5 3.5a2.12 2.12 0 013 3L12 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M7 11L5.5 12.5a2.12 2.12 0 01-3-3L4 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
 
 const TOOLS: ToolDef[] = [
   { id: 'select',  label: 'Select',  shortcut: 'V', icon: <IconSelect /> },
@@ -152,6 +161,7 @@ const TOOLS: ToolDef[] = [
   { id: 'table',   label: 'Table',   shortcut: 'G', icon: <IconTable />,  mobileHidden: true },
   { id: 'code',    label: 'Code',    shortcut: 'K', icon: <IconCode />,   mobileHidden: true },
   { id: 'image',   label: 'Image',   shortcut: 'I', icon: <IconImage />,  mobileHidden: true },
+  { id: 'link',    label: 'Link',    shortcut: 'U', icon: <IconLink />,   mobileHidden: true },
 ];
 
 type ShapeKindDef = { kind: ShapeKind; label: string; icon: React.ReactNode };

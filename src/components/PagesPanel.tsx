@@ -65,7 +65,7 @@ export default function PagesPanel({ onClose }: Props) {
         top: 52,
         left: 8,
         width: 220,
-        zIndex: 180,
+        zIndex: 185,
         borderRadius: 12,
         border: '1px solid var(--c-border)',
         background: 'var(--c-panel)',

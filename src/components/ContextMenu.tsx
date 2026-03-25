@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useBoardStore } from '../store/boardStore';
-import { CanvasNode } from '../types';
+import { CanvasNode, LinkNode, TextBlockNode } from '../types';
+
+function generateId() { return Math.random().toString(36).slice(2, 11); }
 
 export interface ContextMenuState {
   x: number;
@@ -42,6 +44,11 @@ export default function ContextMenu({ menu, onClose }: Props) {
   const nodes = store.nodes.filter((n) => selectedIds.includes(n.id));
   const nonConnectors = nodes.filter((n) => n.type !== 'connector');
   const imageNodes = nodes.filter((n) => n.type === 'image') as import('../types').ImageNode[];
+  const singleNode = nonConnectors.length === 1 ? nonConnectors[0] : null;
+  const isLinkNode = singleNode?.type === 'link';
+  const isTextWithUrl = singleNode?.type === 'textblock' && /^https?:\/\/\S+$/i.test((singleNode as TextBlockNode).text.trim());
+  const isTextWithLink = singleNode?.type === 'textblock' && !!(singleNode as TextBlockNode).link;
+  const canSwitchType = isLinkNode || isTextWithUrl || isTextWithLink;
 
   const anyLocked = nonConnectors.some((n) => (n as { locked?: boolean }).locked);
   const allLocked = nonConnectors.length > 0 && nonConnectors.every((n) => (n as { locked?: boolean }).locked);
@@ -251,6 +258,67 @@ export default function ContextMenu({ menu, onClose }: Props) {
                   })}
                 />
               )}
+            </>
+          )}
+
+          {canSwitchType && (
+            <>
+              <Sep />
+              <SubMenu label="Turn into">
+                {isLinkNode && (
+                  <Item
+                    label="Text block"
+                    onClick={() => run(() => {
+                      const ln = singleNode as LinkNode;
+                      const s = useBoardStore.getState();
+                      s.saveHistory();
+                      const textId = generateId();
+                      s.addNode({
+                        id: textId,
+                        type: 'textblock',
+                        x: ln.x,
+                        y: ln.y,
+                        width: ln.width,
+                        text: ln.title || ln.url,
+                        fontSize: 16,
+                        color: 'auto',
+                        bold: false,
+                        italic: false,
+                        underline: false,
+                        link: ln.url,
+                      } as TextBlockNode);
+                      s.selectIds([ln.id]);
+                      s.deleteSelected();
+                      s.selectIds([textId]);
+                    })}
+                  />
+                )}
+                {(isTextWithUrl || isTextWithLink) && (
+                  <Item
+                    label="Link embed"
+                    onClick={() => run(() => {
+                      const tb = singleNode as TextBlockNode;
+                      const url = tb.link || tb.text.trim();
+                      const s = useBoardStore.getState();
+                      s.saveHistory();
+                      const linkId = generateId();
+                      s.addNode({
+                        id: linkId,
+                        type: 'link',
+                        x: tb.x,
+                        y: tb.y,
+                        width: Math.max(320, tb.width),
+                        height: 90,
+                        url,
+                        displayMode: 'compact',
+                      } as LinkNode);
+                      s.selectIds([tb.id]);
+                      s.deleteSelected();
+                      s.selectIds([linkId]);
+                    })}
+                  />
+                )}
+              </SubMenu>
             </>
           )}
 

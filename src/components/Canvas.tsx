@@ -23,9 +23,11 @@ import TableInsertControls from './TableInsertControls';
 import TableReorderControls from './TableReorderControls';
 import MultiSelectToolbar from './MultiSelectToolbar';
 import ContextMenu, { ContextMenuState } from './ContextMenu';
-import { AnchorSide, ConnectorNode, StickyNoteNode, ShapeNode, TextBlockNode, SectionNode, StickerNode, TableNode, CodeBlockNode, ImageNode } from '../types';
+import { AnchorSide, ConnectorNode, StickyNoteNode, ShapeNode, TextBlockNode, SectionNode, StickerNode, TableNode, CodeBlockNode, ImageNode, LinkNode } from '../types';
 import CodeBlockComponent from './nodes/CodeBlock';
 import ImageNodeComponent from './nodes/ImageNode';
+import LinkNodeComponent from './nodes/LinkNode';
+import LinkToolbar from './LinkToolbar';
 import { saveImageAsset, saveWorkspace, getWorkspaceName, openWorkspace } from '../utils/workspaceManager';
 import { hasSeenImageNotice, markImageNoticeSeen } from './ImageFirstUseModal';
 import ImageFirstUseModal from './ImageFirstUseModal';
@@ -341,6 +343,7 @@ export default function Canvas() {
           KeyG: 'table',
           KeyK: 'code',
           KeyI: 'image',
+          KeyU: 'link',
         };
         if (shortcuts[e.code]) setActiveTool(shortcuts[e.code]);
       }
@@ -464,6 +467,24 @@ export default function Canvas() {
           title: 'Query: User Activity Summary',
           showLineNumbers: true,
         } satisfies CodeBlockNode);
+        setActiveTool('select');
+        return;
+      }
+
+      if (activeTool === 'link' && clickedStage) {
+        const pos = stageRef.current!.getPointerPosition()!;
+        const worldX = (pos.x - camera.x) / camera.scale;
+        const worldY = (pos.y - camera.y) / camera.scale;
+        addNode({
+          id: generateId(),
+          type: 'link',
+          x: worldX - 160,
+          y: worldY - 30,
+          width: 320,
+          height: 90,
+          url: 'https://',
+          displayMode: 'compact',
+        } satisfies LinkNode);
         setActiveTool('select');
         return;
       }
@@ -1008,6 +1029,9 @@ export default function Canvas() {
             addNode({ id: generateId(), type: 'sticker', src: activeSticker, x: worldX, y: worldY, width: 100, height: 100, rotation } satisfies StickerNode);
           } else if (activeTool === 'code') {
             addNode({ id: generateId(), type: 'codeblock', x: worldX - 250, y: worldY - 40, width: 500, height: 220, code: `SELECT\n  user_id,\n  COUNT(*) AS event_count\nFROM user_events\nGROUP BY 1\nLIMIT 100`, language: 'sql', title: 'Query', showLineNumbers: true } satisfies CodeBlockNode);
+            setActiveTool('select');
+          } else if (activeTool === 'link') {
+            addNode({ id: generateId(), type: 'link', x: worldX - 160, y: worldY - 30, width: 320, height: 90, url: 'https://', displayMode: 'compact' } satisfies LinkNode);
             setActiveTool('select');
           }
         }
@@ -1674,6 +1698,21 @@ export default function Canvas() {
         />
       ))}
 
+      {/* ── Link overlays ────────────────────────────────────────────────── */}
+      {nodes.filter((n) => n.type === 'link').map((n) => (
+        <LinkNodeComponent
+          key={n.id}
+          node={n as LinkNode}
+          isSelected={selectedIds.includes(n.id)}
+          isDrawingLine={drawingLine !== null}
+          onAnchorDown={handleAnchorDown}
+          onAnchorEnter={handleAnchorEnter}
+          onAnchorLeave={handleAnchorLeave}
+          snapAnchor={snapTarget?.nodeId === n.id ? snapTarget.side : null}
+          onContextMenu={handleNodeContextMenu}
+        />
+      ))}
+
       {/* HTML overlays */}
       <TextEditor />
       <TableCellEditor />
@@ -1702,6 +1741,9 @@ export default function Canvas() {
       )}
       {singleSelected?.type === 'codeblock' && (
         <CodeBlockToolbar nodeId={singleSelected.id} />
+      )}
+      {singleSelected?.type === 'link' && (
+        <LinkToolbar nodeId={singleSelected.id} />
       )}
       {singleSelected?.type === 'section' && (
         <SectionToolbar nodeId={singleSelected.id} />

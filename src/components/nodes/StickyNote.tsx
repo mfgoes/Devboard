@@ -33,7 +33,7 @@ function StickyRichText({ node }: { node: StickyNoteNode }) {
           textDecoration={run.underline ? 'underline' : ''}
           lineHeight={1}
           fontFamily="'JetBrains Mono', 'Fira Code', monospace"
-          fill="#1a1a2e"
+          fill={run.link ? '#2563eb' : '#1a1a2e'}
           listening={false}
         />
       ))}

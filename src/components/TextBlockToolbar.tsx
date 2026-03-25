@@ -327,38 +327,63 @@ export default function TextBlockToolbar({ nodeId }: { nodeId: string }) {
           </svg>
         </button>
         {showLink && (
-          <div className="absolute top-full right-0 mt-1 p-2 bg-[var(--c-panel)] border border-[var(--c-border)] rounded-xl shadow-2xl z-50 flex gap-2 items-center min-w-[260px]">
-            <input
-              ref={linkInputRef}
-              type="url"
-              value={linkValue}
-              placeholder="https://..."
-              onChange={(e) => setLinkValue(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') { update({ link: linkValue || undefined }); setShowLink(false); }
-                if (e.key === 'Escape') setShowLink(false);
-                e.stopPropagation();
-              }}
-              className="flex-1 bg-[var(--c-canvas)] border border-[var(--c-border)] rounded-lg px-3 py-1.5 text-[var(--c-text-hi)] font-mono text-[12px] outline-none focus:border-[#6366f1]"
-            />
-            <button
-              onClick={() => { update({ link: linkValue || undefined }); setShowLink(false); }}
-              className="px-3 py-1.5 bg-[#6366f1] text-white rounded-lg text-[12px] font-mono hover:bg-[#4f51c7] transition-colors whitespace-nowrap"
-            >
-              Set
-            </button>
-            {node.link && (
+          <div className="absolute top-full right-0 mt-1 p-2 bg-[var(--c-panel)] border border-[var(--c-border)] rounded-xl shadow-2xl z-50 min-w-[260px]">
+            <div className="flex gap-2 items-center">
+              <input
+                ref={linkInputRef}
+                type="url"
+                value={linkValue}
+                placeholder="https://..."
+                onChange={(e) => setLinkValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') { update({ link: linkValue || undefined }); setShowLink(false); }
+                  if (e.key === 'Escape') setShowLink(false);
+                  e.stopPropagation();
+                }}
+                className="flex-1 bg-[var(--c-canvas)] border border-[var(--c-border)] rounded-lg px-3 py-1.5 text-[var(--c-text-hi)] font-mono text-[12px] outline-none focus:border-[#6366f1]"
+              />
               <button
-                title="Remove link"
-                onClick={() => { update({ link: undefined }); setShowLink(false); }}
-                className="w-7 h-7 flex items-center justify-center text-[#f87171] rounded-lg hover:bg-[var(--c-hover)] transition-colors flex-shrink-0"
+                onClick={() => { update({ link: linkValue || undefined }); setShowLink(false); }}
+                className="px-3 py-1.5 bg-[#6366f1] text-white rounded-lg text-[12px] font-mono hover:bg-[#4f51c7] transition-colors whitespace-nowrap"
               >
-                ✕
+                Set
               </button>
-            )}
+              {node.link && (
+                <button
+                  title="Remove link"
+                  onClick={() => { update({ link: undefined }); setShowLink(false); }}
+                  className="w-7 h-7 flex items-center justify-center text-[#f87171] rounded-lg hover:bg-[var(--c-hover)] transition-colors flex-shrink-0"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
           </div>
         )}
       </div>
+
+      {/* ── Open link (visible when link is set) ─────────────────────── */}
+      {node.link && (
+        <>
+          <div className="w-px h-6 bg-[var(--c-border)]" />
+          <div className="px-1 py-1">
+            <a
+              href={node.link}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={`Open ${node.link}`}
+              className="w-9 h-9 flex items-center justify-center rounded-lg text-[var(--c-text-lo)] hover:text-[#60a5fa] hover:bg-[var(--c-hover)] transition-colors"
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <svg width="14" height="14" viewBox="0 0 12 12" fill="none">
+                <path d="M9 6.5V9.5C9 10.05 8.55 10.5 8 10.5H2.5C1.95 10.5 1.5 10.05 1.5 9.5V4C1.5 3.45 1.95 3 2.5 3H5.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+                <path d="M7 1.5H10.5V5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M10.5 1.5L5.5 6.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+              </svg>
+            </a>
+          </div>
+        </>
+      )}
     </div>
   );
 }

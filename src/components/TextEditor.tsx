@@ -239,7 +239,7 @@ export default function TextEditor() {
   if (editingNode.type === 'textblock') {
     const tb = editingNode as TextBlockNode;
     const fs = Math.round(tb.fontSize * camera.scale);
-    const tbColor = tb.color === 'auto' ? t.textHi : tb.color;
+    const tbColor = tb.link ? '#60a5fa' : (tb.color === 'auto' ? t.textHi : tb.color);
     return (
       <textarea
         ref={textareaRef}
@@ -266,7 +266,7 @@ export default function TextEditor() {
           fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
           fontWeight: tb.bold ? 'bold' : 'normal',
           fontStyle: tb.italic ? 'italic' : 'normal',
-          textDecoration: tb.underline ? 'underline' : 'none',
+          textDecoration: (tb.underline || tb.link) ? 'underline' : 'none',
           textAlign: tb.textAlign ?? 'left',
           color: tbColor,
           padding: 0,
@@ -291,6 +291,20 @@ export default function TextEditor() {
       measureStickyHeight(html, stickyNode.width - 20, stickyNode.fontSize ?? 13, true),
     );
     updateNode(editingId, { text: html, height: newHeight });
+  };
+
+  const handleStickyPaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
+    const text = e.clipboardData.getData('text/plain').trim();
+    if (text && /^https?:\/\/\S+$/i.test(text)) {
+      e.preventDefault();
+      const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      document.execCommand(
+        'insertHTML',
+        false,
+        `<a href="${escaped}" style="color:#60a5fa;text-decoration:underline;word-break:break-all">${escaped}</a>`,
+      );
+      syncStickyContent();
+    }
   };
 
   const handleStickyKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -319,6 +333,7 @@ export default function TextEditor() {
       onBlur={() => setTimeout(() => {
         if (document.activeElement !== stickyEditorRef.current) setEditingId(null);
       }, 150)}
+      onPaste={handleStickyPaste}
       onKeyDown={handleStickyKeyDown}
       style={{
         position: 'absolute',

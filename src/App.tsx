@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { saveBoard } from './utils/fileSave';
 import { saveWorkspace, getWorkspaceName } from './utils/workspaceManager';
-import { setToastListener } from './utils/toast';
+import { setToastListener, toast, ToastPayload } from './utils/toast';
 
 // Tauri event listener — only active when running inside a Tauri window
 async function listenTauriMenus(handlers: Record<string, () => void>) {
@@ -29,6 +29,8 @@ import WelcomeModal from './components/WelcomeModal';
 import PagesPanel from './components/PagesPanel';
 import TimerWidget from './components/TimerWidget';
 import WorkspaceExplorer from './components/WorkspaceExplorer';
+import JiraPanel from './components/JiraPanel';
+import SearchBar from './components/SearchBar';
 import { useBoardStore } from './store/boardStore';
 import { STICKER_KEYS } from './assets/stickerAssets';
 
@@ -60,16 +62,20 @@ export default function App() {
   // Only show welcome modal when explicitly triggered (logo click)
   const [showWelcome, setShowWelcome] = useState(false);
   const [showBraveNotice, setShowBraveNotice] = useState(false);
-  const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [toastData, setToastData] = useState<ToastPayload | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout>>();
   const [showTimer, setShowTimer] = useState(false);
   const [pagesOpen, setPagesOpen] = useState(false);
+  const [jiraOpen, setJiraOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const explorerOpen = useBoardStore((s) => s.explorerOpen);
   const setExplorerOpen = useBoardStore((s) => s.setExplorerOpen);
 
   useEffect(() => {
-    setToastListener((msg) => {
-      setToastMsg(msg);
-      setTimeout(() => setToastMsg(null), 2500);
+    setToastListener((payload) => {
+      clearTimeout(toastTimer.current);
+      setToastData(payload);
+      toastTimer.current = setTimeout(() => setToastData(null), payload.action ? 5000 : 2500);
     });
   }, []);
 
@@ -116,6 +122,13 @@ export default function App() {
   // Global copy / paste / duplicate shortcuts
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      // Cmd+F: open search bar (must run before tag guard so it works from any context)
+      if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
+        e.preventDefault();
+        setSearchOpen(true);
+        return;
+      }
+
       const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
       if (tag === 'input' || tag === 'textarea') return;
 
@@ -127,7 +140,65 @@ export default function App() {
         useBoardStore.getState().copySelected();
       } else if (e.key === 'v') {
         e.preventDefault();
-        useBoardStore.getState().paste();
+        // Check system clipboard for URL — if so, create a Link node with option to convert
+        navigator.clipboard.readText().then((text) => {
+          const trimmed = text?.trim();
+          if (trimmed && /^https?:\/\/\S+$/i.test(trimmed)) {
+            const { camera, addNode, selectIds, clipboard, saveHistory, deleteSelected } = useBoardStore.getState();
+            // If internal clipboard has nodes, prefer internal paste (user copied nodes first)
+            if (clipboard.length > 0) {
+              useBoardStore.getState().paste();
+              return;
+            }
+            saveHistory();
+            const linkId = generateId();
+            const cx = (window.innerWidth / 2 - camera.x) / camera.scale;
+            const cy = (window.innerHeight / 2 - camera.y) / camera.scale;
+            addNode({
+              id: linkId,
+              type: 'link',
+              x: cx - 160,
+              y: cy - 45,
+              width: 320,
+              height: 90,
+              url: trimmed,
+              displayMode: 'compact',
+            } as import('./types').LinkNode);
+            selectIds([linkId]);
+            // Show toast with option to convert to text block
+            toast('Pasted as link embed', {
+              label: 'Make text instead',
+              onClick: () => {
+                const store = useBoardStore.getState();
+                store.saveHistory();
+                // Remove the link node
+                store.selectIds([linkId]);
+                store.deleteSelected();
+                // Create a text block with the URL as linked text
+                const textId = generateId();
+                store.addNode({
+                  id: textId,
+                  type: 'textblock',
+                  x: cx - 160,
+                  y: cy - 10,
+                  width: 320,
+                  text: trimmed,
+                  fontSize: 16,
+                  color: 'auto',
+                  bold: false,
+                  italic: false,
+                  underline: false,
+                  link: trimmed,
+                } as import('./types').TextBlockNode);
+                store.selectIds([textId]);
+              },
+            });
+          } else {
+            useBoardStore.getState().paste();
+          }
+        }).catch(() => {
+          useBoardStore.getState().paste();
+        });
       } else if (e.key === 'd') {
         e.preventDefault();
         useBoardStore.getState().duplicate();
@@ -211,9 +282,17 @@ export default function App() {
 
   return (
     <div className="relative w-full h-full overflow-hidden bg-[var(--c-canvas)] font-mono">
-      {toastMsg && (
-        <div className="fixed top-14 left-1/2 -translate-x-1/2 z-[300] px-4 py-2 rounded bg-[#6366f1] text-white font-mono text-xs shadow-lg pointer-events-none select-none animate-fade-in">
-          {toastMsg}
+      {toastData && (
+        <div className="fixed top-14 left-1/2 -translate-x-1/2 z-[300] flex items-center gap-3 px-4 py-2 rounded bg-[#6366f1] text-white font-mono text-xs shadow-lg select-none animate-fade-in">
+          <span className="pointer-events-none">{toastData.msg}</span>
+          {toastData.action && (
+            <button
+              onClick={() => { toastData.action!.onClick(); setToastData(null); }}
+              className="px-2 py-0.5 rounded bg-white/20 hover:bg-white/30 transition-colors text-white font-mono text-[11px] whitespace-nowrap"
+            >
+              {toastData.action.label}
+            </button>
+          )}
         </div>
       )}
       <TopBar
@@ -225,10 +304,15 @@ export default function App() {
         explorerOpen={explorerOpen}
         onToggleExplorer={() => setExplorerOpen(!explorerOpen)}
         onWorkspaceOpened={() => setExplorerOpen(true)}
+        jiraOpen={jiraOpen}
+        onToggleJira={() => setJiraOpen((v) => !v)}
+        onToggleSearch={() => setSearchOpen((v) => !v)}
       />
       {showTimer && <TimerWidget onClose={() => setShowTimer(false)} />}
       {pagesOpen && <PagesPanel onClose={() => setPagesOpen(false)} />}
       {explorerOpen && <WorkspaceExplorer onClose={() => setExplorerOpen(false)} />}
+      {jiraOpen && <JiraPanel onClose={() => setJiraOpen(false)} />}
+      {searchOpen && <SearchBar onClose={() => setSearchOpen(false)} />}
       {showBraveNotice && (
         <div className="absolute top-11 left-0 right-0 z-50 flex items-center justify-between gap-3 bg-orange-500 text-white text-xs px-4 py-2">
           <span>

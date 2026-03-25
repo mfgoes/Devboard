@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DevBoard — Manual</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+<style>
+/* ── Reset ───────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --c-canvas:  #111118;
+  --c-panel:   #1a1a2a;
+  --c-sidebar: #0e0e18;
+  --c-hover:   #22223a;
+  --c-border:  #2e2e46;
+  --c-text-hi: #e2e8f0;
+  --c-text-md: #a0a0c0;
+  --c-text-lo: #6a6a88;
+  --c-dot:     #3a3a4a;
+  --c-accent:  #6366f1;
+  --c-accent2: #818cf8;
+  --c-green:   #4ade80;
+  --c-yellow:  #fde68a;
+  --c-orange:  #fb923c;
+  --c-red:     #f87171;
+  --c-card:    #191926;
+  --r-card:    6px;
+  --r-panel:   10px;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+  background: var(--c-canvas);
+  color: var(--c-text-hi);
+  line-height: 1.6;
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Layout ──────────────────────────────────────────────────────────── */
+.layout {
+  display: grid;
+  grid-template-columns: 230px 1fr;
+  min-height: 100vh;
+}
+
+/* ── Sidebar ─────────────────────────────────────────────────────────── */
+nav {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+  background: var(--c-sidebar);
+  border-right: 1px solid var(--c-border);
+  padding: 24px 0;
+}
+
+.brand {
+  padding: 0 20px 20px;
+  border-bottom: 1px solid var(--c-border);
+  margin-bottom: 8px;
+}
+.brand a {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: var(--c-text-hi);
+}
+.brand-mark {
+  width: 26px;
+  height: 26px;
+  background: var(--c-accent);
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+.brand-mark svg { width: 14px; height: 14px; }
+.brand-title { font-size: 11px; font-weight: 700; letter-spacing: .04em; }
+.brand-sub { font-size: 10px; color: var(--c-text-lo); margin-top: 2px; padding: 0 20px; }
+
+nav h2 {
+  font-size: 9px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--c-text-lo);
+  padding: 0 20px 8px;
+  margin-top: 22px;
+}
+
+nav a.nav-link {
+  display: block;
+  padding: 6px 20px;
+  color: var(--c-text-lo);
+  text-decoration: none;
+  font-size: 12px;
+  transition: color .15s, background .15s;
+  border-left: 2px solid transparent;
+}
+nav a.nav-link:hover { color: var(--c-text-hi); background: rgba(99,102,241,.07); }
+nav a.nav-link.active { color: var(--c-accent2); border-left-color: var(--c-accent); }
+
+/* ── Main ────────────────────────────────────────────────────────────── */
+main {
+  padding: 48px 56px 96px;
+  max-width: 900px;
+}
+
+/* ── Section chrome ──────────────────────────────────────────────────── */
+section { margin-bottom: 64px; }
+
+.section-label {
+  font-size: 9px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--c-accent2);
+  margin-bottom: 6px;
+}
+
+h1 { font-size: 26px; font-weight: 700; color: var(--c-text-hi); margin-bottom: 4px; }
+h2 { font-size: 17px; font-weight: 700; color: var(--c-text-hi); margin-bottom: 14px; }
+h3 { font-size: 13px; font-weight: 700; color: var(--c-text-hi); margin-bottom: 10px; margin-top: 28px; }
+.page-meta { font-size: 11px; color: var(--c-text-lo); margin-bottom: 40px; }
+
+hr { border: none; border-top: 1px solid var(--c-border); margin: 32px 0; }
+
+/* ── Prose ───────────────────────────────────────────────────────────── */
+p { color: var(--c-text-md); font-size: 13px; margin-bottom: 12px; line-height: 1.7; }
+p strong { color: var(--c-text-hi); }
+p code, li code {
+  background: var(--c-card);
+  border: 1px solid var(--c-border);
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-size: 12px;
+  color: var(--c-accent2);
+}
+
+ul, ol { padding-left: 20px; color: var(--c-text-md); font-size: 13px; margin-bottom: 12px; }
+li { margin-bottom: 6px; line-height: 1.6; }
+
+/* ── Callouts ────────────────────────────────────────────────────────── */
+.tip {
+  background: rgba(99,102,241,.06);
+  border-left: 3px solid var(--c-accent);
+  border-radius: 0 var(--r-card) var(--r-card) 0;
+  padding: 12px 16px;
+  margin: 16px 0;
+  font-size: 13px;
+  color: var(--c-text-hi);
+}
+.tip strong { color: var(--c-accent2); }
+
+.warn {
+  background: rgba(248,113,113,.06);
+  border-left: 3px solid var(--c-red);
+  border-radius: 0 var(--r-card) var(--r-card) 0;
+  padding: 12px 16px;
+  margin: 16px 0;
+  font-size: 13px;
+  color: var(--c-text-hi);
+}
+.warn strong { color: var(--c-red); }
+
+/* ── Keyboard shortcut table ─────────────────────────────────────────── */
+.table-wrap { overflow-x: auto; margin-bottom: 24px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th {
+  text-align: left;
+  padding: 8px 12px;
+  font-size: 9px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--c-text-lo);
+  border-bottom: 1px solid var(--c-border);
+}
+td {
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(46,46,70,.5);
+  color: var(--c-text-hi);
+  vertical-align: top;
+}
+td:first-child { color: var(--c-text-lo); }
+tr:last-child td { border-bottom: none; }
+
+kbd {
+  display: inline-block;
+  background: var(--c-card);
+  border: 1px solid var(--c-border);
+  border-radius: 4px;
+  padding: 2px 7px;
+  font-size: 11px;
+  font-family: inherit;
+  color: var(--c-text-hi);
+  line-height: 1.5;
+}
+
+/* ── Feature card ────────────────────────────────────────────────────── */
+.feature-card {
+  background: var(--c-card);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-panel);
+  padding: 20px 24px;
+  margin-bottom: 16px;
+}
+.feature-card h3 { margin-top: 0; }
+
+/* ── Scrollbar ───────────────────────────────────────────────────────── */
+nav::-webkit-scrollbar { width: 4px; }
+nav::-webkit-scrollbar-track { background: transparent; }
+nav::-webkit-scrollbar-thumb { background: var(--c-border); border-radius: 4px; }
+
+/* ── Active link tracking ────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .layout { grid-template-columns: 1fr; }
+  nav { display: none; }
+  main { padding: 32px 20px 64px; }
+}
+</style>
+</head>
+<body>
+<div class="layout">
+
+<!-- ── Sidebar ─────────────────────────────────────────────────────── -->
+<nav>
+  <div class="brand">
+    <a href="../docs/index.html">
+      <div class="brand-mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round">
+          <rect x="3" y="3" width="7" height="7" rx="1.5"/>
+          <rect x="14" y="3" width="7" height="7" rx="1.5"/>
+          <rect x="3" y="14" width="7" height="7" rx="1.5"/>
+          <rect x="14" y="14" width="7" height="7" rx="1.5"/>
+        </svg>
+      </div>
+      <span class="brand-title">DevBoard</span>
+    </a>
+  </div>
+  <div class="brand-sub">User Manual</div>
+
+  <h2>Getting Started</h2>
+  <a class="nav-link active" href="#overview">Overview</a>
+  <a class="nav-link" href="#quick-start">Quick Start</a>
+
+  <h2>Canvas</h2>
+  <a class="nav-link" href="#navigation">Navigation</a>
+  <a class="nav-link" href="#zoom">Zoom</a>
+
+  <h2>Tools</h2>
+  <a class="nav-link" href="#sticky-notes">Sticky Notes</a>
+  <a class="nav-link" href="#shapes">Shapes</a>
+  <a class="nav-link" href="#text-blocks">Text Blocks</a>
+  <a class="nav-link" href="#connectors">Connectors</a>
+  <a class="nav-link" href="#links">Embedded Links</a>
+
+  <h2>Workflow</h2>
+  <a class="nav-link" href="#select-edit">Select &amp; Edit</a>
+  <a class="nav-link" href="#copy-paste">Copy &amp; Paste</a>
+  <a class="nav-link" href="#pages">Pages</a>
+
+  <h2>Export &amp; Sharing</h2>
+  <a class="nav-link" href="#export">Export</a>
+  <a class="nav-link" href="#share-link">Share Link</a>
+  <a class="nav-link" href="#save-load">Save &amp; Load</a>
+
+  <h2>Reference</h2>
+  <a class="nav-link" href="#shortcuts">Keyboard Shortcuts</a>
+</nav>
+
+<!-- ── Main content ────────────────────────────────────────────────── -->
+<main>
+
+<!-- ── Overview ─────────────────────────────────────────────────────── -->
+<section id="overview">
+  <div class="section-label">Getting Started</div>
+  <h1>DevBoard Manual</h1>
+  <p class="page-meta">A FigJam-style whiteboard for solo devs &middot; v1.0</p>
+
+  <p>
+    <strong>DevBoard</strong> is a lightweight infinite canvas for developer thinking.
+    Use it for system design, sprint planning, debug flows, feature mapping, and anything else that benefits from visual, spatial organization.
+  </p>
+  <p>
+    Everything runs in your browser. There are no accounts, no backend, and no data leaves your machine.
+    Boards are saved to <code>localStorage</code> and can be exported as JSON or PNG.
+  </p>
+
+  <div class="tip">
+    <strong>Tip:</strong> DevBoard builds to a single HTML file, so you can host it anywhere — including itch.io, a USB stick, or a local file.
+  </div>
+
+  <div class="warn">
+    <strong>Mobile:</strong> DevBoard is designed for desktop browsers with keyboard and mouse/trackpad input. Mobile and tablet support is limited — basic viewing works, but canvas interaction (pan, zoom, editing) may not behave as expected. For the best experience, use a desktop browser.
+  </div>
+
+  <div class="tip">
+    <strong>Bugs &amp; Feedback:</strong> Found a bug or have a suggestion? DM me via my <a href="https://mfgoes.github.io/portfolio-2026/" target="_blank" rel="noopener noreferrer" style="color: var(--c-accent2); text-decoration: underline;">portfolio site</a>.
+  </div>
+</section>
+
+<!-- ── Quick Start ──────────────────────────────────────────────────── -->
+<section id="quick-start">
+  <h2>Quick Start</h2>
+  <ol>
+    <li>Open DevBoard in your browser.</li>
+    <li>Press <kbd>S</kbd> to activate the Sticky Note tool and click the canvas to place one.</li>
+    <li>Double-click the sticky to type inside it.</li>
+    <li>Press <kbd>V</kbd> to switch back to Select and drag nodes around.</li>
+    <li>Use <kbd>Ctrl</kbd>/<kbd>&#8984;</kbd> + <kbd>S</kbd> to save or go to <strong>Top Bar &rarr; Save JSON</strong> for a portable file.</li>
+  </ol>
+
+  <div class="tip">
+    <strong>Tip:</strong> Hold <kbd>Space</kbd> and drag to pan the canvas at any time.
+  </div>
+</section>
+
+<hr>
+
+<!-- ── Navigation ───────────────────────────────────────────────────── -->
+<section id="navigation">
+  <div class="section-label">Canvas</div>
+  <h2>Navigation</h2>
+
+  <h3>Pan</h3>
+  <ul>
+    <li><strong>Spacebar + drag</strong> &mdash; hold Space and drag with the left mouse button.</li>
+    <li><strong>Middle mouse drag</strong> &mdash; click and drag with the middle mouse button (scroll wheel click).</li>
+    <li><strong>Trackpad</strong> &mdash; two-finger swipe pans the canvas.</li>
+    <li>Press <kbd>H</kbd> to lock into Pan mode (hand tool).</li>
+  </ul>
+
+  <h3 id="zoom">Zoom</h3>
+  <ul>
+    <li><strong>Scroll wheel</strong> &mdash; scroll up to zoom in, down to zoom out.</li>
+    <li><strong>Trackpad pinch</strong> &mdash; pinch to zoom smoothly.</li>
+    <li><strong>Toolbar buttons</strong> &mdash; use the <code>+</code> / <code>-</code> buttons in the bottom toolbar.</li>
+    <li><strong>Reset</strong> &mdash; click the zoom percentage label to reset to 100%.</li>
+  </ul>
+
+  <div class="tip">
+    <strong>Tip:</strong> Zoom is centered on your cursor position, so point at what you want to zoom into.
+  </div>
+</section>
+
+<hr>
+
+<!-- ── Sticky Notes ─────────────────────────────────────────────────── -->
+<section id="sticky-notes">
+  <div class="section-label">Tools</div>
+  <h2>Sticky Notes</h2>
+
+  <p>
+    Press <kbd>S</kbd> or click the sticky icon in the toolbar to activate the Sticky Note tool.
+    Click anywhere on the canvas to place a new note.
+  </p>
+
+  <h3>Editing</h3>
+  <ul>
+    <li><strong>Double-click</strong> a sticky to open the text editor.</li>
+    <li>Type your text and click outside to confirm.</li>
+    <li>Press <kbd>Escape</kbd> to cancel editing.</li>
+  </ul>
+
+  <h3>Color</h3>
+  <p>
+    Select a sticky note and a <strong>color picker</strong> appears above it.
+    Click a swatch to change the note's background color.
+  </p>
+
+  <h3>Resize &amp; Move</h3>
+  <ul>
+    <li>Drag the note to reposition it.</li>
+    <li>Drag the corner handles to resize.</li>
+  </ul>
+</section>
+
+<!-- ── Shapes ───────────────────────────────────────────────────────── -->
+<section id="shapes">
+  <h2>Shapes</h2>
+
+  <p>
+    Press <kbd>R</kbd> or click the shape icon in the toolbar.
+    A sub-picker appears above the toolbar with four shape kinds:
+  </p>
+  <ul>
+    <li><strong>Rectangle</strong></li>
+    <li><strong>Ellipse</strong></li>
+    <li><strong>Diamond</strong></li>
+    <li><strong>Triangle</strong></li>
+  </ul>
+
+  <p>Click the canvas to place the selected shape. Select a shape to open its <strong>Shape Toolbar</strong> where you can change:</p>
+  <ul>
+    <li>Fill color</li>
+    <li>Stroke color and width</li>
+  </ul>
+
+  <h3>Text Labels</h3>
+  <p>Double-click any shape to add a text label inside it.</p>
+</section>
+
+<!-- ── Text Blocks ──────────────────────────────────────────────────── -->
+<section id="text-blocks">
+  <h2>Text Blocks</h2>
+
+  <p>
+    Press <kbd>T</kbd> to activate the Text tool. Click and drag on the canvas to define the width of the text block, then start typing.
+  </p>
+
+  <h3>Formatting</h3>
+  <p>When a text block is selected, a toolbar appears with:</p>
+  <ul>
+    <li><strong>Bold</strong> (<kbd>Ctrl</kbd>/<kbd>&#8984;</kbd> + <kbd>B</kbd>)</li>
+    <li><strong>Italic</strong> (<kbd>Ctrl</kbd>/<kbd>&#8984;</kbd> + <kbd>I</kbd>)</li>
+    <li><strong>Underline</strong> (<kbd>Ctrl</kbd>/<kbd>&#8984;</kbd> + <kbd>U</kbd>)</li>
+    <li><strong>Bullet list</strong></li>
+    <li><strong>Link</strong></li>
+    <li><strong>Text color</strong></li>
+  </ul>
+</section>
+
+<!-- ── Connectors ───────────────────────────────────────────────────── -->
+<section id="connectors">
+  <h2>Connectors</h2>
+
+  <p>
+    Press <kbd>L</kbd> to activate the Line tool. When active, <strong>anchor dots</strong> appear on the edges of stickies and shapes.
+  </p>
+
+  <h3>Drawing a Connection</h3>
+  <ol>
+    <li>Click an anchor dot on the source node.</li>
+    <li>Drag to an anchor dot on the target node.</li>
+    <li>Release to create the connection.</li>
+  </ol>
+
+  <p>You can also click on empty canvas to place free-floating line endpoints.</p>
+
+  <h3>Line Styles</h3>
+  <p>Select a connector to choose between:</p>
+  <ul>
+    <li><strong>Bezier</strong> (curved) &mdash; default</li>
+    <li><strong>Straight</strong></li>
+    <li><strong>Orthogonal</strong> (right-angle)</li>
+  </ul>
+
+  <h3>Arrowheads</h3>
+  <p>The connector toolbar lets you toggle arrowhead styles on either end of the line.</p>
+
+  <div class="tip">
+    <strong>Tip:</strong> Smart anchors automatically pick the best sides to connect based on the relative positions of nodes. Connectors update dynamically when you move the connected elements.
+  </div>
+
+  <div class="warn">
+    <strong>Note:</strong> Deleting a sticky note or shape will also delete all connectors attached to it.
+  </div>
+</section>
+
+<!-- ── Embedded Links ────────────────────────────────────────────────── -->
+<section id="links">
+  <h2>Embedded Links</h2>
+
+  <p>
+    Link nodes let you embed URLs directly on the canvas as rich cards.
+    They automatically fetch <strong>OpenGraph metadata</strong> (title, description, preview image, favicon) from the target page.
+  </p>
+
+  <h3>Placing a Link</h3>
+  <p>
+    Use the toolbar or context menu to add a link node. Enter a URL and DevBoard will fetch metadata to display a rich preview card with:
+  </p>
+  <ul>
+    <li><strong>Favicon</strong> and domain name in the header</li>
+    <li><strong>Page title</strong> pulled from OpenGraph or <code>&lt;title&gt;</code> tag</li>
+    <li><strong>URL</strong> shown below the title</li>
+  </ul>
+
+  <h3>Display Modes</h3>
+  <p>Select a link node and use the <strong>"Turn into"</strong> dropdown in its toolbar to switch between modes:</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Mode</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>Compact link</td><td>Shows favicon, title, and URL in a minimal card.</td></tr>
+        <tr><td>Embed preview</td><td>Expands to show the page description and OpenGraph preview image.</td></tr>
+        <tr><td>Text block</td><td>Converts the link into a plain text block with the title as linked text.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Service Detection</h3>
+  <p>
+    DevBoard recognizes popular services and shows a <strong>colored accent stripe</strong> and service label for:
+  </p>
+  <ul>
+    <li><strong>GitHub</strong>, <strong>GitLab</strong></li>
+    <li><strong>Jira</strong>, <strong>Linear</strong>, <strong>Asana</strong>, <strong>Trello</strong></li>
+    <li><strong>Figma</strong>, <strong>Notion</strong></li>
+    <li><strong>Slack</strong>, <strong>Discord</strong></li>
+    <li><strong>YouTube</strong>, <strong>Stack Overflow</strong></li>
+  </ul>
+  <p>Unrecognized domains display the hostname and use the default indigo accent.</p>
+
+  <h3>Editing a Link</h3>
+  <ul>
+    <li><strong>Double-click</strong> the title/URL area to edit the URL inline.</li>
+    <li>Use the <strong>link icon</strong> in the toolbar to open the URL editor.</li>
+    <li>Press <kbd>Enter</kbd> to confirm or <kbd>Escape</kbd> to cancel.</li>
+    <li>Metadata is re-fetched automatically when the URL changes.</li>
+  </ul>
+
+  <h3>Toolbar Actions</h3>
+  <p>When a link node is selected, the floating toolbar provides:</p>
+  <ul>
+    <li><strong>Turn into</strong> &mdash; switch display mode or convert to text block.</li>
+    <li><strong>Edit URL</strong> &mdash; change the link target.</li>
+    <li><strong>Copy URL</strong> &mdash; copy the URL to your clipboard.</li>
+  </ul>
+
+  <div class="tip">
+    <strong>Tip:</strong> Link nodes support connector anchors, so you can draw lines between link cards and other elements on the canvas.
+  </div>
+
+  <div class="tip">
+    <strong>Tip:</strong> You can drag a link card by its header area and resize it from the bottom-right corner handle.
+  </div>
+</section>
+
+<hr>
+
+<!-- ── Select & Edit ────────────────────────────────────────────────── -->
+<section id="select-edit">
+  <div class="section-label">Workflow</div>
+  <h2>Select &amp; Edit</h2>
+
+  <p>Press <kbd>V</kbd> to switch to the Select tool (pointer).</p>
+
+  <ul>
+    <li><strong>Click</strong> a node to select it.</li>
+    <li><strong>Click empty canvas</strong> to deselect.</li>
+    <li><strong>Drag</strong> a selected node to move it.</li>
+    <li><strong>Shift + click</strong> to add or remove nodes from the selection.</li>
+    <li>Press <kbd>Backspace</kbd> or <kbd>Delete</kbd> to delete selected nodes.</li>
+  </ul>
+
+  <h3>Grouping</h3>
+  <p>Select multiple nodes and use the <strong>context menu</strong> (right-click) to group or ungroup them.</p>
+</section>
+
+<!-- ── Copy & Paste ─────────────────────────────────────────────────── -->
+<section id="copy-paste">
+  <h2>Copy &amp; Paste</h2>
+
+  <ul>
+    <li><kbd>Ctrl</kbd>/<kbd>&#8984;</kbd> + <kbd>C</kbd> &mdash; copy selected nodes.</li>
+    <li><kbd>Ctrl</kbd>/<kbd>&#8984;</kbd> + <kbd>V</kbd> &mdash; paste (offset by +28px each time).</li>
+    <li><kbd>Ctrl</kbd>/<kbd>&#8984;</kbd> + <kbd>D</kbd> &mdash; duplicate (copy + paste in one step).</li>
+  </ul>
+
+  <div class="tip">
+    <strong>Tip:</strong> Repeated paste cascades &mdash; each <kbd>&#8984;V</kbd> offsets the new nodes further, so they don't stack on top of each other.
+  </div>
+</section>
+
+<!-- ── Pages ────────────────────────────────────────────────────────── -->
+<section id="pages">
+  <h2>Pages</h2>
+
+  <p>
+    DevBoard supports multiple pages within a single board. Use the <strong>Pages panel</strong> on the left side to:
+  </p>
+  <ul>
+    <li>Add new pages</li>
+    <li>Switch between pages</li>
+    <li>Rename pages</li>
+    <li>Delete pages</li>
+  </ul>
+  <p>Each page has its own canvas with independent nodes and camera position.</p>
+</section>
+
+<hr>
+
+<!-- ── Export ────────────────────────────────────────────────────────── -->
+<section id="export">
+  <div class="section-label">Export &amp; Sharing</div>
+  <h2>Export</h2>
+
+  <h3>Export as PNG</h3>
+  <p>
+    Click <strong>Export PNG</strong> in the top bar to download a screenshot of your current canvas.
+    The export captures all visible nodes at the current zoom level.
+  </p>
+
+  <h3 id="save-load">Save &amp; Load JSON</h3>
+  <p>
+    <strong>Save JSON</strong> exports your entire board (all pages, nodes, and settings) as a <code>.json</code> file.
+    Use <strong>Load JSON</strong> to restore a previously saved board.
+  </p>
+  <p>
+    Your board is also automatically persisted to <code>localStorage</code> under the key <code>devboard-v1</code>,
+    so it survives page refreshes.
+  </p>
+</section>
+
+<!-- ── Share Link ───────────────────────────────────────────────────── -->
+<section id="share-link">
+  <h2>Share Link</h2>
+
+  <p>
+    Click <strong>Share</strong> in the top bar to generate a URL with the board data encoded in the URL hash (base64).
+    Anyone who opens the link gets an exact copy of your board &mdash; no server required.
+  </p>
+
+  <div class="warn">
+    <strong>Note:</strong> Very large boards may exceed URL length limits in some browsers.
+    For large boards, use JSON export instead.
+  </div>
+</section>
+
+<hr>
+
+<!-- ── Keyboard Shortcuts ───────────────────────────────────────────── -->
+<section id="shortcuts">
+  <div class="section-label">Reference</div>
+  <h2>Keyboard Shortcuts</h2>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Shortcut</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td><kbd>V</kbd></td><td>Select tool</td></tr>
+        <tr><td><kbd>H</kbd></td><td>Pan tool (hand)</td></tr>
+        <tr><td><kbd>S</kbd></td><td>Sticky note tool</td></tr>
+        <tr><td><kbd>R</kbd></td><td>Shape tool</td></tr>
+        <tr><td><kbd>T</kbd></td><td>Text block tool</td></tr>
+        <tr><td><kbd>L</kbd></td><td>Line / connector tool</td></tr>
+        <tr><td><kbd>Backspace</kbd> / <kbd>Delete</kbd></td><td>Delete selected</td></tr>
+        <tr><td><kbd>&#8984;</kbd>/<kbd>Ctrl</kbd> + <kbd>C</kbd></td><td>Copy</td></tr>
+        <tr><td><kbd>&#8984;</kbd>/<kbd>Ctrl</kbd> + <kbd>V</kbd></td><td>Paste</td></tr>
+        <tr><td><kbd>&#8984;</kbd>/<kbd>Ctrl</kbd> + <kbd>D</kbd></td><td>Duplicate</td></tr>
+        <tr><td><kbd>&#8984;</kbd>/<kbd>Ctrl</kbd> + <kbd>Z</kbd></td><td>Undo</td></tr>
+        <tr><td><kbd>&#8984;</kbd>/<kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Z</kbd></td><td>Redo</td></tr>
+        <tr><td><kbd>Space</kbd> + drag</td><td>Pan canvas</td></tr>
+        <tr><td><kbd>Scroll</kbd></td><td>Zoom in / out</td></tr>
+        <tr><td><kbd>Escape</kbd></td><td>Cancel / deselect</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+</main>
+</div>
+
+<!-- ── Active link tracking ────────────────────────────────────────── -->
+<script>
+(function() {
+  const links = document.querySelectorAll('nav a.nav-link');
+  const sections = [];
+
+  links.forEach(function(link) {
+    const id = link.getAttribute('href');
+    if (id && id.startsWith('#')) {
+      const el = document.querySelector(id);
+      if (el) sections.push({ el: el, link: link });
+    }
+  });
+
+  function update() {
+    let current = sections[0];
+    const scrollY = window.scrollY + 80;
+    for (let i = 0; i < sections.length; i++) {
+      if (sections[i].el.offsetTop <= scrollY) current = sections[i];
+    }
+    links.forEach(function(l) { l.classList.remove('active'); });
+    if (current) current.link.classList.add('active');
+  }
+
+  window.addEventListener('scroll', update, { passive: true });
+  update();
+})();
+</script>
+</body>
+</html>

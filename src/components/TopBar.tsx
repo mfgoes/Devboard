@@ -19,6 +19,9 @@ interface TopBarProps {
   explorerOpen: boolean;
   onToggleExplorer: () => void;
   onWorkspaceOpened: () => void;
+  jiraOpen: boolean;
+  onToggleJira: () => void;
+  onToggleSearch: () => void;
 }
 
 function IconExpand() {
@@ -130,7 +133,7 @@ function DefaultFolderRow({ folder, onChange }: { folder: string; onChange: (f: 
   );
 }
 
-export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pagesOpen, onTogglePages, explorerOpen, onToggleExplorer, onWorkspaceOpened }: TopBarProps) {
+export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pagesOpen, onTogglePages, explorerOpen, onToggleExplorer, onWorkspaceOpened, jiraOpen, onToggleJira, onToggleSearch }: TopBarProps) {
   const { boardTitle, setBoardTitle, exportData, loadBoard, setActiveTool, setActiveShapeKind, toggleTheme, theme, addNode, pages, activePageId, workspaceName, setWorkspaceName, nodes, updateNode, imageAssetFolder, setImageAssetFolder } = useBoardStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const csvInputRef = useRef<HTMLInputElement>(null);
@@ -545,11 +548,11 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
               </MenuItemSub>
               <MenuItemSub label="Tools" icon={<IconTools />}>
                 <MenuItem
-                  onClick={() => { setMenuOpen(false); onToggleExplorer(); }}
-                  icon={<IconFolder />}
-                  checked={explorerOpen}
+                  onClick={() => { setMenuOpen(false); onToggleSearch(); }}
+                  icon={<IconSearchMenu />}
+                  badge="⌘F"
                 >
-                  File explorer
+                  Find on board
                 </MenuItem>
                 <MenuItem
                   onClick={() => { setMenuOpen(false); onToggleTimer(); }}
@@ -557,6 +560,20 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
                   checked={timerVisible}
                 >
                   Timer
+                </MenuItem>
+                <MenuItem
+                  onClick={() => { setMenuOpen(false); onToggleExplorer(); }}
+                  icon={<IconFolder />}
+                  checked={explorerOpen}
+                >
+                  File explorer
+                </MenuItem>
+                <MenuItem
+                  onClick={() => { setMenuOpen(false); onToggleJira(); }}
+                  icon={<IconJiraMenu />}
+                  checked={jiraOpen}
+                >
+                  Jira
                 </MenuItem>
               </MenuItemSub>
 
@@ -1027,6 +1044,21 @@ function IconTimerMenu() {
       <circle cx="6.5" cy="7" r="4.5" stroke="currentColor" strokeWidth="1.3" />
       <path d="M6.5 4.5v3l2 1" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
       <path d="M5 1.5h3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    </svg>
+  );
+}
+function IconJiraMenu() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+      <path d="M11.8 6.2L7.2 1.6 6.5.9 3 4.4l-.5.5a.4.4 0 000 .6l3 3 1 1 3.9-3.9.5-.5a.4.4 0 000-.6zM6.5 8.2L4.8 6.5l1.7-1.7 1.7 1.7-1.7 1.7z" fill="currentColor"/>
+    </svg>
+  );
+}
+function IconSearchMenu() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+      <circle cx="5.5" cy="5.5" r="4" stroke="currentColor" strokeWidth="1.3" />
+      <path d="M8.5 8.5L11.5 11.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
     </svg>
   );
 }
