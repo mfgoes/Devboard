@@ -132,15 +132,15 @@ src/
 - [x] **Group / ungroup** (`⌘G`) — bundle selected nodes so they move together; clicking a group member selects the whole group
 - [x] **Lock nodes** — prevent accidental moves on static layout elements; right-click → Lock or use context menu
 - [x] **Right-click context menu** — duplicate, delete, lock/unlock, bring to front/back, group/ungroup
-- [ ] Freehand pen / draw tool with different thickness lines
-- [x] Board wide text search (ensure it works with a lot of post-its, load state, etc)
+- [x] Templates to choose from (dev-focused: planning board, retro, architecture diagram)
+- [ ] Freehand pen / draw tool
+- [ ] Board wide text search (ensure it works with a lot of post-its, load state, etc)
 - [x] Image upload (drop PNG/JPG onto canvas) -> Requires app + workspace
-- [x] Basic embeds of URLs
 - [ ] Mini-map / overview panel
-- [ ] Ensure all toolbars are dynamic, text is still 'centered'
+- [x] Allow adding embedded links
+- [ ] Toggle for auto save / manual save mode
 - [ ] Allow export selection as .txt or .md (should work for text sizes, links, stickies as basic text, etc)
 - [x] Load folder/workspace -> Better handling of multiple pages + ability to reference code snippets better
-- [ ] Light mode in documentation + review
 
 ### Later / ideas
 

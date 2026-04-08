@@ -94,7 +94,7 @@ export const useBoardStore = create<BoardState>()(
       future: [],
       activeShapeKind: 'rect',
       activeSticker: '/stickers/sticker__0004_Layer-6_happy.png',
-      theme: 'dark',
+      theme: 'light',
       tableEditState: null,
       tableSelectionState: null,
       tableHoverDivider: null,

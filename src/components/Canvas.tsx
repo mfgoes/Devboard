@@ -33,6 +33,7 @@ import { hasSeenImageNotice, markImageNoticeSeen } from './ImageFirstUseModal';
 import ImageFirstUseModal from './ImageFirstUseModal';
 import CodeBlockToolbar from './CodeBlockToolbar';
 import { STICKY_COLORS } from './StickyColorPicker';
+import { SECTION_TO_STICKY } from '../utils/palette';
 import { useTheme } from '../theme';
 
 function generateId(): string {
@@ -287,6 +288,31 @@ export default function Canvas() {
 
   const handleMultiDragEnd = useCallback(() => {
     multiDragBase.current = null;
+  }, []);
+
+  // ── Section color matching ───────────────────────────────────────────────────
+  // Called after any sticky drag settles; recolors sticky (and multi-drag peers)
+  // if they land inside a section with matchStickies=true.
+  const handleDragSettled = useCallback((nodeId: string) => {
+    const { nodes, updateNode, selectedIds } = useBoardStore.getState();
+    const sections = nodes.filter((n) => n.type === 'section' && (n as SectionNode).matchStickies) as SectionNode[];
+    if (sections.length === 0) return;
+
+    const candidates = selectedIds.includes(nodeId) ? selectedIds : [nodeId];
+    for (const id of candidates) {
+      const n = nodes.find((x) => x.id === id);
+      if (!n || n.type !== 'sticky') continue;
+      const sn = n as StickyNoteNode;
+      const cx = sn.x + sn.width / 2;
+      const cy = sn.y + sn.height / 2;
+      for (const sec of sections) {
+        if (cx >= sec.x && cx <= sec.x + sec.width && cy >= sec.y && cy <= sec.y + sec.height) {
+          const targetColor = SECTION_TO_STICKY[sec.color] ?? sec.color;
+          if (sn.color !== targetColor) updateNode(id, { color: targetColor } as Parameters<typeof updateNode>[1]);
+          break;
+        }
+      }
+    }
   }, []);
 
   // ── Window resize ───────────────────────────────────────────────────────────
@@ -1347,6 +1373,7 @@ export default function Canvas() {
                   onMultiDragEnd={handleMultiDragEnd}
                   getShouldSaveHistory={getShouldSaveHistory}
                   onContextMenu={handleNodeContextMenu}
+                  onDragSettled={handleDragSettled}
                 />
               );
               if (n.type === 'shape') return (

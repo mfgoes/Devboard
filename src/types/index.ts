@@ -129,6 +129,7 @@ export interface SectionNode {
   height: number;
   name: string;
   color: string; // accent hex
+  matchStickies?: boolean; // auto-recolor stickies dropped into this section
   locked?: boolean;
   groupId?: string;
 }

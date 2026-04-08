@@ -999,80 +999,66 @@ const dataEngineerFlow: Template = {
 };
 
 // ── Template 7: Start from Scratch ───────────────────────────────────────────
-const SC_TL_X  = 40;
-const SC_TL_Y  = 30;
-const SC_USP_W = 200;
-const SC_USP_G = 16;
-const SC_USP_Y = 130;
-const SC_TIP_W = 260;
-const SC_TIP_G = 14;
+const SC_SW  = 220;   // sticky width
+const SC_GAP = 40;    // gap between stickies
+const SC_X1  = 100;
+const SC_X2  = SC_X1 + SC_SW + SC_GAP;
+const SC_X3  = SC_X2 + SC_SW + SC_GAP;
+const SC_ROW_Y = 130;
 
-// USP texts
-const SC_U1 = 'Infinite Canvas\n\nPan with spacebar+drag or middle mouse. Zoom with scroll wheel. The dot grid scales with you.';
-const SC_U2 = 'Sticky Notes\n\nPress S, click to place. Double-click to edit. Drag corners to resize. Pick colors and copy/paste with ⌘C / ⌘V.';
-const SC_U3 = 'Images, Code & More\n\nR = shapes    T = text\nL = arrows    I = images\n\nAdd code blocks and tables. Connect any two nodes with an arrow.';
-const SC_U4 = 'Local-First Files\n\nYour board and images live in your browser — no account needed. Open the file explorer (⌘E) to insert and manage local images.';
+const SC_ST1 = 'Drop ideas\n\nSticky notes, shapes, text — put anything on the canvas.';
+const SC_ST2 = 'Connect them\n\nDraw arrows between ideas to map flows and relationships.';
+const SC_ST3 = 'Share & export\n\nSave as PNG or a shareable link. Offline. No account.';
 
-// Tip texts
-const SC_T1 = 'Open the File Explorer\n\nPress ⌘E or click the folder icon in the toolbar. Browse images from your computer — stored locally in your browser, never sent to any server.';
-const SC_T2 = 'Save, Load & Share\n\nSave JSON exports your board as a file. Load JSON restores it anytime. Share builds a URL-encoded link you can send to teammates.';
-const SC_T3 = 'Keyboard Shortcuts\n\nV  select     H  pan\nS  sticky     R  shape\nT  text       L  line\nI  image\n\n⌫  delete    ⌘Z  undo\n⌘D  duplicate\n⌘C  copy     ⌘V  paste';
-
-// Heights
-const SC_U1H = stickyHeight(SC_U1, SC_USP_W, 12);
-const SC_U2H = stickyHeight(SC_U2, SC_USP_W, 12);
-const SC_U3H = stickyHeight(SC_U3, SC_USP_W, 12);
-const SC_U4H = stickyHeight(SC_U4, SC_USP_W, 12);
-const SC_USP_ROW_W = 4 * SC_USP_W + 3 * SC_USP_G;  // 848
-
-const SC_T1H = stickyHeight(SC_T1, SC_TIP_W, 12);
-const SC_T2H = stickyHeight(SC_T2, SC_TIP_W, 12);
-const SC_T3H = stickyHeight(SC_T3, SC_TIP_W, 12);
-
-const SC_USP_MAX_H = Math.max(SC_U1H, SC_U2H, SC_U3H, SC_U4H);
-const SC_TIP_MAX_H = Math.max(SC_T1H, SC_T2H, SC_T3H);
-
-const SC_SEC_Y = SC_USP_Y + SC_USP_MAX_H + 36;
-const SC_ROW_Y = SC_SEC_Y + 55;
-const SC_SEC_H = SC_TIP_MAX_H + 90;
+const SC_SH = stickyHeight(SC_ST1, SC_SW, 13);
 
 const startFromScratch: Template = {
   id: 'scratch',
   name: 'Start from Scratch',
-  description: "Blank canvas with a quick overview of DevBoard's features and shortcuts",
+  description: 'Blank canvas with a quick intro to DevBoard',
   data: {
     boardTitle: 'New Board',
     nodes: [
-      // ── Title + subtitle ───────────────────────────────────────────────────
+      // ── Header ──────────────────────────────────────────────────────────────
       {
         id: 'sc-title', type: 'textblock',
-        x: SC_TL_X, y: SC_TL_Y, width: SC_USP_ROW_W,
+        x: SC_X1, y: 30, width: SC_X3 + SC_SW - SC_X1,
         text: 'Welcome to DevBoard',
-        fontSize: 22, color: 'auto', bold: true, italic: false, underline: false,
+        fontSize: 26, color: 'auto', bold: true, italic: false, underline: false,
       },
       {
         id: 'sc-sub', type: 'textblock',
-        x: SC_TL_X, y: SC_TL_Y + 40, width: SC_USP_ROW_W,
-        text: 'Your infinite canvas for ideas, plans, and projects. Press S to drop a sticky note — or explore the features below.',
-        fontSize: 13, color: 'auto', bold: false, italic: false, underline: false,
+        x: SC_X1, y: 72, width: SC_X3 + SC_SW - SC_X1,
+        text: 'A thinking canvas for solo devs. Drop ideas, connect them, ship faster.',
+        fontSize: 13, color: 'auto', bold: false, italic: true, underline: false,
       },
 
-      // ── USP stickies ───────────────────────────────────────────────────────
-      { id: 'sc-u1', type: 'sticky', x: SC_TL_X,                             y: SC_USP_Y, width: SC_USP_W, height: SC_U1H, color: '#dbeafe', fontSize: 12, text: SC_U1 },
-      { id: 'sc-u2', type: 'sticky', x: SC_TL_X +   (SC_USP_W + SC_USP_G),  y: SC_USP_Y, width: SC_USP_W, height: SC_U2H, color: '#fef9c3', fontSize: 12, text: SC_U2 },
-      { id: 'sc-u3', type: 'sticky', x: SC_TL_X + 2*(SC_USP_W + SC_USP_G),  y: SC_USP_Y, width: SC_USP_W, height: SC_U3H, color: '#dcfce7', fontSize: 12, text: SC_U3 },
-      { id: 'sc-u4', type: 'sticky', x: SC_TL_X + 3*(SC_USP_W + SC_USP_G),  y: SC_USP_Y, width: SC_USP_W, height: SC_U4H, color: '#fce7f3', fontSize: 12, text: SC_U4 },
+      // ── Three feature stickies ───────────────────────────────────────────────
+      { id: 'sc-s1', type: 'sticky', x: SC_X1, y: SC_ROW_Y, width: SC_SW, height: SC_SH, color: '#fef08a', fontSize: 13, text: SC_ST1 },
+      { id: 'sc-s2', type: 'sticky', x: SC_X2, y: SC_ROW_Y, width: SC_SW, height: SC_SH, color: '#e0e7ff', fontSize: 13, text: SC_ST2 },
+      { id: 'sc-s3', type: 'sticky', x: SC_X3, y: SC_ROW_Y, width: SC_SW, height: SC_SH, color: '#bbf7d0', fontSize: 13, text: SC_ST3 },
 
-      // ── Quick Start section ────────────────────────────────────────────────
+      // ── Connectors ──────────────────────────────────────────────────────────
       {
-        id: 'sc-sec', type: 'section',
-        x: SC_TL_X - 10, y: SC_SEC_Y - 10,
-        width: SC_USP_ROW_W + 20, height: SC_SEC_H,
-        name: 'Quick Start', color: '#64748b',
+        id: 'sc-c1', type: 'connector',
+        fromNodeId: 'sc-s1', fromAnchor: 'right', fromX: SC_X1 + SC_SW, fromY: SC_ROW_Y + SC_SH / 2,
+        toNodeId:   'sc-s2', toAnchor:   'left',  toX:   SC_X2,         toY:   SC_ROW_Y + SC_SH / 2,
+        color: '#6366f1', strokeWidth: 2, lineStyle: 'curved', strokeStyle: 'solid',
+        arrowHeadStart: 'none', arrowHeadEnd: 'arrow',
       },
-      { id: 'sc-t1', type: 'sticky', x: SC_TL_X,                             y: SC_ROW_Y, width: SC_TIP_W, height: SC_T1H, color: '#e0f2fe', fontSize: 12, text: SC_T1 },
-      { id: 'sc-t2', type: 'sticky', x: SC_TL_X +   (SC_TIP_W + SC_TIP_G),  y: SC_ROW_Y, width: SC_TIP_W, height: SC_T2H, color: '#f0fdf4', fontSize: 12, text: SC_T2 },
-      { id: 'sc-t3', type: 'sticky', x: SC_TL_X + 2*(SC_TIP_W + SC_TIP_G),  y: SC_ROW_Y, width: SC_TIP_W, height: SC_T3H, color: '#fef3c7', fontSize: 12, text: SC_T3 },
+      {
+        id: 'sc-c2', type: 'connector',
+        fromNodeId: 'sc-s2', fromAnchor: 'right', fromX: SC_X2 + SC_SW, fromY: SC_ROW_Y + SC_SH / 2,
+        toNodeId:   'sc-s3', toAnchor:   'left',  toX:   SC_X3,         toY:   SC_ROW_Y + SC_SH / 2,
+        color: '#6366f1', strokeWidth: 2, lineStyle: 'curved', strokeStyle: 'solid',
+        arrowHeadStart: 'none', arrowHeadEnd: 'arrow',
+      },
+
+      // ── Stickers ─────────────────────────────────────────────────────────────
+      { id: 'sc-stk1', type: 'sticker', src: '/stickers/sticker__0004_Layer-6_happy.png',      x: 20,               y: 20,             width: 72, height: 72, rotation: -10 },
+      { id: 'sc-stk2', type: 'sticker', src: '/stickers/sticker__0006_thumbA.png',              x: SC_X1 - 70,       y: SC_ROW_Y + 40,  width: 60, height: 60, rotation: -8  },
+      { id: 'sc-stk3', type: 'sticker', src: '/stickers/sticker__0003_Layer-7_fire.png',        x: SC_X3 + SC_SW + 10, y: SC_ROW_Y + 40, width: 62, height: 62, rotation: 10  },
+      { id: 'sc-stk4', type: 'sticker', src: '/stickers/sticker__0001_Layer-9_derpy.png',       x: SC_X2 + SC_SW / 2 - 28, y: SC_ROW_Y + SC_SH + 14, width: 56, height: 56, rotation: 6 },
     ],
   },
 };

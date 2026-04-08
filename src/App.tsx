@@ -107,15 +107,93 @@ export default function App() {
     if (!isFirstVisit) return;
     // Wait for hash-loading to settle, then check if board is still empty
     setTimeout(() => {
-      const { nodes, addNode } = useBoardStore.getState();
-      if (nodes.length > 0) return; // board was loaded from hash
+      const store = useBoardStore.getState();
+      if (store.nodes.length > 0) return; // board was loaded from hash
       localStorage.setItem('devboard-visited', '1');
-      const happySticker = STICKER_KEYS.find(k => k.includes('happy')) ?? STICKER_KEYS[0];
+
       const cx = Math.round(window.innerWidth / 2);
       const cy = Math.round(window.innerHeight / 2);
-      addNode({ id: generateId(), type: 'sticker', src: happySticker, x: cx - 390, y: cy - 220, width: 130, height: 130, rotation: 0 } as import('./types').StickerNode);
-      addNode({ id: generateId(), type: 'textblock', x: cx - 240, y: cy - 195, text: 'Welcome to Devboard!', fontSize: 26, width: 500, color: 'auto', bold: true, italic: false, underline: false } as import('./types').TextBlockNode);
-      addNode({ id: generateId(), type: 'sticky', x: cx - 240, y: cy - 110, text: '', color: '#bbf7d0', width: 320, height: 240 } as import('./types').StickyNoteNode);
+
+      // Sticker keys
+      const sHappy    = STICKER_KEYS.find(k => k.includes('happy'))       ?? STICKER_KEYS[0];
+      const sFire     = STICKER_KEYS.find(k => k.includes('fire'))        ?? STICKER_KEYS[0];
+      const sThumbsUp = STICKER_KEYS.find(k => k.includes('thumbA.png'))  ?? STICKER_KEYS[0];
+      const sDerpy    = STICKER_KEYS.find(k => k.includes('derpy'))       ?? STICKER_KEYS[0];
+
+      // Pre-generate IDs so connectors can reference sticky nodes
+      const idS1 = generateId(), idS2 = generateId(), idS3 = generateId();
+
+      // Sticky geometry
+      const SW = 210;  // sticky width
+      const GAP = 44;  // gap between stickies
+      const ROW_Y = cy - 40;
+
+      const s1x = cx - SW * 1.5 - GAP;
+      const s2x = cx - SW / 2;
+      const s3x = cx + SW / 2 + GAP;
+
+      store.loadBoard({
+        boardTitle: 'Welcome to DevBoard',
+        nodes: [
+          // ── Header ──────────────────────────────────────────────────────────
+          {
+            id: generateId(), type: 'textblock',
+            x: cx - 210, y: cy - 195,
+            text: 'Welcome to DevBoard',
+            fontSize: 28, width: 420, color: 'auto', bold: true, italic: false, underline: false,
+          } as import('./types').TextBlockNode,
+          {
+            id: generateId(), type: 'textblock',
+            x: cx - 200, y: cy - 148,
+            text: 'A thinking canvas for solo devs. Drop ideas, connect them, ship faster.',
+            fontSize: 13, width: 400, color: 'auto', bold: false, italic: true, underline: false,
+          } as import('./types').TextBlockNode,
+
+          // ── Three feature stickies ───────────────────────────────────────────
+          {
+            id: idS1, type: 'sticky',
+            x: s1x, y: ROW_Y,
+            text: 'Drop ideas\n\nSticky notes, shapes, text — put anything on the canvas.',
+            color: '#fef08a', width: SW, height: 130,
+          } as import('./types').StickyNoteNode,
+          {
+            id: idS2, type: 'sticky',
+            x: s2x, y: ROW_Y,
+            text: 'Connect them\n\nDraw arrows between ideas to map flows and relationships.',
+            color: '#e0e7ff', width: SW, height: 130,
+          } as import('./types').StickyNoteNode,
+          {
+            id: idS3, type: 'sticky',
+            x: s3x, y: ROW_Y,
+            text: 'Share & export\n\nSave as PNG or a shareable link. Offline. No account.',
+            color: '#bbf7d0', width: SW, height: 130,
+          } as import('./types').StickyNoteNode,
+
+          // ── Connectors between stickies ──────────────────────────────────────
+          {
+            id: generateId(), type: 'connector',
+            fromNodeId: idS1, fromAnchor: 'right', fromX: s1x + SW, fromY: ROW_Y + 65,
+            toNodeId: idS2,   toAnchor: 'left',   toX: s2x,        toY: ROW_Y + 65,
+            color: '#6366f1', strokeWidth: 2,
+            lineStyle: 'curved', strokeStyle: 'solid',
+            arrowHeadStart: 'none', arrowHeadEnd: 'arrow',
+          } as import('./types').ConnectorNode,
+          {
+            id: generateId(), type: 'connector',
+            fromNodeId: idS2, fromAnchor: 'right', fromX: s2x + SW, fromY: ROW_Y + 65,
+            toNodeId: idS3,   toAnchor: 'left',   toX: s3x,        toY: ROW_Y + 65,
+            color: '#6366f1', strokeWidth: 2,
+            lineStyle: 'curved', strokeStyle: 'solid',
+            arrowHeadStart: 'none', arrowHeadEnd: 'arrow',
+          } as import('./types').ConnectorNode,
+
+          // ── Stickers for fun ─────────────────────────────────────────────────
+          { id: generateId(), type: 'sticker', src: sHappy,    x: cx - 310, y: cy - 220, width: 80, height: 80, rotation: -12 } as import('./types').StickerNode,
+          { id: generateId(), type: 'sticker', src: sFire,     x: s3x + SW + 10, y: ROW_Y + 60,  width: 70, height: 70, rotation: 10  } as import('./types').StickerNode,
+          { id: generateId(), type: 'sticker', src: sThumbsUp, x: s1x - 80, y: ROW_Y + 55, width: 70, height: 70, rotation: -8  } as import('./types').StickerNode,
+          { id: generateId(), type: 'sticker', src: sDerpy,    x: cx - 35,  y: ROW_Y + 148, width: 65, height: 65, rotation: 6   } as import('./types').StickerNode,
+        ],
+      });
     }, 0);
   }, []);
 

@@ -585,12 +585,7 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
                 {pages.length > 1 && (
                   <MenuItem onClick={() => menuAction(handleExportAllPages)} icon={<IconJson />}>Export all pages</MenuItem>
                 )}
-                {!isItchIo && (
-                  <>
-                    <MenuDivider />
-                    <MenuItem onClick={() => menuAction(handleShare)} icon={<IconShare />}>Copy share link</MenuItem>
-                  </>
-                )}
+                {/* Share link disabled — not fully working yet */}
               </MenuItemSub>
               <MenuItem onClick={() => menuAction(onShowAbout)} icon={<IconAbout />}>About</MenuItem>
               <MenuItem onClick={() => menuAction(toggleTheme)} icon={<IconTheme isLight={theme === 'light'} />}>
@@ -781,12 +776,7 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
               )}
               <MenuDivider />
               <MenuItem onClick={() => { setExportOpen(false); handleExportPNG(); }} icon={<IconImg />}>Export PNG</MenuItem>
-              {!isItchIo && (
-                <>
-                  <MenuDivider />
-                  <MenuItem onClick={() => { setExportOpen(false); handleShare(); }} icon={<IconShare />}>Copy share link</MenuItem>
-                </>
-              )}
+              {/* Share link disabled — not fully working yet */}
             </div>
           )}
         </div>

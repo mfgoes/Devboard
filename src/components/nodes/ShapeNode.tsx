@@ -98,6 +98,7 @@ export default function ShapeNode({
   const { updateNode, selectIds, setEditingId, setActiveTool, activeTool, saveHistory, addNode } = useBoardStore();
 
   const isLineTool = activeTool === 'line';
+  const [liveScale, setLiveScale] = useState({ sx: 1, sy: 1 });
   const [hoveredAnchor, setHoveredAnchor] = useState<AnchorSide | null>(null);
   type SmartGhost = { fromSide: AnchorSide; targetId: string; targetSide: AnchorSide; toWorldX: number; toWorldY: number; pts: number[] };
   const [smartGhost, setSmartGhost] = useState<SmartGhost | null>(null);
@@ -200,6 +201,12 @@ export default function ShapeNode({
     });
   };
 
+  const handleTransform = () => {
+    const group = groupRef.current;
+    if (!group) return;
+    setLiveScale({ sx: group.scaleX(), sy: group.scaleY() });
+  };
+
   const handleTransformEnd = () => {
     const group = groupRef.current;
     if (!group) return;
@@ -215,6 +222,7 @@ export default function ShapeNode({
     });
     group.scaleX(1);
     group.scaleY(1);
+    setLiveScale({ sx: 1, sy: 1 });
   };
 
   const { width: w, height: h } = node;
@@ -321,6 +329,7 @@ export default function ShapeNode({
           onMultiDragMove?.(node.id, tlx, tly);
         }}
         onDragEnd={(e) => { onSnapEnd?.(); onAltDragEnd?.(); onMultiDragEnd?.(); handleDragEnd(e); }}
+        onTransform={handleTransform}
         onTransformEnd={handleTransformEnd}
       >
         {renderShape()}
@@ -328,10 +337,12 @@ export default function ShapeNode({
         {/* Label — hidden while editing (textarea overlay takes over) */}
         {node.text && !isEditing && (
           <Text
-            x={8}
-            y={8}
-            width={w - 16}
-            height={h - 16}
+            x={8 / liveScale.sx}
+            y={8 / liveScale.sy}
+            scaleX={1 / liveScale.sx}
+            scaleY={1 / liveScale.sy}
+            width={w * liveScale.sx - 16}
+            height={h * liveScale.sy - 16}
             text={node.text}
             fontSize={node.fontSize ?? 14}
             fontStyle={fontStyle}

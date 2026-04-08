@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, useCallback } from 'react';
 import { Group, Rect, Text, Transformer, Circle, Line } from 'react-konva';
 import Konva from 'konva';
 import { StickyNoteNode, AnchorSide, ConnectorNode } from '../../types';
@@ -9,11 +9,27 @@ import { isRichText, layoutRichText } from '../../utils/richText';
 
 function generateId() { return Math.random().toString(36).slice(2, 11); }
 
+// ── Color lerp helpers ────────────────────────────────────────────────────────
+function hexToRgb(hex: string): [number, number, number] {
+  const n = parseInt(hex.replace('#', ''), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+function rgbToHex(r: number, g: number, b: number): string {
+  return '#' + [r, g, b].map((v) => Math.round(v).toString(16).padStart(2, '0')).join('');
+}
+function lerpColor(a: string, b: string, t: number): string {
+  if (!a.startsWith('#') || !b.startsWith('#')) return t < 0.5 ? a : b;
+  const [ar, ag, ab] = hexToRgb(a);
+  const [br, bg, bb] = hexToRgb(b);
+  return rgbToHex(ar + (br - ar) * t, ag + (bg - ag) * t, ab + (bb - ab) * t);
+}
+
 // ── Rich text renderer ────────────────────────────────────────────────────────
-function StickyRichText({ node }: { node: StickyNoteNode }) {
+function StickyRichText({ node, liveWidth }: { node: StickyNoteNode; liveWidth?: number }) {
+  const effectiveWidth = liveWidth ?? node.width;
   const runs = layoutRichText(
     node.text,
-    node.width - 20,
+    effectiveWidth - 20,
     node.fontSize ?? 13,
     1.5,
     node.bold ?? false,
@@ -59,6 +75,7 @@ interface Props {
   onMultiDragEnd?: () => void;
   getShouldSaveHistory?: () => boolean;
   onContextMenu?: (nodeId: string, x: number, y: number) => void;
+  onDragSettled?: (nodeId: string) => void;
 }
 
 // Distance the dot sits outside the node border (world units)
@@ -114,6 +131,7 @@ export default function StickyNote({
   onMultiDragEnd,
   getShouldSaveHistory,
   onContextMenu,
+  onDragSettled,
 }: Props) {
   const groupRef = useRef<Konva.Group>(null);
   const trRef    = useRef<Konva.Transformer>(null);
@@ -121,7 +139,55 @@ export default function StickyNote({
   const { updateNode, selectIds, setEditingId, setActiveTool, activeTool, saveHistory, addNode } = useBoardStore();
 
   const isLineTool = activeTool === 'line';
+  const [liveScale, setLiveScale] = useState({ sx: 1, sy: 1 });
   const [hoveredAnchor, setHoveredAnchor] = useState<AnchorSide | null>(null);
+
+  // ── Drag wobble ──────────────────────────────────────────────────────────────
+  const [wobbleRot, setWobbleRot] = useState(0);
+  const wobble = useRef({ rot: 0, vel: 0, prevCenterX: 0, raf: 0 });
+
+  const runSpring = useCallback(() => {
+    const w = wobble.current;
+    w.vel = (w.vel + (-w.rot * 0.18)) * 0.75;
+    w.rot += w.vel;
+    if (Math.abs(w.rot) < 0.05 && Math.abs(w.vel) < 0.05) {
+      w.rot = 0; w.vel = 0;
+      setWobbleRot(0);
+      return;
+    }
+    setWobbleRot(w.rot);
+    w.raf = requestAnimationFrame(runSpring);
+  }, []);
+
+  useEffect(() => () => cancelAnimationFrame(wobble.current.raf), []);
+
+  // ── Color fade when node.color changes ───────────────────────────────────────
+  const [displayColor, setDisplayColor] = useState(node.color);
+  const colorAnim = useRef<{ raf: number } | null>(null);
+  const prevColor = useRef(node.color);
+
+  useEffect(() => {
+    if (node.color === prevColor.current) return;
+    const from = prevColor.current;
+    const to = node.color;
+    prevColor.current = to;
+    if (colorAnim.current) cancelAnimationFrame(colorAnim.current.raf);
+    const DURATION = 320;
+    const startTime = performance.now();
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - startTime) / DURATION);
+      const eased = 1 - Math.pow(1 - t, 2); // ease-out quad
+      setDisplayColor(lerpColor(from, to, eased));
+      if (t < 1) {
+        colorAnim.current = { raf: requestAnimationFrame(tick) };
+      } else {
+        colorAnim.current = null;
+      }
+    };
+    colorAnim.current = { raf: requestAnimationFrame(tick) };
+  }, [node.color]);
+
+  useEffect(() => () => { if (colorAnim.current) cancelAnimationFrame(colorAnim.current.raf); }, []);
   type SmartGhost = { fromSide: AnchorSide; targetId: string; targetSide: AnchorSide; toWorldX: number; toWorldY: number; pts: number[] };
   const [smartGhost, setSmartGhost] = useState<SmartGhost | null>(null);
   // Track drag position so anchor dots (rendered outside Group) follow during drag
@@ -190,7 +256,14 @@ export default function StickyNote({
 
   const handleDragEnd = (e: Konva.KonvaEventObject<DragEvent>) => {
     if (!getShouldSaveHistory || getShouldSaveHistory()) saveHistory();
-    updateNode(node.id, { x: e.target.x(), y: e.target.y() });
+    updateNode(node.id, { x: e.target.x() - e.target.offsetX(), y: e.target.y() - e.target.offsetY() });
+    onDragSettled?.(node.id);
+  };
+
+  const handleTransform = () => {
+    const group = groupRef.current;
+    if (!group) return;
+    setLiveScale({ sx: group.scaleX(), sy: group.scaleY() });
   };
 
   const handleTransformEnd = () => {
@@ -200,13 +273,14 @@ export default function StickyNote({
     const newHeight = Math.max(80,  group.height() * group.scaleY());
     saveHistory();
     updateNode(node.id, {
-      x: group.x(),
-      y: group.y(),
+      x: group.x() - group.offsetX(),
+      y: group.y() - group.offsetY(),
       width:  newWidth,
       height: newHeight,
     });
     group.scaleX(1);
     group.scaleY(1);
+    setLiveScale({ sx: 1, sy: 1 });
   };
 
   // World-space origin of the node (follows drag in real time)
@@ -218,8 +292,11 @@ export default function StickyNote({
       {/* Card content — Transformer attaches ONLY to this Group */}
       <Group
         ref={groupRef}
-        x={node.x}
-        y={node.y}
+        x={node.x + node.width / 2}
+        y={node.y + node.height / 2}
+        offsetX={node.width / 2}
+        offsetY={node.height / 2}
+        rotation={wobbleRot}
         width={node.width}
         height={node.height}
         draggable={!isLineTool && !node.locked}
@@ -233,27 +310,44 @@ export default function StickyNote({
           onContextMenu?.(node.id, e.evt.clientX, e.evt.clientY);
         }}
         onDragStart={(e) => {
+          cancelAnimationFrame(wobble.current.raf);
+          wobble.current.prevCenterX = e.target.x();
           if (e.evt.altKey) onAltDragStart?.(node.id);
-          onMultiDragStart?.(node.id, e.target.x(), e.target.y());
+          const ox = e.target.offsetX(), oy = e.target.offsetY();
+          onMultiDragStart?.(node.id, e.target.x() - ox, e.target.y() - oy);
         }}
         onDragMove={(e) => {
-          let nx = e.target.x(), ny = e.target.y();
+          const ox = e.target.offsetX(), oy = e.target.offsetY();
+          let tlx = e.target.x() - ox, tly = e.target.y() - oy;
           if (onSnapMove) {
-            const snapped = onSnapMove(node.id, nx, ny, node.width, node.height);
-            nx = snapped.x; ny = snapped.y;
-            e.target.x(nx); e.target.y(ny);
+            const snapped = onSnapMove(node.id, tlx, tly, node.width, node.height);
+            tlx = snapped.x; tly = snapped.y;
+            e.target.x(tlx + ox); e.target.y(tly + oy);
           }
-          setDragPos({ x: nx, y: ny });
-          onMultiDragMove?.(node.id, nx, ny);
+          setDragPos({ x: tlx, y: tly });
+          onMultiDragMove?.(node.id, tlx, tly);
+          // Wobble: tilt in direction of horizontal movement
+          const cx = e.target.x();
+          const deltaX = cx - wobble.current.prevCenterX;
+          wobble.current.prevCenterX = cx;
+          const target = Math.max(-7, Math.min(7, deltaX * 0.85));
+          wobble.current.rot += (target - wobble.current.rot) * 0.28;
+          wobble.current.vel = target * 0.08;
+          setWobbleRot(wobble.current.rot);
         }}
-        onDragEnd={(e) => { setDragPos(null); onSnapEnd?.(); onAltDragEnd?.(); onMultiDragEnd?.(); handleDragEnd(e); }}
+        onDragEnd={(e) => {
+          setDragPos(null); onSnapEnd?.(); onAltDragEnd?.(); onMultiDragEnd?.();
+          wobble.current.raf = requestAnimationFrame(runSpring);
+          handleDragEnd(e);
+        }}
+        onTransform={handleTransform}
         onTransformEnd={handleTransformEnd}
       >
         {/* Card body — always visible (even while editing) */}
         <Rect
           width={node.width}
           height={node.height}
-          fill={node.color}
+          fill={displayColor}
           cornerRadius={3}
           shadowColor="rgba(0,0,0,0.5)"
           shadowBlur={12}
@@ -272,10 +366,12 @@ export default function StickyNote({
         {/* Placeholder — hide while editing */}
         {!node.text && !isEditing && (
           <Text
-            x={10}
-            y={10}
-            width={node.width - 20}
-            height={node.height - 20}
+            x={10 / liveScale.sx}
+            y={10 / liveScale.sy}
+            scaleX={1 / liveScale.sx}
+            scaleY={1 / liveScale.sy}
+            width={node.width * liveScale.sx - 20}
+            height={node.height * liveScale.sy - 20}
             text="Type anything."
             fontSize={node.fontSize ?? 13}
             fontStyle="italic"
@@ -291,10 +387,12 @@ export default function StickyNote({
         {/* Text — hide while editing (contenteditable overlay takes over) */}
         {node.text && !isEditing && !isRichText(node.text) && (
           <Text
-            x={10}
-            y={10}
-            width={node.width - 20}
-            height={node.height - 20}
+            x={10 / liveScale.sx}
+            y={10 / liveScale.sy}
+            scaleX={1 / liveScale.sx}
+            scaleY={1 / liveScale.sy}
+            width={node.width * liveScale.sx - 20}
+            height={node.height * liveScale.sy - 20}
             text={node.text}
             fontSize={node.fontSize ?? 13}
             fontStyle={[node.bold ? 'bold' : '', node.italic ? 'italic' : ''].filter(Boolean).join(' ') || 'normal'}
@@ -309,7 +407,9 @@ export default function StickyNote({
           />
         )}
         {node.text && !isEditing && isRichText(node.text) && (
-          <StickyRichText node={node} />
+          <Group scaleX={1 / liveScale.sx} scaleY={1 / liveScale.sy}>
+            <StickyRichText node={node} liveWidth={node.width * liveScale.sx} />
+          </Group>
         )}
         {/* Lock indicator */}
         {node.locked && (

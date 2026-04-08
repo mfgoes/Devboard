@@ -2,17 +2,9 @@ import { useState } from 'react';
 import { useBoardStore } from '../store/boardStore';
 import { StickyNoteNode } from '../types';
 import ColorSwatches from './ColorSwatches';
+import { PALETTE } from '../utils/palette';
 
-const STICKY_COLORS = [
-  { hex: '#fde68a', label: 'Yellow' },
-  { hex: '#bbf7d0', label: 'Green' },
-  { hex: '#bae6fd', label: 'Blue' },
-  { hex: '#fbcfe8', label: 'Pink' },
-  { hex: '#ddd6fe', label: 'Purple' },
-  { hex: '#fecaca', label: 'Red' },
-  { hex: '#fed7aa', label: 'Orange' },
-  { hex: '#e2e8f0', label: 'White' },
-];
+const STICKY_COLORS = PALETTE.map((p) => ({ hex: p.sticky, label: p.label }));
 
 export { STICKY_COLORS };
 

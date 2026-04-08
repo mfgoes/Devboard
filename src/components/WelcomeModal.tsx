@@ -2,94 +2,29 @@ interface Props {
   onClose: () => void;
 }
 
-function IconPages() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
-      <rect x="1" y="3.5" width="13" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.3" />
-      <path d="M4 3.5V2.5A1.5 1.5 0 0 1 5.5 1h4A1.5 1.5 0 0 1 11 2.5v1" stroke="currentColor" strokeWidth="1.3" />
-      <line x1="4" y1="7" x2="11" y2="7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-      <line x1="4" y1="9.5" x2="9" y2="9.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-    </svg>
-  );
-}
-function IconSticky() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
-      <rect x="1" y="1" width="13" height="13" rx="2" stroke="currentColor" strokeWidth="1.3" />
-      <path d="M9 1v5.5H14" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-function IconShape() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
-      <rect x="1" y="1" width="6" height="6" rx="1" stroke="currentColor" strokeWidth="1.3" />
-      <circle cx="11" cy="4" r="3" stroke="currentColor" strokeWidth="1.3" />
-      <path d="M1 14l3.5-6 3.5 6H1z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
-      <rect x="8" y="9" width="6" height="5" rx="1" stroke="currentColor" strokeWidth="1.3" />
-    </svg>
-  );
-}
-function IconCode() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
-      <rect x="1" y="1" width="13" height="13" rx="2" stroke="currentColor" strokeWidth="1.3" />
-      <path d="M4.5 5.5L2.5 7.5l2 2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M10.5 5.5l2 2-2 2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-      <line x1="6.5" y1="10" x2="8.5" y2="5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-    </svg>
-  );
-}
-function IconTable() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
-      <rect x="1" y="1" width="13" height="13" rx="1.5" stroke="currentColor" strokeWidth="1.3" />
-      <line x1="1" y1="5" x2="14" y2="5" stroke="currentColor" strokeWidth="1.2" />
-      <line x1="6" y1="1" x2="6" y2="14" stroke="currentColor" strokeWidth="1.2" />
-    </svg>
-  );
-}
-function IconLock() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
-      <rect x="2.5" y="6.5" width="10" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.3" />
-      <path d="M4.5 6.5V4.5a3 3 0 0 1 6 0v2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-      <circle cx="7.5" cy="10" r="1" fill="currentColor" />
-    </svg>
-  );
-}
+const TOOLS = [
+  { key: 'V', label: 'Select' },
+  { key: 'H', label: 'Pan' },
+  { key: 'S', label: 'Sticky' },
+  { key: 'R', label: 'Shape' },
+  { key: 'T', label: 'Text' },
+  { key: 'L', label: 'Connector' },
+  { key: 'K', label: 'Code block' },
+  { key: 'G', label: 'Table' },
+  { key: 'F', label: 'Section' },
+  { key: 'I', label: 'Image' },
+  { key: 'U', label: 'Link' },
+];
 
-const FEATURES: { Icon: () => JSX.Element; title: string; desc: string }[] = [
-  {
-    Icon: IconPages,
-    title: 'Multi-page boards',
-    desc: 'Organise work across named pages — sprint, retro, architecture, all in one file.',
-  },
-  {
-    Icon: IconSticky,
-    title: 'Stickies & connectors',
-    desc: 'Color-coded stickies with smart bezier lines, emoji reactions, and formatting.',
-  },
-  {
-    Icon: IconShape,
-    title: 'Shapes & text blocks',
-    desc: 'Rectangles, ellipses, diamonds and triangles with fill, stroke, and inline labels.',
-  },
-  {
-    Icon: IconCode,
-    title: 'Code snippets',
-    desc: 'Syntax-highlighted code blocks on the canvas — SQL, JS, Python, TypeScript and more.',
-  },
-  {
-    Icon: IconTable,
-    title: 'Tables & sections',
-    desc: 'Drag-to-size tables with CSV import/export. Sections to frame and group ideas.',
-  },
-  {
-    Icon: IconLock,
-    title: 'No account needed',
-    desc: 'Everything lives in your browser or saves as a single portable JSON file.',
-  },
+const ACTIONS = [
+  { key: '⌘Z', label: 'Undo' },
+  { key: '⌘⇧Z', label: 'Redo' },
+  { key: '⌘C / ⌘V', label: 'Copy / Paste' },
+  { key: '⌘D', label: 'Duplicate' },
+  { key: '⌫', label: 'Delete selected' },
+  { key: '⌘S', label: 'Save JSON' },
+  { key: '⌘F', label: 'Search' },
+  { key: 'Esc', label: 'Cancel / Deselect' },
 ];
 
 export default function WelcomeModal({ onClose }: Props) {
@@ -121,52 +56,73 @@ export default function WelcomeModal({ onClose }: Props) {
         </div>
 
         {/* Title */}
-        <h2 className="text-[var(--c-text-hi)] text-lg font-semibold leading-snug mb-2">
-          The infinite canvas built for developers
-        </h2>
-        <p className="text-[var(--c-text-lo)] text-[12px] leading-relaxed mb-5">
-          System design, sprint planning, debug flows, feature mapping — no accounts,
-          no backend. Your board stays in your browser or exports as a single file.
+        <p className="text-[var(--c-text-lo)] text-[12px] leading-relaxed mb-4">
+          Infinite canvas for developer thinking — stickies, connectors, shapes, code blocks, tables, and more.
         </p>
 
-        {/* Feature grid */}
-        <div className="grid grid-cols-2 gap-2 mb-5">
-          {FEATURES.map(({ Icon, title, desc }) => (
-            <div
-              key={title}
-              className="rounded-lg p-3 flex flex-col gap-1.5 border border-[var(--c-border)] bg-[var(--c-hover)]"
-            >
-              <div className="flex items-center gap-2">
-                <span className="text-[#6366f1] shrink-0">
-                  <Icon />
-                </span>
-                <span className="text-[11px] font-semibold text-[var(--c-text-hi)] leading-tight">
-                  {title}
-                </span>
+        {/* Shortcuts */}
+        <div className="grid grid-cols-2 gap-x-6 gap-y-0 mb-5">
+          <div>
+            <p className="text-[10px] text-[var(--c-text-lo)] uppercase tracking-widest mb-2">Tools</p>
+            {TOOLS.map(({ key, label }) => (
+              <div key={key} className="flex items-center justify-between py-[3px]">
+                <span className="text-[11px] text-[var(--c-text-md)]">{label}</span>
+                <kbd className="text-[10px] text-[var(--c-text-lo)] bg-[var(--c-hover)] border border-[var(--c-border)] rounded px-1.5 py-0.5 ml-3">{key}</kbd>
               </div>
-              <p className="text-[10.5px] text-[var(--c-text-md)] leading-relaxed pl-[23px]">
-                {desc}
-              </p>
-            </div>
-          ))}
+            ))}
+          </div>
+          <div>
+            <p className="text-[10px] text-[var(--c-text-lo)] uppercase tracking-widest mb-2">Actions</p>
+            {ACTIONS.map(({ key, label }) => (
+              <div key={key} className="flex items-center justify-between py-[3px]">
+                <span className="text-[11px] text-[var(--c-text-md)]">{label}</span>
+                <kbd className="text-[10px] text-[var(--c-text-lo)] bg-[var(--c-hover)] border border-[var(--c-border)] rounded px-1.5 py-0.5 ml-3 whitespace-nowrap">{key}</kbd>
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between">
-          <a
-            href="https://x.com/MishoWave"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-[11px] text-[var(--c-text-lo)] hover:text-[#6366f1] transition-colors"
-          >
-            @MishoWave on X — feedback welcome ↗
-          </a>
-          <button
-            onClick={onClose}
-            className="px-4 py-1.5 bg-[#6366f1] hover:bg-[#4f46e5] text-white text-xs rounded-lg transition-colors font-semibold"
-          >
-            Start drawing
-          </button>
+        <div className="pt-4 border-t border-[var(--c-border)] flex flex-col gap-3">
+          {/* Link row */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <a
+              href="https://mfgoes.github.io/Devboard/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--c-border)] bg-[var(--c-hover)] text-[11px] text-[var(--c-text-md)] hover:border-[#6366f1] hover:text-[#6366f1] transition-colors"
+            >
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M2 2h5v2H4v8h8v-3h2v5H2V2zm7 0h5v5h-2V4.414L6.707 9.707 5.293 8.293 10.586 3H8V1h1z"/></svg>
+              DevBoard site
+            </a>
+            <a
+              href="https://mischa.itch.io/kosmograd"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--c-border)] bg-[var(--c-hover)] text-[11px] text-[var(--c-text-md)] hover:border-[#4ade80] hover:text-[#4ade80] transition-colors"
+            >
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="8" r="3"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.22 3.22l1.42 1.42M11.36 11.36l1.42 1.42M3.22 12.78l1.42-1.42M11.36 4.64l1.42-1.42"/></svg>
+              Kosmograd — lunar colony sim
+            </a>
+            <a
+              href="https://x.com/MishoWave"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--c-border)] bg-[var(--c-hover)] text-[11px] text-[var(--c-text-md)] hover:border-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] transition-colors"
+            >
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M12.6 0h2.454l-5.36 6.778L16 16h-4.937l-3.867-5.594L2.771 16H.316l5.733-7.25L0 0h5.063l3.495 5.114L12.6 0zm-.86 14.376h1.36L4.323 1.39H2.865l8.875 12.986z"/></svg>
+              @MishoWave
+            </a>
+          </div>
+          {/* Actions row */}
+          <div className="flex justify-end">
+            <button
+              onClick={onClose}
+              className="px-4 py-1.5 bg-[#6366f1] hover:bg-[#4f46e5] text-white text-xs rounded-lg transition-colors font-semibold"
+            >
+              Start drawing
+            </button>
+          </div>
         </div>
       </div>
     </div>
