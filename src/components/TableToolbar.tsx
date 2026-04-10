@@ -1,5 +1,6 @@
 import { useBoardStore } from '../store/boardStore';
 import { TableNode } from '../types';
+import { useToolbarPosition } from '../utils/useToolbarPosition';
 
 const DEFAULT_COL_W = 120;
 const DEFAULT_ROW_H = 36;
@@ -94,19 +95,28 @@ function measureTextWidth(text: string, fontSize: number, bold: boolean): number
 export default function TableToolbar({ nodeId }: { nodeId: string }) {
   const { nodes, camera, updateNode, saveHistory, tableSelectionState, setTableSelectionState } = useBoardStore();
   const node = nodes.find(n => n.id === nodeId) as TableNode | undefined;
+
+  const totalW = node ? node.colWidths.reduce((a, b) => a + b, 0) : 0;
+  const totalH = node ? node.rowHeights.reduce((a, b) => a + b, 0) : 0;
+  const sx = node ? node.x * camera.scale + camera.x : 0;
+  const sy = node ? node.y * camera.scale + camera.y : 0;
+  const sw = totalW * camera.scale;
+  const sh = totalH * camera.scale;
+
+  const { ref: tbRef, style: tbStyle } = useToolbarPosition({
+    centerX: sx + sw / 2,
+    preferredTop: sy - 52,
+    nodeScreenBottom: sy + sh,
+  });
+
   if (!node) return null;
 
   const numRows = node.rowHeights.length;
   const numCols = node.colWidths.length;
-  const totalW = node.colWidths.reduce((a, b) => a + b, 0);
 
   // Focused row/col from selection state (fallback: last row/col)
   const focusRow = tableSelectionState?.nodeId === nodeId ? tableSelectionState.row : numRows - 1;
   const focusCol = tableSelectionState?.nodeId === nodeId ? tableSelectionState.col : numCols - 1;
-
-  const sx = node.x * camera.scale + camera.x;
-  const sy = node.y * camera.scale + camera.y;
-  const sw = totalW * camera.scale;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const update = (patch: Partial<TableNode>) => updateNode(nodeId, patch as any);
@@ -209,13 +219,8 @@ export default function TableToolbar({ nodeId }: { nodeId: string }) {
 
   return (
     <div
-      style={{
-        position: 'absolute',
-        left: sx + sw / 2,
-        top: sy - 52,
-        transform: 'translateX(-50%)',
-        zIndex: 200,
-      }}
+      ref={tbRef}
+      style={tbStyle}
       className="flex items-center gap-0.5 px-2 py-1.5 bg-[var(--c-panel)] border border-[var(--c-border)] rounded-xl shadow-2xl"
       onMouseDown={(e) => e.stopPropagation()}
     >

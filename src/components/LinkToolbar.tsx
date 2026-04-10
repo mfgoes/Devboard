@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useBoardStore } from '../store/boardStore';
 import { LinkNode, LinkDisplayMode, TextBlockNode } from '../types';
 import { fetchMeta } from '../utils/fetchMeta';
+import { useToolbarPosition } from '../utils/useToolbarPosition';
 
 function generateId() { return Math.random().toString(36).slice(2, 11); }
 
@@ -87,6 +88,16 @@ export default function LinkToolbar({ nodeId }: Props) {
     }
   }, [showUrlEdit]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const sx = node ? node.x * camera.scale + camera.x : 0;
+  const sy = node ? node.y * camera.scale + camera.y : 0;
+  const sw = node ? node.width * camera.scale : 0;
+  const sh = node ? node.height * camera.scale : 0;
+  const { ref: tbRef, style: tbStyle } = useToolbarPosition({
+    centerX: sx + sw / 2,
+    preferredTop: sy - 48,
+    nodeScreenBottom: sy + sh,
+  });
+
   if (!node) return null;
 
   const update = (updates: Partial<LinkNode>) =>
@@ -159,11 +170,6 @@ export default function LinkToolbar({ nodeId }: Props) {
     }
   };
 
-  const sx = node.x * camera.scale + camera.x;
-  const sy = node.y * camera.scale + camera.y;
-  const sw = node.width * camera.scale;
-  const toolbarTop = sy - 48;
-
   const btnClass = (active?: boolean) =>
     `flex items-center justify-center h-8 w-8 rounded-lg transition-colors ${
       active
@@ -173,13 +179,8 @@ export default function LinkToolbar({ nodeId }: Props) {
 
   return (
     <div
-      style={{
-        position: 'absolute',
-        left: sx + sw / 2,
-        top: toolbarTop,
-        transform: 'translateX(-50%)',
-        zIndex: 200,
-      }}
+      ref={tbRef}
+      style={tbStyle}
       className="flex items-center gap-0 bg-[var(--c-panel)] border border-[var(--c-border)] rounded-xl shadow-2xl overflow-visible"
       onMouseDown={(e) => e.stopPropagation()}
     >

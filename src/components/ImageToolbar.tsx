@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { useBoardStore } from '../store/boardStore';
 import { ImageNode } from '../types';
 import { saveImageAsset, saveWorkspace, getWorkspaceName } from '../utils/workspaceManager';
+import { useToolbarPosition } from '../utils/useToolbarPosition';
 
 function IconBtn({
   onClick,
@@ -47,14 +48,20 @@ export default function ImageToolbar({ nodeId }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [nameHovered, setNameHovered] = useState(false);
 
-  if (!node) return null;
-
-  const sx = node.x * camera.scale + camera.x;
-  const sy = node.y * camera.scale + camera.y;
-  const sw = node.width * camera.scale;
-
+  const sx = node ? node.x * camera.scale + camera.x : 0;
+  const sy = node ? node.y * camera.scale + camera.y : 0;
+  const sw = node ? node.width * camera.scale : 0;
+  const sh = node ? node.height * camera.scale : 0;
   const anchorDotY = sy - 20 * camera.scale;
   const toolbarTop = anchorDotY - 40 - 8;
+
+  const { ref: tbRef, style: tbStyle } = useToolbarPosition({
+    centerX: sx + sw / 2,
+    preferredTop: toolbarTop,
+    nodeScreenBottom: sy + sh,
+  });
+
+  if (!node) return null;
 
   const isMissing = !node.src;
   const fileName = node.assetName ?? 'image.png';
@@ -101,13 +108,8 @@ export default function ImageToolbar({ nodeId }: Props) {
         }}
       />
       <div
-        style={{
-          position: 'absolute',
-          left: sx + sw / 2,
-          top: toolbarTop,
-          transform: 'translateX(-50%)',
-          zIndex: 200,
-        }}
+        ref={tbRef}
+        style={tbStyle}
         className="flex items-center gap-0 bg-[var(--c-panel)] border border-[var(--c-border)] rounded-xl shadow-2xl overflow-visible"
         onMouseDown={(e) => e.stopPropagation()}
       >

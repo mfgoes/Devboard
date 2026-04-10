@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect, useCallback } from 'react';
+import { useRef, useState, useEffect, useCallback, useContext, createContext, useId } from 'react';
 import { saveAs } from 'file-saver';
 import { useBoardStore } from '../store/boardStore';
 import { TEMPLATES } from '../templates';
@@ -141,6 +141,7 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
   const [titleDraft, setTitleDraft] = useState(boardTitle);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [activeSubMenu, setActiveSubMenu] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const [exportOpen, setExportOpen] = useState(false);
   const exportRef = useRef<HTMLDivElement>(null);
@@ -164,7 +165,7 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
   useEffect(() => {
     if (!menuOpen) return;
     const handler = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) { setMenuOpen(false); setActiveSubMenu(null); }
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
@@ -501,29 +502,32 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
 
           {/* Dropdown */}
           {menuOpen && (
+            <ActiveSubMenuCtx.Provider value={{ activeId: activeSubMenu, setActiveId: setActiveSubMenu as (id: string | null | ((prev: string | null) => string | null)) => void }}>
             <div className="absolute top-full left-0 mt-1.5 w-52 rounded-xl border border-[var(--c-border)] bg-[var(--c-panel)] shadow-2xl py-1.5 z-[220]">
 
-              <MenuItem onClick={() => menuAction(handleNewBoard)} icon={<IconNewBoard />}>New board</MenuItem>
-              <MenuItem onClick={() => menuAction(() => fileInputRef.current?.click())} icon={<IconLoad />}>Load board…</MenuItem>
-              <MenuItem onClick={() => menuAction(handleSaveJSON)} icon={<IconJson />} badge="⌘S">Save board</MenuItem>
-              <MenuItem onClick={handleOpenFolder} icon={<IconFolder />}>
-                Open folder…
-                {workspaceName && <span className="ml-auto text-[9px] text-[#6366f1] font-mono truncate max-w-[80px]">{workspaceName}</span>}
-              </MenuItem>
-
-              <MenuDivider />
-              <MenuLabel>Templates</MenuLabel>
-              {TEMPLATES.slice(0, 3).map((t) => (
-                <MenuItem key={t.id} onClick={() => handleLoadTemplate(t.id)} icon={<IconTemplate />}>
-                  {t.name}
+              <MenuItemSub label="File" icon={<IconJson />}>
+                <MenuItem onClick={() => menuAction(handleNewBoard)} icon={<IconNewBoard />}>New board</MenuItem>
+                <MenuItem onClick={() => menuAction(() => fileInputRef.current?.click())} icon={<IconLoad />}>Load board…</MenuItem>
+                <MenuItem onClick={() => menuAction(handleSaveJSON)} icon={<IconJson />} badge="⌘S">Save board</MenuItem>
+                <MenuItem onClick={() => menuAction(handleSaveAsJSON)} icon={<IconJson />}>Save board as…</MenuItem>
+                <MenuItem onClick={handleOpenFolder} icon={<IconFolder />}>
+                  Open folder…
+                  {workspaceName && <span className="ml-auto text-[9px] text-[#6366f1] font-mono truncate max-w-[80px]">{workspaceName}</span>}
                 </MenuItem>
-              ))}
-              <MenuItem
-                onClick={() => { setMenuOpen(false); setTemplatesModalOpen(true); }}
-                icon={<IconChevronRight />}
-              >
-                View more
-              </MenuItem>
+                <MenuDivider />
+                <MenuLabel>Templates</MenuLabel>
+                {TEMPLATES.slice(0, 3).map((t) => (
+                  <MenuItem key={t.id} onClick={() => handleLoadTemplate(t.id)} icon={<IconTemplate />}>
+                    {t.name}
+                  </MenuItem>
+                ))}
+                <MenuItem
+                  onClick={() => { setMenuOpen(false); setTemplatesModalOpen(true); }}
+                  icon={<IconChevronRight />}
+                >
+                  View more
+                </MenuItem>
+              </MenuItemSub>
 
               <MenuDivider />
               <MenuItemSub label="Insert" icon={<IconSticky />}>
@@ -599,6 +603,7 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
               </MenuItem>
 
             </div>
+            </ActiveSubMenuCtx.Provider>
           )}
         </div>
 
@@ -1089,22 +1094,32 @@ function IconShapeTriangle() {
 }
 
 // ── MenuItemSub — hover-triggered right flyout ────────────────────────────────
+const ActiveSubMenuCtx = createContext<{
+  activeId: string | null;
+  setActiveId: (id: string | null | ((prev: string | null) => string | null)) => void;
+}>({ activeId: null, setActiveId: () => {} });
+
 function MenuItemSub({ label, icon, children }: { label: string; icon?: React.ReactNode; children: React.ReactNode }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const id = useId();
+  const { activeId, setActiveId } = useContext(ActiveSubMenuCtx);
+  const open = activeId === id;
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const show = useCallback(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
-    setOpen(true);
-  }, []);
+    setActiveId(id); // immediately replaces any other open submenu
+  }, [id, setActiveId]);
 
   const hide = useCallback(() => {
-    timerRef.current = setTimeout(() => setOpen(false), 120);
-  }, []);
+    timerRef.current = setTimeout(
+      // only close if we're still the active one — prevents stomping a newly opened sibling
+      () => setActiveId((prev) => (prev === id ? null : prev)),
+      300,
+    );
+  }, [id, setActiveId]);
 
   return (
-    <div ref={ref} className="relative" onMouseEnter={show} onMouseLeave={hide}>
+    <div className="relative" onMouseEnter={show} onMouseLeave={hide}>
       <button
         className={[
           'w-full flex items-center gap-2.5 px-3 py-1.5 font-mono text-[12px] text-left transition-colors',
@@ -1120,6 +1135,7 @@ function MenuItemSub({ label, icon, children }: { label: string; icon?: React.Re
       {open && (
         <div
           className="absolute left-full top-0 ml-1 w-48 rounded-xl border border-[var(--c-border)] bg-[var(--c-panel)] shadow-2xl py-1.5 z-[230]"
+          style={{ animation: 'submenu-in 0.13s ease-out' }}
           onMouseEnter={show}
           onMouseLeave={hide}
         >

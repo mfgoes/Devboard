@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useBoardStore } from '../store/boardStore';
 import { CodeBlockNode } from '../types';
 import { CodeLanguage } from '../utils/syntaxHighlight';
+import { useToolbarPosition } from '../utils/useToolbarPosition';
 
 const LANGUAGES: { value: CodeLanguage; label: string }[] = [
   { value: 'sql',        label: 'SQL' },
@@ -54,6 +55,17 @@ export default function CodeBlockToolbar({ nodeId }: Props) {
   const [copied, setCopied] = useState(false);
   const [showLang, setShowLang] = useState(false);
 
+  const sx = node ? node.x * camera.scale + camera.x : 0;
+  const sy = node ? node.y * camera.scale + camera.y : 0;
+  const sw = node ? node.width * camera.scale : 0;
+  const sh = node ? node.height * camera.scale : 0;
+
+  const { ref: tbRef, style: tbStyle } = useToolbarPosition({
+    centerX: sx + sw / 2,
+    preferredTop: sy - 48,
+    nodeScreenBottom: sy + sh,
+  });
+
   if (!node) return null;
 
   const update = (updates: Partial<CodeBlockNode>) =>
@@ -72,22 +84,12 @@ export default function CodeBlockToolbar({ nodeId }: Props) {
     deleteSelected();
   };
 
-  const sx = node.x * camera.scale + camera.x;
-  const sy = node.y * camera.scale + camera.y;
-  const sw = node.width * camera.scale;
-  const toolbarTop = sy - 48;
-
   const currentLang = LANGUAGES.find((l) => l.value === node.language) ?? LANGUAGES[0];
 
   return (
     <div
-      style={{
-        position: 'absolute',
-        left: sx + sw / 2,
-        top: toolbarTop,
-        transform: 'translateX(-50%)',
-        zIndex: 200,
-      }}
+      ref={tbRef}
+      style={tbStyle}
       className="flex items-center gap-0 bg-[var(--c-panel)] border border-[var(--c-border)] rounded-xl shadow-2xl overflow-visible"
       onMouseDown={(e) => e.stopPropagation()}
     >

@@ -11,7 +11,8 @@ export type Tool =
   | 'table'
   | 'code'
   | 'image'
-  | 'link';
+  | 'link'
+  | 'task';
 
 export type AnchorSide = 'top' | 'right' | 'bottom' | 'left';
 
@@ -208,7 +209,27 @@ export interface LinkNode {
   groupId?: string;
 }
 
-export type CanvasNode = StickyNoteNode | ConnectorNode | TextBlockNode | ShapeNode | SectionNode | StickerNode | TableNode | CodeBlockNode | ImageNode | LinkNode;
+export interface TaskItem {
+  id: string;
+  text: string;
+  done: boolean;
+}
+
+export interface TaskCardNode {
+  id: string;
+  type: 'taskcard';
+  x: number;
+  y: number;
+  width: number;
+  height?: number; // tracked by ResizeObserver for connector anchors
+  title: string;
+  tasks: TaskItem[];
+  color?: string; // accent dot color
+  locked?: boolean;
+  groupId?: string;
+}
+
+export type CanvasNode = StickyNoteNode | ConnectorNode | TextBlockNode | ShapeNode | SectionNode | StickerNode | TableNode | CodeBlockNode | ImageNode | LinkNode | TaskCardNode;
 
 export interface Camera {
   x: number;

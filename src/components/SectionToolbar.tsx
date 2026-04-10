@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useBoardStore } from '../store/boardStore';
 import { SectionNode } from '../types';
 import { PALETTE } from '../utils/palette';
+import { useToolbarPosition } from '../utils/useToolbarPosition';
 
 const SECTION_COLORS = ['neutral', ...PALETTE.map((p) => p.section)];
 
@@ -21,23 +22,25 @@ export default function SectionToolbar({ nodeId }: { nodeId: string }) {
     return () => window.removeEventListener('mousedown', onDown);
   }, [colorOpen]);
 
-  if (!node) return null;
+  const sx = node ? node.x * camera.scale + camera.x : 0;
+  const sy = node ? node.y * camera.scale + camera.y : 0;
+  const sw = node ? node.width * camera.scale : 0;
+  const sh = node ? node.height * camera.scale : 0;
 
-  const sx = node.x * camera.scale + camera.x;
-  const sy = node.y * camera.scale + camera.y;
-  const sw = node.width * camera.scale;
+  const { ref: tbRef, style: tbStyle } = useToolbarPosition({
+    centerX: sx + sw / 2,
+    preferredTop: sy - 52,
+    nodeScreenBottom: sy + sh,
+  });
+
+  if (!node) return null;
 
   const activeColor = node.color === 'neutral' ? 'var(--c-text-lo)' : node.color;
 
   return (
     <div
-      style={{
-        position: 'absolute',
-        left: sx + sw / 2,
-        top: sy - 52,
-        transform: 'translateX(-50%)',
-        zIndex: 200,
-      }}
+      ref={tbRef}
+      style={tbStyle}
       className="flex items-center gap-1.5 px-2 py-1.5 bg-[var(--c-panel)] border border-[var(--c-border)] rounded-xl shadow-2xl"
       onMouseDown={(e) => e.stopPropagation()}
     >

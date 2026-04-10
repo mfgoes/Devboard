@@ -23,10 +23,11 @@ import TableInsertControls from './TableInsertControls';
 import TableReorderControls from './TableReorderControls';
 import MultiSelectToolbar from './MultiSelectToolbar';
 import ContextMenu, { ContextMenuState } from './ContextMenu';
-import { AnchorSide, ConnectorNode, StickyNoteNode, ShapeNode, TextBlockNode, SectionNode, StickerNode, TableNode, CodeBlockNode, ImageNode, LinkNode } from '../types';
+import { AnchorSide, ConnectorNode, StickyNoteNode, ShapeNode, TextBlockNode, SectionNode, StickerNode, TableNode, CodeBlockNode, ImageNode, LinkNode, TaskCardNode } from '../types';
 import CodeBlockComponent from './nodes/CodeBlock';
 import ImageNodeComponent from './nodes/ImageNode';
 import LinkNodeComponent from './nodes/LinkNode';
+import TaskCardNodeComponent from './nodes/TaskCardNode';
 import LinkToolbar from './LinkToolbar';
 import { saveImageAsset, saveWorkspace, getWorkspaceName, openWorkspace } from '../utils/workspaceManager';
 import { hasSeenImageNotice, markImageNoticeSeen } from './ImageFirstUseModal';
@@ -137,6 +138,7 @@ export default function Canvas() {
 
   // Sticker hover position
   const [stickerCursorPos, setStickerCursorPos] = useState<{ x: number; y: number } | null>(null);
+  const [taskCursorPos,   setTaskCursorPos]   = useState<{ x: number; y: number } | null>(null);
 
   // Snap alignment guides
   const [snapGuides, setSnapGuides] = useState<SnapGuide[]>([]);
@@ -404,39 +406,55 @@ export default function Canvas() {
   }, [deleteSelected, setActiveTool, selectIds]);
 
   // ── Wheel: pinch-zoom (ctrlKey) vs 2-finger pan (no ctrlKey) ───────────────
-  const handleWheel = useCallback(
-    (e: Konva.KonvaEventObject<WheelEvent>) => {
-      e.evt.preventDefault();
-      const stage = stageRef.current;
-      if (!stage) return;
-
-      if (e.evt.ctrlKey) {
+  // Shared logic — called from both the Konva Stage handler and the HTML overlay
+  // listener, so toolbars don't swallow 2-finger pan/zoom.
+  const processWheel = useCallback(
+    (evt: WheelEvent, pointerX: number, pointerY: number) => {
+      evt.preventDefault();
+      if (evt.ctrlKey) {
         const { x, y, scale } = camera;
-        const pointer = stage.getPointerPosition()!;
         const factor =
-          Math.abs(e.evt.deltaY) < 50
-            ? 1 - e.evt.deltaY * 0.018
-            : e.evt.deltaY < 0 ? 1.08 : 1 / 1.08;
-
+          Math.abs(evt.deltaY) < 50
+            ? 1 - evt.deltaY * 0.018
+            : evt.deltaY < 0 ? 1.08 : 1 / 1.08;
         const newScale = Math.min(Math.max(scale * factor, 0.08), 8);
-        const mousePointTo = {
-          x: (pointer.x - x) / scale,
-          y: (pointer.y - y) / scale,
-        };
+        const mousePointTo = { x: (pointerX - x) / scale, y: (pointerY - y) / scale };
         setCamera({
           scale: newScale,
-          x: pointer.x - mousePointTo.x * newScale,
-          y: pointer.y - mousePointTo.y * newScale,
+          x: pointerX - mousePointTo.x * newScale,
+          y: pointerY - mousePointTo.y * newScale,
         });
       } else {
-        setCamera({
-          x: camera.x - e.evt.deltaX,
-          y: camera.y - e.evt.deltaY,
-        });
+        setCamera({ x: camera.x - evt.deltaX, y: camera.y - evt.deltaY });
       }
     },
     [camera, setCamera]
   );
+
+  const handleWheel = useCallback(
+    (e: Konva.KonvaEventObject<WheelEvent>) => {
+      const stage = stageRef.current;
+      if (!stage) return;
+      const pointer = stage.getPointerPosition()!;
+      processWheel(e.evt, pointer.x, pointer.y);
+    },
+    [processWheel]
+  );
+
+  // Catch wheel events on HTML overlays (toolbars, etc.) that sit on top of the
+  // Konva canvas — they would otherwise swallow the event and break 2-finger pan.
+  const containerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      // Let Konva's own listener handle events directly on the canvas element
+      if ((e.target as HTMLElement).tagName === 'CANVAS') return;
+      processWheel(e, e.clientX, e.clientY);
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [processWheel]);
 
   // ── Mouse down ──────────────────────────────────────────────────────────────
   const handleMouseDown = useCallback(
@@ -473,6 +491,24 @@ export default function Canvas() {
           width: 200,
           height: 160,
         } satisfies StickyNoteNode);
+        setActiveTool('select');
+        return;
+      }
+
+      if (activeTool === 'task' && clickedStage) {
+        const pos = stageRef.current!.getPointerPosition()!;
+        const worldX = (pos.x - camera.x) / camera.scale;
+        const worldY = (pos.y - camera.y) / camera.scale;
+        addNode({
+          id: generateId(),
+          type: 'taskcard',
+          x: worldX - 140,
+          y: worldY - 40,
+          width: 280,
+          title: 'New Task Card',
+          tasks: [],
+          color: '#6366f1',
+        } satisfies TaskCardNode);
         setActiveTool('select');
         return;
       }
@@ -647,8 +683,13 @@ export default function Canvas() {
         let best: { nodeId: string; side: AnchorSide } | null = null;
         let bestDist = threshold;
         for (const n of useBoardStore.getState().nodes) {
-          if ((n.type !== 'sticky' && n.type !== 'shape') || n.id === drawingLine.fromNodeId) continue;
-          for (const side of ['top', 'right', 'bottom', 'left'] as AnchorSide[]) {
+          if ((n.type !== 'sticky' && n.type !== 'shape' && n.type !== 'taskcard') || n.id === drawingLine.fromNodeId) continue;
+          if (n.type === 'taskcard' && !(n as TaskCardNode).height) continue;
+          // Task cards only expose left + right anchors
+          const sides = n.type === 'taskcard'
+            ? (['left', 'right'] as AnchorSide[])
+            : (['top', 'right', 'bottom', 'left'] as AnchorSide[]);
+          for (const side of sides) {
             const { x: ax, y: ay } = anchorCoords(n as StickyNoteNode | ShapeNode, side);
             const d = Math.hypot(worldX - ax, worldY - ay);
             if (d < bestDist) { bestDist = d; best = { nodeId: n.id, side }; }
@@ -691,6 +732,12 @@ export default function Canvas() {
       if (activeTool === 'sticker') {
         const pos = stageRef.current?.getPointerPosition();
         if (pos) setStickerCursorPos({ x: pos.x, y: pos.y });
+      }
+
+      // Track cursor for task card ghost
+      if (activeTool === 'task') {
+        const pos = stageRef.current?.getPointerPosition();
+        if (pos) setTaskCursorPos({ x: pos.x, y: pos.y });
       }
 
       // Track table drag preview
@@ -758,9 +805,9 @@ export default function Canvas() {
       if (snapTarget && snapTarget.nodeId !== drawingLine.fromNodeId) {
         const toNode = useBoardStore
           .getState()
-          .nodes.find((n) => n.id === snapTarget.nodeId && (n.type === 'sticky' || n.type === 'shape')) as (StickyNoteNode | ShapeNode) | undefined;
+          .nodes.find((n) => n.id === snapTarget.nodeId && (n.type === 'sticky' || n.type === 'shape' || n.type === 'taskcard')) as (StickyNoteNode | ShapeNode | TaskCardNode) | undefined;
         const toCoords = toNode
-          ? anchorCoords(toNode, snapTarget.side)
+          ? anchorCoords(toNode as StickyNoteNode | ShapeNode, snapTarget.side)
           : { x: drawingLine.toX, y: drawingLine.toY };
 
         addNode({
@@ -1059,6 +1106,9 @@ export default function Canvas() {
           } else if (activeTool === 'link') {
             addNode({ id: generateId(), type: 'link', x: worldX - 160, y: worldY - 30, width: 320, height: 90, url: 'https://', displayMode: 'compact' } satisfies LinkNode);
             setActiveTool('select');
+          } else if (activeTool === 'task') {
+            addNode({ id: generateId(), type: 'taskcard', x: worldX - 140, y: worldY - 40, width: 280, title: 'New Task Card', tasks: [], color: '#6366f1' } satisfies TaskCardNode);
+            setActiveTool('select');
           }
         }
       }
@@ -1186,10 +1236,10 @@ export default function Canvas() {
     let ty = toY;
     if (snapTarget) {
       const toNode = nodes.find(
-        (n) => n.id === snapTarget.nodeId && (n.type === 'sticky' || n.type === 'shape')
-      ) as (StickyNoteNode | ShapeNode) | undefined;
+        (n) => n.id === snapTarget.nodeId && (n.type === 'sticky' || n.type === 'shape' || n.type === 'taskcard')
+      ) as (StickyNoteNode | ShapeNode | TaskCardNode) | undefined;
       if (toNode) {
-        const c = anchorCoords(toNode, snapTarget.side);
+        const c = anchorCoords(toNode as StickyNoteNode | ShapeNode, snapTarget.side);
         tx = c.x;
         ty = c.y;
       }
@@ -1225,6 +1275,7 @@ export default function Canvas() {
     table: 'crosshair',
     code: 'crosshair',
     image: 'crosshair',
+    task: 'crosshair',
   };
   // If a line draw is in progress (e.g. started from an anchor in select mode), always crosshair
   const cursor = cursorOverride ?? (drawingLine ? 'crosshair' : toolCursor[activeTool] ?? 'default');
@@ -1271,6 +1322,7 @@ export default function Canvas() {
 
   return (
     <div
+      ref={containerRef}
       className="absolute inset-0 overflow-hidden select-none"
       style={{
         backgroundColor: t.canvasBg,
@@ -1282,6 +1334,7 @@ export default function Canvas() {
       onMouseLeave={() => {
         if (activeTool === 'text' && !textDraw) setTextCursorPos(null);
         if (activeTool === 'sticker') setStickerCursorPos(null);
+        if (activeTool === 'task') setTaskCursorPos(null);
       }}
       onContextMenu={(e) => {
         // Only fire if the target is the canvas background (not a node)
@@ -1537,6 +1590,23 @@ export default function Canvas() {
         </Layer>
       </Stage>
 
+      {/* ── Task card HTML overlays ──────────────────────────────────────── */}
+      {nodes
+        .filter((n) => n.type === 'taskcard')
+        .map((n) => (
+          <TaskCardNodeComponent
+            key={n.id}
+            node={n as TaskCardNode}
+            camera={camera}
+            isSelected={selectedIds.includes(n.id)}
+            isDrawingLine={drawingLine !== null}
+            snapAnchor={snapTarget?.nodeId === n.id ? snapTarget.side : null}
+            onAnchorDown={handleAnchorDown}
+            onAnchorEnter={handleAnchorEnter}
+            onAnchorLeave={handleAnchorLeave}
+          />
+        ))}
+
       {/* ── Text ghost: hover preview before clicking ─────────────────────── */}
       {activeTool === 'text' && textCursorPos && !textDraw && (
         <div
@@ -1693,6 +1763,69 @@ export default function Canvas() {
           }}
         />
       )}
+
+      {/* Task card placement ghost */}
+      {activeTool === 'task' && taskCursorPos && (() => {
+        const W = 280 * camera.scale;
+        const left = taskCursorPos.x - W / 2;
+        const top  = taskCursorPos.y - 20 * camera.scale;
+        const fs   = 13 * camera.scale;
+        const dotS = 10 * camera.scale;
+        const pad  = 12 * camera.scale;
+        const accent = '#6366f1';
+        return (
+          <div
+            style={{
+              position: 'absolute',
+              left,
+              top,
+              width: W,
+              pointerEvents: 'none',
+              opacity: 0.55,
+              borderRadius: 12,
+              border: `2px solid ${accent}`,
+              background: 'var(--c-panel)',
+              boxShadow: '0 4px 20px rgba(0,0,0,0.18)',
+              overflow: 'hidden',
+            }}
+          >
+            {/* Header */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: pad * 0.6,
+              padding: `${pad * 0.8}px ${pad}px`,
+              borderBottom: '1px solid var(--c-border)',
+            }}>
+              <div style={{
+                width: dotS, height: dotS,
+                borderRadius: '50%',
+                background: accent,
+                flexShrink: 0,
+              }} />
+              <span style={{
+                color: 'var(--c-text-hi)',
+                fontFamily: "'JetBrains Mono', monospace",
+                fontWeight: 700,
+                fontSize: fs,
+                flex: 1,
+              }}>
+                New Task Card
+              </span>
+            </div>
+            {/* Empty task list hint */}
+            <div style={{
+              padding: `${pad * 0.5}px ${pad}px ${pad * 0.8}px`,
+              display: 'flex',
+              alignItems: 'center',
+              gap: pad * 0.5,
+            }}>
+              <span style={{ color: 'var(--c-text-lo)', fontSize: fs * 0.9, fontFamily: "'JetBrains Mono', monospace" }}>+</span>
+              <span style={{ color: 'var(--c-text-lo)', fontSize: fs * 0.9, fontFamily: "'JetBrains Mono', monospace" }}>Add task…</span>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Marquee selection rect */}
       {marqueeDraw && (

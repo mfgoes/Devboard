@@ -61,8 +61,9 @@ const TOOLTIP_OFFSET: Record<AnchorSide, [number, number]> = {
 
 // Generates a curved-arrow rotation cursor SVG pointing in `deg` degrees (0 = East/right)
 function makeRotateCursor(deg: number): string {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><g transform="rotate(${Math.round(deg)} 8 8)"><path d="M3 8 A5 5 0 0 1 13 8" stroke="#1a1a2e" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M15 8 L11 6 L12 8 L11 10 Z" fill="#1a1a2e"/></g></svg>`;
-  return `url("data:image/svg+xml;base64,${btoa(svg)}") 8 8, pointer`;
+  // 24×24 — closer to macOS native cursor size; white outline for dark-background legibility
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><g transform="rotate(${Math.round(deg)} 12 12)"><path d="M4.5 12 A7.5 7.5 0 0 1 19.5 12" stroke="white" stroke-width="4.5" fill="none" stroke-linecap="round"/><path d="M22.5 12 L16.5 9 L18 12 L16.5 15 Z" fill="white" stroke="white" stroke-width="3" stroke-linejoin="round"/><path d="M4.5 12 A7.5 7.5 0 0 1 19.5 12" stroke="#1a1a2e" stroke-width="2.5" fill="none" stroke-linecap="round"/><path d="M22.5 12 L16.5 9 L18 12 L16.5 15 Z" fill="#1a1a2e"/></g></svg>`;
+  return `url("data:image/svg+xml;base64,${btoa(svg)}") 12 12, pointer`;
 }
 
 function luminance(hex: string): number {
@@ -512,10 +513,8 @@ export default function ShapeNode({
       {isSelected && !isLineTool && !isEditing && (
         <Transformer
           ref={trRef}
-          rotateEnabled={true}
+          rotateEnabled={false}
           anchorStyleFunc={(anchor) => {
-            // Hide rotation anchor — rotation handled via corner zones
-            if (anchor.name() === 'rotater') { anchor.opacity(0); return; }
             const name = anchor.name();
             const isHoriz = name.includes('top-center') || name.includes('bottom-center');
             const isVert  = name.includes('middle-left') || name.includes('middle-right');
