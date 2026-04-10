@@ -32,9 +32,11 @@ export default function PagesPanel({ onClose }: Props) {
     if (renamingId) renameInputRef.current?.focus();
   }, [renamingId]);
 
-  // Close panel on outside click
+  // Close panel on outside click — but not when clicking the toggle button itself
+  // (the toggle button fires mousedown→close then click→reopen, so we skip it here)
   useEffect(() => {
     const handler = (e: MouseEvent) => {
+      if ((e.target as Element).closest('[data-pages-toggle]')) return;
       if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
         onClose();
       }

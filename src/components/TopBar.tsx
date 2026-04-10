@@ -4,7 +4,7 @@ import { useBoardStore } from '../store/boardStore';
 import { TEMPLATES } from '../templates';
 import ConfirmDialog from './ConfirmDialog';
 import { saveBoard, saveBoardAs, clearFileHandle } from '../utils/fileSave';
-import { openWorkspace, saveWorkspace, loadImageAsset, findImageInWorkspace, hasWorkspaceHandle } from '../utils/workspaceManager';
+import { openWorkspace, saveWorkspace, loadImageAsset, findImageInWorkspace, hasWorkspaceHandle, clearWorkspaceHandle } from '../utils/workspaceManager';
 import { toast } from '../utils/toast';
 import exportSound from '../assets/get1.mp3';
 
@@ -145,10 +145,17 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
   const menuRef = useRef<HTMLDivElement>(null);
   const [exportOpen, setExportOpen] = useState(false);
   const exportRef = useRef<HTMLDivElement>(null);
-  const [confirmDialog, setConfirmDialog] = useState<{ message: string; onConfirm: () => void } | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<{
+    message: string;
+    onConfirm: () => void;
+    confirmLabel?: string;
+    extraActions?: Array<{ label: string; onClick: () => void }>;
+  } | null>(null);
   const [templatesModalOpen, setTemplatesModalOpen] = useState(false);
   const [missingWarningOpen, setMissingWarningOpen] = useState(false);
   const missingWarningRef = useRef<HTMLDivElement>(null);
+  const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
+  const workspaceMenuRef = useRef<HTMLDivElement>(null);
 
   const missingImages = nodes.filter(
     (n) => n.type === 'image' && (n as import('../types').ImageNode).assetName && !(n as import('../types').ImageNode).src
@@ -188,6 +195,15 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [missingWarningOpen]);
+
+  useEffect(() => {
+    if (!workspaceMenuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (workspaceMenuRef.current && !workspaceMenuRef.current.contains(e.target as Node)) setWorkspaceMenuOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [workspaceMenuOpen]);
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -389,18 +405,53 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
   const handleNewBoard = () => {
     const { nodes, pageSnapshots } = useBoardStore.getState();
     const hasContent = nodes.length > 0 || Object.values(pageSnapshots).some((s) => s.nodes.length > 0);
-    if (hasContent) {
-      setConfirmDialog({
-        message: 'Start a new board? All pages will be lost.',
-        onConfirm: () => {
-          loadBoard({ boardTitle: 'Untitled Board', nodes: [] });
-          clearFileHandle();
-          setConfirmDialog(null);
-        },
-      });
-    } else {
+
+    const doNewBoard = () => {
       loadBoard({ boardTitle: 'Untitled Board', nodes: [] });
       clearFileHandle();
+      setConfirmDialog(null);
+    };
+
+    if (!hasContent) {
+      doNewBoard();
+      return;
+    }
+
+    if (hasWorkspaceHandle()) {
+      const wsName = workspaceName ?? 'workspace';
+      setConfirmDialog({
+        message: 'Start a new board? All pages will be lost.',
+        confirmLabel: `Keep "${wsName}"`,
+        onConfirm: doNewBoard,
+        extraActions: [
+          {
+            label: 'Switch workspace…',
+            onClick: async () => {
+              doNewBoard();
+              const result = await openWorkspace();
+              if (result) {
+                setWorkspaceName(result.name);
+                if (result.data) loadBoard(result.data);
+                onWorkspaceOpened();
+              }
+            },
+          },
+          {
+            label: 'Go standalone (no folder)',
+            onClick: () => {
+              doNewBoard();
+              clearWorkspaceHandle();
+              setWorkspaceName(null);
+            },
+          },
+        ],
+      });
+    } else {
+      setConfirmDialog({
+        message: 'Start a new board? All pages will be lost.',
+        confirmLabel: 'New board',
+        onConfirm: doNewBoard,
+      });
     }
   };
 
@@ -437,7 +488,8 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
         message={confirmDialog.message}
         onConfirm={confirmDialog.onConfirm}
         onCancel={() => setConfirmDialog(null)}
-        confirmLabel="Load template"
+        confirmLabel={confirmDialog.confirmLabel}
+        extraActions={confirmDialog.extraActions}
       />
     )}
     {templatesModalOpen && (
@@ -613,6 +665,7 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
           return (
             <button
               onClick={onTogglePages}
+              data-pages-toggle="true"
               title="Pages"
               className={[
                 'flex items-center gap-1.5 h-7 px-2 rounded transition-colors shrink-0 min-w-0',
@@ -671,13 +724,85 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
             {boardTitle}
           </button>
         )}
-        {/* Workspace indicator */}
-        {workspaceName && (
-          <span className="hidden sm:flex items-center gap-1 ml-1 px-1.5 py-0.5 rounded text-[9px] font-mono text-[#6366f1] border border-[#6366f1]/30 bg-[#6366f1]/10 shrink-0 max-w-[140px] truncate" title={`Workspace: ${workspaceName}`}>
-            <IconFolder />
-            {workspaceName}
-          </span>
-        )}
+        {/* Workspace indicator — interactive dropdown */}
+        <div className="relative hidden sm:block shrink-0" ref={workspaceMenuRef}>
+          {workspaceName ? (
+            <button
+              onClick={() => setWorkspaceMenuOpen((v) => !v)}
+              title={`Workspace: ${workspaceName}`}
+              className={[
+                'flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono border transition-colors max-w-[160px]',
+                workspaceMenuOpen
+                  ? 'text-[#6366f1] border-[#6366f1]/50 bg-[#6366f1]/15'
+                  : 'text-[#6366f1] border-[#6366f1]/30 bg-[#6366f1]/10 hover:bg-[#6366f1]/20',
+              ].join(' ')}
+            >
+              <IconFolder />
+              <span className="truncate max-w-[100px]">{workspaceName}</span>
+              <IconChevronDown />
+            </button>
+          ) : (
+            <button
+              onClick={handleOpenFolder}
+              title="Open a folder workspace to save images as files and keep JSON small"
+              className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono border border-dashed border-[var(--c-border)] text-[var(--c-text-off)] hover:text-[#6366f1] hover:border-[#6366f1]/40 hover:bg-[#6366f1]/8 transition-colors"
+            >
+              <IconFolder />
+              Open workspace…
+            </button>
+          )}
+          {workspaceMenuOpen && workspaceName && (
+            <div className="absolute top-full left-0 mt-1.5 z-[300] bg-[var(--c-panel)] border border-[var(--c-border)] rounded-xl shadow-2xl min-w-[190px] overflow-hidden">
+              {/* Header */}
+              <div className="px-3 py-2 border-b border-[var(--c-border)]">
+                <p className="font-mono text-[9px] text-[var(--c-text-off)] uppercase tracking-wider">Active workspace</p>
+                <p className="font-mono text-[11px] text-[#6366f1] font-semibold truncate mt-0.5" title={workspaceName}>{workspaceName}</p>
+              </div>
+              {/* Actions */}
+              <div className="py-1">
+                <button
+                  onClick={() => { setWorkspaceMenuOpen(false); handleOpenFolder(); }}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-left font-mono text-[11px] text-[var(--c-text-md)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
+                >
+                  <IconFolder />
+                  Switch workspace…
+                </button>
+                <button
+                  onClick={() => { setWorkspaceMenuOpen(false); onToggleExplorer(); }}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-left font-mono text-[11px] text-[var(--c-text-md)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
+                >
+                  <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+                    <rect x="1" y="1" width="4" height="4" rx="0.8" stroke="currentColor" strokeWidth="1.1"/>
+                    <rect x="1" y="6" width="4" height="4" rx="0.8" stroke="currentColor" strokeWidth="1.1"/>
+                    <path d="M7 3h3M7 5.5h3M7 8h3" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round"/>
+                  </svg>
+                  File explorer
+                  <svg
+                    width="10" height="10" viewBox="0 0 10 10" fill="none"
+                    className="ml-auto"
+                    style={{ opacity: explorerOpen ? 1 : 0 }}
+                  >
+                    <path d="M1.5 5l2.5 2.5 5-5" stroke="#6366f1" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => {
+                    setWorkspaceMenuOpen(false);
+                    clearWorkspaceHandle();
+                    setWorkspaceName(null);
+                    toast('Workspace closed');
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-left font-mono text-[11px] text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
+                >
+                  <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+                    <path d="M2 2l7 7M9 2l-7 7" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+                  </svg>
+                  Close workspace
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
         {/* Missing images warning */}
         {missingImages.length > 0 && (
           <div ref={missingWarningRef} className="relative ml-1">

@@ -30,6 +30,7 @@ import LinkNodeComponent from './nodes/LinkNode';
 import TaskCardNodeComponent from './nodes/TaskCardNode';
 import LinkToolbar from './LinkToolbar';
 import { saveImageAsset, saveWorkspace, getWorkspaceName, openWorkspace } from '../utils/workspaceManager';
+import { placeImageFileAt } from './WorkspaceExplorer';
 import { hasSeenImageNotice, markImageNoticeSeen } from './ImageFirstUseModal';
 import ImageFirstUseModal from './ImageFirstUseModal';
 import CodeBlockToolbar from './CodeBlockToolbar';
@@ -1193,6 +1194,22 @@ export default function Canvas() {
   const handleDrop = useCallback(
     (e: React.DragEvent<HTMLDivElement>) => {
       e.preventDefault();
+
+      // Explorer panel entry drag
+      const entryJson = e.dataTransfer.getData('application/x-devboard-entry');
+      if (entryJson) {
+        try {
+          const pathParts: string[] = JSON.parse(entryJson);
+          const rect = e.currentTarget.getBoundingClientRect();
+          const { camera: cam } = useBoardStore.getState();
+          const worldX = (e.clientX - rect.left - cam.x) / cam.scale;
+          const worldY = (e.clientY - rect.top - cam.y) / cam.scale;
+          placeImageFileAt(pathParts, worldX, worldY);
+        } catch { /* ignore malformed data */ }
+        return;
+      }
+
+      // OS file drop
       const files = Array.from(e.dataTransfer.files).filter((f) =>
         f.type.startsWith('image/')
       );
@@ -1966,9 +1983,12 @@ export default function Canvas() {
             }
           }}
           onOpenFolder={async () => {
+            // Call openWorkspace() first — showDirectoryPicker must be invoked
+            // within the user-gesture tick. Calling setState before it loses
+            // the activation context in Chrome and silently aborts the picker.
+            const result = await openWorkspace();
             markImageNoticeSeen();
             setShowImageNotice(false);
-            const result = await openWorkspace();
             if (result) {
               useBoardStore.getState().setWorkspaceName(result.name);
               if (result.data) {

@@ -4,6 +4,8 @@ interface ConfirmDialogProps {
   onCancel: () => void;
   confirmLabel?: string;
   cancelLabel?: string;
+  /** Extra secondary-choice buttons rendered below the primary confirm button. */
+  extraActions?: Array<{ label: string; onClick: () => void }>;
 }
 
 export default function ConfirmDialog({
@@ -12,7 +14,9 @@ export default function ConfirmDialog({
   onCancel,
   confirmLabel = 'Confirm',
   cancelLabel = 'Cancel',
+  extraActions,
 }: ConfirmDialogProps) {
+  const hasExtras = extraActions && extraActions.length > 0;
   return (
     <div
       className="fixed inset-0 z-[500] flex items-center justify-center"
@@ -26,20 +30,51 @@ export default function ConfirmDialog({
         <p className="font-mono text-[13px] text-[var(--c-text-hi)] leading-relaxed">
           {message}
         </p>
-        <div className="flex justify-end gap-2">
-          <button
-            onClick={onCancel}
-            className="px-3 h-7 rounded font-mono text-[11px] tracking-wide text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
-          >
-            {cancelLabel}
-          </button>
-          <button
-            onClick={onConfirm}
-            className="px-3 h-7 rounded font-mono text-[11px] tracking-wide bg-[#6366f1] text-white hover:bg-[#4f46e5] transition-colors"
-          >
-            {confirmLabel}
-          </button>
-        </div>
+
+        {hasExtras ? (
+          /* Multi-choice layout: stacked buttons + cancel at bottom */
+          <div className="flex flex-col gap-1.5">
+            <button
+              onClick={onConfirm}
+              className="w-full px-3 h-8 rounded font-mono text-[11px] tracking-wide bg-[#6366f1] text-white hover:bg-[#4f46e5] transition-colors text-left pl-3"
+            >
+              {confirmLabel}
+            </button>
+            {extraActions!.map((action) => (
+              <button
+                key={action.label}
+                onClick={action.onClick}
+                className="w-full px-3 h-8 rounded font-mono text-[11px] tracking-wide border border-[var(--c-border)] text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors text-left"
+              >
+                {action.label}
+              </button>
+            ))}
+            <div className="flex justify-end pt-1">
+              <button
+                onClick={onCancel}
+                className="px-3 h-7 rounded font-mono text-[11px] tracking-wide text-[var(--c-text-off)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
+              >
+                {cancelLabel}
+              </button>
+            </div>
+          </div>
+        ) : (
+          /* Simple two-button layout */
+          <div className="flex justify-end gap-2">
+            <button
+              onClick={onCancel}
+              className="px-3 h-7 rounded font-mono text-[11px] tracking-wide text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
+            >
+              {cancelLabel}
+            </button>
+            <button
+              onClick={onConfirm}
+              className="px-3 h-7 rounded font-mono text-[11px] tracking-wide bg-[#6366f1] text-white hover:bg-[#4f46e5] transition-colors"
+            >
+              {confirmLabel}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

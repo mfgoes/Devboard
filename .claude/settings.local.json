@@ -30,7 +30,12 @@
       "Bash(npx sass:*)",
       "Bash(node -e \"require\\(''sass''\\)\")",
       "Bash(open -a 'Google Chrome' http://localhost:5500/index.html)",
-      "Bash(npx vite:*)"
+      "Bash(npx vite:*)",
+      "Bash(bash \"/Users/mischavandergoes/Documents/GitHub/CollaboCanvas/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/bundle_dmg.sh\")",
+      "Bash(mkdir -p /tmp/devboard-dmg-stage)",
+      "Bash(cp -r \"/Users/mischavandergoes/Documents/GitHub/CollaboCanvas/src-tauri/target/aarch64-apple-darwin/release/bundle/macos/DevBoard.app\" /tmp/devboard-dmg-stage/)",
+      "Bash(rustup target:*)",
+      "Bash(python3:*)"
     ]
   }
 }

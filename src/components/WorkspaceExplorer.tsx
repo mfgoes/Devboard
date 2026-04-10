@@ -42,17 +42,30 @@ function formatSize(bytes: number): string {
 }
 
 // ── File-type icon colours ────────────────────────────────────────────────────
-function fileColor(name: string): string {
+// Light-mode variants are darkened for WCAG AA contrast on white backgrounds.
+function fileColor(name: string, isDark = true): string {
   const e = ext(name);
-  if (['ts', 'tsx'].includes(e))   return '#3b82f6';
-  if (['js', 'jsx'].includes(e))   return '#f59e0b';
-  if (e === 'py')                   return '#10b981';
-  if (e === 'sql')                  return '#f97316';
-  if (e === 'json')                 return '#a3e635';
-  if (['md', 'txt'].includes(e))   return '#94a3b8';
-  if (IMAGE_EXTS.has(e))           return '#22d3ee'; // cyan
-  if (['css', 'html'].includes(e)) return '#e879f9';
-  return '#64748b';
+  if (isDark) {
+    if (['ts', 'tsx'].includes(e))   return '#3b82f6';
+    if (['js', 'jsx'].includes(e))   return '#f59e0b';
+    if (e === 'py')                   return '#10b981';
+    if (e === 'sql')                  return '#f97316';
+    if (e === 'json')                 return '#a3e635';
+    if (['md', 'txt'].includes(e))   return '#94a3b8';
+    if (IMAGE_EXTS.has(e))           return '#22d3ee';
+    if (['css', 'html'].includes(e)) return '#e879f9';
+    return '#64748b';
+  }
+  // Light mode — higher-contrast equivalents
+  if (['ts', 'tsx'].includes(e))   return '#2563eb'; // blue-600
+  if (['js', 'jsx'].includes(e))   return '#d97706'; // amber-600
+  if (e === 'py')                   return '#059669'; // green-600
+  if (e === 'sql')                  return '#ea580c'; // orange-600
+  if (e === 'json')                 return '#65a30d'; // lime-600
+  if (['md', 'txt'].includes(e))   return '#475569'; // slate-600
+  if (IMAGE_EXTS.has(e))           return '#0891b2'; // cyan-600
+  if (['css', 'html'].includes(e)) return '#a21caf'; // fuchsia-700
+  return '#475569'; // slate-600
 }
 
 function FileIcon({ name, kind }: { name: string; kind: 'file' | 'directory' }) {
@@ -136,11 +149,15 @@ async function placeCodeFile(pathParts: string[]) {
 }
 
 async function placeImageFile(pathParts: string[]) {
+  const { x, y } = canvasCenter();
+  await placeImageFileAt(pathParts, x, y);
+}
+
+export async function placeImageFileAt(pathParts: string[], worldX: number, worldY: number) {
   const relativePath = pathParts.join('/');
   const objectUrl = await readWorkspaceFileAsUrl(relativePath);
   if (!objectUrl) return;
-  const { addNode, exportData } = useBoardStore.getState();
-  const { x, y } = canvasCenter();
+  const { addNode } = useBoardStore.getState();
   const assetName = pathParts[pathParts.length - 1];
   // folder is everything except the filename; empty string = workspace root
   const assetFolder = pathParts.slice(0, -1).join('/');
@@ -152,8 +169,8 @@ async function placeImageFile(pathParts: string[]) {
     addNode({
       id: generateId(),
       type: 'image',
-      x: x - w / 2,
-      y: y - h / 2,
+      x: worldX - w / 2,
+      y: worldY - h / 2,
       width: w,
       height: h,
       src: objectUrl,
@@ -191,6 +208,10 @@ function TreeRow({
   onFileSingleClick,
   onFileDblClick,
   onContextMenu,
+  onFileDragStart,
+  onFileHover,
+  usedOnCanvas,
+  isDark,
 }: {
   entry: TreeEntry;
   depth: number;
@@ -204,6 +225,10 @@ function TreeRow({
   onFileSingleClick: (entry: TreeEntry, clientY: number) => void;
   onFileDblClick: (entry: TreeEntry) => void;
   onContextMenu: (entry: TreeEntry, x: number, y: number) => void;
+  onFileDragStart: (entry: TreeEntry, e: React.DragEvent) => void;
+  onFileHover: (entry: TreeEntry, clientY: number) => void;
+  usedOnCanvas: Set<string>;
+  isDark: boolean;
 }) {
   const isDir = entry.kind === 'directory';
   const isImage = !isDir && IMAGE_EXTS.has(ext(entry.name));
@@ -211,11 +236,15 @@ function TreeRow({
   const isFocused = focusedPath === entry.path.join('/');
   const isRenaming = renamingPath === entry.path.join('/');
   const tooltip = canOpen
-    ? `${entry.path.join('/')} — single-click to preview · double-click or ↵ to place`
+    ? isImage
+      ? `${entry.path.join('/')} — hover to preview · drag or double-click to place`
+      : `${entry.path.join('/')} — single-click to preview · double-click or ↵ to place`
     : entry.path.join('/');
 
   // Distinguish single vs double click without a 300ms delay penalty
   const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Hover preview for image files
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const handleClick = (clientY: number) => {
     if (isRenaming) return;
     if (isDir) { onToggle(entry.path); return; }
@@ -244,6 +273,10 @@ function TreeRow({
     onFileSingleClick,
     onFileDblClick,
     onContextMenu,
+    onFileDragStart,
+    onFileHover,
+    usedOnCanvas,
+    isDark,
   };
 
   return (
@@ -257,8 +290,19 @@ function TreeRow({
           outlineOffset: -1,
         }}
         data-focused={isFocused ? 'true' : undefined}
+        draggable={isImage && !isRenaming}
         onClick={(e) => handleClick(e.clientY)}
+        onDragStart={(e) => { if (isImage && !isRenaming) onFileDragStart(entry, e); else e.preventDefault(); }}
         onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onContextMenu(entry, e.clientX, e.clientY); }}
+        onMouseEnter={(e) => {
+          if (!isImage || isRenaming) return;
+          const y = e.clientY;
+          if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+          hoverTimerRef.current = setTimeout(() => { onFileHover(entry, y); }, 380);
+        }}
+        onMouseLeave={() => {
+          if (hoverTimerRef.current) { clearTimeout(hoverTimerRef.current); hoverTimerRef.current = null; }
+        }}
         title={isRenaming ? undefined : tooltip}
       >
         {/* Expand arrow for directories */}
@@ -308,7 +352,7 @@ function TreeRow({
         ) : (
           // ── Normal name display ───────────────────────────────────────
           (() => {
-            const color = isDir ? 'var(--c-text-hi)' : canOpen ? fileColor(entry.name) : 'var(--c-text-lo)';
+            const color = isDir ? 'var(--c-text-hi)' : canOpen ? fileColor(entry.name, isDark) : 'var(--c-text-lo)';
             const dotIdx = isDir ? -1 : entry.name.lastIndexOf('.');
             const base = dotIdx > 0 ? entry.name.slice(0, dotIdx) : entry.name;
             const extn = dotIdx > 0 ? entry.name.slice(dotIdx) : '';
@@ -321,8 +365,18 @@ function TreeRow({
           })()
         )}
 
+        {!isRenaming && canOpen && usedOnCanvas.has(entry.path.join('/')) && (
+          <span
+            style={{
+              width: 5, height: 5, borderRadius: '50%', flexShrink: 0,
+              background: isImage ? (isDark ? '#22d3ee' : '#0891b2') : '#6366f1',
+              display: 'inline-block',
+            }}
+            title="On canvas"
+          />
+        )}
         {!isRenaming && canOpen && (
-          <span className="hidden group-hover:inline text-[9px] text-[#6366f1] shrink-0" title="double-click to place">↵</span>
+          <span className="hidden group-hover:inline text-[9px] text-[#6366f1] shrink-0" title={isImage ? "drag or double-click to place" : "double-click to place"}>↵</span>
         )}
       </div>
 
@@ -409,6 +463,15 @@ export default function WorkspaceExplorer({ onClose }: Props) {
   const workspaceName = useBoardStore((s) => s.workspaceName) ?? getWorkspaceName() ?? 'No folder open';
   const imageAssetFolder = useBoardStore((s) => s.imageAssetFolder);
   const setImageAssetFolder = useBoardStore((s) => s.setImageAssetFolder);
+  const pages = useBoardStore((s) => s.pages);
+  const activePageId = useBoardStore((s) => s.activePageId);
+  const switchPage = useBoardStore((s) => s.switchPage);
+  const storeNodes = useBoardStore((s) => s.nodes);
+  const pageSnapshots = useBoardStore((s) => s.pageSnapshots);
+  const isDark = useBoardStore((s) => s.theme) === 'dark';
+  const [pagesSectionOpen, setPagesSectionOpen] = useState(true);
+  const [confirmingClose, setConfirmingClose] = useState(false);
+  const confirmCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [folderEditing, setFolderEditing] = useState(false);
   const [folderDraft, setFolderDraft] = useState('');
   const [tree, setTree] = useState<TreeEntry[]>([]);
@@ -444,6 +507,7 @@ export default function WorkspaceExplorer({ onClose }: Props) {
   // Cleanup on unmount
   useEffect(() => () => {
     if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+    if (confirmCloseTimerRef.current) clearTimeout(confirmCloseTimerRef.current);
   }, []);
 
   // Hide preview on click outside the explorer panel
@@ -461,6 +525,19 @@ export default function WorkspaceExplorer({ onClose }: Props) {
   // Persist across open/close
   useEffect(() => { _savedPos = pos; }, [pos]);
   useEffect(() => { _savedWidth = width; }, [width]);
+
+  // Auto-expand the assets/images folder once when the workspace first loads
+  const assetsAutoExpandedRef = useRef(false);
+  useEffect(() => {
+    if (assetsAutoExpandedRef.current || tree.length === 0 || !getWorkspaceName()) return;
+    const assetEntry = tree.find((e) => e.kind === 'directory' && e.name === imageAssetFolder);
+    if (assetEntry) {
+      assetsAutoExpandedRef.current = true;
+      handleToggle(assetEntry.path);
+    }
+  // handleToggle is stable (useCallback with no changing deps); imageAssetFolder rarely changes
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tree]);
 
   // ── Drag to move (header) ────────────────────────────────────────────────────
   const onMouseDownHeader = (e: React.MouseEvent) => {
@@ -576,6 +653,11 @@ export default function WorkspaceExplorer({ onClose }: Props) {
     }
   }, []);
 
+  // ── Hover preview (image files only, no focus change) ───────────────────────
+  const handleFileHover = useCallback((entry: TreeEntry, clientY: number) => {
+    showFilePreview(entry, clientY);
+  }, [showFilePreview]);
+
   // ── Place file on canvas (double click / Enter) ───────────────────────────
   const placeFile = useCallback(async (entry: TreeEntry) => {
     const e = ext(entry.name);
@@ -596,6 +678,40 @@ export default function WorkspaceExplorer({ onClose }: Props) {
     setFilePreview(null);
     placeFile(entry);
   }, [placeFile]);
+
+  const handleFileDragStart = useCallback((entry: TreeEntry, e: React.DragEvent) => {
+    e.dataTransfer.setData('application/x-devboard-entry', JSON.stringify(entry.path));
+    e.dataTransfer.effectAllowed = 'copy';
+
+    // Build a ghost drag image
+    const ghost = document.createElement('div');
+    ghost.style.cssText = [
+      'position:fixed', 'top:-999px', 'left:-999px',
+      'display:flex', 'align-items:center', 'gap:6px',
+      'padding:5px 10px 5px 6px',
+      'background:#1e1e2e', 'border:1px solid #6366f1',
+      'border-radius:8px', 'color:#e2e8f0',
+      'font:11px/1 \'JetBrains Mono\',monospace',
+      'pointer-events:none', 'white-space:nowrap',
+      'box-shadow:0 4px 16px rgba(0,0,0,0.5)',
+    ].join(';');
+
+    // Thumbnail if the image is currently previewed
+    if (filePreview?.kind === 'image' && filePreview.entry.path.join('/') === entry.path.join('/')) {
+      const img = document.createElement('img');
+      img.src = filePreview.url;
+      img.style.cssText = 'width:36px;height:36px;object-fit:contain;border-radius:4px;opacity:0.9;flex-shrink:0;';
+      ghost.appendChild(img);
+    }
+
+    const label = document.createElement('span');
+    label.textContent = entry.name;
+    ghost.appendChild(label);
+
+    document.body.appendChild(ghost);
+    e.dataTransfer.setDragImage(ghost, 20, 20);
+    requestAnimationFrame(() => { if (ghost.parentNode) ghost.parentNode.removeChild(ghost); });
+  }, [filePreview]);
 
   // ── Keyboard navigation ───────────────────────────────────────────────────
   const handleOpenFolder = useCallback(async () => {
@@ -751,6 +867,29 @@ export default function WorkspaceExplorer({ onClose }: Props) {
     [searchResults, tree]
   );
 
+  // Set of workspace-relative file paths currently placed on any canvas page
+  const usedOnCanvas = useMemo(() => {
+    const paths = new Set<string>();
+    const allNodes = [
+      ...storeNodes,
+      ...Object.values(pageSnapshots).flatMap((s) => s.nodes),
+    ];
+    for (const n of allNodes) {
+      if (n.type === 'image') {
+        const img = n as import('../types').ImageNode;
+        if (img.assetName) {
+          const folder = img.assetFolder ?? '';
+          paths.add(folder ? `${folder}/${img.assetName}` : img.assetName);
+        }
+      }
+      if (n.type === 'codeblock') {
+        const cb = n as import('../types').CodeBlockNode;
+        if (cb.linkedFile) paths.add(cb.linkedFile);
+      }
+    }
+    return paths;
+  }, [storeNodes, pageSnapshots]);
+
   visibleEntriesRef.current = visibleEntries;
   const focusedPath = focusedIdx !== null ? (visibleEntries[focusedIdx]?.path.join('/') ?? null) : null;
 
@@ -843,7 +982,7 @@ export default function WorkspaceExplorer({ onClose }: Props) {
           Explorer
         </span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          {getWorkspaceName() && (
+          {!confirmingClose && getWorkspaceName() && (
             <button
               onClick={() => startNewFolder([])}
               title="New folder at root"
@@ -857,16 +996,45 @@ export default function WorkspaceExplorer({ onClose }: Props) {
               </svg>
             </button>
           )}
-          <button
-            onClick={onClose}
-            title="Close explorer"
-            className="w-5 h-5 flex items-center justify-center rounded text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
-            style={{ border: 'none', background: 'transparent', cursor: 'pointer', flexShrink: 0 }}
-          >
-            <svg width="9" height="9" viewBox="0 0 9 9" fill="none">
-              <path d="M1 1l7 7M8 1L1 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-            </svg>
-          </button>
+          {confirmingClose ? (
+            /* Two-step close confirmation */
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ fontFamily: 'monospace', fontSize: 10, color: 'var(--c-text-off)', whiteSpace: 'nowrap' }}>Close?</span>
+              <button
+                onClick={() => {
+                  if (confirmCloseTimerRef.current) clearTimeout(confirmCloseTimerRef.current);
+                  onClose();
+                }}
+                style={{ padding: '1px 7px', background: '#6366f1', border: 'none', borderRadius: 4, fontFamily: 'monospace', fontSize: 10, color: 'white', cursor: 'pointer', lineHeight: 1.6 }}
+              >
+                Yes
+              </button>
+              <button
+                onClick={() => {
+                  if (confirmCloseTimerRef.current) clearTimeout(confirmCloseTimerRef.current);
+                  setConfirmingClose(false);
+                }}
+                style={{ padding: '1px 7px', background: 'none', border: '1px solid var(--c-border)', borderRadius: 4, fontFamily: 'monospace', fontSize: 10, color: 'var(--c-text-lo)', cursor: 'pointer', lineHeight: 1.6 }}
+              >
+                No
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => {
+                setConfirmingClose(true);
+                if (confirmCloseTimerRef.current) clearTimeout(confirmCloseTimerRef.current);
+                confirmCloseTimerRef.current = setTimeout(() => setConfirmingClose(false), 3000);
+              }}
+              title="Close explorer"
+              className="w-5 h-5 flex items-center justify-center rounded text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
+              style={{ border: 'none', background: 'transparent', cursor: 'pointer', flexShrink: 0 }}
+            >
+              <svg width="9" height="9" viewBox="0 0 9 9" fill="none">
+                <path d="M1 1l7 7M8 1L1 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              </svg>
+            </button>
+          )}
         </div>
       </div>
 
@@ -882,6 +1050,75 @@ export default function WorkspaceExplorer({ onClose }: Props) {
           {workspaceName}
         </span>
       </div>
+
+      {/* ── BOARDS section ─────────────────────────────────────────────────── */}
+      {getWorkspaceName() && pages.length > 0 && (
+        <div style={{ borderBottom: '1px solid var(--c-border)', flexShrink: 0 }}>
+          {/* Section header */}
+          <button
+            onClick={() => setPagesSectionOpen((v) => !v)}
+            style={{
+              width: '100%', display: 'flex', alignItems: 'center', gap: 4,
+              padding: '5px 12px', background: 'none', border: 'none',
+              cursor: 'pointer', userSelect: 'none',
+            }}
+          >
+            <span style={{
+              fontSize: 9, color: 'var(--c-text-off)',
+              transform: pagesSectionOpen ? 'rotate(0deg)' : 'rotate(-90deg)',
+              transition: 'transform 0.12s',
+              display: 'inline-block',
+            }}>▾</span>
+            <span style={{
+              fontFamily: "'JetBrains Mono', monospace", fontSize: 9,
+              fontWeight: 700, letterSpacing: '0.08em',
+              textTransform: 'uppercase', color: 'var(--c-text-off)',
+            }}>Pages</span>
+            <span style={{
+              marginLeft: 'auto', fontFamily: 'monospace', fontSize: 9,
+              color: 'var(--c-text-off)', opacity: 0.6,
+            }}>{pages.length}</span>
+          </button>
+
+          {pagesSectionOpen && (
+            <div style={{ paddingBottom: 3 }}>
+              {pages.map((page) => {
+                const isActive = page.id === activePageId;
+                return (
+                  <button
+                    key={page.id}
+                    onClick={() => switchPage(page.id)}
+                    style={{
+                      width: '100%', display: 'flex', alignItems: 'center',
+                      gap: 7, padding: '3px 12px 3px 18px',
+                      background: isActive ? 'rgba(99,102,241,0.13)' : 'none',
+                      border: 'none', cursor: 'pointer', textAlign: 'left',
+                      outline: isActive ? '1px solid rgba(99,102,241,0.28)' : 'none',
+                      outlineOffset: -1, borderRadius: 4,
+                    }}
+                    className="hover:bg-[var(--c-hover)]"
+                    title={`Switch to "${page.name}"`}
+                  >
+                    <span style={{
+                      width: 5, height: 5, borderRadius: '50%', flexShrink: 0,
+                      background: isActive ? '#6366f1' : 'var(--c-border)',
+                      transition: 'background 0.12s',
+                    }} />
+                    <span style={{
+                      fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
+                      color: isActive ? 'var(--c-text-hi)' : 'var(--c-text-lo)',
+                      overflow: 'hidden', textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap', flex: 1,
+                    }}>
+                      {page.name}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Search bar */}
       {getWorkspaceName() && (
@@ -956,14 +1193,14 @@ export default function WorkspaceExplorer({ onClose }: Props) {
             <div style={{ padding: '10px 16px', fontSize: 10, color: 'var(--c-text-off)', fontFamily: 'monospace', fontStyle: 'italic' }}>No matches</div>
           ) : (
             searchResults.map((entry) => (
-              <TreeRow key={entry.path.join('/')} entry={entry} depth={0} focusedPath={focusedPath} renamingPath={renamingPath} renameDraft={renameDraft} onRenameDraftChange={setRenameDraft} onRenameCommit={commitRename} onRenameCancel={() => setRenamingPath(null)} onToggle={handleToggle} onFileSingleClick={handleFileSingleClick} onFileDblClick={handleFileDblClick} onContextMenu={handleEntryContextMenu} />
+              <TreeRow key={entry.path.join('/')} entry={entry} depth={0} focusedPath={focusedPath} renamingPath={renamingPath} renameDraft={renameDraft} onRenameDraftChange={setRenameDraft} onRenameCommit={commitRename} onRenameCancel={() => setRenamingPath(null)} onToggle={handleToggle} onFileSingleClick={handleFileSingleClick} onFileDblClick={handleFileDblClick} onContextMenu={handleEntryContextMenu} onFileDragStart={handleFileDragStart} onFileHover={handleFileHover} usedOnCanvas={usedOnCanvas} isDark={isDark} />
             ))
           )
         ) : tree.length === 0 ? (
           <div style={{ padding: '10px 16px', fontSize: 10, color: 'var(--c-text-off)', fontFamily: 'monospace', fontStyle: 'italic' }}>Folder is empty</div>
         ) : (
           tree.map((entry) => (
-            <TreeRow key={entry.path.join('/')} entry={entry} depth={0} focusedPath={focusedPath} renamingPath={renamingPath} renameDraft={renameDraft} onRenameDraftChange={setRenameDraft} onRenameCommit={commitRename} onRenameCancel={() => setRenamingPath(null)} onToggle={handleToggle} onFileSingleClick={handleFileSingleClick} onFileDblClick={handleFileDblClick} onContextMenu={handleEntryContextMenu} />
+            <TreeRow key={entry.path.join('/')} entry={entry} depth={0} focusedPath={focusedPath} renamingPath={renamingPath} renameDraft={renameDraft} onRenameDraftChange={setRenameDraft} onRenameCommit={commitRename} onRenameCancel={() => setRenamingPath(null)} onToggle={handleToggle} onFileSingleClick={handleFileSingleClick} onFileDblClick={handleFileDblClick} onContextMenu={handleEntryContextMenu} onFileDragStart={handleFileDragStart} onFileHover={handleFileHover} usedOnCanvas={usedOnCanvas} isDark={isDark} />
           ))
         )}
       </div>
@@ -1022,7 +1259,7 @@ export default function WorkspaceExplorer({ onClose }: Props) {
       {/* Footer hint */}
       <div style={{ padding: '8px 12px', borderTop: '1px solid var(--c-border)', flexShrink: 0, borderRadius: '0 0 12px 12px' }}>
         <p style={{ fontSize: 9, color: 'var(--c-text-off)', fontFamily: 'monospace', lineHeight: 1.4, margin: 0 }}>
-          Single-click to preview · double-click or ↵ to place · ↑↓ navigate
+          Single-click to preview · drag or double-click (↵) to place · ↑↓ navigate
         </p>
       </div>
 
@@ -1114,7 +1351,7 @@ export default function WorkspaceExplorer({ onClose }: Props) {
           >
             {/* Filename bar */}
             <div style={{ padding: '7px 10px', borderBottom: '1px solid var(--c-border)', flexShrink: 0 }}>
-              <span style={{ fontFamily: 'monospace', fontSize: 10, fontWeight: 700, color: fileColor(filePreview.entry.name) }}>
+              <span style={{ fontFamily: 'monospace', fontSize: 10, fontWeight: 700, color: fileColor(filePreview.entry.name, isDark) }}>
                 {filePreview.entry.name}
               </span>
               <span style={{ fontFamily: 'monospace', fontSize: 9, color: 'var(--c-text-off)', marginLeft: 6 }}>

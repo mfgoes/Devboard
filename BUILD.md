@@ -77,17 +77,36 @@ Output locations:
 | Linux .deb | `src-tauri/target/release/bundle/deb/devboard_*.deb` |
 | Linux AppImage | `src-tauri/target/release/bundle/appimage/devboard_*.AppImage` |
 
-### Cross-platform (explicit targets)
+### Mac targets (run on macOS)
 
 ```bash
 npm run tauri:build:mac-arm   # macOS Apple Silicon
 npm run tauri:build:mac-x64   # macOS Intel
-npm run tauri:build:win       # Windows x64 (must run on Windows)
-npm run tauri:build:linux     # Linux x64 (must run on Linux)
 ```
 
-> Tauri does not support true cross-compilation to Windows or Linux from macOS.
-> Use GitHub Actions CI for those platforms (see below).
+Both commands produce ad-hoc signed builds (no Apple Developer account needed). macOS Gatekeeper will still prompt on first launch — users right-click → Open to bypass it, or run:
+```bash
+xattr -cr /Applications/DevBoard.app
+```
+
+> **Why ad-hoc signing?** Without any signature, macOS quarantines internet-downloaded apps and shows "damaged and can't be opened". Ad-hoc signing (`signingIdentity: "-"` in `tauri.conf.json`) prevents that error. For fully notarized builds you need an Apple Developer account ($99/yr).
+
+### Windows & Linux builds from macOS
+
+Tauri **cannot** cross-compile to Windows or Linux from macOS — it requires the native SDK and linker for each platform.
+
+**Use GitHub Actions CI instead:**
+
+1. Trigger a build manually from the Actions tab (workflow: *Build DevBoard* → *Run workflow*)
+2. Download the `devboard-windows-x64` artifact from the run
+3. Push to itch.io with butler
+
+Or tag a release and all four platforms build automatically:
+```bash
+git tag v0.2.0
+git push origin v0.2.0
+# After ~10–15 min, binaries appear in the GitHub Release
+```
 
 ---
 
@@ -125,15 +144,18 @@ npm run tauri:build
 # 3. Push HTML web build
 butler push devboard-itchio.zip mischa/devboard:html
 
-# 4. Push macOS build (run on macOS)
-butler push "src-tauri/target/release/bundle/dmg/DevBoard_0.1.0_aarch64.dmg" mischa/devboard:mac-arm
-butler push "src-tauri/target/release/bundle/dmg/DevBoard_0.1.0_x64.dmg" mischa/devboard:mac-x64
+# 4. Push macOS builds (run on macOS)
+npm run tauri:build:mac-arm
+butler push "src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/DevBoard_0.1.0_aarch64.dmg" mischa/devboard:mac-arm
 
-# 5. Push Windows build (run on Windows or from CI artifact)
-butler push "src-tauri/target/release/bundle/nsis/DevBoard_0.1.0_x64-setup.exe" mischa/devboard:windows
+npm run tauri:build:mac-x64
+butler push "src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/DevBoard_0.1.0_x64.dmg" mischa/devboard:mac-x64
 
-# 6. Push Linux build (run on Linux or from CI artifact)
-butler push "src-tauri/target/release/bundle/appimage/devboard_0.1.0_amd64.AppImage" mischa/devboard:linux
+# 5. Push Windows build (download artifact from GitHub Actions CI — see "Windows & Linux builds from macOS")
+butler push "DevBoard_0.1.0_x64-setup.exe" mischa/devboard:windows
+
+# 6. Push Linux build (download artifact from GitHub Actions CI)
+butler push "devboard_0.1.0_amd64.AppImage" mischa/devboard:linux
 ```
 
 Replace `mischa/devboard` with your `username/game-slug` and update the version to match `package.json`.

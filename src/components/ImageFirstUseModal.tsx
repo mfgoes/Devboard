@@ -41,20 +41,16 @@ export default function ImageFirstUseModal({ isWorkspaceOpen, onClose, onOpenFol
 
         {/* Two storage modes */}
         <div className="space-y-2 mb-5">
-          {/* Workspace mode */}
-          <div className={[
-            'flex gap-3 rounded-xl border p-3',
-            isWorkspaceOpen
-              ? 'border-[#6366f1]/40 bg-[#6366f1]/10'
-              : 'border-[var(--c-border)] opacity-60',
-          ].join(' ')}>
+          {/* Workspace mode — always shown as the recommended path */}
+          <div className="flex gap-3 rounded-xl border border-[#6366f1]/40 bg-[#6366f1]/10 p-3">
             <span className="text-lg shrink-0">📁</span>
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-[11px] font-semibold text-[var(--c-text-hi)]">Folder workspace</span>
-                {isWorkspaceOpen && (
-                  <span className="text-[9px] bg-[#6366f1] text-white px-1.5 py-0.5 rounded-full">active</span>
-                )}
+                {isWorkspaceOpen
+                  ? <span className="text-[9px] bg-[#6366f1] text-white px-1.5 py-0.5 rounded-full">active</span>
+                  : <span className="text-[9px] bg-[#6366f1] text-white px-1.5 py-0.5 rounded-full">recommended</span>
+                }
               </div>
               <p className="text-[10px] text-[var(--c-text-lo)] mt-0.5 leading-snug">
                 Images saved as actual files in <code className="text-[#6366f1]">assets/</code>.
@@ -64,18 +60,13 @@ export default function ImageFirstUseModal({ isWorkspaceOpen, onClose, onOpenFol
           </div>
 
           {/* Standalone mode */}
-          <div className={[
-            'flex gap-3 rounded-xl border p-3',
-            !isWorkspaceOpen
-              ? 'border-amber-500/40 bg-amber-500/10'
-              : 'border-[var(--c-border)] opacity-60',
-          ].join(' ')}>
+          <div className="flex gap-3 rounded-xl border border-[var(--c-border)] p-3 opacity-70">
             <span className="text-lg shrink-0">📄</span>
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-[11px] font-semibold text-[var(--c-text-hi)]">Standalone JSON</span>
                 {!isWorkspaceOpen && (
-                  <span className="text-[9px] bg-amber-500 text-white px-1.5 py-0.5 rounded-full">current</span>
+                  <span className="text-[9px] bg-amber-500/80 text-white px-1.5 py-0.5 rounded-full">fallback</span>
                 )}
               </div>
               <p className="text-[10px] text-[var(--c-text-lo)] mt-0.5 leading-snug">

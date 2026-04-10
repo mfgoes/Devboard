@@ -35,6 +35,9 @@
     ],
     "category": "Productivity",
     "copyright": "© 2025 MishoWave",
+    "macOS": {
+      "signingIdentity": "-"
+    },
     "linux": {
       "deb": {
         "depends": []

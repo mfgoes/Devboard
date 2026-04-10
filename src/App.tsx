@@ -211,6 +211,14 @@ export default function App() {
       if (tag === 'input' || tag === 'textarea') return;
 
       const mod = e.metaKey || e.ctrlKey;
+
+      // E — open file explorer (open-only; close requires the in-panel confirmation)
+      if (!mod && e.key === 'e') {
+        e.preventDefault();
+        useBoardStore.getState().setExplorerOpen(true);
+        return;
+      }
+
       if (!mod) return;
 
       if (e.key === 'c') {
