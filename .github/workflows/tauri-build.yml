@@ -68,6 +68,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+          APPIMAGE_EXTRACT_AND_RUN: 1
         with:
           tauriScript: npx tauri
           args: --target ${{ matrix.target }}
