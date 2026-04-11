@@ -257,14 +257,6 @@ h1 em {
   height: auto;
 }
 
-.hero-shot-inner::after {
-  content: '';
-  position: absolute;
-  inset: auto 0 0 0;
-  height: 80px;
-  background: linear-gradient(to bottom, transparent, var(--c-canvas));
-  pointer-events: none;
-}
 
 /* ── section divider ── */
 .divider {
@@ -714,7 +706,7 @@ footer a:hover { color: var(--c-text-hi); }
 
 .cmp-yes { color: var(--c-green); font-size: 1.1rem; font-weight: 700; }
 .cmp-no  { color: var(--c-border); font-size: 1.1rem; }
-.cmp-ltd { color: #fb923c; font-size: 0.72rem; font-weight: 500; background: rgba(251,146,60,0.1); padding: 2px 8px; border-radius: 4px; }
+.cmp-ltd { color: #ad2316; font-size: 0.72rem; font-weight: 500; background: rgba(240, 119, 119, 0.153); padding: 2px 8px; border-radius: 4px; }
 
 /* ── end cta ── */
 .end-cta {
