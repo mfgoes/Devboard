@@ -75,7 +75,7 @@ jobs:
 
       - name: Create fixed-name artifact (Linux)
         if: matrix.os == 'ubuntu-latest'
-        run: cp src-tauri/target/${{ matrix.target }}/release/bundle/appimage/devboard_*.AppImage DevBoard-Linux.AppImage
+        run: cp src-tauri/target/${{ matrix.target }}/release/bundle/appimage/DevBoard_*.AppImage DevBoard-Linux.AppImage
 
       - name: Create fixed-name artifact (macOS)
         if: matrix.os == 'macos-latest'
