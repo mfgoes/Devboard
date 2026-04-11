@@ -64,7 +64,7 @@ butler push devboard-itchio.zip mischa/devboard:html
 butler push "src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/DevBoard_*.dmg" mischa/devboard:mac-arm
 ```
 
-### Windows & Linux (download from CI, then push)
+### Windows (download from CI, then push)
 
 Trigger a build if one hasn't run yet:
 ```bash
@@ -82,15 +82,86 @@ gh run download <RUN_ID> --repo mfgoes/Devboard --name devboard-windows-x64 --di
 butler push "/tmp/win-build/DevBoard_*_x64-setup.exe" mischa/devboard:windows
 ```
 
-Download and push Linux:
-```bash
-gh run download <RUN_ID> --repo mfgoes/Devboard --name devboard-linux-x64 --dir /tmp/linux-build
-butler push "/tmp/linux-build/DevBoard-Linux.AppImage" mischa/devboard:linux
-```
-
 > Each build also produces fixed-name artifacts (`DevBoard-macOS.dmg`, `DevBoard-Windows.exe`,
 > `DevBoard-Linux.AppImage`) alongside the versioned ones. These are used as stable
 > `releases/latest/download/` URLs on the download page.
+
+### Linux — local build (no CI required)
+
+Linux requires the GTK/WebKit system libraries that aren't available on macOS.
+Two options: **Docker** (from any machine) or **native Linux**.
+
+#### Option A — Docker (from macOS or any host)
+
+```bash
+# Pull the Tauri community Linux builder image
+docker pull ghcr.io/tauri-apps/tauri-action-linux-x64:latest
+
+# Run the build inside the container (mounts repo read/write)
+docker run --rm \
+  -v "$(pwd):/app" \
+  -w /app \
+  ghcr.io/tauri-apps/tauri-action-linux-x64:latest \
+  bash -c "npm ci && npm run tauri:build"
+```
+
+The AppImage lands at:
+```
+src-tauri/target/release/bundle/appimage/devboard_*.AppImage
+```
+
+Copy it to a fixed name and push:
+```bash
+cp src-tauri/target/release/bundle/appimage/devboard_*.AppImage DevBoard-Linux.AppImage
+butler push DevBoard-Linux.AppImage mischa/devboard:linux
+```
+
+> **First time with Docker?** `docker login ghcr.io` shouldn't be needed for this public image.
+> If the pull fails, use the alternative Debian-based approach below.
+
+#### Option A (alternative) — Debian slim + manual deps
+
+```bash
+docker run --rm \
+  -v "$(pwd):/app" \
+  -w /app \
+  rust:1-slim-bookworm \
+  bash -c "
+    apt-get update -q && apt-get install -y --no-install-recommends \
+      curl ca-certificates nodejs npm \
+      libgtk-3-dev libwebkit2gtk-4.1-dev \
+      libayatana-appindicator3-dev librsvg2-dev patchelf && \
+    npm ci && npm run tauri:build
+  "
+cp src-tauri/target/release/bundle/appimage/devboard_*.AppImage DevBoard-Linux.AppImage
+butler push DevBoard-Linux.AppImage mischa/devboard:linux
+```
+
+#### Option B — native Linux machine
+
+Install system deps (Ubuntu/Debian):
+```bash
+sudo apt-get update
+sudo apt-get install -y \
+  libgtk-3-dev libwebkit2gtk-4.1-dev \
+  libayatana-appindicator3-dev librsvg2-dev patchelf
+```
+
+Then build and push exactly like macOS:
+```bash
+npm ci
+npm run tauri:build
+cp src-tauri/target/release/bundle/appimage/devboard_*.AppImage DevBoard-Linux.AppImage
+butler push DevBoard-Linux.AppImage mischa/devboard:linux
+```
+
+> Make sure `butler` is installed and logged in on the Linux machine:
+> ```bash
+> # Install butler on Linux
+> curl -L https://broth.itch.ovh/butler/linux-amd64/LATEST/archive/default -o butler.zip
+> unzip butler.zip && chmod +x butler && sudo mv butler /usr/local/bin/
+> butler login
+> ```
 
 ---
 
