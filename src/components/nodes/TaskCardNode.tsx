@@ -1,6 +1,7 @@
 import { useRef, useState, useCallback, useEffect } from 'react';
 import { TaskCardNode as TaskCardNodeType, TaskItem, Camera, AnchorSide } from '../../types';
 import { useBoardStore } from '../../store/boardStore';
+import { FONTS } from '../../utils/fonts';
 
 function generateId() { return Math.random().toString(36).slice(2, 11); }
 
@@ -17,7 +18,7 @@ interface Props {
 
 const ACCENT_COLORS = [
   '#ec4899', // pink
-  '#6366f1', // indigo
+  'var(--c-line)', // indigo
   '#22c55e', // green
   '#f59e0b', // amber
   '#38bdf8', // sky
@@ -192,7 +193,7 @@ export default function TaskCardNode({ node, camera, isSelected, isDrawingLine, 
         style={{
           background: 'var(--c-panel)',
           border: isSelected
-            ? '2px solid #6366f1'
+            ? '2px solid var(--c-line)'
             : hovered
             ? '2px solid var(--c-border)'
             : '2px solid var(--c-border)',
@@ -253,7 +254,7 @@ export default function TaskCardNode({ node, camera, isSelected, isDrawingLine, 
                 border: 'none',
                 outline: 'none',
                 color: 'var(--c-text-hi)',
-                fontFamily: "'JetBrains Mono', monospace",
+                fontFamily: FONTS.ui,
                 fontWeight: 700,
                 fontSize: `${13 * camera.scale}px`,
                 padding: 0,
@@ -266,7 +267,7 @@ export default function TaskCardNode({ node, camera, isSelected, isDrawingLine, 
               style={{
                 flex: 1,
                 color: 'var(--c-text-hi)',
-                fontFamily: "'JetBrains Mono', monospace",
+                fontFamily: FONTS.ui,
                 fontWeight: 700,
                 fontSize: `${13 * camera.scale}px`,
                 whiteSpace: 'nowrap',
@@ -289,7 +290,7 @@ export default function TaskCardNode({ node, camera, isSelected, isDrawingLine, 
                 borderRadius: 99,
                 padding: `${2 * camera.scale}px ${6 * camera.scale}px`,
                 fontSize: `${10 * camera.scale}px`,
-                fontFamily: "'JetBrains Mono', monospace",
+                fontFamily: FONTS.ui,
                 flexShrink: 0,
               }}
             >
@@ -331,7 +332,7 @@ export default function TaskCardNode({ node, camera, isSelected, isDrawingLine, 
             <span style={{
               color: 'var(--c-text-lo)',
               fontSize: `${12 * camera.scale}px`,
-              fontFamily: "'JetBrains Mono', monospace",
+              fontFamily: FONTS.ui,
             }}>+</span>
             <input
               ref={addInputRef}
@@ -351,7 +352,7 @@ export default function TaskCardNode({ node, camera, isSelected, isDrawingLine, 
                 border: 'none',
                 outline: 'none',
                 color: 'var(--c-text-hi)',
-                fontFamily: "'JetBrains Mono', monospace",
+                fontFamily: FONTS.ui,
                 fontSize: `${12 * camera.scale}px`,
                 padding: 0,
               }}
@@ -360,7 +361,7 @@ export default function TaskCardNode({ node, camera, isSelected, isDrawingLine, 
               <span style={{
                 color: 'var(--c-text-off)',
                 fontSize: `${10 * camera.scale}px`,
-                fontFamily: "'JetBrains Mono', monospace",
+                fontFamily: FONTS.ui,
               }}>Enter ↵</span>
             )}
           </div>
@@ -395,7 +396,7 @@ export default function TaskCardNode({ node, camera, isSelected, isDrawingLine, 
                   left: side === 'left' ? -(GHOST_LEN + DOT / 2) : DOT / 2,
                   width: GHOST_LEN,
                   height: 0,
-                  borderTop: '2px dashed #6366f1',
+                  borderTop: '2px dashed var(--c-line)',
                   opacity: 0.35,
                   pointerEvents: 'none',
                 }} />
@@ -412,8 +413,8 @@ export default function TaskCardNode({ node, camera, isSelected, isDrawingLine, 
                   width: DOT,
                   height: DOT,
                   borderRadius: '50%',
-                  background: active ? '#6366f1' : 'var(--c-panel)',
-                  border: '2px solid #6366f1',
+                  background: active ? 'var(--c-line)' : 'var(--c-panel)',
+                  border: '2px solid var(--c-line)',
                   cursor: 'crosshair',
                   boxShadow: active ? '0 0 0 3px rgba(99,102,241,0.25)' : 'none',
                   transition: 'width 0.1s, height 0.1s, background 0.1s, box-shadow 0.1s',
@@ -507,7 +508,7 @@ function TaskRow({ task, isEditing, editText, scale, hovered, onToggle, onStartE
             border: 'none',
             outline: 'none',
             color: 'var(--c-text-hi)',
-            fontFamily: "'JetBrains Mono', monospace",
+            fontFamily: FONTS.ui,
             fontSize: `${12 * scale}px`,
             padding: 0,
           }}
@@ -519,7 +520,7 @@ function TaskRow({ task, isEditing, editText, scale, hovered, onToggle, onStartE
           style={{
             flex: 1,
             color: task.done ? 'var(--c-text-off)' : 'var(--c-text-hi)',
-            fontFamily: "'JetBrains Mono', monospace",
+            fontFamily: FONTS.ui,
             fontSize: `${12 * scale}px`,
             textDecoration: task.done ? 'line-through' : 'none',
             cursor: 'default',

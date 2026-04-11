@@ -14,29 +14,29 @@ export interface ThemeColors {
 }
 
 const DARK: ThemeColors = {
-  canvasBg: '#111118',
-  dotColor: '#3a3a4a',
-  panelBg: '#1a1a2a',
-  border: '#2e2e46',
-  textHi: '#e2e8f0',
-  textLo: '#8888aa',
-  textOff: '#4a4a6a',
-  connectorColor: '#6366f1',
-  connectorPreview: '#818cf8',
+  canvasBg: '#1c1916',
+  dotColor: '#2c2620',
+  panelBg: '#242019',
+  border: '#3c3529',
+  textHi: '#ece6dd',
+  textLo: '#8a7b6c',
+  textOff: '#4a3a28',
+  connectorColor: '#b87750',
+  connectorPreview: '#cc9468',
   sectionLabelColor: '#ffffff',
 };
 
 const LIGHT: ThemeColors = {
-  canvasBg: '#f0f0ec',
-  dotColor: '#c0c0cc',
-  panelBg: '#ffffff',
-  border: '#d4d4e0',
-  textHi: '#18181b',
-  textLo: '#71717a',
-  textOff: '#a1a1aa',
-  connectorColor: '#4f46e5',
-  connectorPreview: '#6366f1',
-  sectionLabelColor: '#18181b',
+  canvasBg: '#f6f1ea',
+  dotColor: '#d8d0c4',
+  panelBg: '#ede7dd',
+  border: '#cdc4b6',
+  textHi: '#28201a',
+  textLo: '#9a8878',
+  textOff: '#bbb5af',
+  connectorColor: '#a06038',
+  connectorPreview: '#b87848',
+  sectionLabelColor: '#28201a',
 };
 
 export function useTheme(): ThemeColors {

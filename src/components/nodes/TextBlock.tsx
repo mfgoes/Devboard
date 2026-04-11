@@ -4,6 +4,8 @@ import Konva from 'konva';
 import { TextBlockNode } from '../../types';
 import { useBoardStore } from '../../store/boardStore';
 import { useTheme } from '../../theme';
+import { resolveCssColor } from '../../utils/palette';
+import { FONTS } from '../../utils/fonts';
 
 interface Props {
   node: TextBlockNode;
@@ -169,8 +171,8 @@ export default function TextBlock({ node, isSelected, isEditing, onSnapMove, onS
             fontStyle={fontStyle}
             textDecoration={textDecoration}
             lineHeight={1.5}
-            fontFamily="'JetBrains Mono', 'Fira Code', monospace"
-            fill={node.text ? (hasLink ? '#60a5fa' : node.color === 'auto' ? t.textHi : node.color) : t.textOff}
+            fontFamily={FONTS.ui}
+            fill={node.text ? (hasLink ? resolveCssColor('--c-line') : node.color === 'auto' ? t.textHi : node.color) : t.textOff}
             wrap="word"
             align={node.textAlign ?? 'left'}
             listening={false}
@@ -191,9 +193,9 @@ export default function TextBlock({ node, isSelected, isEditing, onSnapMove, onS
           ]}
           anchorSize={8}
           anchorCornerRadius={2}
-          anchorStroke="#6366f1"
-          anchorFill="#6366f1"
-          borderStroke="#6366f1"
+          anchorStroke={resolveCssColor('--c-line')}
+          anchorFill={resolveCssColor('--c-line')}
+          borderStroke={resolveCssColor('--c-line')}
           borderDash={[4, 3]}
           boundBoxFunc={(oldBox, newBox) => {
             // Enforce minimum width

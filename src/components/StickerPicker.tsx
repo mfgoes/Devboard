@@ -15,7 +15,7 @@ export default function StickerPicker() {
             className={[
               'w-10 h-10 flex items-center justify-center rounded-lg overflow-hidden transition-all',
               activeSticker === key
-                ? 'ring-2 ring-[#6366f1] ring-offset-1 ring-offset-[var(--c-panel)] bg-[var(--c-hover)]'
+                ? 'ring-2 ring-[var(--c-line)] ring-offset-1 ring-offset-[var(--c-panel)] bg-[var(--c-hover)]'
                 : 'hover:bg-[var(--c-hover)]',
             ].join(' ')}
           >

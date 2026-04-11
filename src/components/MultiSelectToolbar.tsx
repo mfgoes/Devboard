@@ -125,7 +125,7 @@ export default function MultiSelectToolbar() {
       className={[
         'w-8 h-8 flex items-center justify-center rounded-lg transition-colors',
         active
-          ? 'bg-[#6366f1] text-white'
+          ? 'bg-[var(--c-line)] text-white'
           : 'text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
       ].join(' ')}
     >
@@ -204,7 +204,7 @@ export default function MultiSelectToolbar() {
                       onClick={() => { applyText({ fontSize: preset.value } as Partial<CanvasNode>); setShowFontSizes(false); }}
                       className={[
                         'w-full flex items-center gap-2 px-4 py-2 font-mono text-[12px] transition-colors',
-                        active ? 'bg-[#6366f1] text-white' : 'text-[var(--c-text-md)] hover:bg-[var(--c-hover)]',
+                        active ? 'bg-[var(--c-line)] text-white' : 'text-[var(--c-text-md)] hover:bg-[var(--c-hover)]',
                       ].join(' ')}
                     >
                       <span className="w-4 text-center">{active ? '✓' : ''}</span>

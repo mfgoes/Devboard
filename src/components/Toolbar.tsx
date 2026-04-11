@@ -2,6 +2,7 @@ import { useRef, useState, useEffect } from 'react';
 import { useBoardStore } from '../store/boardStore';
 import { Tool, ShapeKind } from '../types';
 import StickerPicker from './StickerPicker';
+import { resolveCssColor } from '../utils/palette';
 
 interface ToolDef {
   id: Tool;
@@ -177,7 +178,7 @@ const INSERT_ITEMS: InsertItem[] = [
     label: 'Task Card',
     description: 'Checklist with subtasks',
     icon: <IconTask />,
-    color: '#6366f1',
+    color: resolveCssColor('--c-line-default'),
   },
   {
     id: 'code',
@@ -293,7 +294,7 @@ export default function Toolbar() {
               className={[
                 'w-11 h-11 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg transition-colors',
                 activeShapeKind === kind
-                  ? 'bg-[#6366f1] text-white'
+                  ? 'bg-[var(--c-line)] text-white'
                   : 'text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
               ].join(' ')}
             >
@@ -333,7 +334,7 @@ export default function Toolbar() {
                       'relative flex-col items-center justify-center rounded-lg transition-all duration-100 font-mono text-[10px] gap-0.5',
                       'w-12 h-12 sm:w-10 sm:h-10 focus:outline-none',
                       isActive
-                        ? 'bg-[#6366f1] text-white shadow-sm'
+                        ? 'bg-[var(--c-line)] text-white shadow-sm'
                         : isComingSoon
                         ? 'text-[var(--c-text-off)] cursor-not-allowed'
                         : 'text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
@@ -372,7 +373,7 @@ export default function Toolbar() {
                 'flex flex-col items-center justify-center rounded-lg transition-all duration-100 font-mono text-[10px] gap-0.5',
                 'w-10 h-10 focus:outline-none',
                 insertOpen || insertActive
-                  ? 'bg-[#6366f1] text-white shadow-sm'
+                  ? 'bg-[var(--c-line)] text-white shadow-sm'
                   : 'text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
               ].join(' ')}
             >
@@ -412,7 +413,7 @@ export default function Toolbar() {
                       className={[
                         'flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-left transition-all duration-100 group',
                         isActive
-                          ? 'bg-[#6366f1]/10 ring-1 ring-[#6366f1]/40'
+                          ? 'bg-[var(--c-line)]/10 ring-1 ring-[var(--c-line)]/40'
                           : 'hover:bg-[var(--c-hover)]',
                       ].join(' ')}
                     >
@@ -428,7 +429,7 @@ export default function Toolbar() {
                         <div className="flex items-center gap-2">
                           <span className={[
                             'font-mono text-[12px] font-semibold leading-tight',
-                            isActive ? 'text-[#6366f1]' : 'text-[var(--c-text-hi)]',
+                            isActive ? 'text-[var(--c-line)]' : 'text-[var(--c-text-hi)]',
                           ].join(' ')}>
                             {item.label}
                           </span>
@@ -443,7 +444,7 @@ export default function Toolbar() {
                         </span>
                       </div>
                       {isActive && (
-                        <div className="w-1.5 h-1.5 rounded-full bg-[#6366f1] flex-shrink-0" />
+                        <div className="w-1.5 h-1.5 rounded-full bg-[var(--c-line)] flex-shrink-0" />
                       )}
                     </button>
                   );

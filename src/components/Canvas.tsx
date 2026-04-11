@@ -34,6 +34,7 @@ import { hasSeenImageNotice, markImageNoticeSeen } from './ImageFirstUseModal';
 import ImageFirstUseModal from './ImageFirstUseModal';
 import CodeBlockToolbar from './CodeBlockToolbar';
 import { useTheme } from '../theme';
+import { resolveCssColor } from '../utils/palette';
 import { useCanvasInteraction } from '../hooks/useCanvasInteraction';
 import { useCanvasKeyboard } from '../hooks/useCanvasKeyboard';
 import { useCanvasImageDrop } from '../hooks/useCanvasImageDrop';
@@ -462,7 +463,7 @@ export default function Canvas() {
                   0, bb.b - bb.y + PAD * 2,
                   0, 0,
                 ]}
-                stroke="#6366f1"
+                stroke={resolveCssColor('--c-line')}
                 strokeWidth={1.5}
                 dash={[8, 5]}
                 opacity={0.5}
@@ -479,7 +480,7 @@ export default function Canvas() {
                 ? [g.pos, g.start, g.pos, g.end]
                 : [g.start, g.pos, g.end, g.pos]
               }
-              stroke="#6366f1"
+              stroke={resolveCssColor('--c-line')}
               strokeWidth={1}
               opacity={0.55}
               dash={[6, 4]}
@@ -684,7 +685,7 @@ export default function Canvas() {
         const fs   = 13 * camera.scale;
         const dotS = 10 * camera.scale;
         const pad  = 12 * camera.scale;
-        const accent = '#6366f1';
+        const accent = 'var(--c-line)';
         return (
           <div
             style={{

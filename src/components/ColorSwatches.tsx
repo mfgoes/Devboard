@@ -29,7 +29,7 @@ export default function ColorSwatches({ colors, activeColor, onSelect, columns =
             width: 32,
             height: 32,
             borderRadius: 8,
-            border: `2px solid ${activeColor === c.hex ? '#6366f1' : 'transparent'}`,
+            border: `2px solid ${activeColor === c.hex ? 'var(--c-line)' : 'transparent'}`,
             background: c.hex === 'transparent' ? 'transparent' : c.hex,
             outline: c.hex === 'transparent' ? '1.5px dashed #555' : 'none',
             outlineOffset: c.hex === 'transparent' ? '-3px' : '0',

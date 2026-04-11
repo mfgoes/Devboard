@@ -170,12 +170,12 @@ export function tokenizeLine(line: string, lang: CodeLanguage): Token[] {
 }
 
 export const TOKEN_COLORS: Record<TokenType, string> = {
-  keyword:   '#79b8ff',
-  string:    '#9ecbff',
-  comment:   '#5a5a7a',
-  number:    '#f97583',
-  function:  '#b392f0',
-  decorator: '#ffab70',
-  operator:  '#e1e4e8',
-  plain:     '#c9d1d9',
+  keyword:   '#cc9468',  // accent2 - light brown
+  string:    '#e2be72',  // yellow
+  comment:   '#8a7b6c',  // text-lo - muted tone
+  number:    '#c96a6a',  // red
+  function:  '#b87750',  // accent - warm brown
+  decorator: '#d4835a',  // orange
+  operator:  '#afa294',  // text-md
+  plain:     '#ece6dd',  // text-hi
 };

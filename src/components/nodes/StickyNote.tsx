@@ -5,7 +5,9 @@ import { StickyNoteNode, AnchorSide, ConnectorNode } from '../../types';
 import { useBoardStore } from '../../store/boardStore';
 import { anchorCoords, cpOffset } from './ConnectorLine';
 import { useTheme } from '../../theme';
+import { resolveCssColor } from '../../utils/palette';
 import { isRichText, layoutRichText } from '../../utils/richText';
+import { FONTS } from '../../utils/fonts';
 
 function generateId() { return Math.random().toString(36).slice(2, 11); }
 
@@ -48,7 +50,7 @@ function StickyRichText({ node, liveWidth }: { node: StickyNoteNode; liveWidth?:
           fontStyle={[run.bold ? 'bold' : '', run.italic ? 'italic' : ''].filter(Boolean).join(' ') || 'normal'}
           textDecoration={run.underline ? 'underline' : ''}
           lineHeight={1}
-          fontFamily="'JetBrains Mono', 'Fira Code', monospace"
+          fontFamily={FONTS.ui}
           fill={run.link ? '#2563eb' : '#1a1a2e'}
           listening={false}
         />
@@ -376,7 +378,7 @@ export default function StickyNote({
             fontSize={node.fontSize ?? 13}
             fontStyle="italic"
             lineHeight={1.5}
-            fontFamily="'JetBrains Mono', 'Fira Code', monospace"
+            fontFamily={FONTS.ui}
             fill="rgba(26,26,46,0.35)"
             wrap="word"
             align="left"
@@ -398,7 +400,7 @@ export default function StickyNote({
             fontStyle={[node.bold ? 'bold' : '', node.italic ? 'italic' : ''].filter(Boolean).join(' ') || 'normal'}
             textDecoration={node.underline ? 'underline' : ''}
             lineHeight={1.5}
-            fontFamily="'JetBrains Mono', 'Fira Code', monospace"
+            fontFamily={FONTS.ui}
             fill="#1a1a2e"
             wrap="word"
             align="left"
@@ -445,20 +447,20 @@ export default function StickyNote({
                 ghost ? (
                   <Line
                     points={ghost.pts} bezier={true}
-                    stroke="#6366f1" strokeWidth={2}
+                    stroke={resolveCssColor('--c-line')} strokeWidth={2}
                     opacity={0.35} lineCap="round" listening={false}
                   />
                 ) : (
                   <>
                     <Line
                       points={[bx, by, bx + gdx * GHOST_LEN, by + gdy * GHOST_LEN]}
-                      stroke="#6366f1" strokeWidth={2}
+                      stroke={resolveCssColor('--c-line')} strokeWidth={2}
                       opacity={0.22} dash={[6, 4]} lineCap="round" listening={false}
                     />
                     <Line
                       x={bx + gdx * GHOST_LEN} y={by + gdy * GHOST_LEN}
                       points={CHEVRON[side]}
-                      stroke="#6366f1" strokeWidth={2}
+                      stroke={resolveCssColor('--c-line')} strokeWidth={2}
                       opacity={0.35} lineCap="round" lineJoin="round" listening={false}
                     />
                   </>
@@ -468,10 +470,10 @@ export default function StickyNote({
               <Circle
                 x={vx} y={vy}
                 radius={active ? 8 : 5}
-                fill={active ? '#6366f1' : 'white'}
-                stroke="#6366f1" strokeWidth={2}
+                fill={active ? resolveCssColor('--c-line') : 'white'}
+                stroke={resolveCssColor('--c-line')} strokeWidth={2}
                 opacity={active ? 1 : 0.85}
-                shadowEnabled={active} shadowColor="#6366f1" shadowBlur={12}
+                shadowEnabled={active} shadowColor={resolveCssColor('--c-select-glow')} shadowBlur={18}
                 onMouseDown={(e) => {
                   e.cancelBubble = true;
                   if (ghost) {
@@ -481,7 +483,7 @@ export default function StickyNote({
                       fromX: bx, fromY: by,
                       toNodeId: ghost.targetId, toAnchor: ghost.targetSide,
                       toX: ghost.toWorldX, toY: ghost.toWorldY,
-                      color: '#6366f1', strokeWidth: 2,
+                      color: resolveCssColor('--c-line-default'), strokeWidth: 2,
                       lineStyle: 'curved', strokeStyle: 'solid',
                       arrowHeadStart: 'none', arrowHeadEnd: 'arrow',
                     } as ConnectorNode);
@@ -537,7 +539,7 @@ export default function StickyNote({
                   <Text
                     width={ghost ? 102 : 60} height={18}
                     text={ghost ? 'Click to connect' : 'Connect'}
-                    fontSize={10} fontFamily="'JetBrains Mono', monospace"
+                    fontSize={10} fontFamily={FONTS.ui}
                     fill={t.textHi} align="center" verticalAlign="middle" listening={false}
                   />
                 </Group>
@@ -572,10 +574,10 @@ export default function StickyNote({
           }}
           anchorSize={10}
           anchorCornerRadius={2}
-          anchorStroke="#6366f1"
+          anchorStroke={resolveCssColor('--c-line')}
           anchorStrokeWidth={2}
           anchorFill="white"
-          borderStroke="#6366f1"
+          borderStroke={resolveCssColor('--c-line')}
           borderStrokeWidth={2}
           padding={0}
           boundBoxFunc={(oldBox, newBox) => {

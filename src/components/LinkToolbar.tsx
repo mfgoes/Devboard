@@ -173,7 +173,7 @@ export default function LinkToolbar({ nodeId }: Props) {
   const btnClass = (active?: boolean) =>
     `flex items-center justify-center h-8 w-8 rounded-lg transition-colors ${
       active
-        ? 'bg-[#6366f1] text-white'
+        ? 'bg-[var(--c-line)] text-white'
         : 'text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]'
     }`;
 
@@ -192,7 +192,7 @@ export default function LinkToolbar({ nodeId }: Props) {
             onClick={() => { closeAll(); setShowTurnInto((v) => !v); }}
             className={`flex items-center gap-1.5 h-8 px-2.5 rounded-lg transition-colors font-mono text-[11px] ${
               showTurnInto
-                ? 'bg-[#6366f1] text-white'
+                ? 'bg-[var(--c-line)] text-white'
                 : 'text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]'
             }`}
           >
@@ -216,7 +216,7 @@ export default function LinkToolbar({ nodeId }: Props) {
                     className={[
                       'w-full flex items-center gap-2.5 px-3 py-2 text-[12px] font-mono transition-colors',
                       active
-                        ? 'bg-[#6366f1] text-white'
+                        ? 'bg-[var(--c-line)] text-white'
                         : 'text-[var(--c-text-md)] hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]',
                     ].join(' ')}
                   >
@@ -261,11 +261,11 @@ export default function LinkToolbar({ nodeId }: Props) {
                   if (e.key === 'Escape') setShowUrlEdit(false);
                   e.stopPropagation();
                 }}
-                className="flex-1 bg-[var(--c-canvas)] border border-[var(--c-border)] rounded-lg px-3 py-1.5 text-[var(--c-text-hi)] font-mono text-[12px] outline-none focus:border-[#6366f1]"
+                className="flex-1 bg-[var(--c-canvas)] border border-[var(--c-border)] rounded-lg px-3 py-1.5 text-[var(--c-text-hi)] font-mono text-[12px] outline-none focus:border-[var(--c-line)]"
               />
               <button
                 onClick={commitUrl}
-                className="px-3 py-1.5 bg-[#6366f1] text-white rounded-lg text-[12px] font-mono hover:bg-[#4f51c7] transition-colors whitespace-nowrap"
+                className="px-3 py-1.5 bg-[var(--c-line)] text-white rounded-lg text-[12px] font-mono hover:bg-[#4f51c7] transition-colors whitespace-nowrap"
               >
                 Set
               </button>
@@ -282,7 +282,7 @@ export default function LinkToolbar({ nodeId }: Props) {
             <IconCopy />
           </button>
           {copied && (
-            <div className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded bg-[#6366f1] text-white text-[10px] font-mono whitespace-nowrap pointer-events-none shadow-lg">
+            <div className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded bg-[var(--c-line)] text-white text-[10px] font-mono whitespace-nowrap pointer-events-none shadow-lg">
               Copied
             </div>
           )}

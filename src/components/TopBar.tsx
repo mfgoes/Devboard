@@ -110,9 +110,9 @@ function DefaultFolderRow({ folder, onChange }: { folder: string; onChange: (f: 
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') setEditing(false); e.stopPropagation(); }}
           placeholder="assets"
-          className="flex-1 bg-[var(--c-canvas)] border border-[var(--c-border)] focus:border-[#6366f1] rounded px-2 py-0.5 font-mono text-[10px] text-[var(--c-text-hi)] outline-none"
+          className="flex-1 bg-[var(--c-canvas)] border border-[var(--c-border)] focus:border-[var(--c-line)] rounded px-2 py-0.5 font-mono text-[10px] text-[var(--c-text-hi)] outline-none"
         />
-        <button onClick={commit} className="px-2 py-0.5 rounded bg-[#6366f1] text-white font-mono text-[9px]">OK</button>
+        <button onClick={commit} className="px-2 py-0.5 rounded bg-[var(--c-line)] text-white font-mono text-[9px]">OK</button>
       </div>
     );
   }
@@ -391,7 +391,7 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
         cells,
         headerRow: true,
         fill: isDark ? '#1e293b' : '#ffffff',
-        headerFill: '#6366f1',
+        headerFill: 'var(--c-line)',
         stroke: isDark ? '#475569' : '#e2e8f0',
         fontSize: 13,
       } satisfies import('../types').TableNode);
@@ -521,10 +521,10 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
                 onClick={() => { setTemplatesModalOpen(false); handleLoadTemplate(t.id); }}
                 className="w-full flex items-start gap-3 px-5 py-3 text-left hover:bg-[var(--c-hover)] transition-colors group"
               >
-                <span className="mt-0.5 shrink-0 text-[#6366f1]"><IconTemplate /></span>
+                <span className="mt-0.5 shrink-0 text-[var(--c-line)]"><IconTemplate /></span>
                 <div className="min-w-0">
                   <div className="font-mono text-[12px] text-[var(--c-text-hi)] group-hover:text-[var(--c-text-hi)]">{t.name}</div>
-                  <div className="font-mono text-[10px] text-[var(--c-text-off)] mt-0.5 leading-snug">{t.description}</div>
+                  <div className="font-mono text-[10px] text-[var(--c-text-lo)] mt-0.5 leading-snug">{t.description}</div>
                 </div>
               </button>
             ))}
@@ -545,7 +545,7 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
               'flex items-center gap-0.5 px-1.5 h-7 rounded transition-colors',
               menuOpen
                 ? 'text-[var(--c-text-hi)] bg-[var(--c-hover)]'
-                : 'text-[#6366f1] hover:text-[#818cf8] hover:bg-[var(--c-hover)]',
+                : 'text-[var(--c-line)] hover:opacity-80 hover:bg-[var(--c-hover)]',
             ].join(' ')}
           >
             <span className="font-mono text-[11px] font-semibold tracking-widest uppercase">DevBoard</span>
@@ -564,7 +564,7 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
                 <MenuItem onClick={() => menuAction(handleSaveAsJSON)} icon={<IconJson />}>Save board as…</MenuItem>
                 <MenuItem onClick={handleOpenFolder} icon={<IconFolder />}>
                   Open folder…
-                  {workspaceName && <span className="ml-auto text-[9px] text-[#6366f1] font-mono truncate max-w-[80px]">{workspaceName}</span>}
+                  {workspaceName && <span className="ml-auto text-[9px] text-[var(--c-line)] font-mono truncate max-w-[80px]">{workspaceName}</span>}
                 </MenuItem>
                 <MenuDivider />
                 <MenuLabel>Templates</MenuLabel>
@@ -670,7 +670,7 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
               className={[
                 'flex items-center gap-1.5 h-7 px-2 rounded transition-colors shrink-0 min-w-0',
                 pagesOpen
-                  ? 'bg-[#6366f1] text-white'
+                  ? 'bg-[var(--c-line)] text-white'
                   : 'text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
               ].join(' ')}
             >
@@ -686,7 +686,7 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
                     minWidth: 12,
                     height: 12,
                     padding: '0 2px',
-                    background: pagesOpen ? 'rgba(255,255,255,0.25)' : '#6366f1',
+                    background: pagesOpen ? 'rgba(255,255,255,0.25)' : 'var(--c-line)',
                     color: pagesOpen ? 'white' : 'white',
                   }}
                 >
@@ -713,7 +713,7 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
               if (e.key === 'Enter') commitTitle();
               if (e.key === 'Escape') { setTitleDraft(boardTitle); setEditingTitle(false); }
             }}
-            className="hidden sm:block bg-transparent border-b border-[#6366f1] text-[var(--c-text-hi)] font-mono text-sm outline-none min-w-0 max-w-[220px]"
+            className="hidden sm:block bg-transparent border-b border-[var(--c-line)] text-[var(--c-text-hi)] font-mono text-sm outline-none min-w-0 max-w-[220px]"
           />
         ) : (
           <button
@@ -733,8 +733,8 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
               className={[
                 'flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono border transition-colors max-w-[160px]',
                 workspaceMenuOpen
-                  ? 'text-[#6366f1] border-[#6366f1]/50 bg-[#6366f1]/15'
-                  : 'text-[#6366f1] border-[#6366f1]/30 bg-[#6366f1]/10 hover:bg-[#6366f1]/20',
+                  ? 'text-[var(--c-line)] border-[var(--c-line)]/50 bg-[var(--c-line)]/15'
+                  : 'text-[var(--c-line)] border-[var(--c-line)]/30 bg-[var(--c-line)]/10 hover:bg-[var(--c-line)]/20',
               ].join(' ')}
             >
               <IconFolder />
@@ -751,7 +751,7 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
                   ? 'Requires Chrome, Edge, or the desktop app'
                   : 'Open a folder workspace to save images as files and keep JSON small'
               }
-              className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono border border-dashed border-[var(--c-border)] text-[var(--c-text-off)] hover:text-[#6366f1] hover:border-[#6366f1]/40 hover:bg-[#6366f1]/8 transition-colors"
+              className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono border border-dashed border-[var(--c-border)] text-[var(--c-text-lo)] hover:text-[var(--c-line)] hover:border-[var(--c-line)]/40 hover:bg-[var(--c-line)]/8 transition-colors"
             >
               <IconFolder />
               {IN_IFRAME ? 'Workspace unavailable' : 'Open workspace…'}
@@ -761,8 +761,8 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
             <div className="absolute top-full left-0 mt-1.5 z-[300] bg-[var(--c-panel)] border border-[var(--c-border)] rounded-xl shadow-2xl min-w-[190px] overflow-hidden">
               {/* Header */}
               <div className="px-3 py-2 border-b border-[var(--c-border)]">
-                <p className="font-mono text-[9px] text-[var(--c-text-off)] uppercase tracking-wider">Active workspace</p>
-                <p className="font-mono text-[11px] text-[#6366f1] font-semibold truncate mt-0.5" title={workspaceName}>{workspaceName}</p>
+                <p className="font-mono text-[9px] text-[var(--c-text-lo)] uppercase tracking-wider">Active workspace</p>
+                <p className="font-mono text-[11px] text-[var(--c-line)] font-semibold truncate mt-0.5" title={workspaceName}>{workspaceName}</p>
               </div>
               {/* Actions */}
               <div className="py-1">
@@ -788,7 +788,7 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
                     className="ml-auto"
                     style={{ opacity: explorerOpen ? 1 : 0 }}
                   >
-                    <path d="M1.5 5l2.5 2.5 5-5" stroke="#6366f1" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M1.5 5l2.5 2.5 5-5" stroke="var(--c-line)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                 </button>
                 <button
@@ -845,7 +845,7 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
                 <div className="px-3 py-2 border-t border-[var(--c-border)] flex flex-col gap-1.5">
                   <button
                     onClick={handleAutoFix}
-                    className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#6366f1] hover:bg-[#4f46e5] text-white font-mono text-[10px] font-semibold transition-colors"
+                    className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--c-line)] hover:opacity-80 text-white font-mono text-[10px] font-semibold transition-colors"
                   >
                     <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
                       <path d="M5.5 1a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9z" stroke="currentColor" strokeWidth="1.1"/>
@@ -894,8 +894,8 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
             className={[
               'flex items-center gap-1 px-2.5 h-7 rounded font-mono text-[11px] tracking-wide transition-colors',
               exportOpen
-                ? 'bg-[#4f46e5] text-white'
-                : 'bg-[#6366f1] text-white hover:bg-[#4f46e5]',
+                ? 'bg-[var(--c-line)] opacity-90 text-white'
+                : 'bg-[var(--c-line)] text-white hover:opacity-80',
             ].join(' ')}
           >
             <span className="hidden sm:inline">Save</span>
@@ -988,13 +988,13 @@ function MenuItem({
       ].join(' ')}
     >
       {icon && (
-        <span className={disabled ? 'text-[var(--c-text-off)]' : 'text-[#6366f1]'}>
+        <span className={disabled ? 'text-[var(--c-text-off)]' : 'text-[var(--c-line)]'}>
           {icon}
         </span>
       )}
       <span className="flex-1">{children}</span>
       {checked !== undefined && (
-        <span className={checked ? 'text-[#6366f1]' : 'text-transparent'}>
+        <span className={checked ? 'text-[var(--c-line)]' : 'text-transparent'}>
           <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
             <path d="M1.5 5l2.5 2.5 5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
@@ -1259,7 +1259,7 @@ function MenuItemSub({ label, icon, children }: { label: string; icon?: React.Re
             : 'text-[var(--c-text-md)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
         ].join(' ')}
       >
-        {icon && <span className="text-[#6366f1]">{icon}</span>}
+        {icon && <span className="text-[var(--c-line)]">{icon}</span>}
         <span className="flex-1">{label}</span>
         <span className="text-[var(--c-text-off)]"><IconChevronRight /></span>
       </button>
@@ -1314,7 +1314,7 @@ function TopBarBtn({
       className={[
         'px-3 h-7 rounded font-mono text-[11px] tracking-wide transition-colors',
         accent
-          ? 'bg-[#6366f1] text-white hover:bg-[#4f46e5]'
+          ? 'bg-[var(--c-line)] text-white hover:opacity-80'
           : 'text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
       ].join(' ')}
     >

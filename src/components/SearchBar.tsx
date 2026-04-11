@@ -222,7 +222,7 @@ export default function SearchBar({ onClose }: { onClose: () => void }) {
             ? '0 results'
             : `${activeIndex + 1} of ${matches.length}`}
           {showPageName && (
-            <span className="ml-1 text-[#6366f1]">({activeMatch.pageName})</span>
+            <span className="ml-1 text-[var(--c-line)]">({activeMatch.pageName})</span>
           )}
         </span>
       )}
@@ -234,7 +234,7 @@ export default function SearchBar({ onClose }: { onClose: () => void }) {
           className={[
             'text-[9px] px-1.5 py-0.5 rounded border transition-colors whitespace-nowrap shrink-0',
             allPages
-              ? 'border-[#6366f1]/40 bg-[#6366f1]/10 text-[#6366f1]'
+              ? 'border-[var(--c-line)]/40 bg-[var(--c-line)]/10 text-[var(--c-line)]'
               : 'border-[var(--c-border)] text-[var(--c-text-off)] hover:text-[var(--c-text-md)]',
           ].join(' ')}
           title="Search all pages"

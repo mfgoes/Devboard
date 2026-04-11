@@ -8,30 +8,40 @@
 }
 
 :root {
-  --c-canvas: #111118;
-  --c-panel: #1a1a2a;
-  --c-hover: #22223a;
-  --c-border: #2e2e46;
-  --c-text-hi: #e2e8f0;
-  --c-text-md: #a0a0c0;
-  --c-text-lo: #8888aa;
-  --c-text-off: #4a4a6a;
-  --c-dot: #3a3a4a;
-  --c-line: #6366f1;
-  --c-line-pre: #818cf8;
+  --c-canvas: #1c1916;
+  --c-panel: #242019;
+  --c-hover: #2d2820;
+  --c-border: #3c3529;
+  --c-text-hi: #ece6dd;
+  --c-text-md: #afa294;
+  --c-text-lo: #8a7b6c;
+  --c-text-off: #4a3a28;
+  --c-dot: #2c2620;
+  --c-line: #b87750;
+  --c-line-pre: #cc9468;
+  --c-line-default: #d4c4a8;
+  --c-select-glow: #d4a858;
+  --c-yellow: #e2be72;
+  --c-orange: #d4835a;
+  --c-green: #7aaa72;
+  --c-red: #c96a6a;
+  --font-ui: 'Plus Jakarta Sans', sans-serif;
+  --font-code: 'JetBrains Mono', 'Fira Code', monospace;
 }
 :root.light {
-  --c-canvas: #f0f0ec;
-  --c-panel: #ffffff;
-  --c-hover: #eeeef4;
-  --c-border: #d4d4e0;
-  --c-text-hi: #18181b;
-  --c-text-md: #52525b;
-  --c-text-lo: #71717a;
-  --c-text-off: #a1a1aa;
-  --c-dot: #c0c0cc;
-  --c-line: #4f46e5;
-  --c-line-pre: #6366f1;
+  --c-canvas: #f6f1ea;
+  --c-panel: #ede7dd;
+  --c-hover: #e3dbd0;
+  --c-border: #cdc4b6;
+  --c-text-hi: #28201a;
+  --c-text-md: #6b5e52;
+  --c-text-lo: #9a8878;
+  --c-text-off: #bbb5af;
+  --c-dot: #d8d0c4;
+  --c-line: #a06038;
+  --c-line-pre: #b87848;
+  --c-line-default: #3a2810;
+  --c-select-glow: #7a3a10;
 }
 
 /* Prevent default blue selection highlight on canvas drag */
@@ -58,15 +68,29 @@
 
 /* Textarea inside sticky note — no browser chrome */
 textarea {
-  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-family: 'Plus Jakarta Sans', sans-serif;
 }
 
 textarea::placeholder {
-  color: rgba(26, 26, 46, 0.35);
+  color: var(--c-text-lo);
   font-style: italic;
+  opacity: 0.5;
 }
 
 /* Suppress Konva canvas outline */
 canvas:focus {
   outline: none;
+}
+
+/* Text utility classes */
+.text-muted {
+  color: var(--c-text-off);
+}
+
+.text-dim {
+  color: var(--c-text-lo);
+}
+
+.text-subtle {
+  color: var(--c-text-md);
 }

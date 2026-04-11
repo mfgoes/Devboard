@@ -4,6 +4,7 @@ import Konva from 'konva';
 import { useBoardStore } from '../../store/boardStore';
 import { StickerNode as StickerNodeType } from '../../types';
 import { resolveStickerSrc } from '../../assets/stickerAssets';
+import { resolveCssColor } from '../../utils/palette';
 
 interface Props {
   node: StickerNodeType;
@@ -112,11 +113,11 @@ export default function StickerNodeComponent({ node, isSelected, onSnapMove, onS
           resizeEnabled={true}
           rotateEnabled={false}
           keepRatio={true}
-          borderStroke="#6366f1"
+          borderStroke={resolveCssColor('--c-line')}
           borderStrokeWidth={1.5}
           borderDash={[4, 3]}
           anchorSize={8}
-          anchorStroke="#6366f1"
+          anchorStroke={resolveCssColor('--c-line')}
           anchorFill="white"
           anchorCornerRadius={2}
           enabledAnchors={['top-left', 'top-right', 'bottom-left', 'bottom-right']}

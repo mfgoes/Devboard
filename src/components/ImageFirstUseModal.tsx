@@ -42,18 +42,18 @@ export default function ImageFirstUseModal({ isWorkspaceOpen, onClose, onOpenFol
         {/* Two storage modes */}
         <div className="space-y-2 mb-5">
           {/* Workspace mode — always shown as the recommended path */}
-          <div className="flex gap-3 rounded-xl border border-[#6366f1]/40 bg-[#6366f1]/10 p-3">
+          <div className="flex gap-3 rounded-xl border border-[var(--c-line)]/40 bg-[var(--c-line)]/10 p-3">
             <span className="text-lg shrink-0">📁</span>
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-[11px] font-semibold text-[var(--c-text-hi)]">Folder workspace</span>
                 {isWorkspaceOpen
-                  ? <span className="text-[9px] bg-[#6366f1] text-white px-1.5 py-0.5 rounded-full">active</span>
-                  : <span className="text-[9px] bg-[#6366f1] text-white px-1.5 py-0.5 rounded-full">recommended</span>
+                  ? <span className="text-[9px] bg-[var(--c-line)] text-white px-1.5 py-0.5 rounded-full">active</span>
+                  : <span className="text-[9px] bg-[var(--c-line)] text-white px-1.5 py-0.5 rounded-full">recommended</span>
                 }
               </div>
               <p className="text-[10px] text-[var(--c-text-lo)] mt-0.5 leading-snug">
-                Images saved as actual files in <code className="text-[#6366f1]">assets/</code>.
+                Images saved as actual files in <code className="text-[var(--c-line)]">assets/</code>.
                 Board JSON stays small. Works like VS Code workspaces.
               </p>
             </div>
@@ -82,7 +82,7 @@ export default function ImageFirstUseModal({ isWorkspaceOpen, onClose, onOpenFol
           {!isWorkspaceOpen && (
             <button
               onClick={onOpenFolder}
-              className="flex-1 px-3 py-2 rounded-lg bg-[#6366f1] hover:bg-[#818cf8] text-white text-[11px] font-semibold transition-colors"
+              className="flex-1 px-3 py-2 rounded-lg bg-[var(--c-line)] hover:opacity-80 text-white text-[11px] font-semibold transition-colors"
             >
               Open folder workspace
             </button>

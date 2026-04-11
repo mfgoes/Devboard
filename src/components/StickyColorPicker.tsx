@@ -108,7 +108,7 @@ export default function StickyColorPicker({ nodeId, isEditing = false }: Props) 
       className={[
         'w-6 h-6 flex items-center justify-center rounded transition-colors text-[13px]',
         active
-          ? 'bg-[#6366f1] text-white'
+          ? 'bg-[var(--c-line)] text-white'
           : 'text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
       ].join(' ')}
     >
@@ -140,7 +140,7 @@ export default function StickyColorPicker({ nodeId, isEditing = false }: Props) 
         className={[
           'w-6 h-6 flex items-center justify-center rounded transition-colors',
           node.bulletList
-            ? 'bg-[#6366f1] text-white'
+            ? 'bg-[var(--c-line)] text-white'
             : 'text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
         ].join(' ')}
       >
@@ -170,7 +170,7 @@ export default function StickyColorPicker({ nodeId, isEditing = false }: Props) 
                   onClick={() => { saveHistory(); updateNode(nodeId, { fontSize: preset.value }); setCustomSize(''); setShowFontSizes(false); }}
                   className={[
                     'w-full text-left px-4 py-2 font-mono text-[13px] transition-colors flex items-center gap-2',
-                    active ? 'bg-[#6366f1] text-white' : 'text-[var(--c-text-md)] hover:bg-[var(--c-hover)]',
+                    active ? 'bg-[var(--c-line)] text-white' : 'text-[var(--c-text-md)] hover:bg-[var(--c-hover)]',
                   ].join(' ')}
                 >
                   <span className="w-4 text-center">{active ? '✓' : ''}</span>
@@ -194,7 +194,7 @@ export default function StickyColorPicker({ nodeId, isEditing = false }: Props) 
                   if (e.key === 'Escape') setShowFontSizes(false);
                   e.stopPropagation();
                 }}
-                className="w-full bg-[var(--c-canvas)] border border-[var(--c-border)] rounded-lg px-3 py-1.5 text-[var(--c-text-hi)] font-mono text-[12px] outline-none focus:border-[#6366f1]"
+                className="w-full bg-[var(--c-canvas)] border border-[var(--c-border)] rounded-lg px-3 py-1.5 text-[var(--c-text-hi)] font-mono text-[12px] outline-none focus:border-[var(--c-line)]"
               />
             </div>
           </div>

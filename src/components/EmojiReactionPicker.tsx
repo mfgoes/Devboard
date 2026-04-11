@@ -80,7 +80,7 @@ export default function EmojiReactionPicker({ nodeId, isSelected }: Props) {
                 alignItems: 'center',
                 justifyContent: 'center',
                 borderRadius: 6,
-                border: node.reaction === emoji ? '1.5px solid #6366f1' : '1.5px solid transparent',
+                border: node.reaction === emoji ? '1.5px solid var(--c-line)' : '1.5px solid transparent',
                 background: node.reaction === emoji ? 'rgba(99,102,241,0.12)' : 'transparent',
                 cursor: 'pointer',
                 fontSize: 15,
@@ -166,16 +166,16 @@ export default function EmojiReactionPicker({ nodeId, isSelected }: Props) {
               alignItems: 'center',
               justifyContent: 'center',
               borderRadius: 5,
-              border: pickerOpen ? '1px solid #6366f1' : '1px solid transparent',
+              border: pickerOpen ? '1px solid var(--c-line)' : '1px solid transparent',
               background: pickerOpen ? 'rgba(99,102,241,0.12)' : 'transparent',
               cursor: 'pointer',
-              color: pickerOpen ? '#6366f1' : 'rgba(0,0,0,0.4)',
+              color: pickerOpen ? 'var(--c-line)' : 'rgba(0,0,0,0.4)',
               padding: 0,
               transition: 'color 0.1s, background 0.1s',
             }}
             onMouseEnter={(e) => {
               if (!pickerOpen) {
-                (e.currentTarget as HTMLButtonElement).style.color = '#6366f1';
+                (e.currentTarget as HTMLButtonElement).style.color = 'var(--c-line)';
                 (e.currentTarget as HTMLButtonElement).style.background = 'rgba(99,102,241,0.08)';
               }
             }}

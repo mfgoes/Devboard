@@ -3,6 +3,7 @@ import { Group, Rect, Text, Transformer } from 'react-konva';
 import Konva from 'konva';
 import { SectionNode as SectionNodeType, CanvasNode } from '../../types';
 import { useBoardStore } from '../../store/boardStore';
+import { FONTS } from '../../utils/fonts';
 
 const NEUTRAL_DARK  = '#64748b';
 const NEUTRAL_LIGHT = '#94a3b8';
@@ -17,6 +18,19 @@ function hexToRgba(hex: string, alpha: number): string {
   const g = parseInt(hex.slice(3, 5), 16);
   const b = parseInt(hex.slice(5, 7), 16);
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+function getTextColorForBackground(hex: string): string {
+  // Calculate relative luminance (WCAG formula)
+  const r = parseInt(hex.slice(1, 3), 16) / 255;
+  const g = parseInt(hex.slice(3, 5), 16) / 255;
+  const b = parseInt(hex.slice(5, 7), 16) / 255;
+
+  const [rs, gs, bs] = [r, g, b].map(c => c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+  const luminance = 0.2126 * rs + 0.7152 * gs + 0.0722 * bs;
+
+  // If background is light (luminance > 0.5), use dark text; otherwise use white
+  return luminance > 0.5 ? '#1a1a2e' : 'white';
 }
 
 type NonConnectorNode = Exclude<CanvasNode, { type: 'connector' }>;
@@ -132,6 +146,7 @@ export default function SectionNodeComponent({ node, isSelected, isEditing }: Pr
   const fillColor   = hexToRgba(resolvedColor, 0.1);
   const borderColor = hexToRgba(resolvedColor, 0.55);
   const labelText   = node.name || 'Section';
+  const textColor   = getTextColorForBackground(resolvedColor);
   const pillW = Math.max(72, labelText.length * 8 + 24);
   const pillH = 26;
 
@@ -177,8 +192,8 @@ export default function SectionNodeComponent({ node, isSelected, isEditing }: Pr
           text={isEditing ? '' : labelText}
           fontSize={12}
           fontStyle="bold"
-          fontFamily="'JetBrains Mono', 'Fira Code', monospace"
-          fill="white"
+          fontFamily={FONTS.ui}
+          fill={textColor}
           listening={false}
         />
       </Group>

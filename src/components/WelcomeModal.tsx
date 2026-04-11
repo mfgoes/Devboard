@@ -39,7 +39,7 @@ export default function WelcomeModal({ onClose }: Props) {
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <span className="text-[#6366f1] text-[10px] font-semibold tracking-[0.2em] uppercase">
+            <span className="text-[var(--c-line)] text-[10px] font-semibold tracking-[0.2em] uppercase">
               DevBoard
             </span>
             <span className="text-[10px] text-[var(--c-text-off)] border border-[var(--c-border)] rounded px-1.5 py-0.5">
@@ -48,7 +48,7 @@ export default function WelcomeModal({ onClose }: Props) {
           </div>
           <button
             onClick={onClose}
-            className="text-[var(--c-text-off)] hover:text-[var(--c-text-hi)] text-xl leading-none transition-colors"
+            className="text-[var(--c-text-md)] hover:text-[var(--c-text-hi)] text-xl leading-none transition-colors"
             aria-label="Close"
           >
             ×
@@ -90,7 +90,7 @@ export default function WelcomeModal({ onClose }: Props) {
               href="https://mfgoes.github.io/Devboard/"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--c-border)] bg-[var(--c-hover)] text-[11px] text-[var(--c-text-md)] hover:border-[#6366f1] hover:text-[#6366f1] transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--c-border)] bg-[var(--c-hover)] text-[11px] text-[var(--c-text-md)] hover:border-[var(--c-line)] hover:text-[var(--c-line)] transition-colors"
             >
               <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M2 2h5v2H4v8h8v-3h2v5H2V2zm7 0h5v5h-2V4.414L6.707 9.707 5.293 8.293 10.586 3H8V1h1z"/></svg>
               DevBoard site
@@ -118,7 +118,7 @@ export default function WelcomeModal({ onClose }: Props) {
           <div className="flex justify-end">
             <button
               onClick={onClose}
-              className="px-4 py-1.5 bg-[#6366f1] hover:bg-[#4f46e5] text-white text-xs rounded-lg transition-colors font-semibold"
+              className="px-4 py-1.5 bg-[var(--c-line)] hover:opacity-80 text-white text-xs rounded-lg transition-colors font-semibold"
             >
               Start drawing
             </button>

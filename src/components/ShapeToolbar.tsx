@@ -23,29 +23,29 @@ const FONT_SIZE_PRESETS = [
 ];
 
 const SHAPE_FILLS = [
-  { hex: '#6366f1', label: 'Indigo' },
-  { hex: '#8b5cf6', label: 'Purple' },
-  { hex: '#ec4899', label: 'Pink' },
-  { hex: '#ef4444', label: 'Red' },
-  { hex: '#f97316', label: 'Orange' },
-  { hex: '#eab308', label: 'Yellow' },
-  { hex: '#22c55e', label: 'Green' },
-  { hex: '#06b6d4', label: 'Cyan' },
-  { hex: '#3b82f6', label: 'Blue' },
+  { hex: '#E1BEE7', label: 'Dusty Lavender' },
+  { hex: '#BBDEFB', label: 'Airy Blue' },
+  { hex: '#CFD8DC', label: 'Cool Slate' },
+  { hex: '#FFF9C4', label: 'Soft Cream' },
+  { hex: '#FFE0B2', label: 'Muted Apricot' },
+  { hex: '#C8E6C9', label: 'Pale Mint' },
+  { hex: '#F8BBD0', label: 'Blush Rose' },
   { hex: '#e2e8f0', label: 'White' },
   { hex: '#334155', label: 'Dark' },
+  { hex: 'var(--c-line)', label: 'Indigo' },
+  { hex: '#22c55e', label: 'Green' },
   { hex: 'transparent', label: 'No fill' },
 ];
 
 const SHAPE_STROKES = [
   { hex: 'transparent', label: 'No stroke' },
-  { hex: '#6366f1', label: 'Indigo' },
-  { hex: '#e2e8f0', label: 'White' },
+  { hex: '#90CAF9', label: 'Blue' },
+  { hex: '#CE93D8', label: 'Lavender' },
+  { hex: '#A5D6A7', label: 'Mint' },
+  { hex: 'var(--c-line)', label: 'Indigo' },
   { hex: '#334155', label: 'Dark' },
-  { hex: '#f97316', label: 'Orange' },
-  { hex: '#22c55e', label: 'Green' },
-  { hex: '#ef4444', label: 'Red' },
-  { hex: '#eab308', label: 'Yellow' },
+  { hex: '#e2e8f0', label: 'White' },
+  { hex: '#F48FB1', label: 'Rose' },
 ];
 
 const KIND_DEFS: { kind: ShapeKind; label: string; icon: React.ReactNode }[] = [
@@ -181,7 +181,7 @@ export default function ShapeToolbar({ nodeId }: Props) {
                 className={[
                   'w-full flex items-center gap-2.5 px-3 py-2 text-[12px] font-mono transition-colors',
                   node.kind === kind
-                    ? 'bg-[#6366f1] text-white'
+                    ? 'bg-[var(--c-line)] text-white'
                     : 'text-[var(--c-text-md)] hover:bg-[var(--c-hover)]',
                 ].join(' ')}
               >
@@ -270,7 +270,7 @@ export default function ShapeToolbar({ nodeId }: Props) {
                 className={[
                   'w-7 h-7 flex items-center justify-center rounded-lg transition-colors',
                   node.strokeWidth === sw
-                    ? 'bg-[#6366f1] text-white'
+                    ? 'bg-[var(--c-line)] text-white'
                     : 'text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
                 ].join(' ')}
               >
@@ -314,7 +314,7 @@ export default function ShapeToolbar({ nodeId }: Props) {
                 style={{
                   width: 28, height: 28,
                   borderRadius: 6,
-                  border: `2px solid ${(node.fontColor ?? '') === c.hex ? '#6366f1' : 'transparent'}`,
+                  border: `2px solid ${(node.fontColor ?? '') === c.hex ? 'var(--c-line)' : 'transparent'}`,
                   background: c.hex || '#2e2e46',
                   cursor: 'pointer',
                   position: 'relative',
@@ -327,7 +327,7 @@ export default function ShapeToolbar({ nodeId }: Props) {
                 onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
               >
                 {!c.hex && (
-                  <span style={{ fontSize: 9, color: '#8888aa', fontFamily: 'monospace' }}>auto</span>
+                  <span style={{ fontSize: 9, color: '#8888aa', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>auto</span>
                 )}
               </button>
             ))}
@@ -354,7 +354,7 @@ export default function ShapeToolbar({ nodeId }: Props) {
                   onClick={() => { update({ fontSize: preset.value }); setCustomSize(''); setShowFontSizes(false); }}
                   className={[
                     'w-full text-left px-4 py-2 font-mono text-[13px] transition-colors flex items-center gap-2',
-                    active ? 'bg-[#6366f1] text-white' : 'text-[var(--c-text-md)] hover:bg-[var(--c-hover)]',
+                    active ? 'bg-[var(--c-line)] text-white' : 'text-[var(--c-text-md)] hover:bg-[var(--c-hover)]',
                   ].join(' ')}
                 >
                   <span className="w-4 text-center">{active ? '✓' : ''}</span>
@@ -378,7 +378,7 @@ export default function ShapeToolbar({ nodeId }: Props) {
                   if (e.key === 'Escape') setShowFontSizes(false);
                   e.stopPropagation();
                 }}
-                className="w-full bg-[var(--c-canvas)] border border-[var(--c-border)] rounded-lg px-3 py-1.5 text-[var(--c-text-hi)] font-mono text-[12px] outline-none focus:border-[#6366f1]"
+                className="w-full bg-[var(--c-canvas)] border border-[var(--c-border)] rounded-lg px-3 py-1.5 text-[var(--c-text-hi)] font-mono text-[12px] outline-none focus:border-[var(--c-line)]"
               />
             </div>
           </div>
@@ -392,7 +392,7 @@ export default function ShapeToolbar({ nodeId }: Props) {
           onClick={() => update({ bold: !node.bold })}
           className={[
             'w-8 h-8 flex items-center justify-center rounded-lg transition-colors font-bold text-[14px]',
-            node.bold ? 'bg-[#6366f1] text-white' : 'text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
+            node.bold ? 'bg-[var(--c-line)] text-white' : 'text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
           ].join(' ')}
           style={{ fontFamily: 'serif' }}
         >
@@ -405,7 +405,7 @@ export default function ShapeToolbar({ nodeId }: Props) {
           onClick={() => update({ italic: !node.italic })}
           className={[
             'w-8 h-8 flex items-center justify-center rounded-lg transition-colors italic text-[14px]',
-            node.italic ? 'bg-[#6366f1] text-white' : 'text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
+            node.italic ? 'bg-[var(--c-line)] text-white' : 'text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
           ].join(' ')}
           style={{ fontFamily: 'serif' }}
         >
@@ -439,7 +439,7 @@ export default function ShapeToolbar({ nodeId }: Props) {
                 className={[
                   'w-full flex items-center gap-2.5 px-3 py-2 text-[12px] font-mono transition-colors capitalize',
                   (node.textAlign ?? 'center') === align
-                    ? 'bg-[#6366f1] text-white'
+                    ? 'bg-[var(--c-line)] text-white'
                     : 'text-[var(--c-text-md)] hover:bg-[var(--c-hover)]',
                 ].join(' ')}
               >

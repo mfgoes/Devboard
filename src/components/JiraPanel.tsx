@@ -31,7 +31,7 @@ const PRIORITY_COLORS: Record<string, string> = {
 function statusBadgeColor(status: string): string {
   const s = status.toLowerCase();
   if (s === 'done' || s === 'closed' || s === 'resolved') return '#22c55e';
-  if (s.includes('progress') || s === 'review') return '#6366f1';
+  if (s.includes('progress') || s === 'review') return 'var(--c-line)';
   return '#a1a1aa';
 }
 
@@ -205,48 +205,48 @@ export default function JiraPanel({ onClose }: { onClose: () => void }) {
       {/* Setup / credentials */}
       {showSetup && (
         <div className="px-3 py-3 border-b border-[var(--c-border)] space-y-2 bg-[var(--c-panel)]">
-          <p className="text-[11px] text-[var(--c-text-off)] leading-snug">
+          <p className="text-[11px] text-[var(--c-text-lo)] leading-snug">
             Enter your Atlassian domain, email, and API token.
             <br />
-            <a href="https://id.atlassian.com/manage-profile/security/api-tokens" target="_blank" rel="noopener noreferrer" className="text-[#6366f1] underline">
+            <a href="https://id.atlassian.com/manage-profile/security/api-tokens" target="_blank" rel="noopener noreferrer" className="text-[var(--c-line)] underline">
               Create an API token
             </a>
           </p>
           <label className="block">
-            <span className="text-[10px] uppercase text-[var(--c-text-off)] tracking-wide">Domain</span>
+            <span className="text-[10px] uppercase text-[var(--c-text-lo)] tracking-wide">Domain</span>
             <input
               type="text"
               value={domain}
               onChange={(e) => setDomain(e.target.value)}
               placeholder="yourcompany.atlassian.net"
-              className="mt-0.5 w-full px-2 py-1.5 rounded bg-[var(--c-canvas)] border border-[var(--c-border)] text-[var(--c-text-hi)] text-[12px] font-mono placeholder:text-[var(--c-text-off)] focus:outline-none focus:border-[#6366f1]"
+              className="mt-0.5 w-full px-2 py-1.5 rounded bg-[var(--c-canvas)] border border-[var(--c-border)] text-[var(--c-text-hi)] text-[12px] font-mono placeholder:text-[var(--c-text-off)] focus:outline-none focus:border-[var(--c-line)]"
             />
           </label>
           <label className="block">
-            <span className="text-[10px] uppercase text-[var(--c-text-off)] tracking-wide">Email</span>
+            <span className="text-[10px] uppercase text-[var(--c-text-lo)] tracking-wide">Email</span>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@company.com"
-              className="mt-0.5 w-full px-2 py-1.5 rounded bg-[var(--c-canvas)] border border-[var(--c-border)] text-[var(--c-text-hi)] text-[12px] font-mono placeholder:text-[var(--c-text-off)] focus:outline-none focus:border-[#6366f1]"
+              className="mt-0.5 w-full px-2 py-1.5 rounded bg-[var(--c-canvas)] border border-[var(--c-border)] text-[var(--c-text-hi)] text-[12px] font-mono placeholder:text-[var(--c-text-off)] focus:outline-none focus:border-[var(--c-line)]"
             />
           </label>
           <label className="block">
-            <span className="text-[10px] uppercase text-[var(--c-text-off)] tracking-wide">API Token</span>
+            <span className="text-[10px] uppercase text-[var(--c-text-lo)] tracking-wide">API Token</span>
             <input
               type="password"
               value={token}
               onChange={(e) => setToken(e.target.value)}
               placeholder="paste token here"
-              className="mt-0.5 w-full px-2 py-1.5 rounded bg-[var(--c-canvas)] border border-[var(--c-border)] text-[var(--c-text-hi)] text-[12px] font-mono placeholder:text-[var(--c-text-off)] focus:outline-none focus:border-[#6366f1]"
+              className="mt-0.5 w-full px-2 py-1.5 rounded bg-[var(--c-canvas)] border border-[var(--c-border)] text-[var(--c-text-hi)] text-[12px] font-mono placeholder:text-[var(--c-text-off)] focus:outline-none focus:border-[var(--c-line)]"
             />
           </label>
           <div className="flex items-center gap-2 pt-1">
             <button
               onClick={saveCredentials}
               disabled={!domain.trim() || !email.trim() || !token.trim()}
-              className="px-3 py-1.5 rounded bg-[#6366f1] text-white text-[11px] font-semibold hover:bg-[#4f46e5] disabled:opacity-40 disabled:cursor-default transition-colors"
+              className="px-3 py-1.5 rounded bg-[var(--c-line)] text-white text-[11px] font-semibold hover:opacity-80 disabled:opacity-40 disabled:cursor-default transition-colors"
             >
               Save &amp; Connect
             </button>
@@ -266,26 +266,26 @@ export default function JiraPanel({ onClose }: { onClose: () => void }) {
       {isConfigured && !showSetup && (
         <div className="px-3 py-2 border-b border-[var(--c-border)] space-y-1.5">
           <label className="block">
-            <span className="text-[10px] uppercase text-[var(--c-text-off)] tracking-wide">JQL Query</span>
+            <span className="text-[10px] uppercase text-[var(--c-text-lo)] tracking-wide">JQL Query</span>
             <textarea
               value={jql}
               onChange={(e) => setJql(e.target.value)}
               rows={2}
-              className="mt-0.5 w-full px-2 py-1.5 rounded bg-[var(--c-canvas)] border border-[var(--c-border)] text-[var(--c-text-hi)] text-[11px] font-mono placeholder:text-[var(--c-text-off)] focus:outline-none focus:border-[#6366f1] resize-none"
+              className="mt-0.5 w-full px-2 py-1.5 rounded bg-[var(--c-canvas)] border border-[var(--c-border)] text-[var(--c-text-hi)] text-[11px] font-mono placeholder:text-[var(--c-text-off)] focus:outline-none focus:border-[var(--c-line)] resize-none"
             />
           </label>
           <div className="flex items-center gap-2">
             <button
               onClick={fetchIssues}
               disabled={loading}
-              className="px-3 py-1.5 rounded bg-[#6366f1] text-white text-[11px] font-semibold hover:bg-[#4f46e5] disabled:opacity-60 transition-colors"
+              className="px-3 py-1.5 rounded bg-[var(--c-line)] text-white text-[11px] font-semibold hover:opacity-80 disabled:opacity-60 transition-colors"
             >
               {loading ? 'Loading…' : 'Fetch Issues'}
             </button>
             {issues.length > 0 && (
               <button
                 onClick={importAll}
-                className="px-3 py-1.5 rounded border border-[#6366f1]/40 text-[#6366f1] text-[11px] font-semibold hover:bg-[#6366f1]/10 transition-colors"
+                className="px-3 py-1.5 rounded border border-[var(--c-line)]/40 text-[var(--c-line)] text-[11px] font-semibold hover:bg-[var(--c-line)]/10 transition-colors"
               >
                 Import all ({issues.length})
               </button>
@@ -314,7 +314,7 @@ export default function JiraPanel({ onClose }: { onClose: () => void }) {
             title={`Click to import ${issue.key} as a sticky note`}
           >
             <div className="flex items-center gap-2 mb-0.5">
-              <span className="text-[#6366f1] font-semibold text-[11px]">{issue.key}</span>
+              <span className="text-[var(--c-line)] font-semibold text-[11px]">{issue.key}</span>
               <span
                 className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold uppercase tracking-wide"
                 style={{
@@ -342,15 +342,15 @@ export default function JiraPanel({ onClose }: { onClose: () => void }) {
 
         {/* Empty state when configured but no issues loaded yet */}
         {isConfigured && !showSetup && issues.length === 0 && !loading && !error && (
-          <div className="px-3 py-8 text-center text-[var(--c-text-off)] text-[11px]">
+          <div className="px-3 py-8 text-center text-[var(--c-text-lo)] text-[11px]">
             Hit <strong>Fetch Issues</strong> to load tickets from Jira.
           </div>
         )}
 
         {/* Not configured empty state */}
         {!isConfigured && !showSetup && (
-          <div className="px-3 py-8 text-center text-[var(--c-text-off)] text-[11px]">
-            <button onClick={() => setShowSetup(true)} className="text-[#6366f1] underline">Set up credentials</button> to get started.
+          <div className="px-3 py-8 text-center text-[var(--c-text-lo)] text-[11px]">
+            <button onClick={() => setShowSetup(true)} className="text-[var(--c-line)] underline">Set up credentials</button> to get started.
           </div>
         )}
       </div>
@@ -363,7 +363,7 @@ export default function JiraPanel({ onClose }: { onClose: () => void }) {
 function IconJira() {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-      <path d="M14.5 7.6L8.9 2 8 1.1 3.2 5.9l-.7.7a.5.5 0 000 .7L6.8 11.6l1.2 1.2 4.8-4.8.7-.7a.5.5 0 000-.7zM8 10.1L5.9 8 8 5.9 10.1 8 8 10.1z" fill="#6366f1"/>
+      <path d="M14.5 7.6L8.9 2 8 1.1 3.2 5.9l-.7.7a.5.5 0 000 .7L6.8 11.6l1.2 1.2 4.8-4.8.7-.7a.5.5 0 000-.7zM8 10.1L5.9 8 8 5.9 10.1 8 8 10.1z" fill="var(--c-line)"/>
     </svg>
   );
 }

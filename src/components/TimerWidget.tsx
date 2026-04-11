@@ -133,7 +133,7 @@ export default function TimerWidget({ onClose }: { onClose: () => void }) {
         {/* Progress bar */}
         <div className="h-1 rounded-full bg-[var(--c-hover)] overflow-hidden">
           <div
-            className={`h-full rounded-full transition-all ${isFinished ? 'bg-red-400' : 'bg-[#6366f1]'}`}
+            className={`h-full rounded-full transition-all ${isFinished ? 'bg-red-400' : 'bg-[var(--c-line)]'}`}
             style={{ width: `${progress * 100}%` }}
           />
         </div>
@@ -199,7 +199,7 @@ export default function TimerWidget({ onClose }: { onClose: () => void }) {
               className={`w-9 h-9 flex items-center justify-center rounded-full transition-colors ${
                 remaining === 0
                   ? 'bg-[var(--c-border)] text-[var(--c-text-off)] cursor-default'
-                  : 'bg-[#6366f1] text-white hover:bg-[#4f46e5]'
+                  : 'bg-[var(--c-line)] text-white hover:opacity-80'
               }`}
             >
               {running ? (

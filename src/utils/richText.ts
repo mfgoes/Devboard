@@ -128,7 +128,7 @@ function getCtx(): CanvasRenderingContext2D {
 function measureText(text: string, bold: boolean, italic: boolean, fontSize: number): number {
   const ctx = getCtx();
   const style = [bold ? 'bold' : '', italic ? 'italic' : ''].filter(Boolean).join(' ') || 'normal';
-  ctx.font = `${style} ${fontSize}px 'JetBrains Mono', 'Fira Code', monospace`;
+  ctx.font = `${style} ${fontSize}px 'Plus Jakarta Sans', sans-serif`;
   return ctx.measureText(text).width;
 }
 

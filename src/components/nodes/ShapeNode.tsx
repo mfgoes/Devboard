@@ -5,6 +5,8 @@ import { ShapeNode as ShapeNodeType, AnchorSide, ConnectorNode } from '../../typ
 import { useBoardStore } from '../../store/boardStore';
 import { anchorCoords, cpOffset } from './ConnectorLine';
 import { useTheme } from '../../theme';
+import { resolveCssColor } from '../../utils/palette';
+import { FONTS } from '../../utils/fonts';
 
 function generateId() { return Math.random().toString(36).slice(2, 11); }
 
@@ -348,7 +350,7 @@ export default function ShapeNode({
             fontSize={node.fontSize ?? 14}
             fontStyle={fontStyle}
             lineHeight={1.45}
-            fontFamily="'JetBrains Mono', 'Fira Code', monospace"
+            fontFamily={FONTS.ui}
             fill={textColor}
             align={node.textAlign ?? 'center'}
             verticalAlign="middle"
@@ -388,20 +390,20 @@ export default function ShapeNode({
                 ghost ? (
                   <Line
                     points={ghost.pts} bezier={true}
-                    stroke="#6366f1" strokeWidth={2}
+                    stroke={resolveCssColor('--c-line')} strokeWidth={2}
                     opacity={0.35} lineCap="round" listening={false}
                   />
                 ) : (
                   <>
                     <Line
                       points={[bx, by, bx + gdx * GHOST_LEN, by + gdy * GHOST_LEN]}
-                      stroke="#6366f1" strokeWidth={2}
+                      stroke={resolveCssColor('--c-line')} strokeWidth={2}
                       opacity={0.22} dash={[6, 4]} lineCap="round" listening={false}
                     />
                     <Line
                       x={bx + gdx * GHOST_LEN} y={by + gdy * GHOST_LEN}
                       points={CHEVRON[side]}
-                      stroke="#6366f1" strokeWidth={2}
+                      stroke={resolveCssColor('--c-line')} strokeWidth={2}
                       opacity={0.35} lineCap="round" lineJoin="round" listening={false}
                     />
                   </>
@@ -410,10 +412,10 @@ export default function ShapeNode({
               <Circle
                 x={vx} y={vy}
                 radius={active ? 8 : 5}
-                fill={active ? '#6366f1' : 'white'}
-                stroke="#6366f1" strokeWidth={2}
+                fill={active ? resolveCssColor('--c-line') : 'white'}
+                stroke={resolveCssColor('--c-line')} strokeWidth={2}
                 opacity={active ? 1 : 0.85}
-                shadowEnabled={active} shadowColor="#6366f1" shadowBlur={12}
+                shadowEnabled={active} shadowColor={resolveCssColor('--c-select-glow')} shadowBlur={18}
                 onMouseDown={(e) => {
                   e.cancelBubble = true;
                   if (ghost) {
@@ -423,7 +425,7 @@ export default function ShapeNode({
                       fromX: bx, fromY: by,
                       toNodeId: ghost.targetId, toAnchor: ghost.targetSide,
                       toX: ghost.toWorldX, toY: ghost.toWorldY,
-                      color: '#6366f1', strokeWidth: 2,
+                      color: resolveCssColor('--c-line-default'), strokeWidth: 2,
                       lineStyle: 'curved', strokeStyle: 'solid',
                       arrowHeadStart: 'none', arrowHeadEnd: 'arrow',
                     } as ConnectorNode);
@@ -477,7 +479,7 @@ export default function ShapeNode({
                   <Text
                     width={ghost ? 102 : 60} height={18}
                     text={ghost ? 'Click to connect' : 'Connect'}
-                    fontSize={10} fontFamily="'JetBrains Mono', monospace"
+                    fontSize={10} fontFamily={FONTS.ui}
                     fill={t.textHi} align="center" verticalAlign="middle" listening={false}
                   />
                 </Group>
@@ -535,10 +537,10 @@ export default function ShapeNode({
           enabledAnchors={['top-left', 'top-center', 'top-right', 'middle-right', 'bottom-right', 'bottom-center', 'bottom-left', 'middle-left']}
           anchorSize={10}
           anchorCornerRadius={2}
-          anchorStroke="#6366f1"
+          anchorStroke={resolveCssColor('--c-line')}
           anchorStrokeWidth={2}
           anchorFill="white"
-          borderStroke="#6366f1"
+          borderStroke={resolveCssColor('--c-line')}
           borderStrokeWidth={2}
           padding={0}
           boundBoxFunc={(oldBox, newBox) => {

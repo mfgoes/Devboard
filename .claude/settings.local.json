@@ -44,7 +44,9 @@
       "Bash(cargo check:*)",
       "Bash(kill %1)",
       "Bash(wait)",
-      "Bash(xargs kill:*)"
+      "Bash(xargs kill:*)",
+      "Bash(find src:*)",
+      "Bash(grep -c \"var\\(--c-line\\)\" src/components/*.tsx)"
     ]
   }
 }

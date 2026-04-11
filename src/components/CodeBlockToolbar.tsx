@@ -114,7 +114,7 @@ export default function CodeBlockToolbar({ nodeId }: Props) {
                 className={[
                   'w-full text-left px-3 py-2 font-mono text-[12px] transition-colors',
                   node.language === l.value
-                    ? 'bg-[#6366f1] text-white'
+                    ? 'bg-[var(--c-line)] text-white'
                     : 'text-[var(--c-text-md)] hover:bg-[var(--c-hover)]',
                 ].join(' ')}
               >
@@ -135,7 +135,7 @@ export default function CodeBlockToolbar({ nodeId }: Props) {
           className={[
             'w-8 h-8 flex items-center justify-center rounded-lg transition-colors',
             copied
-              ? 'bg-[rgba(99,102,241,0.2)] text-[#6366f1]'
+              ? 'bg-[rgba(99,102,241,0.2)] text-[var(--c-line)]'
               : 'text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
           ].join(' ')}
         >
@@ -151,7 +151,7 @@ export default function CodeBlockToolbar({ nodeId }: Props) {
           className={[
             'w-8 h-8 flex items-center justify-center rounded-lg transition-colors',
             node.showLineNumbers
-              ? 'bg-[rgba(99,102,241,0.2)] text-[#6366f1]'
+              ? 'bg-[rgba(99,102,241,0.2)] text-[var(--c-line)]'
               : 'text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
           ].join(' ')}
         >

@@ -159,7 +159,7 @@ export default function PagesPanel({ onClose }: Props) {
                 height="13"
                 viewBox="0 0 13 13"
                 fill="none"
-                style={{ flexShrink: 0, color: isActive ? '#6366f1' : 'var(--c-text-lo)' }}
+                style={{ flexShrink: 0, color: isActive ? 'var(--c-line)' : 'var(--c-text-lo)' }}
               >
                 <rect
                   x="1.5"
@@ -189,7 +189,7 @@ export default function PagesPanel({ onClose }: Props) {
                     flex: 1,
                     minWidth: 0,
                     background: 'var(--c-panel)',
-                    border: '1px solid #6366f1',
+                    border: '1px solid var(--c-line)',
                     borderRadius: 4,
                     padding: '1px 4px',
                     fontFamily: "'JetBrains Mono', monospace",
@@ -206,7 +206,7 @@ export default function PagesPanel({ onClose }: Props) {
                     fontFamily: "'JetBrains Mono', monospace",
                     fontSize: 12,
                     fontWeight: isActive ? 600 : 400,
-                    color: isActive ? '#6366f1' : 'var(--c-text-hi)',
+                    color: isActive ? 'var(--c-line)' : 'var(--c-text-hi)',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                     whiteSpace: 'nowrap',

@@ -4,17 +4,18 @@ export default {
   theme: {
     extend: {
       fontFamily: {
+        sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
         mono: ['"JetBrains Mono"', '"Fira Code"', 'Consolas', 'monospace'],
       },
       colors: {
-        canvas: '#111118',
-        chrome: '#1a1a2a',
-        surface: '#22223a',
-        border: '#2e2e46',
-        muted: '#4a4a6a',
-        text: '#e2e8f0',
-        accent: '#6366f1',
-        'accent-hover': '#4f46e5',
+        canvas: '#1c1916',
+        chrome: '#242019',
+        surface: '#2d2820',
+        border: '#3c3529',
+        muted: '#8a7b6c',
+        text: '#ece6dd',
+        accent: '#b87750',
+        'accent-hover': '#a06038',
       },
     },
   },

@@ -204,7 +204,7 @@ export default function CodeBlock({ node, isSelected, isDrawingLine, onAnchorDow
         transformOrigin: 'top left',
         transform: `scale(${camera.scale})`,
         borderRadius: 10,
-        border: `1.5px solid ${isSelected ? '#6366f1' : 'rgba(255,255,255,0.09)'}`,
+        border: `1.5px solid ${isSelected ? 'var(--c-line)' : 'rgba(255,255,255,0.09)'}`,
         boxShadow: isSelected
           ? '0 0 0 3px rgba(99,102,241,0.18), 0 8px 32px rgba(0,0,0,0.55)'
           : '0 4px 24px rgba(0,0,0,0.5)',
@@ -456,7 +456,7 @@ export default function CodeBlock({ node, isSelected, isDrawingLine, onAnchorDow
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          color: isSelected ? '#6366f1' : '#3a3a5a',
+          color: isSelected ? 'var(--c-line)' : '#3a3a5a',
           opacity: 0.8,
         }}
       >
@@ -492,8 +492,8 @@ export default function CodeBlock({ node, isSelected, isDrawingLine, onAnchorDow
             width:  DOT * 2,
             height: DOT * 2,
             borderRadius: '50%',
-            background: active ? '#6366f1' : '#ffffff',
-            border: '2px solid #6366f1',
+            background: active ? 'var(--c-line)' : '#ffffff',
+            border: '2px solid var(--c-line)',
             boxShadow: active ? '0 0 10px rgba(99,102,241,0.7)' : 'none',
             cursor: 'crosshair',
             zIndex: 300,

@@ -27,7 +27,7 @@ function computeRowY(rowHeights: number[]): number[] {
 
 const HANDLE_SIZE = 20;
 const HANDLE_GAP = 6;
-const ACCENT = '#6366f1';
+const ACCENT = 'var(--c-line)';
 
 type DragState = {
   kind: 'row' | 'col';

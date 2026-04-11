@@ -36,7 +36,7 @@ export default function ConfirmDialog({
           <div className="flex flex-col gap-1.5">
             <button
               onClick={onConfirm}
-              className="w-full px-3 h-8 rounded font-mono text-[11px] tracking-wide bg-[#6366f1] text-white hover:bg-[#4f46e5] transition-colors text-left pl-3"
+              className="w-full px-3 h-8 rounded font-mono text-[11px] tracking-wide bg-[var(--c-line)] text-white hover:opacity-80 transition-colors text-left pl-3"
             >
               {confirmLabel}
             </button>
@@ -52,7 +52,7 @@ export default function ConfirmDialog({
             <div className="flex justify-end pt-1">
               <button
                 onClick={onCancel}
-                className="px-3 h-7 rounded font-mono text-[11px] tracking-wide text-[var(--c-text-off)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
+                className="px-3 h-7 rounded font-mono text-[11px] tracking-wide text-[var(--c-text-md)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
               >
                 {cancelLabel}
               </button>
@@ -69,7 +69,7 @@ export default function ConfirmDialog({
             </button>
             <button
               onClick={onConfirm}
-              className="px-3 h-7 rounded font-mono text-[11px] tracking-wide bg-[#6366f1] text-white hover:bg-[#4f46e5] transition-colors"
+              className="px-3 h-7 rounded font-mono text-[11px] tracking-wide bg-[var(--c-line)] text-white hover:opacity-80 transition-colors"
             >
               {confirmLabel}
             </button>

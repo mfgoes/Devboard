@@ -4,7 +4,7 @@ import { ConnectorNode, LineStyle, StrokeStyle, ArrowHeadStyle } from '../types'
 
 // ── Palette ───────────────────────────────────────────────────────────────────
 const COLORS = [
-  '#6366f1', '#e2e8f0', '#60a5fa', '#4ade80',
+  'var(--c-line)', '#e2e8f0', '#60a5fa', '#4ade80',
   '#f87171', '#fbbf24', '#fb923c', '#f472b6',
 ];
 
@@ -136,7 +136,7 @@ function DropItem({
       onClick={onClick}
       className={[
         'flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-mono transition-colors w-full text-left',
-        active ? 'bg-[#6366f1] text-white' : 'text-[var(--c-text-md)] hover:bg-[var(--c-hover)]',
+        active ? 'bg-[var(--c-line)] text-white' : 'text-[var(--c-text-md)] hover:bg-[var(--c-hover)]',
       ].join(' ')}
     >
       {children}
@@ -207,7 +207,7 @@ export default function ConnectorToolbar({ nodeId }: { nodeId: string }) {
                 style={{
                   width: 32, height: 32,
                   borderRadius: 8,
-                  border: `2px solid ${node.color === hex ? '#6366f1' : 'transparent'}`,
+                  border: `2px solid ${node.color === hex ? 'var(--c-line)' : 'transparent'}`,
                   background: hex,
                   cursor: 'pointer',
                   transition: 'transform 0.1s',
@@ -263,7 +263,7 @@ export default function ConnectorToolbar({ nodeId }: { nodeId: string }) {
           className={[
             'w-8 h-9 flex items-center justify-center rounded-lg transition-colors',
             node.strokeWidth === w
-              ? 'bg-[#6366f1] text-white'
+              ? 'bg-[var(--c-line)] text-white'
               : 'text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
           ].join(' ')}
         >

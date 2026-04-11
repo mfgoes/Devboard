@@ -7,6 +7,7 @@ import {
 
 type RectLike = { x: number; y: number; width: number; height: number; kind?: string };
 import { useBoardStore } from '../../store/boardStore';
+import { resolveCssColor } from '../../utils/palette';
 
 // ── Geometry helpers (exported for Canvas.tsx preview) ────────────────────────
 
@@ -263,7 +264,8 @@ export default function ConnectorLine({ node, isSelected }: Props) {
              : strokeStyle === 'dotted' ? [2, 5]
              : undefined;
 
-  const strokeColor = isSelected ? '#818cf8' : node.color;
+  const glowColor   = resolveCssColor('--c-select-glow');
+  const strokeColor = isSelected ? resolveCssColor('--c-line-pre') : node.color;
 
   const handleClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
     if (['shape', 'pan'].includes(useBoardStore.getState().activeTool)) return;
@@ -291,9 +293,9 @@ export default function ConnectorLine({ node, isSelected }: Props) {
         lineCap="round"
         lineJoin="round"
         shadowEnabled={isSelected}
-        shadowColor="#6366f1"
-        shadowBlur={8}
-        shadowOpacity={0.5}
+        shadowColor={glowColor}
+        shadowBlur={18}
+        shadowOpacity={0.75}
         hitStrokeWidth={Math.max(node.strokeWidth + 12, 14)}
       />
       <ArrowHead

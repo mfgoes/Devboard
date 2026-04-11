@@ -4,6 +4,8 @@ import Konva from 'konva';
 import { TableNode as TableNodeType, AnchorSide, ConnectorNode } from '../../types';
 import { useBoardStore } from '../../store/boardStore';
 import { anchorCoords, cpOffset } from './ConnectorLine';
+import { resolveCssColor } from '../../utils/palette';
+import { FONTS } from '../../utils/fonts';
 
 function blendHex(base: string, or_: number, og: number, ob: number, alpha: number): string {
   const h = base.replace('#', '');
@@ -288,7 +290,7 @@ export default function TableNode({ node, isSelected, isDrawingLine, onAnchorDow
                 height={node.rowHeights[r]}
                 text={text}
                 fontSize={node.fontSize}
-                fontFamily="'JetBrains Mono', 'Fira Code', monospace"
+                fontFamily={FONTS.ui}
                 fontStyle={isHeader ? 'bold' : 'normal'}
                 fill={contrastText(effectiveFill)}
                 verticalAlign="middle"
@@ -448,10 +450,10 @@ export default function TableNode({ node, isSelected, isDrawingLine, onAnchorDow
           enabledAnchors={['top-left', 'top-center', 'top-right', 'middle-right', 'bottom-right', 'bottom-center', 'bottom-left', 'middle-left']}
           anchorSize={10}
           anchorCornerRadius={2}
-          anchorStroke="#6366f1"
+          anchorStroke={resolveCssColor('--c-line')}
           anchorStrokeWidth={2}
           anchorFill="white"
-          borderStroke="#6366f1"
+          borderStroke={resolveCssColor('--c-line')}
           borderStrokeWidth={2}
           boundBoxFunc={(oldBox, newBox) => {
             if (newBox.width < MIN_COL_W * numCols || newBox.height < MIN_ROW_H * numRows) return oldBox;
@@ -481,10 +483,10 @@ export default function TableNode({ node, isSelected, isDrawingLine, onAnchorDow
             key={side}
             x={vx} y={vy}
             radius={active ? 8 : 5}
-            fill={active ? '#6366f1' : 'white'}
-            stroke="#6366f1" strokeWidth={2}
+            fill={active ? resolveCssColor('--c-line') : 'white'}
+            stroke={resolveCssColor('--c-line')} strokeWidth={2}
             opacity={active ? 1 : 0.85}
-            shadowEnabled={active} shadowColor="#6366f1" shadowBlur={12}
+            shadowEnabled={active} shadowColor={resolveCssColor('--c-select-glow')} shadowBlur={18}
             onMouseDown={(e) => {
               e.cancelBubble = true;
               // Check for smart auto-connect
@@ -508,7 +510,7 @@ export default function TableNode({ node, isSelected, isDrawingLine, onAnchorDow
                   fromX: anchor.x, fromY: anchor.y,
                   toNodeId: best.nodeId, toAnchor: best.side,
                   toX: best.wx, toY: best.wy,
-                  color: '#6366f1', strokeWidth: 2,
+                  color: resolveCssColor('--c-line-default'), strokeWidth: 2,
                   lineStyle: 'curved', strokeStyle: 'solid',
                   arrowHeadStart: 'none', arrowHeadEnd: 'arrow',
                 } as ConnectorNode);

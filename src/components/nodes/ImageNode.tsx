@@ -3,6 +3,8 @@ import { Image as KonvaImage, Transformer, Group, Rect, Text, Line } from 'react
 import Konva from 'konva';
 import { useBoardStore } from '../../store/boardStore';
 import { ImageNode as ImageNodeType } from '../../types';
+import { resolveCssColor } from '../../utils/palette';
+import { FONTS } from '../../utils/fonts';
 
 interface Props {
   node: ImageNodeType;
@@ -193,8 +195,8 @@ export default function ImageNodeComponent({
             width={w - 8}
             text={node.assetName ?? 'Missing image'}
             fontSize={Math.max(10, Math.min(13, w / 14))}
-            fontFamily="monospace"
-            fill="#f59e0b"
+            fontFamily={FONTS.ui}
+            fill="#d4835a"
             align="center"
             ellipsis={true}
             wrap="none"
@@ -206,7 +208,7 @@ export default function ImageNodeComponent({
             width={w - 8}
             text="⚠ Missing"
             fontSize={Math.max(9, Math.min(11, w / 16))}
-            fontFamily="monospace"
+            fontFamily={FONTS.ui}
             fill="#f59e0b"
             align="center"
             opacity={0.7}
@@ -240,11 +242,11 @@ export default function ImageNodeComponent({
           resizeEnabled={true}
           rotateEnabled={true}
           keepRatio={!shiftHeld}
-          borderStroke="#6366f1"
+          borderStroke={resolveCssColor('--c-line')}
           borderStrokeWidth={1.5}
           borderDash={[4, 3]}
           anchorSize={8}
-          anchorStroke="#6366f1"
+          anchorStroke={resolveCssColor('--c-line')}
           anchorFill="white"
           anchorCornerRadius={2}
         />

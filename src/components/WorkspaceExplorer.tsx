@@ -7,6 +7,7 @@ import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import { useBoardStore } from '../store/boardStore';
 import { listDirectory, readWorkspaceFile, readWorkspaceFileAsUrl, readWorkspaceFileInfo, getWorkspaceName, openWorkspace, createDirectory, renameEntry, FSA_DIR_SUPPORTED, IN_IFRAME } from '../utils/workspaceManager';
 import { CodeLanguage, CodeBlockNode, ImageNode } from '../types';
+import { FONTS } from '../utils/fonts';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -46,26 +47,26 @@ function formatSize(bytes: number): string {
 function fileColor(name: string, isDark = true): string {
   const e = ext(name);
   if (isDark) {
-    if (['ts', 'tsx'].includes(e))   return '#3b82f6';
-    if (['js', 'jsx'].includes(e))   return '#f59e0b';
-    if (e === 'py')                   return '#10b981';
-    if (e === 'sql')                  return '#f97316';
-    if (e === 'json')                 return '#a3e635';
-    if (['md', 'txt'].includes(e))   return '#94a3b8';
-    if (IMAGE_EXTS.has(e))           return '#22d3ee';
-    if (['css', 'html'].includes(e)) return '#e879f9';
-    return '#64748b';
+    if (['ts', 'tsx'].includes(e))   return '#b87750';   // accent
+    if (['js', 'jsx'].includes(e))   return '#d4835a';   // orange
+    if (e === 'py')                   return '#7aaa72';   // green
+    if (e === 'sql')                  return '#d4835a';   // orange
+    if (e === 'json')                 return '#e2be72';   // yellow
+    if (['md', 'txt'].includes(e))   return '#8a7b6c';   // text-lo
+    if (IMAGE_EXTS.has(e))           return '#cc9468';   // accent2
+    if (['css', 'html'].includes(e)) return '#c96a6a';   // red
+    return '#afa294';                                      // text-md
   }
   // Light mode — higher-contrast equivalents
-  if (['ts', 'tsx'].includes(e))   return '#2563eb'; // blue-600
-  if (['js', 'jsx'].includes(e))   return '#d97706'; // amber-600
-  if (e === 'py')                   return '#059669'; // green-600
-  if (e === 'sql')                  return '#ea580c'; // orange-600
-  if (e === 'json')                 return '#65a30d'; // lime-600
-  if (['md', 'txt'].includes(e))   return '#475569'; // slate-600
-  if (IMAGE_EXTS.has(e))           return '#0891b2'; // cyan-600
-  if (['css', 'html'].includes(e)) return '#a21caf'; // fuchsia-700
-  return '#475569'; // slate-600
+  if (['ts', 'tsx'].includes(e))   return '#a06038';    // accent-light
+  if (['js', 'jsx'].includes(e))   return '#b06030';    // orange-light
+  if (e === 'py')                   return '#528a4a';    // green-light
+  if (e === 'sql')                  return '#b06030';    // orange-light
+  if (e === 'json')                 return '#b8921e';    // yellow-light
+  if (['md', 'txt'].includes(e))   return '#9a8878';    // text-lo-light
+  if (IMAGE_EXTS.has(e))           return '#b87848';    // accent2-light
+  if (['css', 'html'].includes(e)) return '#a84040';    // red-light
+  return '#6b5e52';                                       // text-md-light
 }
 
 function FileIcon({ name, kind }: { name: string; kind: 'file' | 'directory' }) {
@@ -74,7 +75,7 @@ function FileIcon({ name, kind }: { name: string; kind: 'file' | 'directory' }) 
       <svg width="13" height="13" viewBox="0 0 13 13" fill="none" style={{ flexShrink: 0 }}>
         <path
           d="M1 3.5a1 1 0 0 1 1-1h3l1.5 1.5H11a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V3.5z"
-          fill="#f59e0b22" stroke="#f59e0b" strokeWidth="1.2" strokeLinejoin="round"
+          fill="rgba(212, 131, 90, 0.13)" stroke="#d4835a" strokeWidth="1.2" strokeLinejoin="round"
         />
       </svg>
     );
@@ -338,13 +339,13 @@ function TreeRow({
               flex: 1,
               minWidth: 0,
               background: 'var(--c-canvas)',
-              border: '1px solid #6366f1',
+              border: '1px solid var(--c-line)',
               borderRadius: 4,
               outline: 'none',
-              fontFamily: "'JetBrains Mono', monospace",
+              fontFamily: FONTS.ui,
               fontSize: 11,
               color: 'var(--c-text-hi)',
-              caretColor: '#6366f1',
+              caretColor: 'var(--c-line)',
               padding: '0 4px',
               height: 18,
             }}
@@ -357,7 +358,7 @@ function TreeRow({
             const base = dotIdx > 0 ? entry.name.slice(0, dotIdx) : entry.name;
             const extn = dotIdx > 0 ? entry.name.slice(dotIdx) : '';
             return (
-              <span className="flex-1 min-w-0 flex font-mono text-[11px]" style={{ color }}>
+              <span className="flex-1 min-w-0 flex text-[11px]" style={{ color, fontFamily: FONTS.ui }}>
                 <span className="truncate">{base}</span>
                 {extn && <span className="shrink-0">{extn}</span>}
               </span>
@@ -369,14 +370,14 @@ function TreeRow({
           <span
             style={{
               width: 5, height: 5, borderRadius: '50%', flexShrink: 0,
-              background: isImage ? (isDark ? '#22d3ee' : '#0891b2') : '#6366f1',
+              background: isImage ? (isDark ? '#22d3ee' : '#0891b2') : 'var(--c-line)',
               display: 'inline-block',
             }}
             title="On canvas"
           />
         )}
         {!isRenaming && canOpen && (
-          <span className="hidden group-hover:inline text-[9px] text-[#6366f1] shrink-0" title={isImage ? "drag or double-click to place" : "double-click to place"}>↵</span>
+          <span className="hidden group-hover:inline text-[9px] text-[var(--c-line)] shrink-0" title={isImage ? "drag or double-click to place" : "double-click to place"}>↵</span>
         )}
       </div>
 
@@ -392,7 +393,7 @@ function TreeRow({
           ))}
           {entry.children.length === 0 && (
             <div
-              className="text-[10px] text-[var(--c-text-off)] font-mono italic"
+              className="text-[10px] text-[var(--c-text-lo)] font-mono italic"
               style={{ paddingLeft: 8 + (depth + 1) * 14 + 18 }}
             >
               empty
@@ -414,8 +415,8 @@ function NoWorkspaceState({ onOpen }: { onOpen: () => void }) {
         <line x1="14" y1="20" x2="22" y2="20" stroke="var(--c-text-hi)" strokeWidth="2" strokeLinecap="round" />
       </svg>
       <div>
-        <p style={{ fontFamily: 'monospace', fontSize: 11, color: 'var(--c-text-hi)', fontWeight: 600, margin: '0 0 4px' }}>No folder open</p>
-        <p style={{ fontFamily: 'monospace', fontSize: 10, color: 'var(--c-text-off)', margin: 0, lineHeight: 1.5 }}>
+        <p style={{ fontFamily: FONTS.ui, fontSize: 11, color: 'var(--c-text-hi)', fontWeight: 600, margin: '0 0 4px' }}>No folder open</p>
+        <p style={{ fontFamily: FONTS.ui, fontSize: 10, color: 'var(--c-text-lo)', margin: 0, lineHeight: 1.5 }}>
           Open a folder to browse files, place images and code snippets on the canvas.
         </p>
       </div>
@@ -426,16 +427,16 @@ function NoWorkspaceState({ onOpen }: { onOpen: () => void }) {
           padding: '7px 16px',
           borderRadius: 8,
           border: 'none',
-          background: '#6366f1',
+          background: 'var(--c-line)',
           color: '#fff',
-          fontFamily: 'monospace',
+          fontFamily: FONTS.ui,
           fontSize: 11,
           fontWeight: 600,
           cursor: 'pointer',
           letterSpacing: '0.02em',
         }}
-        onMouseEnter={(e) => (e.currentTarget.style.background = '#4f46e5')}
-        onMouseLeave={(e) => (e.currentTarget.style.background = '#6366f1')}
+        onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--c-line)')}
+        onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--c-line)')}
       >
         Open folder…
       </button>
@@ -682,7 +683,7 @@ export default function WorkspaceExplorer({ onClose }: Props) {
       'position:fixed', 'top:-999px', 'left:-999px',
       'display:flex', 'align-items:center', 'gap:6px',
       'padding:5px 10px 5px 6px',
-      'background:#1e1e2e', 'border:1px solid #6366f1',
+      'background:#1e1e2e', 'border:1px solid var(--c-line)',
       'border-radius:8px', 'color:#e2e8f0',
       'font:11px/1 \'JetBrains Mono\',monospace',
       'pointer-events:none', 'white-space:nowrap',
@@ -971,7 +972,7 @@ export default function WorkspaceExplorer({ onClose }: Props) {
         onMouseDown={onMouseDownHeader}
         className="active:cursor-grabbing"
       >
-        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, fontWeight: 600, color: 'var(--c-text-hi)', letterSpacing: '0.04em' }}>
+        <span style={{ fontFamily: FONTS.ui, fontSize: 12, fontWeight: 600, color: 'var(--c-text-hi)', letterSpacing: '0.04em' }}>
           Explorer
         </span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -992,13 +993,13 @@ export default function WorkspaceExplorer({ onClose }: Props) {
           {confirmingClose ? (
             /* Two-step close confirmation */
             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <span style={{ fontFamily: 'monospace', fontSize: 10, color: 'var(--c-text-off)', whiteSpace: 'nowrap' }}>Close?</span>
+              <span style={{ fontFamily: FONTS.ui, fontSize: 10, color: 'var(--c-text-off)', whiteSpace: 'nowrap' }}>Close?</span>
               <button
                 onClick={() => {
                   if (confirmCloseTimerRef.current) clearTimeout(confirmCloseTimerRef.current);
                   onClose();
                 }}
-                style={{ padding: '1px 7px', background: '#6366f1', border: 'none', borderRadius: 4, fontFamily: 'monospace', fontSize: 10, color: 'white', cursor: 'pointer', lineHeight: 1.6 }}
+                style={{ padding: '1px 7px', background: 'var(--c-line)', border: 'none', borderRadius: 4, fontFamily: FONTS.ui, fontSize: 10, color: 'white', cursor: 'pointer', lineHeight: 1.6 }}
               >
                 Yes
               </button>
@@ -1007,7 +1008,7 @@ export default function WorkspaceExplorer({ onClose }: Props) {
                   if (confirmCloseTimerRef.current) clearTimeout(confirmCloseTimerRef.current);
                   setConfirmingClose(false);
                 }}
-                style={{ padding: '1px 7px', background: 'none', border: '1px solid var(--c-border)', borderRadius: 4, fontFamily: 'monospace', fontSize: 10, color: 'var(--c-text-lo)', cursor: 'pointer', lineHeight: 1.6 }}
+                style={{ padding: '1px 7px', background: 'none', border: '1px solid var(--c-border)', borderRadius: 4, fontFamily: FONTS.ui, fontSize: 10, color: 'var(--c-text-lo)', cursor: 'pointer', lineHeight: 1.6 }}
               >
                 No
               </button>
@@ -1034,10 +1035,10 @@ export default function WorkspaceExplorer({ onClose }: Props) {
       {/* Workspace root label */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderBottom: '1px solid var(--c-border)', flexShrink: 0, overflow: 'hidden' }}>
         <svg width="10" height="10" viewBox="0 0 10 10" fill="none" style={{ flexShrink: 0 }}>
-          <path d="M1 2.5a1 1 0 0 1 1-1h1.8L5 3H8.5a1 1 0 0 1 1 1v3.5a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V2.5z" fill="#f59e0b33" stroke="#f59e0b" strokeWidth="1" strokeLinejoin="round" />
+          <path d="M1 2.5a1 1 0 0 1 1-1h1.8L5 3H8.5a1 1 0 0 1 1 1v3.5a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V2.5z" fill="rgba(212, 131, 90, 0.2)" stroke="#d4835a" strokeWidth="1" strokeLinejoin="round" />
         </svg>
         <span
-          style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700, color: 'var(--c-text-hi)', textTransform: 'uppercase', letterSpacing: '0.06em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+          style={{ fontFamily: FONTS.ui, fontSize: 10, fontWeight: 700, color: 'var(--c-text-hi)', textTransform: 'uppercase', letterSpacing: '0.06em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
           title={workspaceName}
         >
           {workspaceName}
@@ -1063,12 +1064,12 @@ export default function WorkspaceExplorer({ onClose }: Props) {
               display: 'inline-block',
             }}>▾</span>
             <span style={{
-              fontFamily: "'JetBrains Mono', monospace", fontSize: 9,
+              fontFamily: FONTS.ui, fontSize: 9,
               fontWeight: 700, letterSpacing: '0.08em',
               textTransform: 'uppercase', color: 'var(--c-text-off)',
             }}>Pages</span>
             <span style={{
-              marginLeft: 'auto', fontFamily: 'monospace', fontSize: 9,
+              marginLeft: 'auto', fontFamily: FONTS.ui, fontSize: 9,
               color: 'var(--c-text-off)', opacity: 0.6,
             }}>{pages.length}</span>
           </button>
@@ -1094,11 +1095,11 @@ export default function WorkspaceExplorer({ onClose }: Props) {
                   >
                     <span style={{
                       width: 5, height: 5, borderRadius: '50%', flexShrink: 0,
-                      background: isActive ? '#6366f1' : 'var(--c-border)',
+                      background: isActive ? 'var(--c-line)' : 'var(--c-border)',
                       transition: 'background 0.12s',
                     }} />
                     <span style={{
-                      fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
+                      fontFamily: FONTS.ui, fontSize: 11,
                       color: isActive ? 'var(--c-text-hi)' : 'var(--c-text-lo)',
                       overflow: 'hidden', textOverflow: 'ellipsis',
                       whiteSpace: 'nowrap', flex: 1,
@@ -1133,10 +1134,10 @@ export default function WorkspaceExplorer({ onClose }: Props) {
               background: 'transparent',
               border: 'none',
               outline: 'none',
-              fontFamily: "'JetBrains Mono', monospace",
+              fontFamily: FONTS.ui,
               fontSize: 11,
               color: 'var(--c-text-hi)',
-              caretColor: '#6366f1',
+              caretColor: 'var(--c-line)',
             }}
           />
           {searchQuery && (
@@ -1159,7 +1160,7 @@ export default function WorkspaceExplorer({ onClose }: Props) {
         {newFolderParent !== null && newFolderParent.length === 0 && (
           <div className="flex items-center gap-1.5 h-[26px] px-2 mx-1 rounded" style={{ background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.35)' }}>
             <svg width="11" height="11" viewBox="0 0 12 12" fill="none" style={{ flexShrink: 0, opacity: 0.6 }}>
-              <path d="M1 3a1 1 0 0 1 1-1h2.5L5.5 3H10a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V3z" stroke="#6366f1" strokeWidth="1.2" strokeLinejoin="round" />
+              <path d="M1 3a1 1 0 0 1 1-1h2.5L5.5 3H10a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V3z" stroke="var(--c-line)" strokeWidth="1.2" strokeLinejoin="round" />
             </svg>
             <input
               ref={newFolderInputRef}
@@ -1173,24 +1174,24 @@ export default function WorkspaceExplorer({ onClose }: Props) {
               }}
               onBlur={() => { if (!newFolderName.trim()) setNewFolderParent(null); }}
               placeholder="folder name…"
-              style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: 'var(--c-text-hi)', caretColor: '#6366f1' }}
+              style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', fontFamily: FONTS.ui, fontSize: 11, color: 'var(--c-text-hi)', caretColor: 'var(--c-line)' }}
             />
           </div>
         )}
         {rootLoading ? (
-          <div style={{ padding: '10px 16px', fontSize: 10, color: 'var(--c-text-off)', fontFamily: 'monospace' }}>Loading…</div>
+          <div style={{ padding: '10px 16px', fontSize: 10, color: 'var(--c-text-lo)', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Loading…</div>
         ) : !getWorkspaceName() ? (
           <NoWorkspaceState onOpen={handleOpenFolder} />
         ) : searchResults !== null ? (
           searchResults.length === 0 ? (
-            <div style={{ padding: '10px 16px', fontSize: 10, color: 'var(--c-text-off)', fontFamily: 'monospace', fontStyle: 'italic' }}>No matches</div>
+            <div style={{ padding: '10px 16px', fontSize: 10, color: 'var(--c-text-lo)', fontFamily: FONTS.ui, fontStyle: 'italic' }}>No matches</div>
           ) : (
             searchResults.map((entry) => (
               <TreeRow key={entry.path.join('/')} entry={entry} depth={0} focusedPath={focusedPath} renamingPath={renamingPath} renameDraft={renameDraft} onRenameDraftChange={setRenameDraft} onRenameCommit={commitRename} onRenameCancel={() => setRenamingPath(null)} onToggle={handleToggle} onFileSingleClick={handleFileSingleClick} onFileDblClick={handleFileDblClick} onContextMenu={handleEntryContextMenu} onFileDragStart={handleFileDragStart} onFileHover={handleFileHover} usedOnCanvas={usedOnCanvas} isDark={isDark} />
             ))
           )
         ) : tree.length === 0 ? (
-          <div style={{ padding: '10px 16px', fontSize: 10, color: 'var(--c-text-off)', fontFamily: 'monospace', fontStyle: 'italic' }}>Folder is empty</div>
+          <div style={{ padding: '10px 16px', fontSize: 10, color: 'var(--c-text-lo)', fontFamily: FONTS.ui, fontStyle: 'italic' }}>Folder is empty</div>
         ) : (
           tree.map((entry) => (
             <TreeRow key={entry.path.join('/')} entry={entry} depth={0} focusedPath={focusedPath} renamingPath={renamingPath} renameDraft={renameDraft} onRenameDraftChange={setRenameDraft} onRenameCommit={commitRename} onRenameCancel={() => setRenamingPath(null)} onToggle={handleToggle} onFileSingleClick={handleFileSingleClick} onFileDblClick={handleFileDblClick} onContextMenu={handleEntryContextMenu} onFileDragStart={handleFileDragStart} onFileHover={handleFileHover} usedOnCanvas={usedOnCanvas} isDark={isDark} />
@@ -1226,11 +1227,11 @@ export default function WorkspaceExplorer({ onClose }: Props) {
                 setFolderEditing(false);
               }}
               placeholder="assets"
-              style={{ flex: 1, background: 'transparent', border: 'none', borderBottom: '1px solid #6366f1', outline: 'none', fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--c-text-hi)', caretColor: '#6366f1', paddingBottom: 1 }}
+              style={{ flex: 1, background: 'transparent', border: 'none', borderBottom: '1px solid var(--c-line)', outline: 'none', fontFamily: FONTS.ui, fontSize: 10, color: 'var(--c-text-hi)', caretColor: 'var(--c-line)', paddingBottom: 1 }}
             />
           ) : (
             <>
-              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--c-text-off)', flex: 1 }}>
+              <span style={{ fontFamily: FONTS.ui, fontSize: 10, color: 'var(--c-text-off)', flex: 1 }}>
                 Save images to: <span style={{ color: 'var(--c-text-md)' }}>{imageAssetFolder}/</span>
               </span>
               <button
@@ -1251,7 +1252,7 @@ export default function WorkspaceExplorer({ onClose }: Props) {
 
       {/* Footer hint */}
       <div style={{ padding: '8px 12px', borderTop: '1px solid var(--c-border)', flexShrink: 0, borderRadius: '0 0 12px 12px' }}>
-        <p style={{ fontSize: 9, color: 'var(--c-text-off)', fontFamily: 'monospace', lineHeight: 1.4, margin: 0 }}>
+        <p style={{ fontSize: 9, color: 'var(--c-text-off)', fontFamily: FONTS.ui, lineHeight: 1.4, margin: 0 }}>
           Single-click to preview · drag or double-click (↵) to place · ↑↓ navigate
         </p>
       </div>
@@ -1270,22 +1271,22 @@ export default function WorkspaceExplorer({ onClose }: Props) {
           onMouseDown={(e) => e.stopPropagation()}
         >
           <div style={{ background: 'var(--c-panel)', border: '1px solid var(--c-border)', borderRadius: 14, padding: '20px 24px', maxWidth: 340, boxShadow: '0 16px 48px rgba(0,0,0,0.4)' }}>
-            <p style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 700, color: 'var(--c-text-hi)', margin: '0 0 8px' }}>Change file extension?</p>
-            <p style={{ fontFamily: 'monospace', fontSize: 11, color: 'var(--c-text-off)', margin: '0 0 16px', lineHeight: 1.5 }}>
+            <p style={{ fontFamily: FONTS.ui, fontSize: 12, fontWeight: 700, color: 'var(--c-text-hi)', margin: '0 0 8px' }}>Change file extension?</p>
+            <p style={{ fontFamily: FONTS.ui, fontSize: 11, color: 'var(--c-text-lo)', margin: '0 0 16px', lineHeight: 1.5 }}>
               Renaming <span style={{ color: 'var(--c-text-md)' }}>{renameExtWarning.entry.name}</span> to{' '}
-              <span style={{ color: '#f59e0b' }}>{renameExtWarning.newName}</span> changes the extension.
+              <span style={{ color: '#d4835a' }}>{renameExtWarning.newName}</span> changes the extension.
               The file may no longer open correctly.
             </p>
             <div style={{ display: 'flex', gap: 8 }}>
               <button
                 onClick={() => { doRename(renameExtWarning.entry, renameExtWarning.newName); setRenameExtWarning(null); }}
-                style={{ flex: 1, padding: '7px 0', background: '#f59e0b', border: 'none', borderRadius: 8, fontFamily: 'monospace', fontSize: 11, fontWeight: 700, color: '#000', cursor: 'pointer' }}
+                style={{ flex: 1, padding: '7px 0', background: '#d4835a', border: 'none', borderRadius: 8, fontFamily: FONTS.ui, fontSize: 11, fontWeight: 700, color: '#fff', cursor: 'pointer' }}
               >
                 Rename anyway
               </button>
               <button
                 onClick={() => setRenameExtWarning(null)}
-                style={{ flex: 1, padding: '7px 0', background: 'var(--c-hover)', border: 'none', borderRadius: 8, fontFamily: 'monospace', fontSize: 11, color: 'var(--c-text-hi)', cursor: 'pointer' }}
+                style={{ flex: 1, padding: '7px 0', background: 'var(--c-hover)', border: 'none', borderRadius: 8, fontFamily: FONTS.ui, fontSize: 11, color: 'var(--c-text-hi)', cursor: 'pointer' }}
               >
                 Cancel
               </button>
@@ -1307,7 +1308,8 @@ export default function WorkspaceExplorer({ onClose }: Props) {
             onMouseDown={(e) => e.stopPropagation()}
           >
             <button
-              className="w-full flex items-center justify-between px-3 py-1.5 text-[12px] font-mono rounded transition-colors text-left text-[var(--c-text-md)] hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]"
+              className="w-full flex items-center justify-between px-3 py-1.5 text-[12px] rounded transition-colors text-left text-[var(--c-text-md)] hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]"
+              style={{ fontFamily: FONTS.ui }}
               onClick={() => startRename(explorerMenu.entry)}
             >
               <span>Rename</span>
@@ -1344,10 +1346,10 @@ export default function WorkspaceExplorer({ onClose }: Props) {
           >
             {/* Filename bar */}
             <div style={{ padding: '7px 10px', borderBottom: '1px solid var(--c-border)', flexShrink: 0 }}>
-              <span style={{ fontFamily: 'monospace', fontSize: 10, fontWeight: 700, color: fileColor(filePreview.entry.name, isDark) }}>
+              <span style={{ fontFamily: FONTS.ui, fontSize: 10, fontWeight: 700, color: fileColor(filePreview.entry.name, isDark) }}>
                 {filePreview.entry.name}
               </span>
-              <span style={{ fontFamily: 'monospace', fontSize: 9, color: 'var(--c-text-off)', marginLeft: 6 }}>
+              <span style={{ fontFamily: FONTS.ui, fontSize: 9, color: 'var(--c-text-off)', marginLeft: 6 }}>
                 {filePreview.entry.path.slice(0, -1).join('/')}
               </span>
             </div>
@@ -1358,13 +1360,13 @@ export default function WorkspaceExplorer({ onClose }: Props) {
                   <img src={filePreview.url} style={{ maxWidth: '100%', maxHeight: 180, display: 'block', objectFit: 'contain' }} alt="" />
                 </div>
                 <div style={{ padding: '7px 10px', display: 'flex', gap: 10, flexShrink: 0 }}>
-                  <span style={{ fontFamily: 'monospace', fontSize: 10, fontWeight: 600, color: 'var(--c-text-hi)' }}>{filePreview.natW} × {filePreview.natH}</span>
-                  <span style={{ fontFamily: 'monospace', fontSize: 10, color: 'var(--c-text-off)' }}>{formatSize(filePreview.size)}</span>
+                  <span style={{ fontFamily: FONTS.ui, fontSize: 10, fontWeight: 600, color: 'var(--c-text-hi)' }}>{filePreview.natW} × {filePreview.natH}</span>
+                  <span style={{ fontFamily: FONTS.ui, fontSize: 10, color: 'var(--c-text-off)' }}>{formatSize(filePreview.size)}</span>
                 </div>
               </>
             ) : (
               <div style={{ overflow: 'auto', flex: 1, padding: '6px 0' }}>
-                <pre style={{ margin: 0, padding: '0 10px', fontFamily: "'JetBrains Mono', monospace", fontSize: 10, lineHeight: 1.5, color: 'var(--c-text-hi)', whiteSpace: 'pre', tabSize: 2 }}>
+                <pre style={{ margin: 0, padding: '0 10px', fontFamily: FONTS.ui, fontSize: 10, lineHeight: 1.5, color: 'var(--c-text-hi)', whiteSpace: 'pre', tabSize: 2 }}>
                   {filePreview.content.split('\n').slice(0, 40).join('\n')}
                   {filePreview.content.split('\n').length > 40 && '\n…'}
                 </pre>
@@ -1372,7 +1374,7 @@ export default function WorkspaceExplorer({ onClose }: Props) {
             )}
 
             <div style={{ padding: '5px 10px', borderTop: '1px solid var(--c-border)', flexShrink: 0 }}>
-              <span style={{ fontFamily: 'monospace', fontSize: 9, color: 'var(--c-text-off)' }}>double-click or ↵ to place on canvas</span>
+              <span style={{ fontFamily: FONTS.ui, fontSize: 9, color: 'var(--c-text-off)' }}>double-click or ↵ to place on canvas</span>
             </div>
           </div>
         );

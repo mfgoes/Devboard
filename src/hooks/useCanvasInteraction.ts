@@ -18,7 +18,7 @@ import {
   CodeBlockNode,
 } from '../types';
 import { STICKY_COLORS } from '../components/StickyColorPicker';
-import { SECTION_TO_STICKY } from '../utils/palette';
+import { SECTION_TO_STICKY, resolveCssColor } from '../utils/palette';
 import type { ContextMenuState } from '../components/ContextMenu';
 
 // ── Private helpers ─────────────────────────────────────────────────────────
@@ -339,7 +339,7 @@ export function useCanvasInteraction({
           width: 280,
           title: 'New Task Card',
           tasks: [],
-          color: '#6366f1',
+          color: resolveCssColor('--c-line-default'),
         } satisfies TaskCardNode);
         setActiveTool('select');
         return;
@@ -622,7 +622,7 @@ export function useCanvasInteraction({
           toAnchor: snapTarget.side,
           toX: toCoords.x,
           toY: toCoords.y,
-          color: '#6366f1',
+          color: resolveCssColor('--c-line-default'),
           strokeWidth: 2,
           lineStyle: 'curved',
           strokeStyle: 'solid',
@@ -651,7 +651,7 @@ export function useCanvasInteraction({
         y: placeY,
         width: useWidth,
         height: useHeight,
-        fill: '#6366f1',
+        fill: '#E1BEE7',
         stroke: 'transparent',
         strokeWidth: 2,
         text: '',
@@ -680,7 +680,7 @@ export function useCanvasInteraction({
         width: useW,
         height: useH,
         name: 'Section',
-        color: '#6366f1',
+        color: '#90CAF9',
       } satisfies SectionNode);
       setActiveTool('select');
       setSectionDraw(null);
@@ -711,7 +711,7 @@ export function useCanvasInteraction({
         cells: Array.from({ length: NUM_ROWS }, () => Array(NUM_COLS).fill('')),
         headerRow: true,
         fill: isDark ? '#1e293b' : '#ffffff',
-        headerFill: '#6366f1',
+        headerFill: 'var(--c-line)',
         stroke: isDark ? '#475569' : '#e2e8f0',
         fontSize: 13,
       } satisfies TableNode);
@@ -876,7 +876,7 @@ export function useCanvasInteraction({
             addNode({ id: generateId(), type: 'link', x: worldX - 160, y: worldY - 30, width: 320, height: 90, url: 'https://', displayMode: 'compact' } satisfies LinkNode);
             setActiveTool('select');
           } else if (activeTool === 'task') {
-            addNode({ id: generateId(), type: 'taskcard', x: worldX - 140, y: worldY - 40, width: 280, title: 'New Task Card', tasks: [], color: '#6366f1' } satisfies TaskCardNode);
+            addNode({ id: generateId(), type: 'taskcard', x: worldX - 140, y: worldY - 40, width: 280, title: 'New Task Card', tasks: [], color: resolveCssColor('--c-line-default') } satisfies TaskCardNode);
             setActiveTool('select');
           }
         }

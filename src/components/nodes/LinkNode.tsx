@@ -100,7 +100,7 @@ export default function LinkNodeComponent({ node, isSelected, isDrawingLine, onA
   const showAnchors = isSelected || isLineTool || isDrawingLine === true;
 
   const service = detectService(node.url);
-  const accent = service?.color ?? '#6366f1';
+  const accent = service?.color ?? 'var(--c-line)';
   const favicon = node.favicon || faviconUrl(node.url);
   const isEmbed = node.displayMode === 'embed';
 
@@ -168,7 +168,7 @@ export default function LinkNodeComponent({ node, isSelected, isDrawingLine, onA
 
   const cardBg = isDark ? '#1a1a2e' : '#ffffff';
   const headerBg = isDark ? '#13131e' : '#f8f8fc';
-  const borderColor = isSelected ? '#6366f1' : isDark ? 'rgba(255,255,255,0.09)' : 'rgba(0,0,0,0.1)';
+  const borderColor = isSelected ? 'var(--c-line)' : isDark ? 'rgba(255,255,255,0.09)' : 'rgba(0,0,0,0.1)';
   const textHi = isDark ? '#e2e8f0' : '#1e293b';
   const textLo = isDark ? '#8888aa' : '#64748b';
 
@@ -401,8 +401,8 @@ export default function LinkNodeComponent({ node, isSelected, isDrawingLine, onA
               width: 12,
               height: 12,
               borderRadius: '50%',
-              background: isSnap ? '#6366f1' : isHover ? '#818cf8' : isDark ? '#334155' : '#cbd5e1',
-              border: `2px solid ${isSnap || isHover ? '#6366f1' : isDark ? '#475569' : '#94a3b8'}`,
+              background: isSnap ? 'var(--c-line)' : isHover ? 'var(--c-line-pre)' : isDark ? '#334155' : '#cbd5e1',
+              border: `2px solid ${isSnap || isHover ? 'var(--c-line)' : isDark ? '#475569' : '#94a3b8'}`,
               cursor: 'crosshair',
               zIndex: 15,
               transform: `scale(${isSnap ? 1.4 : 1})`,

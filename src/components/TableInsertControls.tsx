@@ -22,8 +22,8 @@ function computeRowY(rowHeights: number[]): number[] {
 const BTN_SIZE = 22;
 const BAR_GAP = 6;
 const BAR_THICKNESS = 28;
-const ACCENT = '#6366f1';
-const ACCENT_HOVER = '#4f51c7';
+const ACCENT = 'var(--c-line)';
+const ACCENT_HOVER = 'var(--c-line)';
 
 export default function TableInsertControls({ nodeId }: { nodeId: string }) {
   const {

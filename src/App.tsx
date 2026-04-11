@@ -37,6 +37,7 @@ import JiraPanel from './components/JiraPanel';
 import SearchBar from './components/SearchBar';
 import { useBoardStore } from './store/boardStore';
 import { STICKER_KEYS } from './assets/stickerAssets';
+import { DEMO_COLORS } from './utils/palette';
 
 
 function loadFromHash() {
@@ -158,19 +159,19 @@ export default function App() {
             id: idS1, type: 'sticky',
             x: s1x, y: ROW_Y,
             text: 'Drop ideas\n\nSticky notes, shapes, text — put anything on the canvas.',
-            color: '#fef08a', width: SW, height: 130,
+            color: DEMO_COLORS.ideas, width: SW, height: 130,
           } as import('./types').StickyNoteNode,
           {
             id: idS2, type: 'sticky',
             x: s2x, y: ROW_Y,
             text: 'Connect them\n\nDraw arrows between ideas to map flows and relationships.',
-            color: '#e0e7ff', width: SW, height: 130,
+            color: DEMO_COLORS.connect, width: SW, height: 130,
           } as import('./types').StickyNoteNode,
           {
             id: idS3, type: 'sticky',
             x: s3x, y: ROW_Y,
             text: 'Share & export\n\nSave as PNG or a shareable link. Offline. No account.',
-            color: '#bbf7d0', width: SW, height: 130,
+            color: DEMO_COLORS.share, width: SW, height: 130,
           } as import('./types').StickyNoteNode,
 
           // ── Connectors between stickies ──────────────────────────────────────
@@ -178,7 +179,7 @@ export default function App() {
             id: generateId(), type: 'connector',
             fromNodeId: idS1, fromAnchor: 'right', fromX: s1x + SW, fromY: ROW_Y + 65,
             toNodeId: idS2,   toAnchor: 'left',   toX: s2x,        toY: ROW_Y + 65,
-            color: '#6366f1', strokeWidth: 2,
+            color: DEMO_COLORS.connector, strokeWidth: 2,
             lineStyle: 'curved', strokeStyle: 'solid',
             arrowHeadStart: 'none', arrowHeadEnd: 'arrow',
           } as import('./types').ConnectorNode,
@@ -186,7 +187,7 @@ export default function App() {
             id: generateId(), type: 'connector',
             fromNodeId: idS2, fromAnchor: 'right', fromX: s2x + SW, fromY: ROW_Y + 65,
             toNodeId: idS3,   toAnchor: 'left',   toX: s3x,        toY: ROW_Y + 65,
-            color: '#6366f1', strokeWidth: 2,
+            color: DEMO_COLORS.connector, strokeWidth: 2,
             lineStyle: 'curved', strokeStyle: 'solid',
             arrowHeadStart: 'none', arrowHeadEnd: 'arrow',
           } as import('./types').ConnectorNode,
@@ -373,7 +374,7 @@ export default function App() {
   return (
     <div className="relative w-full h-full overflow-hidden bg-[var(--c-canvas)] font-mono">
       {toastData && (
-        <div className="fixed top-14 left-1/2 -translate-x-1/2 z-[300] flex items-center gap-3 px-4 py-2 rounded bg-[#6366f1] text-white font-mono text-xs shadow-lg select-none animate-fade-in">
+        <div className="fixed top-14 left-1/2 -translate-x-1/2 z-[300] flex items-center gap-3 px-4 py-2 rounded bg-[var(--c-line)] text-white font-mono text-xs shadow-lg select-none animate-fade-in">
           <span className="pointer-events-none">{toastData.msg}</span>
           {toastData.action && (
             <button
