@@ -5,31 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>DevBoard — Manual</title>
 
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="site.css" />
 
 <style>
 /* ── Reset ───────────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --c-canvas:  #111118;
-  --c-panel:   #1a1a2a;
-  --c-sidebar: #0e0e18;
-  --c-hover:   #22223a;
-  --c-border:  #2e2e46;
-  --c-text-hi: #e2e8f0;
-  --c-text-md: #a0a0c0;
-  --c-text-lo: #6a6a88;
-  --c-dot:     #3a3a4a;
-  --c-accent:  #6366f1;
-  --c-accent2: #818cf8;
-  --c-green:   #4ade80;
-  --c-yellow:  #fde68a;
-  --c-orange:  #fb923c;
-  --c-red:     #f87171;
-  --c-card:    #191926;
+  /* manual-page-specific variables */
+  --c-sidebar: #161310;
+  --c-card:    #1f1c18;
   --r-card:    6px;
   --r-panel:   10px;
 }
@@ -37,12 +22,10 @@
 html { scroll-behavior: smooth; }
 
 body {
-  font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
   background: var(--c-canvas);
   color: var(--c-text-hi);
   line-height: 1.6;
   font-size: 13px;
-  -webkit-font-smoothing: antialiased;
 }
 
 /* ── Layout ──────────────────────────────────────────────────────────── */
@@ -106,7 +89,7 @@ nav a.nav-link {
   transition: color .15s, background .15s;
   border-left: 2px solid transparent;
 }
-nav a.nav-link:hover { color: var(--c-text-hi); background: rgba(99,102,241,.07); }
+nav a.nav-link:hover { color: var(--c-text-hi); background: rgba(184,119,80,.07); }
 nav a.nav-link.active { color: var(--c-accent2); border-left-color: var(--c-accent); }
 
 /* ── Main ────────────────────────────────────────────────────────────── */
@@ -150,7 +133,7 @@ li { margin-bottom: 6px; line-height: 1.6; }
 
 /* ── Callouts ────────────────────────────────────────────────────────── */
 .tip {
-  background: rgba(99,102,241,.06);
+  background: rgba(184,119,80,.06);
   border-left: 3px solid var(--c-accent);
   border-radius: 0 var(--r-card) var(--r-card) 0;
   padding: 12px 16px;

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-os="other">
+<html lang="en" data-os="other" data-theme="light">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -7,9 +7,7 @@
   <link rel="icon" type="image/x-icon" href="favicon.ico">
   <meta name="description" content="Download DevBoard for macOS, Windows, or Linux. Free. No account required." />
 
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="site.css" />
 
   <!-- Detect OS before first paint to avoid highlight flash -->
   <script>
@@ -26,29 +24,13 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    :root {
-      --c-canvas:  #111118;
-      --c-panel:   #1a1a2a;
-      --c-hover:   #22223a;
-      --c-border:  #2e2e46;
-      --c-text-hi: #e2e8f0;
-      --c-text-md: #a0a0c0;
-      --c-text-lo: #8888aa;
-      --c-dot:     #3a3a4a;
-      --c-accent:  #6366f1;
-      --c-accent2: #818cf8;
-      --c-green:   #4ade80;
-    }
-
     html { scroll-behavior: smooth; }
 
     body {
       background: var(--c-canvas);
       color: var(--c-text-hi);
-      font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
       line-height: 1.6;
       min-height: 100vh;
-      -webkit-font-smoothing: antialiased;
     }
 
     body::before {
@@ -168,7 +150,7 @@
     }
 
     .platform-card:hover {
-      border-color: rgba(99,102,241,0.4);
+      border-color: rgba(184,119,80,0.4);
     }
 
     /* Highlight detected platform */
@@ -176,7 +158,7 @@
     [data-os="windows"] .platform-card[data-platform="windows"],
     [data-os="linux"]   .platform-card[data-platform="linux"] {
       border-color: var(--c-accent);
-      box-shadow: 0 0 0 1px rgba(99,102,241,0.25), 0 8px 32px rgba(99,102,241,0.08);
+      box-shadow: 0 0 0 1px rgba(184,119,80,0.25), 0 8px 32px rgba(184,119,80,0.08);
     }
 
     /* "Your platform" badge */

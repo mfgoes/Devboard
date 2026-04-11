@@ -158,6 +158,20 @@ src/
 
 ---
 
+## Planned Features
+
+### Pages & Frames
+- **A4 / letter-sized frames** — named page containers that snap to standard document dimensions, making it easy to lay out multi-page game design documents, world-building bibles, or creative briefs directly on the canvas.
+- **Page browser sidebar** — flip between named pages (e.g. "Combat System", "Chapter 1 Overview") without losing your place.
+- **Export by page** — export individual frames as PNG or combine into a multi-page PDF.
+
+### Creative Templates
+- Game Design Document starter (GDD template with sections for concept, mechanics, art direction, story)
+- Story / world-building map template
+- Blank A4 document template for writers and creative briefs
+
+---
+
 ## Adding a new tool
 
 1. Add the tool id to the `Tool` union in `src/types/index.ts`

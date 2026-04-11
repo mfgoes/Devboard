@@ -1,0 +1,42 @@
+/* ── Shared site styles — DevBoard landing ───────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+:root {
+  --c-canvas:  #1c1916;
+  --c-panel:   #242019;
+  --c-hover:   #2d2820;
+  --c-border:  #3c3529;
+  --c-text-hi: #ece6dd;
+  --c-text-md: #afa294;
+  --c-text-lo: #8a7b6c;
+  --c-dot:     #2c2620;
+  --c-accent:  #b87750;
+  --c-accent2: #cc9468;
+  --c-green:   #7aaa72;
+  --c-yellow:  #e2be72;
+  --c-orange:  #d4835a;
+  --c-red:     #c96a6a;
+}
+
+/* ── Light mode overrides ─────────────────────────────────────────────── */
+[data-theme="light"] {
+  --c-canvas:  #f6f1ea;
+  --c-panel:   #ede7dd;
+  --c-hover:   #e3dbd0;
+  --c-border:  #cdc4b6;
+  --c-text-hi: #28201a;
+  --c-text-md: #6b5e52;
+  --c-text-lo: #9a8878;
+  --c-dot:     #d8d0c4;
+  --c-accent:  #a06038;
+  --c-accent2: #b87848;
+  --c-green:   #528a4a;
+  --c-yellow:  #b8921e;
+  --c-orange:  #b06030;
+  --c-red:     #a84040;
+}
+
+body {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}

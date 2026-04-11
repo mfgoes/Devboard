@@ -1,0 +1,902 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DevBoard — Design System</title>
+  <link rel="icon" type="image/x-icon" href="favicon.ico" />
+  <link rel="stylesheet" href="site.css" />
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html {
+      scroll-behavior: smooth;
+      transition: background-color 0.18s, color 0.18s;
+    }
+
+    body {
+      background: var(--c-canvas);
+      color: var(--c-text-hi);
+      line-height: 1.6;
+      min-height: 100vh;
+      font-size: 14px;
+      transition: background-color 0.18s, color 0.18s;
+    }
+
+    /* ── light mode overrides for hardcoded rgba values ── */
+    [data-theme="light"] .badge {
+      background: rgba(160,96,56,0.1);
+      border-color: rgba(160,96,56,0.28);
+    }
+    [data-theme="light"] .card-icon {
+      background: rgba(160,96,56,0.1);
+    }
+    [data-theme="light"] .ds-card:hover {
+      border-color: rgba(160,96,56,0.35);
+    }
+    [data-theme="light"] .ds-notice {
+      border-left-color: var(--c-accent);
+    }
+    [data-theme="light"] aside {
+      background: var(--c-panel);
+    }
+
+    /* ── layout ── */
+    .layout {
+      display: grid;
+      grid-template-columns: 200px 1fr;
+      min-height: 100vh;
+    }
+
+    /* ── sidebar ── */
+    aside {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+      border-right: 1px solid var(--c-border);
+      padding: 32px 20px;
+      background: var(--c-canvas);
+    }
+
+    .sidebar-logo {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 700;
+      font-size: 0.85rem;
+      color: var(--c-text-hi);
+      margin-bottom: 8px;
+    }
+
+    .sidebar-logo img {
+      width: 24px;
+      height: 24px;
+      border-radius: 5px;
+    }
+
+    .sidebar-sub {
+      font-size: 0.7rem;
+      color: var(--c-text-lo);
+      margin-bottom: 32px;
+      font-weight: 400;
+    }
+
+    .sidebar-section {
+      font-size: 0.65rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--c-text-lo);
+      margin: 20px 0 6px;
+    }
+
+    aside a {
+      display: block;
+      font-size: 0.78rem;
+      color: var(--c-text-md);
+      text-decoration: none;
+      padding: 4px 8px;
+      border-radius: 5px;
+      transition: color 0.12s, background 0.12s;
+    }
+
+    aside a:hover {
+      color: var(--c-text-hi);
+      background: var(--c-hover);
+    }
+
+    /* ── main ── */
+    main {
+      padding: 48px 56px;
+      max-width: 860px;
+    }
+
+    /* ── section ── */
+    .ds-section {
+      margin-bottom: 72px;
+    }
+
+    .ds-section-title {
+      font-size: 0.65rem;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--c-accent2);
+      margin-bottom: 8px;
+    }
+
+    .ds-section h2 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 6px;
+    }
+
+    .ds-section > p {
+      font-size: 0.82rem;
+      color: var(--c-text-md);
+      margin-bottom: 28px;
+      max-width: 520px;
+      line-height: 1.7;
+    }
+
+    hr.ds-rule {
+      border: none;
+      border-top: 1px solid var(--c-border);
+      margin-bottom: 72px;
+    }
+
+    /* ── color swatches ── */
+    .swatch-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 10px;
+    }
+
+    .swatch {
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid var(--c-border);
+    }
+
+    .swatch-color {
+      height: 56px;
+    }
+
+    .swatch-info {
+      padding: 8px 10px;
+      background: var(--c-panel);
+    }
+
+    .swatch-name {
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--c-text-hi);
+      display: block;
+    }
+
+    .swatch-var {
+      font-size: 0.65rem;
+      color: var(--c-text-lo);
+      font-family: 'Courier New', monospace;
+    }
+
+    /* ── type scale ── */
+    .type-row {
+      display: flex;
+      align-items: baseline;
+      gap: 24px;
+      padding: 16px 0;
+      border-bottom: 1px solid var(--c-border);
+    }
+
+    .type-row:first-child { border-top: 1px solid var(--c-border); }
+
+    .type-meta {
+      width: 140px;
+      flex-shrink: 0;
+    }
+
+    .type-label {
+      font-size: 0.65rem;
+      font-weight: 600;
+      color: var(--c-text-lo);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      display: block;
+    }
+
+    .type-spec {
+      font-size: 0.65rem;
+      color: var(--c-text-lo);
+      font-family: 'Courier New', monospace;
+    }
+
+    .type-sample { color: var(--c-text-hi); }
+
+    /* ── button row ── */
+    .component-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .component-label {
+      font-size: 0.7rem;
+      color: var(--c-text-lo);
+      width: 100%;
+      margin-bottom: 2px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 9px 20px;
+      border-radius: 8px;
+      font-family: inherit;
+      font-size: 0.82rem;
+      font-weight: 600;
+      text-decoration: none;
+      cursor: pointer;
+      border: none;
+      transition: opacity 0.15s, transform 0.15s;
+    }
+
+    .btn-primary { background: var(--c-accent); color: #fff; }
+    .btn-primary:hover { opacity: 0.88; transform: translateY(-1px); }
+
+    .btn-ghost {
+      background: var(--c-panel);
+      border: 1px solid var(--c-border);
+      color: var(--c-text-md);
+    }
+    .btn-ghost:hover { background: var(--c-hover); color: var(--c-text-hi); }
+
+    .btn-sm { padding: 5px 12px; font-size: 0.75rem; }
+
+    /* ── badge ── */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(184,119,80,0.12);
+      border: 1px solid rgba(184,119,80,0.3);
+      color: var(--c-accent2);
+      font-size: 0.68rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 3px 10px;
+      border-radius: 20px;
+    }
+
+    .badge-dot {
+      width: 5px;
+      height: 5px;
+      background: var(--c-green);
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    /* ── pill ── */
+    .pill {
+      background: var(--c-hover);
+      border: 1px solid var(--c-border);
+      color: var(--c-text-md);
+      font-size: 0.72rem;
+      font-weight: 500;
+      padding: 4px 10px;
+      border-radius: 4px;
+    }
+
+    /* ── card ── */
+    .ds-card {
+      background: var(--c-panel);
+      border: 1px solid var(--c-border);
+      border-radius: 8px;
+      padding: 20px;
+      transition: border-color 0.2s, background 0.2s;
+      max-width: 280px;
+    }
+
+    .ds-card:hover {
+      border-color: rgba(184,119,80,0.4);
+      background: var(--c-hover);
+    }
+
+    .card-icon {
+      width: 34px;
+      height: 34px;
+      border-radius: 7px;
+      display: grid;
+      place-items: center;
+      margin-bottom: 12px;
+      background: rgba(184,119,80,0.15);
+      color: var(--c-accent2);
+    }
+
+    .card-icon svg { width: 16px; height: 16px; }
+
+    .ds-card h3 { font-size: 0.85rem; font-weight: 600; margin-bottom: 5px; }
+    .ds-card p  { font-size: 0.75rem; color: var(--c-text-lo); line-height: 1.6; }
+
+    /* ── kbd ── */
+    kbd {
+      background: var(--c-hover);
+      border: 1px solid var(--c-border);
+      border-bottom: 2px solid var(--c-border);
+      border-radius: 4px;
+      padding: 2px 7px;
+      font-size: 0.72rem;
+      color: var(--c-text-hi);
+      font-family: inherit;
+    }
+
+    .kbd-row {
+      display: inline-flex;
+      align-items: center;
+      background: var(--c-panel);
+      border: 1px solid var(--c-border);
+      border-radius: 6px;
+      padding: 7px 14px;
+      font-size: 0.75rem;
+      color: var(--c-text-lo);
+      gap: 12px;
+    }
+
+    .kkeys { display: flex; gap: 3px; }
+
+    /* ── input ── */
+    input[type="text"] {
+      background: var(--c-panel);
+      border: 1px solid var(--c-border);
+      border-radius: 7px;
+      color: var(--c-text-hi);
+      font-family: inherit;
+      font-size: 0.82rem;
+      padding: 8px 12px;
+      outline: none;
+      transition: border-color 0.15s;
+      width: 240px;
+    }
+
+    input[type="text"]:focus {
+      border-color: var(--c-accent);
+    }
+
+    input[type="text"]::placeholder { color: var(--c-text-lo); }
+
+    /* ── icon grid ── */
+    .icon-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .icon-tile {
+      width: 48px;
+      height: 48px;
+      background: var(--c-panel);
+      border: 1px solid var(--c-border);
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      color: var(--c-text-md);
+      transition: border-color 0.15s, color 0.15s;
+    }
+
+    .icon-tile:hover { border-color: var(--c-accent2); color: var(--c-accent2); }
+    .icon-tile svg { width: 18px; height: 18px; }
+
+    /* ── notice ── */
+    .ds-notice {
+      background: var(--c-panel);
+      border: 1px solid var(--c-border);
+      border-left: 3px solid var(--c-accent);
+      border-radius: 6px;
+      padding: 12px 16px;
+      font-size: 0.78rem;
+      color: var(--c-text-md);
+      line-height: 1.6;
+      margin-bottom: 20px;
+    }
+
+    /* ── mode toggle ── */
+    .mode-toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--c-panel);
+      border: 1px solid var(--c-border);
+      border-radius: 7px;
+      padding: 6px 12px;
+      font-family: inherit;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--c-text-md);
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+    .mode-toggle:hover { background: var(--c-hover); color: var(--c-text-hi); }
+    .mode-toggle svg { width: 14px; height: 14px; flex-shrink: 0; }
+
+    /* ── two-column palette compare ── */
+    .palette-compare {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+
+    .palette-compare h4 {
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--c-text-lo);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 10px;
+    }
+
+    /* dark preview always shown against dark bg; light preview always light bg */
+    .palette-dark  { background: #1c1916; padding: 16px; border-radius: 8px; border: 1px solid #3c3529; }
+    .palette-light { background: #f6f1ea; padding: 16px; border-radius: 8px; border: 1px solid #cdc4b6; }
+    .palette-dark  h4 { color: #8a7b6c; }
+    .palette-light h4 { color: #9a8878; }
+
+    .mini-swatch-row {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .mini-swatch {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .mini-swatch-dot {
+      width: 28px;
+      height: 28px;
+      border-radius: 5px;
+      flex-shrink: 0;
+    }
+
+    .mini-swatch-info { line-height: 1.3; }
+
+    .mini-swatch-name {
+      font-size: 0.7rem;
+      font-weight: 600;
+      display: block;
+    }
+
+    .mini-swatch-val {
+      font-size: 0.62rem;
+      font-family: 'Courier New', monospace;
+    }
+
+    .palette-dark  .mini-swatch-name { color: #ece6dd; }
+    .palette-dark  .mini-swatch-val  { color: #8a7b6c; }
+    .palette-light .mini-swatch-name { color: #28201a; }
+    .palette-light .mini-swatch-val  { color: #9a8878; }
+
+    /* ── live preview strip ── */
+    .preview-strip {
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid var(--c-border);
+    }
+
+    .preview-strip-label {
+      font-size: 0.65rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 8px 16px;
+      background: var(--c-hover);
+      border-bottom: 1px solid var(--c-border);
+      color: var(--c-text-lo);
+    }
+
+    .preview-strip-body {
+      background: var(--c-panel);
+      padding: 20px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+  </style>
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- sidebar nav -->
+  <aside>
+    <div class="sidebar-logo">
+      <img src="assets_landing/devboard_icon.png" alt="DevBoard" />
+      DevBoard
+    </div>
+    <p class="sidebar-sub">Design System v1</p>
+
+    <p class="sidebar-section">Foundations</p>
+    <a href="#colors">Color</a>
+    <a href="#typography">Typography</a>
+    <a href="#spacing">Spacing</a>
+
+    <p class="sidebar-section">Components</p>
+    <a href="#buttons">Buttons</a>
+    <a href="#badges">Badges &amp; pills</a>
+    <a href="#cards">Cards</a>
+    <a href="#inputs">Inputs</a>
+    <a href="#keyboard">Keyboard</a>
+    <a href="#icons">Icons</a>
+
+    <div style="margin-top: 32px;">
+      <button class="mode-toggle" id="modeToggle" onclick="toggleMode()">
+        <svg id="modeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+        <span id="modeLabel">Light mode</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- main content -->
+  <main>
+
+    <div style="margin-bottom: 48px; display: flex; justify-content: space-between; align-items: flex-start; gap: 24px;">
+      <div>
+        <h1 style="font-size: 1.8rem; font-weight: 800; letter-spacing: -0.025em; margin-bottom: 8px;">Design System</h1>
+        <p style="color: var(--c-text-md); font-size: 0.85rem; max-width: 480px; line-height: 1.7;">Reference for DevBoard's visual language — palette, type, and components. Use this when building the app UI to stay consistent with the landing pages.</p>
+      </div>
+      <button class="mode-toggle" style="flex-shrink: 0; margin-top: 6px;" onclick="toggleMode()">
+        <svg id="modeIconMain" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+        <span id="modeLabelMain">Light mode</span>
+      </button>
+    </div>
+
+    <!-- ── Colors ── -->
+    <section class="ds-section" id="colors">
+      <div class="ds-section-title">Foundations</div>
+      <h2>Color</h2>
+      <p>Two modes — dark (default) and light — sharing the same warm earthy family. All values are CSS custom properties in <code style="font-family: 'Courier New', monospace; font-size: 0.8em; color: var(--c-accent2);">site.css</code>. Toggle via <code style="font-family: 'Courier New', monospace; font-size: 0.8em; color: var(--c-accent2);">data-theme="light"</code> on <code style="font-family: 'Courier New', monospace; font-size: 0.8em; color: var(--c-accent2);">&lt;html&gt;</code>. Never hardcode hex values in component CSS.</p>
+
+      <!-- side-by-side static palette reference — always shows both regardless of active mode -->
+      <div class="palette-compare" style="margin-bottom: 28px;">
+
+        <div class="palette-dark">
+          <h4>Dark (default)</h4>
+          <div class="mini-swatch-row">
+            <div class="mini-swatch"><div class="mini-swatch-dot" style="background:#1c1916; outline: 1px solid #3c3529;"></div><div class="mini-swatch-info"><span class="mini-swatch-name">Canvas</span><span class="mini-swatch-val">#1c1916</span></div></div>
+            <div class="mini-swatch"><div class="mini-swatch-dot" style="background:#242019;"></div><div class="mini-swatch-info"><span class="mini-swatch-name">Panel</span><span class="mini-swatch-val">#242019</span></div></div>
+            <div class="mini-swatch"><div class="mini-swatch-dot" style="background:#2d2820;"></div><div class="mini-swatch-info"><span class="mini-swatch-name">Hover</span><span class="mini-swatch-val">#2d2820</span></div></div>
+            <div class="mini-swatch"><div class="mini-swatch-dot" style="background:#3c3529;"></div><div class="mini-swatch-info"><span class="mini-swatch-name">Border</span><span class="mini-swatch-val">#3c3529</span></div></div>
+            <div class="mini-swatch"><div class="mini-swatch-dot" style="background:#ece6dd;"></div><div class="mini-swatch-info"><span class="mini-swatch-name">Text hi</span><span class="mini-swatch-val">#ece6dd</span></div></div>
+            <div class="mini-swatch"><div class="mini-swatch-dot" style="background:#afa294;"></div><div class="mini-swatch-info"><span class="mini-swatch-name">Text md</span><span class="mini-swatch-val">#afa294</span></div></div>
+            <div class="mini-swatch"><div class="mini-swatch-dot" style="background:#8a7b6c;"></div><div class="mini-swatch-info"><span class="mini-swatch-name">Text lo</span><span class="mini-swatch-val">#8a7b6c</span></div></div>
+            <div class="mini-swatch"><div class="mini-swatch-dot" style="background:#b87750;"></div><div class="mini-swatch-info"><span class="mini-swatch-name">Accent</span><span class="mini-swatch-val">#b87750</span></div></div>
+            <div class="mini-swatch"><div class="mini-swatch-dot" style="background:#cc9468;"></div><div class="mini-swatch-info"><span class="mini-swatch-name">Accent 2</span><span class="mini-swatch-val">#cc9468</span></div></div>
+            <div class="mini-swatch"><div class="mini-swatch-dot" style="background:#7aaa72;"></div><div class="mini-swatch-info"><span class="mini-swatch-name">Green</span><span class="mini-swatch-val">#7aaa72</span></div></div>
+            <div class="mini-swatch"><div class="mini-swatch-dot" style="background:#e2be72;"></div><div class="mini-swatch-info"><span class="mini-swatch-name">Yellow</span><span class="mini-swatch-val">#e2be72</span></div></div>
+          </div>
+        </div>
+
+        <div class="palette-light">
+          <h4>Light</h4>
+          <div class="mini-swatch-row">
+            <div class="mini-swatch"><div class="mini-swatch-dot" style="background:#f6f1ea; outline: 1px solid #cdc4b6;"></div><div class="mini-swatch-info"><span class="mini-swatch-name">Canvas</span><span class="mini-swatch-val">#f6f1ea</span></div></div>
+            <div class="mini-swatch"><div class="mini-swatch-dot" style="background:#ede7dd; outline: 1px solid #cdc4b6;"></div><div class="mini-swatch-info"><span class="mini-swatch-name">Panel</span><span class="mini-swatch-val">#ede7dd</span></div></div>
+            <div class="mini-swatch"><div class="mini-swatch-dot" style="background:#e3dbd0; outline: 1px solid #cdc4b6;"></div><div class="mini-swatch-info"><span class="mini-swatch-name">Hover</span><span class="mini-swatch-val">#e3dbd0</span></div></div>
+            <div class="mini-swatch"><div class="mini-swatch-dot" style="background:#cdc4b6;"></div><div class="mini-swatch-info"><span class="mini-swatch-name">Border</span><span class="mini-swatch-val">#cdc4b6</span></div></div>
+            <div class="mini-swatch"><div class="mini-swatch-dot" style="background:#28201a;"></div><div class="mini-swatch-info"><span class="mini-swatch-name">Text hi</span><span class="mini-swatch-val">#28201a</span></div></div>
+            <div class="mini-swatch"><div class="mini-swatch-dot" style="background:#6b5e52;"></div><div class="mini-swatch-info"><span class="mini-swatch-name">Text md</span><span class="mini-swatch-val">#6b5e52</span></div></div>
+            <div class="mini-swatch"><div class="mini-swatch-dot" style="background:#9a8878;"></div><div class="mini-swatch-info"><span class="mini-swatch-name">Text lo</span><span class="mini-swatch-val">#9a8878</span></div></div>
+            <div class="mini-swatch"><div class="mini-swatch-dot" style="background:#a06038;"></div><div class="mini-swatch-info"><span class="mini-swatch-name">Accent</span><span class="mini-swatch-val">#a06038</span></div></div>
+            <div class="mini-swatch"><div class="mini-swatch-dot" style="background:#b87848;"></div><div class="mini-swatch-info"><span class="mini-swatch-name">Accent 2</span><span class="mini-swatch-val">#b87848</span></div></div>
+            <div class="mini-swatch"><div class="mini-swatch-dot" style="background:#528a4a;"></div><div class="mini-swatch-info"><span class="mini-swatch-name">Green</span><span class="mini-swatch-val">#528a4a</span></div></div>
+            <div class="mini-swatch"><div class="mini-swatch-dot" style="background:#b8921e;"></div><div class="mini-swatch-info"><span class="mini-swatch-name">Yellow</span><span class="mini-swatch-val">#b8921e</span></div></div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- live preview strip — updates with the toggle -->
+      <div class="preview-strip">
+        <div class="preview-strip-label">Live preview — toggle mode to see both</div>
+        <div class="preview-strip-body">
+          <button class="btn btn-primary">Download free →</button>
+          <button class="btn btn-ghost">Try in browser</button>
+          <span class="badge"><span class="badge-dot"></span>Free &amp; open source</span>
+          <span class="pill">Bezier curves</span>
+          <span class="pill">Smart anchors</span>
+          <kbd>⌘</kbd><kbd>D</kbd>
+        </div>
+      </div>
+    </section>
+
+    <hr class="ds-rule" />
+
+    <!-- ── Typography ── -->
+    <section class="ds-section" id="typography">
+      <div class="ds-section-title">Foundations</div>
+      <h2>Typography</h2>
+      <p>Plus Jakarta Sans across all weights. Headings use tight tracking (-0.02em); body is tracking-neutral. No italic — use weight contrast instead.</p>
+
+      <div>
+        <div class="type-row">
+          <div class="type-meta">
+            <span class="type-label">Display</span>
+            <span class="type-spec">3.4rem / 800 / -0.025em</span>
+          </div>
+          <span class="type-sample" style="font-size: 3.4rem; font-weight: 800; letter-spacing: -0.025em; line-height: 1.05;">Canvas</span>
+        </div>
+        <div class="type-row">
+          <div class="type-meta">
+            <span class="type-label">Heading 1</span>
+            <span class="type-spec">1.8rem / 700 / -0.02em</span>
+          </div>
+          <span class="type-sample" style="font-size: 1.8rem; font-weight: 700; letter-spacing: -0.02em;">Start creating</span>
+        </div>
+        <div class="type-row">
+          <div class="type-meta">
+            <span class="type-label">Heading 2</span>
+            <span class="type-spec">1.4rem / 700 / -0.02em</span>
+          </div>
+          <span class="type-sample" style="font-size: 1.4rem; font-weight: 700; letter-spacing: -0.02em;">Built for makers</span>
+        </div>
+        <div class="type-row">
+          <div class="type-meta">
+            <span class="type-label">Heading 3</span>
+            <span class="type-spec">1rem / 600 / -0.01em</span>
+          </div>
+          <span class="type-sample" style="font-size: 1rem; font-weight: 600; letter-spacing: -0.01em;">Smart connectors</span>
+        </div>
+        <div class="type-row">
+          <div class="type-meta">
+            <span class="type-label">Body</span>
+            <span class="type-spec">0.85rem / 400 / 0</span>
+          </div>
+          <span class="type-sample" style="font-size: 0.85rem; color: var(--c-text-md);">Draw bezier connector lines between any two nodes. Arrows snap to anchor points and reroute when you move things around.</span>
+        </div>
+        <div class="type-row">
+          <div class="type-meta">
+            <span class="type-label">Small / meta</span>
+            <span class="type-spec">0.72rem / 400–600 / 0</span>
+          </div>
+          <span class="type-sample" style="font-size: 0.72rem; color: var(--c-text-lo);">Free forever · No account · Works offline</span>
+        </div>
+        <div class="type-row">
+          <div class="type-meta">
+            <span class="type-label">Eyebrow</span>
+            <span class="type-spec">0.65rem / 600 / 0.1em / upper</span>
+          </div>
+          <span class="type-sample" style="font-size: 0.65rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--c-accent2);">All features</span>
+        </div>
+      </div>
+    </section>
+
+    <hr class="ds-rule" />
+
+    <!-- ── Spacing ── -->
+    <section class="ds-section" id="spacing">
+      <div class="ds-section-title">Foundations</div>
+      <h2>Spacing</h2>
+      <p>4px base unit. Most layout gaps are multiples of 4 or 8. Section padding is 72–80px vertically.</p>
+
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <div style="display: flex; align-items: center; gap: 16px;" title="4px">
+          <div style="height: 16px; background: var(--c-accent); opacity: 0.6; border-radius: 2px; width: 4px;"></div>
+          <span style="font-size: 0.75rem; color: var(--c-text-lo);">4px — icon gap, tight spacing</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 16px;">
+          <div style="height: 16px; background: var(--c-accent); opacity: 0.6; border-radius: 2px; width: 8px;"></div>
+          <span style="font-size: 0.75rem; color: var(--c-text-lo);">8px — pill/badge gap, card icon margin</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 16px;">
+          <div style="height: 16px; background: var(--c-accent); opacity: 0.6; border-radius: 2px; width: 12px;"></div>
+          <span style="font-size: 0.75rem; color: var(--c-text-lo);">12px — card padding (sm), eyebrow–heading gap</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 16px;">
+          <div style="height: 16px; background: var(--c-accent); opacity: 0.6; border-radius: 2px; width: 20px;"></div>
+          <span style="font-size: 0.75rem; color: var(--c-text-lo);">20px — card padding, button padding</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 16px;">
+          <div style="height: 16px; background: var(--c-accent); opacity: 0.6; border-radius: 2px; width: 28px;"></div>
+          <span style="font-size: 0.75rem; color: var(--c-text-lo);">28px — wrap horizontal padding, nav gap</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 16px;">
+          <div style="height: 16px; background: var(--c-accent); opacity: 0.6; border-radius: 2px; width: 48px;"></div>
+          <span style="font-size: 0.75rem; color: var(--c-text-lo);">48px — hero sub-section gap</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 16px;">
+          <div style="height: 16px; background: var(--c-accent); opacity: 0.6; border-radius: 2px; width: 80px;"></div>
+          <span style="font-size: 0.75rem; color: var(--c-text-lo);">80px — section vertical padding</span>
+        </div>
+      </div>
+    </section>
+
+    <hr class="ds-rule" />
+
+    <!-- ── Buttons ── -->
+    <section class="ds-section" id="buttons">
+      <div class="ds-section-title">Components</div>
+      <h2>Buttons</h2>
+      <p>Two variants: primary (terracotta fill) and ghost (panel border). Sizes: default and sm. Border-radius 8px for default, 6px for sm.</p>
+
+      <div class="ds-notice">Buttons use <code style="font-family: 'Courier New', monospace;">font-family: inherit</code> — they will always match the site font automatically.</div>
+
+      <div class="component-row">
+        <span class="component-label">Primary</span>
+        <button class="btn btn-primary">Download free →</button>
+        <button class="btn btn-primary btn-sm">Get started</button>
+      </div>
+      <div class="component-row">
+        <span class="component-label">Ghost</span>
+        <button class="btn btn-ghost">Try in browser</button>
+        <button class="btn btn-ghost btn-sm">Learn more</button>
+      </div>
+      <div class="component-row">
+        <span class="component-label">Mixed row (typical CTA)</span>
+        <button class="btn btn-primary">Download free →</button>
+        <button class="btn btn-ghost">Try in browser</button>
+        <button class="btn btn-ghost">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+          GitHub
+        </button>
+      </div>
+    </section>
+
+    <hr class="ds-rule" />
+
+    <!-- ── Badges & pills ── -->
+    <section class="ds-section" id="badges">
+      <div class="ds-section-title">Components</div>
+      <h2>Badges &amp; pills</h2>
+      <p>Badges appear at the top of hero sections and sections to add a label. Pills tag feature categories inside feature strips.</p>
+
+      <div class="component-row" style="margin-bottom: 24px;">
+        <span class="component-label">Badge</span>
+        <span class="badge"><span class="badge-dot"></span>Free &amp; open source</span>
+        <span class="badge"><span class="badge-dot"></span>Now in beta</span>
+      </div>
+      <div class="component-row">
+        <span class="component-label">Pills</span>
+        <span class="pill">Bezier curves</span>
+        <span class="pill">Smart anchors</span>
+        <span class="pill">Arrowhead styles</span>
+        <span class="pill">PNG / JPG</span>
+      </div>
+    </section>
+
+    <hr class="ds-rule" />
+
+    <!-- ── Cards ── -->
+    <section class="ds-section" id="cards">
+      <div class="ds-section-title">Components</div>
+      <h2>Cards</h2>
+      <p>Used in the feature grid. Panel background with border, hover lifts to <code style="font-family: 'Courier New', monospace; font-size: 0.8em; color: var(--c-accent2);">--c-hover</code> and accent border. Icon tile sits above title.</p>
+
+      <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+        <div class="ds-card">
+          <div class="card-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+          </div>
+          <h3>Infinite canvas</h3>
+          <p>Pan with spacebar + drag or middle mouse. Pinch-to-zoom. Dot grid tracks your position.</p>
+        </div>
+        <div class="ds-card">
+          <div class="card-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M9 2h6M12 2v3"/></svg>
+          </div>
+          <h3>Sticky notes</h3>
+          <p>Place, drag, resize, double-click to edit. Great for brainstorming game mechanics or story beats.</p>
+        </div>
+      </div>
+    </section>
+
+    <hr class="ds-rule" />
+
+    <!-- ── Inputs ── -->
+    <section class="ds-section" id="inputs">
+      <div class="ds-section-title">Components</div>
+      <h2>Inputs</h2>
+      <p>Panel background, border that highlights to <code style="font-family: 'Courier New', monospace; font-size: 0.8em; color: var(--c-accent2);">--c-accent</code> on focus. Used for board title, search, dialogs.</p>
+
+      <div class="component-row">
+        <span class="component-label">Text input</span>
+        <input type="text" placeholder="Board title…" />
+        <input type="text" value="My game design doc" />
+      </div>
+    </section>
+
+    <hr class="ds-rule" />
+
+    <!-- ── Keyboard ── -->
+    <section class="ds-section" id="keyboard">
+      <div class="ds-section-title">Components</div>
+      <h2>Keyboard</h2>
+      <p><code style="font-family: 'Courier New', monospace; font-size: 0.8em; color: var(--c-accent2);">&lt;kbd&gt;</code> elements for individual keys. Combine into a <code style="font-family: 'Courier New', monospace; font-size: 0.8em; color: var(--c-accent2);">.kbd-row</code> for shortcut listings.</p>
+
+      <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px;">
+        <kbd>V</kbd>
+        <kbd>⌘</kbd>
+        <kbd>⇧</kbd>
+        <kbd>⌥</kbd>
+        <kbd>⌫</kbd>
+        <kbd>drag</kbd>
+        <kbd>↑↓←→</kbd>
+      </div>
+
+      <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+        <div class="kbd-row"><span>Select tool</span><div class="kkeys"><kbd>V</kbd></div></div>
+        <div class="kbd-row"><span>Duplicate</span><div class="kkeys"><kbd>⌘</kbd><kbd>D</kbd></div></div>
+        <div class="kbd-row"><span>Group</span><div class="kkeys"><kbd>⌘</kbd><kbd>G</kbd></div></div>
+        <div class="kbd-row"><span>Undo</span><div class="kkeys"><kbd>⌘</kbd><kbd>Z</kbd></div></div>
+      </div>
+    </section>
+
+    <hr class="ds-rule" />
+
+    <!-- ── Icons ── -->
+    <section class="ds-section" id="icons">
+      <div class="ds-section-title">Components</div>
+      <h2>Icons</h2>
+      <p>Stroke-based SVG icons throughout. <strong>stroke-width: 1.75</strong>, stroke-linecap: round, stroke-linejoin: round. Size: 18px inside card icons, 14px inline, 16px in buttons. Color via <code style="font-family: 'Courier New', monospace; font-size: 0.8em; color: var(--c-accent2);">currentColor</code> so they inherit from parent.</p>
+
+      <div class="icon-grid">
+        <!-- expand -->
+        <div class="icon-tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></div>
+        <!-- sticky -->
+        <div class="icon-tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M9 2h6M12 2v3"/></svg></div>
+        <!-- connector -->
+        <div class="icon-tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="12" r="2"/><circle cx="18" cy="6" r="2"/><circle cx="18" cy="18" r="2"/><path d="M8 12h4a2 2 0 002-2V8M8 12h4a2 2 0 012 2v2"/></svg></div>
+        <!-- text -->
+        <div class="icon-tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h10M4 17h6"/></svg></div>
+        <!-- code -->
+        <div class="icon-tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></div>
+        <!-- undo -->
+        <div class="icon-tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14l-5-5 5-5"/><path d="M4 9h10.5a4.5 4.5 0 010 9H11"/></svg></div>
+        <!-- group -->
+        <div class="icon-tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="13" height="13" rx="2"/><path d="M9 7V4a2 2 0 012-2h9a2 2 0 012 2v9a2 2 0 01-2 2h-3"/></svg></div>
+        <!-- export -->
+        <div class="icon-tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+        <!-- moon -->
+        <div class="icon-tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg></div>
+        <!-- image -->
+        <div class="icon-tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div>
+        <!-- smile -->
+        <div class="icon-tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9 15s1 2 3 2 3-2 3-2"/></svg></div>
+        <!-- github -->
+        <div class="icon-tile"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script>
+  const DARK_ICON  = `<path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>`;
+  const LIGHT_ICON = `<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>`;
+
+  function toggleMode() {
+    const isLight = document.documentElement.dataset.theme === 'light';
+    const next = isLight ? 'dark' : 'light';
+    document.documentElement.dataset.theme = next === 'dark' ? '' : 'light';
+
+    const svgAttrs = `viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"`;
+
+    document.querySelectorAll('[id^="modeIcon"]').forEach(el => {
+      el.innerHTML = next === 'light' ? LIGHT_ICON : DARK_ICON;
+    });
+    document.querySelectorAll('[id^="modeLabel"]').forEach(el => {
+      el.textContent = next === 'light' ? 'Dark mode' : 'Light mode';
+    });
+  }
+</script>
+
+</body>
+</html>
