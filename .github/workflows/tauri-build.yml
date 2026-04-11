@@ -19,9 +19,6 @@ jobs:
           - os: macos-latest
             target: aarch64-apple-darwin
             artifact: macos-arm64
-          - os: macos-latest
-            target: x86_64-apple-darwin
-            artifact: macos-x64
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             artifact: windows-x64
@@ -67,6 +64,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
+          tauriScript: npm run tauri:build
           args: --target ${{ matrix.target }}
 
       - name: Upload artifacts

@@ -18,7 +18,7 @@ export default function ZoomToolbar() {
   const zoomPct = Math.round(camera.scale * 100);
 
   return (
-    <div className="absolute bottom-20 right-4 sm:bottom-5 sm:right-5 z-50 pointer-events-none">
+    <div className="absolute bottom-20 right-4 sm:bottom-5 sm:right-5 z-[500] pointer-events-none">
       <div className="pointer-events-auto flex items-center gap-0.5 px-1 py-1 rounded-xl border border-[var(--c-border)] bg-[var(--c-panel)] shadow-2xl">
         <button
           title="Zoom out"

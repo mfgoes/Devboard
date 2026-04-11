@@ -4,7 +4,7 @@ import { useBoardStore } from '../store/boardStore';
 import { TEMPLATES } from '../templates';
 import ConfirmDialog from './ConfirmDialog';
 import { saveBoard, saveBoardAs, clearFileHandle } from '../utils/fileSave';
-import { openWorkspace, saveWorkspace, loadImageAsset, findImageInWorkspace, hasWorkspaceHandle, clearWorkspaceHandle } from '../utils/workspaceManager';
+import { openWorkspace, saveWorkspace, loadImageAsset, findImageInWorkspace, hasWorkspaceHandle, clearWorkspaceHandle, FSA_DIR_SUPPORTED, IN_IFRAME } from '../utils/workspaceManager';
 import { toast } from '../utils/toast';
 import exportSound from '../assets/get1.mp3';
 
@@ -744,11 +744,17 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
           ) : (
             <button
               onClick={handleOpenFolder}
-              title="Open a folder workspace to save images as files and keep JSON small"
+              title={
+                IN_IFRAME
+                  ? 'Folder access is blocked when embedded on itch.io — open the app directly or use the desktop build'
+                  : !FSA_DIR_SUPPORTED
+                  ? 'Requires Chrome, Edge, or the desktop app'
+                  : 'Open a folder workspace to save images as files and keep JSON small'
+              }
               className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono border border-dashed border-[var(--c-border)] text-[var(--c-text-off)] hover:text-[#6366f1] hover:border-[#6366f1]/40 hover:bg-[#6366f1]/8 transition-colors"
             >
               <IconFolder />
-              Open workspace…
+              {IN_IFRAME ? 'Workspace unavailable' : 'Open workspace…'}
             </button>
           )}
           {workspaceMenuOpen && workspaceName && (

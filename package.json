@@ -7,13 +7,13 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "zip": "npm run build && cp README.txt dist/ && cd dist && zip -r ../devboard-itchio.zip index.html stickers favicon.ico README.txt && echo '✓ devboard-itchio.zip ready'",
+    "zip": "npm run build && cp dist/index.html docs/app.html && cp README.txt dist/ && cd dist && zip -r ../devboard-itchio.zip index.html stickers favicon.ico README.txt && echo '✓ devboard-itchio.zip ready'",
+    "release:html": "npm run zip && butler push devboard-itchio.zip mischa/devboard:html && butler push devboard-itchio.zip mischa/devboard:html-download",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
     "tauri:build:linux": "tauri build --target x86_64-unknown-linux-gnu",
     "tauri:build:win": "tauri build --target x86_64-pc-windows-msvc",
     "tauri:build:mac-arm": "tauri build --target aarch64-apple-darwin",
-    "tauri:build:mac-x64": "tauri build --target x86_64-apple-darwin",
     "tauri:icon": "tauri icon public/favicon.ico"
   },
   "dependencies": {

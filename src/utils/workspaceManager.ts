@@ -18,9 +18,15 @@ type FSAWindow = Window & typeof globalThis & {
 
 let workspaceHandle: FileSystemDirectoryHandle | null = null;
 
-/** True when the browser supports folder picking (Chrome, Edge, desktop Tauri webview). */
+/** True when running inside a cross-origin iframe (e.g. embedded on itch.io). */
+export const IN_IFRAME =
+  typeof window !== 'undefined' && window.self !== window.top;
+
+/** True when the browser supports folder picking AND we're not in a cross-origin iframe (e.g. itch.io). */
 export const FSA_DIR_SUPPORTED =
-  typeof window !== 'undefined' && 'showDirectoryPicker' in window;
+  typeof window !== 'undefined' &&
+  'showDirectoryPicker' in window &&
+  !IN_IFRAME;
 
 export function getWorkspaceName(): string | null {
   return workspaceHandle?.name ?? null;
@@ -209,7 +215,14 @@ export async function findImageInWorkspace(assetName: string): Promise<{ folder:
  */
 export async function openWorkspace(): Promise<{ data: BoardData | null; name: string } | null> {
   if (!FSA_DIR_SUPPORTED) {
-    toast('Open Folder requires Chrome, Edge, or the desktop app');
+    if (IN_IFRAME) {
+      toast(
+        'Folder access is blocked when embedded on itch.io.',
+        { label: 'Open GitHub version', onClick: () => window.open('https://mfgoes.github.io/Devboard/app.html', '_blank') },
+      );
+    } else {
+      toast('Open Folder requires Chrome, Edge, or the desktop app.');
+    }
     return null;
   }
   try {

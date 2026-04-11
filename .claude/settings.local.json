@@ -35,7 +35,12 @@
       "Bash(mkdir -p /tmp/devboard-dmg-stage)",
       "Bash(cp -r \"/Users/mischavandergoes/Documents/GitHub/CollaboCanvas/src-tauri/target/aarch64-apple-darwin/release/bundle/macos/DevBoard.app\" /tmp/devboard-dmg-stage/)",
       "Bash(rustup target:*)",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "Bash(git fetch:*)",
+      "Bash(git ls-tree:*)",
+      "Bash(butler status:*)",
+      "Bash(butler login:*)",
+      "Bash(butler profile:*)"
     ]
   }
 }

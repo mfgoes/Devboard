@@ -5,7 +5,7 @@
  */
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useBoardStore } from '../store/boardStore';
-import { listDirectory, readWorkspaceFile, readWorkspaceFileAsUrl, readWorkspaceFileInfo, getWorkspaceName, openWorkspace, createDirectory, renameEntry, FSA_DIR_SUPPORTED } from '../utils/workspaceManager';
+import { listDirectory, readWorkspaceFile, readWorkspaceFileAsUrl, readWorkspaceFileInfo, getWorkspaceName, openWorkspace, createDirectory, renameEntry, FSA_DIR_SUPPORTED, IN_IFRAME } from '../utils/workspaceManager';
 import { CodeLanguage, CodeBlockNode, ImageNode } from '../types';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -419,33 +419,26 @@ function NoWorkspaceState({ onOpen }: { onOpen: () => void }) {
           Open a folder to browse files, place images and code snippets on the canvas.
         </p>
       </div>
-      {FSA_DIR_SUPPORTED && (
-        <button
-          onClick={onOpen}
-          style={{
-            marginTop: 4,
-            padding: '7px 16px',
-            borderRadius: 8,
-            border: 'none',
-            background: '#6366f1',
-            color: '#fff',
-            fontFamily: 'monospace',
-            fontSize: 11,
-            fontWeight: 600,
-            cursor: 'pointer',
-            letterSpacing: '0.02em',
-          }}
-          onMouseEnter={(e) => (e.currentTarget.style.background = '#4f46e5')}
-          onMouseLeave={(e) => (e.currentTarget.style.background = '#6366f1')}
-        >
-          Open folder…
-        </button>
-      )}
-      {!FSA_DIR_SUPPORTED && (
-        <p style={{ fontFamily: 'monospace', fontSize: 9, color: 'var(--c-text-off)', margin: 0 }}>
-          Requires Chrome, Edge, or the desktop app.
-        </p>
-      )}
+      <button
+        onClick={onOpen}
+        style={{
+          marginTop: 4,
+          padding: '7px 16px',
+          borderRadius: 8,
+          border: 'none',
+          background: '#6366f1',
+          color: '#fff',
+          fontFamily: 'monospace',
+          fontSize: 11,
+          fontWeight: 600,
+          cursor: 'pointer',
+          letterSpacing: '0.02em',
+        }}
+        onMouseEnter={(e) => (e.currentTarget.style.background = '#4f46e5')}
+        onMouseLeave={(e) => (e.currentTarget.style.background = '#6366f1')}
+      >
+        Open folder…
+      </button>
     </div>
   );
 }

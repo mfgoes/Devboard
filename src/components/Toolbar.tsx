@@ -281,7 +281,7 @@ export default function Toolbar() {
   const insertActive = INSERT_ITEMS.some((i) => i.id === activeTool);
 
   return (
-    <div className="absolute bottom-5 left-0 right-0 z-50 flex flex-col items-center gap-2 pointer-events-none">
+    <div className="absolute bottom-5 left-0 right-0 z-[500] flex flex-col items-center gap-2 pointer-events-none">
       {/* Shape kind sub-picker */}
       {activeTool === 'shape' && (
         <div className="pointer-events-auto flex items-center gap-0.5 px-2 py-1.5 rounded-xl border border-[var(--c-border)] bg-[var(--c-panel)] shadow-lg">
