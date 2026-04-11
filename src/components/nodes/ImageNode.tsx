@@ -115,7 +115,19 @@ export default function ImageNodeComponent({
       onMultiDragEnd?.();
       updateNode(node.id, { x: e.target.x(), y: e.target.y() });
     },
-    onClick: () => { if (activeTool !== 'image' && activeTool !== 'pan') selectIds([node.id]); },
+    onClick: (e: Konva.KonvaEventObject<MouseEvent>) => {
+      if (activeTool === 'image' || activeTool === 'pan') return;
+      e.cancelBubble = true;
+      const { selectedIds } = useBoardStore.getState();
+      if (e.evt.shiftKey) {
+        const alreadySelected = selectedIds.includes(node.id);
+        selectIds(alreadySelected
+          ? selectedIds.filter((id) => id !== node.id)
+          : [...selectedIds, node.id]);
+      } else {
+        selectIds([node.id]);
+      }
+    },
     onTap: () => { if (activeTool !== 'image' && activeTool !== 'pan') selectIds([node.id]); },
     onContextMenu: (e: Konva.KonvaEventObject<PointerEvent>) => {
       e.evt.preventDefault();

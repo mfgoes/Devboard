@@ -8,7 +8,7 @@ import TextBlock from './nodes/TextBlock';
 import SectionNodeComponent from './nodes/SectionNode';
 import StickerNodeComponent from './nodes/StickerNode';
 import TableNodeComponent from './nodes/TableNode';
-import ConnectorLine, { anchorCoords, cpOffset, smartAnchors } from './nodes/ConnectorLine';
+import ConnectorLine, { anchorCoords, cpOffset } from './nodes/ConnectorLine';
 import TextEditor from './TextEditor';
 import TableCellEditor from './TableCellEditor';
 import StickyColorPicker from './StickyColorPicker';
@@ -22,134 +22,35 @@ import TableToolbar from './TableToolbar';
 import TableInsertControls from './TableInsertControls';
 import TableReorderControls from './TableReorderControls';
 import MultiSelectToolbar from './MultiSelectToolbar';
-import ContextMenu, { ContextMenuState } from './ContextMenu';
-import { AnchorSide, ConnectorNode, StickyNoteNode, ShapeNode, TextBlockNode, SectionNode, StickerNode, TableNode, CodeBlockNode, ImageNode, LinkNode, TaskCardNode } from '../types';
+import ContextMenu from './ContextMenu';
+import { AnchorSide, StickyNoteNode, ShapeNode, TaskCardNode, ImageNode } from '../types';
 import CodeBlockComponent from './nodes/CodeBlock';
 import ImageNodeComponent from './nodes/ImageNode';
 import LinkNodeComponent from './nodes/LinkNode';
 import TaskCardNodeComponent from './nodes/TaskCardNode';
 import LinkToolbar from './LinkToolbar';
-import { saveImageAsset, saveWorkspace, getWorkspaceName, openWorkspace } from '../utils/workspaceManager';
-import { placeImageFileAt } from './WorkspaceExplorer';
+import { getWorkspaceName, openWorkspace } from '../utils/workspaceManager';
 import { hasSeenImageNotice, markImageNoticeSeen } from './ImageFirstUseModal';
 import ImageFirstUseModal from './ImageFirstUseModal';
 import CodeBlockToolbar from './CodeBlockToolbar';
-import { STICKY_COLORS } from './StickyColorPicker';
-import { SECTION_TO_STICKY } from '../utils/palette';
 import { useTheme } from '../theme';
-
-function generateId(): string {
-  return Math.random().toString(36).slice(2, 11);
-}
-function randomStickyColor(): string {
-  return STICKY_COLORS[Math.floor(Math.random() * STICKY_COLORS.length)].hex;
-}
-
-interface DrawingLine {
-  fromNodeId: string;
-  fromAnchor: AnchorSide;
-  fromX: number;
-  fromY: number;
-  toX: number;
-  toY: number;
-}
-
-interface TextDraw {
-  startScreenX: number;
-  startScreenY: number;
-  startWorldX: number;
-  startWorldY: number;
-  currentScreenX: number;
-  currentWorldX: number;
-}
-
-interface ShapeDraw {
-  startScreenX: number;
-  startScreenY: number;
-  startWorldX: number;
-  startWorldY: number;
-  currentScreenX: number;
-  currentScreenY: number;
-  currentWorldX: number;
-  currentWorldY: number;
-}
-
-interface MarqueeDraw {
-  startScreenX: number;
-  startScreenY: number;
-  currentScreenX: number;
-  currentScreenY: number;
-}
-
-interface SnapGuide {
-  orientation: 'h' | 'v';
-  pos: number;
-  start: number;
-  end: number;
-}
-
-const SNAP_THRESHOLD = 8;
+import { useCanvasInteraction } from '../hooks/useCanvasInteraction';
+import { useCanvasKeyboard } from '../hooks/useCanvasKeyboard';
+import { useCanvasImageDrop } from '../hooks/useCanvasImageDrop';
 
 export default function Canvas() {
   const t = useTheme();
-  const stageRef = useRef<Konva.Stage>(null);
+  const stageRef     = useRef<Konva.Stage>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: window.innerWidth, height: window.innerHeight });
-  const isPanning = useRef(false);
-  const lastPointer = useRef({ x: 0, y: 0 });
-  const altDragInProgress = useRef(false);
-  const nudging = useRef(false); // true while an arrow-key nudge gesture is in progress
-  const pendingImagePos = useRef<{ x: number; y: number } | null>(null);
-  const imageInputRef = useRef<HTMLInputElement>(null);
 
-  // Multi-drag: tracks peers that should follow the dragged node
-  const multiDragBase = useRef<{
-    draggingId: string;
-    startX: number;
-    startY: number;
-    peers: { id: string; origX: number; origY: number }[];
-  } | null>(null);
-  // Touch tracking for mobile pan/pinch
-  const lastTouchPos = useRef<{ x: number; y: number } | null>(null);
-  const lastPinchDist = useRef<number | null>(null);
-  const lastPinchMid = useRef<{ x: number; y: number } | null>(null);
-  // Touch tool placement: records the client position when a tool-draw begins
-  const touchToolStart = useRef<{ clientX: number; clientY: number } | null>(null);
-  const spacePressed = useRef(false);
+  const spacePressed    = useRef(false);
   const [cursorOverride, setCursorOverride] = useState<string | null>(null);
 
-  // Line drawing state
-  const [drawingLine, setDrawingLine] = useState<DrawingLine | null>(null);
-  const [snapTarget, setSnapTarget] = useState<{ nodeId: string; side: AnchorSide } | null>(null);
-
-  // Text placement state
-  const [textCursorPos, setTextCursorPos] = useState<{ x: number; y: number } | null>(null);
-  const [textDraw, setTextDraw] = useState<TextDraw | null>(null);
-
-  // Shape drag-to-size state
-  const [shapeDraw, setShapeDraw] = useState<ShapeDraw | null>(null);
-
-  // Section drag-to-size state
-  const [sectionDraw, setSectionDraw] = useState<ShapeDraw | null>(null);
-
-  // Table drag-to-size state
-  const [tableDraw, setTableDraw] = useState<ShapeDraw | null>(null);
-
-  // Marquee (drag-to-select) state
-  const [marqueeDraw, setMarqueeDraw] = useState<MarqueeDraw | null>(null);
-
-  // Sticker hover position
-  const [stickerCursorPos, setStickerCursorPos] = useState<{ x: number; y: number } | null>(null);
-  const [taskCursorPos,   setTaskCursorPos]   = useState<{ x: number; y: number } | null>(null);
-
-  // Snap alignment guides
-  const [snapGuides, setSnapGuides] = useState<SnapGuide[]>([]);
-
-  // Context menu
-  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
-
-  // Image first-use notice
-  const [showImageNotice, setShowImageNotice] = useState(false);
+  const pendingImagePos  = useRef<{ x: number; y: number } | null>(null);
   const pendingImageFile = useRef<{ file: File; worldX: number; worldY: number } | null>(null);
+  const imageInputRef    = useRef<HTMLInputElement>(null);
+  const [showImageNotice, setShowImageNotice] = useState(false);
 
   const {
     nodes,
@@ -159,256 +60,43 @@ export default function Canvas() {
     activeSticker,
     selectedIds,
     editingId,
-    tableEditState,
     setCamera,
     addNode,
-    selectIds,
     setActiveTool,
-    setEditingId,
-    deleteSelected,
   } = useBoardStore();
 
-  // ── Snap computation ────────────────────────────────────────────────────────
-  const computeSnap = useCallback((
-    nodeId: string, nx: number, ny: number, nw: number, nh: number
-  ): { x: number; y: number } => {
-    const others = useBoardStore.getState().nodes.filter(
-      n => n.id !== nodeId && n.type !== 'connector'
-    );
-    const nXs = [nx, nx + nw / 2, nx + nw];
-    const nYs = [ny, ny + nh / 2, ny + nh];
+  // ── Interaction hook (mouse/touch handlers + draw states) ──────────────────
+  const interaction = useCanvasInteraction({
+    stageRef: stageRef as React.RefObject<Konva.Stage | null>,
+    spacePressed,
+    setCursorOverride,
+    imageInputRef: imageInputRef as React.RefObject<HTMLInputElement | null>,
+    pendingImagePos,
+  });
 
-    let snapDx = 0, bestDx = SNAP_THRESHOLD + 1;
-    let snapDy = 0, bestDy = SNAP_THRESHOLD + 1;
-    let xGuide: SnapGuide | null = null;
-    let yGuide: SnapGuide | null = null;
+  // ── Keyboard hook ──────────────────────────────────────────────────────────
+  useCanvasKeyboard({
+    spacePressed,
+    isPanning: interaction.isPanning,
+    setCursorOverride,
+    cancelAll: interaction.cancelAll,
+  });
 
-    for (const other of others) {
-      const o = other as { x?: number; y?: number; width?: number; height?: number };
-      const ox = o.x ?? 0, oy = o.y ?? 0;
-      const ow = o.width ?? 160, oh = o.height ?? 120;
-      const oXs = [ox, ox + ow / 2, ox + ow];
-      const oYs = [oy, oy + oh / 2, oy + oh];
+  // ── Image/drop hook ────────────────────────────────────────────────────────
+  const { placeImage, handleImageFileChange, handleDrop } = useCanvasImageDrop({
+    pendingImagePos,
+    pendingImageFile,
+    setShowImageNotice,
+  });
 
-      for (const nVal of nXs) {
-        for (const oVal of oXs) {
-          const d = Math.abs(nVal - oVal);
-          if (d < bestDx) {
-            bestDx = d; snapDx = oVal - nVal;
-            xGuide = { orientation: 'v', pos: oVal, start: Math.min(ny, oy) - 20, end: Math.max(ny + nh, oy + oh) + 20 };
-          }
-        }
-      }
-      for (const nVal of nYs) {
-        for (const oVal of oYs) {
-          const d = Math.abs(nVal - oVal);
-          if (d < bestDy) {
-            bestDy = d; snapDy = oVal - nVal;
-            yGuide = { orientation: 'h', pos: oVal, start: Math.min(nx, ox) - 20, end: Math.max(nx + nw, ox + ow) + 20 };
-          }
-        }
-      }
-    }
-
-    const guides: SnapGuide[] = [];
-    if (bestDx <= SNAP_THRESHOLD && xGuide) guides.push(xGuide);
-    if (bestDy <= SNAP_THRESHOLD && yGuide) guides.push(yGuide);
-    setSnapGuides(guides);
-    return {
-      x: nx + (bestDx <= SNAP_THRESHOLD ? snapDx : 0),
-      y: ny + (bestDy <= SNAP_THRESHOLD ? snapDy : 0),
-    };
-  }, []);
-
-  const clearSnap = useCallback(() => setSnapGuides([]), []);
-
-  // ── Alt+drag to duplicate ────────────────────────────────────────────────────
-  // On alt+drag start: clone all selected nodes in-place; originals stay, user drags the originals away.
-  const handleAltDragStart = useCallback((nodeId: string) => {
-    if (altDragInProgress.current) return;
-    altDragInProgress.current = true;
-    const { nodes, selectedIds, saveHistory, addNode, selectIds: sel } = useBoardStore.getState();
-    const idsToClone = selectedIds.includes(nodeId) && selectedIds.length > 1
-      ? selectedIds
-      : [nodeId];
-    const toClone = idsToClone
-      .map(id => nodes.find(n => n.id === id))
-      .filter((n): n is NonNullable<typeof n> => !!n && n.type !== 'connector');
-    if (toClone.length === 0) return;
-    saveHistory();
-    for (const original of toClone) {
-      addNode({ ...original, id: generateId() } as (typeof original));
-    }
-    // addNode replaces selectedIds with the last clone's id on each call,
-    // so restore selection to the originals so multi-drag still works.
-    sel(idsToClone);
-  }, []);
-
-  const handleAltDragEnd = useCallback(() => {
-    altDragInProgress.current = false;
-  }, []);
-
-  // ── Context menu ──────────────────────────────────────────────────────────────
-  const handleNodeContextMenu = useCallback((nodeId: string, x: number, y: number) => {
-    // If right-clicked node isn't selected, select it first
-    const { selectedIds, selectIds: sel } = useBoardStore.getState();
-    if (!selectedIds.includes(nodeId)) sel([nodeId]);
-    const ids = selectedIds.includes(nodeId) ? selectedIds : [nodeId];
-    setContextMenu({ x, y, nodeIds: ids });
-  }, []);
-
-  // ── Multi-node drag ──────────────────────────────────────────────────────────
-  // Returns true when a node should save its own history (single drag, no alt/multi in progress).
-  const getShouldSaveHistory = useCallback(() => {
-    return multiDragBase.current === null && !altDragInProgress.current;
-  }, []);
-
-  const handleMultiDragStart = useCallback((nodeId: string, worldX: number, worldY: number) => {
-    const { selectedIds, nodes } = useBoardStore.getState();
-    if (!selectedIds.includes(nodeId) || selectedIds.length < 2) return;
-    const peers = selectedIds
-      .filter(id => id !== nodeId)
-      .map(id => {
-        const n = nodes.find(x => x.id === id);
-        if (!n || n.type === 'connector') return null;
-        return { id, origX: (n as { x?: number }).x ?? 0, origY: (n as { y?: number }).y ?? 0 };
-      })
-      .filter((x): x is { id: string; origX: number; origY: number } => x !== null);
-    if (peers.length === 0) return;
-    if (!altDragInProgress.current) useBoardStore.getState().saveHistory();
-    multiDragBase.current = { draggingId: nodeId, startX: worldX, startY: worldY, peers };
-  }, []);
-
-  const handleMultiDragMove = useCallback((nodeId: string, worldX: number, worldY: number) => {
-    if (!multiDragBase.current || multiDragBase.current.draggingId !== nodeId) return;
-    const { startX, startY, peers } = multiDragBase.current;
-    const dx = worldX - startX, dy = worldY - startY;
-    const { updateNode } = useBoardStore.getState();
-    for (const peer of peers) {
-      updateNode(peer.id, { x: peer.origX + dx, y: peer.origY + dy } as Parameters<typeof updateNode>[1]);
-    }
-  }, []);
-
-  const handleMultiDragEnd = useCallback(() => {
-    multiDragBase.current = null;
-  }, []);
-
-  // ── Section color matching ───────────────────────────────────────────────────
-  // Called after any sticky drag settles; recolors sticky (and multi-drag peers)
-  // if they land inside a section with matchStickies=true.
-  const handleDragSettled = useCallback((nodeId: string) => {
-    const { nodes, updateNode, selectedIds } = useBoardStore.getState();
-    const sections = nodes.filter((n) => n.type === 'section' && (n as SectionNode).matchStickies) as SectionNode[];
-    if (sections.length === 0) return;
-
-    const candidates = selectedIds.includes(nodeId) ? selectedIds : [nodeId];
-    for (const id of candidates) {
-      const n = nodes.find((x) => x.id === id);
-      if (!n || n.type !== 'sticky') continue;
-      const sn = n as StickyNoteNode;
-      const cx = sn.x + sn.width / 2;
-      const cy = sn.y + sn.height / 2;
-      for (const sec of sections) {
-        if (cx >= sec.x && cx <= sec.x + sec.width && cy >= sec.y && cy <= sec.y + sec.height) {
-          const targetColor = SECTION_TO_STICKY[sec.color] ?? sec.color;
-          if (sn.color !== targetColor) updateNode(id, { color: targetColor } as Parameters<typeof updateNode>[1]);
-          break;
-        }
-      }
-    }
-  }, []);
-
-  // ── Window resize ───────────────────────────────────────────────────────────
+  // ── Window resize ──────────────────────────────────────────────────────────
   useEffect(() => {
-    const onResize = () =>
-      setSize({ width: window.innerWidth, height: window.innerHeight });
+    const onResize = () => setSize({ width: window.innerWidth, height: window.innerHeight });
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
-  // ── Keyboard shortcuts ──────────────────────────────────────────────────────
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
-      if (tag === 'input' || tag === 'textarea') return;
-
-      if (e.code === 'Space') {
-        e.preventDefault();
-        spacePressed.current = true;
-        setCursorOverride('grab');
-      }
-      if (e.code === 'Backspace' || e.code === 'Delete') {
-        deleteSelected();
-      }
-      // Arrow key nudge — move selected nodes (1px; Shift = 10px)
-      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-        const state = useBoardStore.getState();
-        if (state.selectedIds.length > 0) {
-          e.preventDefault();
-          if (!e.repeat) state.saveHistory();
-          const delta = e.shiftKey ? 10 : 1;
-          const dx = e.key === 'ArrowLeft' ? -delta : e.key === 'ArrowRight' ? delta : 0;
-          const dy = e.key === 'ArrowUp' ? -delta : e.key === 'ArrowDown' ? delta : 0;
-          for (const id of state.selectedIds) {
-            const n = state.nodes.find(x => x.id === id);
-            if (!n || n.type === 'connector') continue;
-            state.updateNode(id, {
-              x: ((n as { x?: number }).x ?? 0) + dx,
-              y: ((n as { y?: number }).y ?? 0) + dy,
-            } as Parameters<typeof state.updateNode>[1]);
-          }
-        }
-      }
-      // Tool shortcuts (no modifier)
-      if (!e.metaKey && !e.ctrlKey) {
-        const shortcuts: Record<string, Parameters<typeof setActiveTool>[0]> = {
-          KeyV: 'select',
-          KeyH: 'pan',
-          KeyS: 'sticky',
-          KeyR: 'shape',
-          KeyT: 'text',
-          KeyL: 'line',
-          KeyF: 'section',
-          KeyG: 'table',
-          KeyK: 'code',
-          KeyI: 'image',
-          KeyU: 'link',
-        };
-        if (shortcuts[e.code]) setActiveTool(shortcuts[e.code]);
-      }
-      // Escape: cancel any in-progress operation
-      if (e.code === 'Escape') {
-        setDrawingLine(null);
-        setSnapTarget(null);
-        setTextDraw(null);
-        setTextCursorPos(null);
-        setShapeDraw(null);
-        setSectionDraw(null);
-        setTableDraw(null);
-        setMarqueeDraw(null);
-        setStickerCursorPos(null);
-        selectIds([]);
-        setActiveTool('select');
-      }
-    };
-    const onKeyUp = (e: KeyboardEvent) => {
-      if (e.code === 'Space') {
-        spacePressed.current = false;
-        isPanning.current = false;
-        setCursorOverride(null);
-      }
-    };
-    window.addEventListener('keydown', onKeyDown);
-    window.addEventListener('keyup', onKeyUp);
-    return () => {
-      window.removeEventListener('keydown', onKeyDown);
-      window.removeEventListener('keyup', onKeyUp);
-    };
-  }, [deleteSelected, setActiveTool, selectIds]);
-
-  // ── Wheel: pinch-zoom (ctrlKey) vs 2-finger pan (no ctrlKey) ───────────────
-  // Shared logic — called from both the Konva Stage handler and the HTML overlay
-  // listener, so toolbars don't swallow 2-finger pan/zoom.
+  // ── Wheel: pinch-zoom vs 2-finger pan ─────────────────────────────────────
   const processWheel = useCallback(
     (evt: WheelEvent, pointerX: number, pointerY: number) => {
       evt.preventDefault();
@@ -442,14 +130,10 @@ export default function Canvas() {
     [processWheel]
   );
 
-  // Catch wheel events on HTML overlays (toolbars, etc.) that sit on top of the
-  // Konva canvas — they would otherwise swallow the event and break 2-finger pan.
-  const containerRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
     const onWheel = (e: WheelEvent) => {
-      // Let Konva's own listener handle events directly on the canvas element
       if ((e.target as HTMLElement).tagName === 'CANVAS') return;
       processWheel(e, e.clientX, e.clientY);
     };
@@ -457,808 +141,19 @@ export default function Canvas() {
     return () => el.removeEventListener('wheel', onWheel);
   }, [processWheel]);
 
-  // ── Mouse down ──────────────────────────────────────────────────────────────
-  const handleMouseDown = useCallback(
-    (e: Konva.KonvaEventObject<MouseEvent>) => {
-      const isMiddle = e.evt.button === 1;
-      const isPanMode = activeTool === 'pan' || spacePressed.current;
-
-      if (isMiddle || isPanMode) {
-        isPanning.current = true;
-        lastPointer.current = { x: e.evt.clientX, y: e.evt.clientY };
-        setCursorOverride('grabbing');
-        return;
-      }
-
-      if (drawingLine) {
-        setDrawingLine(null);
-        setSnapTarget(null);
-        return;
-      }
-
-      const clickedStage = e.target === e.target.getStage();
-
-      if (activeTool === 'sticky' && clickedStage) {
-        const pos = stageRef.current!.getPointerPosition()!;
-        const worldX = (pos.x - camera.x) / camera.scale;
-        const worldY = (pos.y - camera.y) / camera.scale;
-        addNode({
-          id: generateId(),
-          type: 'sticky',
-          x: worldX - 100,
-          y: worldY - 80,
-          text: '',
-          color: randomStickyColor(),
-          width: 200,
-          height: 160,
-        } satisfies StickyNoteNode);
-        setActiveTool('select');
-        return;
-      }
-
-      if (activeTool === 'task' && clickedStage) {
-        const pos = stageRef.current!.getPointerPosition()!;
-        const worldX = (pos.x - camera.x) / camera.scale;
-        const worldY = (pos.y - camera.y) / camera.scale;
-        addNode({
-          id: generateId(),
-          type: 'taskcard',
-          x: worldX - 140,
-          y: worldY - 40,
-          width: 280,
-          title: 'New Task Card',
-          tasks: [],
-          color: '#6366f1',
-        } satisfies TaskCardNode);
-        setActiveTool('select');
-        return;
-      }
-
-      if (activeTool === 'code' && clickedStage) {
-        const pos = stageRef.current!.getPointerPosition()!;
-        const worldX = (pos.x - camera.x) / camera.scale;
-        const worldY = (pos.y - camera.y) / camera.scale;
-        addNode({
-          id: generateId(),
-          type: 'codeblock',
-          x: worldX - 250,
-          y: worldY - 40,
-          width: 500,
-          height: 220,
-          code: `SELECT\n  user_id,\n  COUNT(*) AS event_count,\n  DATE_TRUNC('day', created_at) AS day\nFROM user_events\nWHERE created_at >= '2024-01-01'\nGROUP BY 1, 3\nORDER BY 3 DESC, 2 DESC\nLIMIT 100`,
-          language: 'sql',
-          title: 'Query: User Activity Summary',
-          showLineNumbers: true,
-        } satisfies CodeBlockNode);
-        setActiveTool('select');
-        return;
-      }
-
-      if (activeTool === 'link' && clickedStage) {
-        const pos = stageRef.current!.getPointerPosition()!;
-        const worldX = (pos.x - camera.x) / camera.scale;
-        const worldY = (pos.y - camera.y) / camera.scale;
-        addNode({
-          id: generateId(),
-          type: 'link',
-          x: worldX - 160,
-          y: worldY - 30,
-          width: 320,
-          height: 90,
-          url: 'https://',
-          displayMode: 'compact',
-        } satisfies LinkNode);
-        setActiveTool('select');
-        return;
-      }
-
-      if (activeTool === 'image' && clickedStage) {
-        const pos = stageRef.current!.getPointerPosition()!;
-        pendingImagePos.current = {
-          x: (pos.x - camera.x) / camera.scale,
-          y: (pos.y - camera.y) / camera.scale,
-        };
-        imageInputRef.current?.click();
-        return;
-      }
-
-      if (activeTool === 'sticker') {
-        const pos = stageRef.current!.getPointerPosition()!;
-        const worldX = (pos.x - camera.x) / camera.scale;
-        const worldY = (pos.y - camera.y) / camera.scale;
-        const rotation = Math.round((Math.random() * 30 - 15) * 10) / 10;
-        addNode({
-          id: generateId(),
-          type: 'sticker',
-          src: activeSticker,
-          x: worldX,
-          y: worldY,
-          width: 100,
-          height: 100,
-          rotation,
-        } satisfies StickerNode);
-        return;
-      }
-
-      if (activeTool === 'shape') {
-        const pos = stageRef.current!.getPointerPosition()!;
-        const worldX = (pos.x - camera.x) / camera.scale;
-        const worldY = (pos.y - camera.y) / camera.scale;
-        setShapeDraw({
-          startScreenX: pos.x,
-          startScreenY: pos.y,
-          startWorldX: worldX,
-          startWorldY: worldY,
-          currentScreenX: pos.x,
-          currentScreenY: pos.y,
-          currentWorldX: worldX,
-          currentWorldY: worldY,
-        });
-        return;
-      }
-
-      if (activeTool === 'section') {
-        const pos = stageRef.current!.getPointerPosition()!;
-        const worldX = (pos.x - camera.x) / camera.scale;
-        const worldY = (pos.y - camera.y) / camera.scale;
-        setSectionDraw({
-          startScreenX: pos.x,
-          startScreenY: pos.y,
-          startWorldX: worldX,
-          startWorldY: worldY,
-          currentScreenX: pos.x,
-          currentScreenY: pos.y,
-          currentWorldX: worldX,
-          currentWorldY: worldY,
-        });
-        return;
-      }
-
-      if (activeTool === 'table') {
-        const pos = stageRef.current!.getPointerPosition()!;
-        const worldX = (pos.x - camera.x) / camera.scale;
-        const worldY = (pos.y - camera.y) / camera.scale;
-        setTableDraw({
-          startScreenX: pos.x,
-          startScreenY: pos.y,
-          startWorldX: worldX,
-          startWorldY: worldY,
-          currentScreenX: pos.x,
-          currentScreenY: pos.y,
-          currentWorldX: worldX,
-          currentWorldY: worldY,
-        });
-        return;
-      }
-
-      // Text tool: begin drag-to-set-width
-      if (activeTool === 'text' && clickedStage) {
-        const pos = stageRef.current!.getPointerPosition()!;
-        const worldX = (pos.x - camera.x) / camera.scale;
-        const worldY = (pos.y - camera.y) / camera.scale;
-        setTextDraw({
-          startScreenX: pos.x,
-          startScreenY: pos.y,
-          startWorldX: worldX,
-          startWorldY: worldY,
-          currentScreenX: pos.x,
-          currentWorldX: worldX,
-        });
-        return;
-      }
-
-      if (activeTool === 'select' && clickedStage) {
-        const pos = stageRef.current!.getPointerPosition()!;
-        setMarqueeDraw({
-          startScreenX: pos.x,
-          startScreenY: pos.y,
-          currentScreenX: pos.x,
-          currentScreenY: pos.y,
-        });
-        return;
-      }
-    },
-    [activeTool, activeShapeKind, activeSticker, camera, addNode, selectIds, setActiveTool, drawingLine]
-  );
-
-  // ── Mouse move ──────────────────────────────────────────────────────────────
-  const handleMouseMove = useCallback(
-    (e: Konva.KonvaEventObject<MouseEvent>) => {
-      if (isPanning.current) {
-        const dx = e.evt.clientX - lastPointer.current.x;
-        const dy = e.evt.clientY - lastPointer.current.y;
-        lastPointer.current = { x: e.evt.clientX, y: e.evt.clientY };
-        setCamera({ x: camera.x + dx, y: camera.y + dy });
-        return;
-      }
-      if (drawingLine) {
-        const pos = stageRef.current!.getPointerPosition()!;
-        const worldX = (pos.x - camera.x) / camera.scale;
-        const worldY = (pos.y - camera.y) / camera.scale;
-        setDrawingLine((prev) =>
-          prev ? { ...prev, toX: worldX, toY: worldY } : null
-        );
-
-        // Proximity snap — threshold 50 screen px converted to world units
-        const threshold = 50 / camera.scale;
-        let best: { nodeId: string; side: AnchorSide } | null = null;
-        let bestDist = threshold;
-        for (const n of useBoardStore.getState().nodes) {
-          if ((n.type !== 'sticky' && n.type !== 'shape' && n.type !== 'taskcard') || n.id === drawingLine.fromNodeId) continue;
-          if (n.type === 'taskcard' && !(n as TaskCardNode).height) continue;
-          // Task cards only expose left + right anchors
-          const sides = n.type === 'taskcard'
-            ? (['left', 'right'] as AnchorSide[])
-            : (['top', 'right', 'bottom', 'left'] as AnchorSide[]);
-          for (const side of sides) {
-            const { x: ax, y: ay } = anchorCoords(n as StickyNoteNode | ShapeNode, side);
-            const d = Math.hypot(worldX - ax, worldY - ay);
-            if (d < bestDist) { bestDist = d; best = { nodeId: n.id, side }; }
-          }
-        }
-        setSnapTarget(best);
-      }
-      // Track marquee drag
-      if (marqueeDraw) {
-        const pos = stageRef.current?.getPointerPosition();
-        if (pos) {
-          setMarqueeDraw((prev) =>
-            prev ? { ...prev, currentScreenX: pos.x, currentScreenY: pos.y } : null
-          );
-        }
-      }
-      // Track shape drag preview
-      if (activeTool === 'shape' && shapeDraw) {
-        const pos = stageRef.current?.getPointerPosition();
-        if (pos) {
-          const worldX = (pos.x - camera.x) / camera.scale;
-          const worldY = (pos.y - camera.y) / camera.scale;
-          setShapeDraw((prev) =>
-            prev ? { ...prev, currentScreenX: pos.x, currentScreenY: pos.y, currentWorldX: worldX, currentWorldY: worldY } : null
-          );
-        }
-      }
-      // Track section drag preview
-      if (activeTool === 'section' && sectionDraw) {
-        const pos = stageRef.current?.getPointerPosition();
-        if (pos) {
-          const worldX = (pos.x - camera.x) / camera.scale;
-          const worldY = (pos.y - camera.y) / camera.scale;
-          setSectionDraw((prev) =>
-            prev ? { ...prev, currentScreenX: pos.x, currentScreenY: pos.y, currentWorldX: worldX, currentWorldY: worldY } : null
-          );
-        }
-      }
-      // Track cursor for sticker ghost
-      if (activeTool === 'sticker') {
-        const pos = stageRef.current?.getPointerPosition();
-        if (pos) setStickerCursorPos({ x: pos.x, y: pos.y });
-      }
-
-      // Track cursor for task card ghost
-      if (activeTool === 'task') {
-        const pos = stageRef.current?.getPointerPosition();
-        if (pos) setTaskCursorPos({ x: pos.x, y: pos.y });
-      }
-
-      // Track table drag preview
-      if (activeTool === 'table' && tableDraw) {
-        const pos = stageRef.current?.getPointerPosition();
-        if (pos) {
-          const worldX = (pos.x - camera.x) / camera.scale;
-          const worldY = (pos.y - camera.y) / camera.scale;
-          setTableDraw((prev) =>
-            prev ? { ...prev, currentScreenX: pos.x, currentScreenY: pos.y, currentWorldX: worldX, currentWorldY: worldY } : null
-          );
-        }
-      }
-
-      // Track cursor for text ghost / drag preview
-      if (activeTool === 'text') {
-        const pos = stageRef.current?.getPointerPosition();
-        if (pos) {
-          setTextCursorPos({ x: pos.x, y: pos.y });
-          if (textDraw) {
-            const worldX = (pos.x - camera.x) / camera.scale;
-            setTextDraw((prev) =>
-              prev ? { ...prev, currentScreenX: pos.x, currentWorldX: worldX } : null
-            );
-          }
-        }
-      }
-    },
-    [camera, setCamera, drawingLine, activeTool, shapeDraw, sectionDraw, tableDraw, textDraw, marqueeDraw, stickerCursorPos]
-  );
-
-  // ── Mouse up ────────────────────────────────────────────────────────────────
-  const handleMouseUp = useCallback(() => {
-    if (isPanning.current) {
-      isPanning.current = false;
-      setCursorOverride(spacePressed.current ? 'grab' : null);
-    }
-    // Marquee selection
-    if (marqueeDraw) {
-      const dragW = Math.abs(marqueeDraw.currentScreenX - marqueeDraw.startScreenX);
-      const dragH = Math.abs(marqueeDraw.currentScreenY - marqueeDraw.startScreenY);
-      if (dragW > 5 || dragH > 5) {
-        const { camera: cam, nodes: allNodes } = useBoardStore.getState();
-        const x1 = (Math.min(marqueeDraw.startScreenX, marqueeDraw.currentScreenX) - cam.x) / cam.scale;
-        const y1 = (Math.min(marqueeDraw.startScreenY, marqueeDraw.currentScreenY) - cam.y) / cam.scale;
-        const x2 = (Math.max(marqueeDraw.startScreenX, marqueeDraw.currentScreenX) - cam.x) / cam.scale;
-        const y2 = (Math.max(marqueeDraw.startScreenY, marqueeDraw.currentScreenY) - cam.y) / cam.scale;
-        const hit = allNodes
-          .filter((n) => n.type !== 'connector')
-          .filter((n) => {
-            const sn = n as { x: number; y: number; width?: number; height?: number };
-            const nw = sn.width ?? 0;
-            const nh = sn.height ?? 0;
-            return sn.x < x2 && sn.x + nw > x1 && sn.y < y2 && sn.y + nh > y1;
-          })
-          .map((n) => n.id);
-        selectIds(hit);
-      } else {
-        selectIds([]);
-      }
-      setMarqueeDraw(null);
-      return;
-    }
-    if (drawingLine) {
-      if (snapTarget && snapTarget.nodeId !== drawingLine.fromNodeId) {
-        const toNode = useBoardStore
-          .getState()
-          .nodes.find((n) => n.id === snapTarget.nodeId && (n.type === 'sticky' || n.type === 'shape' || n.type === 'taskcard')) as (StickyNoteNode | ShapeNode | TaskCardNode) | undefined;
-        const toCoords = toNode
-          ? anchorCoords(toNode as StickyNoteNode | ShapeNode, snapTarget.side)
-          : { x: drawingLine.toX, y: drawingLine.toY };
-
-        addNode({
-          id: generateId(),
-          type: 'connector',
-          fromNodeId: drawingLine.fromNodeId,
-          fromAnchor: drawingLine.fromAnchor,
-          fromX: drawingLine.fromX,
-          fromY: drawingLine.fromY,
-          toNodeId: snapTarget.nodeId,
-          toAnchor: snapTarget.side,
-          toX: toCoords.x,
-          toY: toCoords.y,
-          color: '#6366f1',
-          strokeWidth: 2,
-          lineStyle: 'curved',
-          strokeStyle: 'solid',
-          arrowHeadStart: 'none',
-          arrowHeadEnd: 'arrow',
-        } satisfies ConnectorNode);
-      }
-      setDrawingLine(null);
-      setSnapTarget(null);
-    }
-    // Shape drag-to-size placement
-    if (shapeDraw) {
-      const dragW = Math.abs(shapeDraw.currentScreenX - shapeDraw.startScreenX);
-      const dragH = Math.abs(shapeDraw.currentScreenY - shapeDraw.startScreenY);
-      const isDrag = dragW > 8 || dragH > 8;
-      const worldW = Math.abs(shapeDraw.currentWorldX - shapeDraw.startWorldX);
-      const worldH = Math.abs(shapeDraw.currentWorldY - shapeDraw.startWorldY);
-      const useWidth  = isDrag ? Math.max(40, Math.round(worldW)) : 160;
-      const useHeight = isDrag ? Math.max(40, Math.round(worldH)) : 120;
-      const placeX = isDrag
-        ? Math.min(shapeDraw.startWorldX, shapeDraw.currentWorldX)
-        : shapeDraw.startWorldX - 80;
-      const placeY = isDrag
-        ? Math.min(shapeDraw.startWorldY, shapeDraw.currentWorldY)
-        : shapeDraw.startWorldY - 60;
-      addNode({
-        id: generateId(),
-        type: 'shape',
-        kind: activeShapeKind,
-        x: placeX,
-        y: placeY,
-        width: useWidth,
-        height: useHeight,
-        fill: '#6366f1',
-        stroke: 'transparent',
-        strokeWidth: 2,
-        text: '',
-        fontSize: 14,
-        bold: false,
-        italic: false,
-        textAlign: 'center',
-      } satisfies ShapeNode);
-      // Keep shape tool active so user can place multiple shapes in a row
-      setShapeDraw(null);
-    }
-    // Section drag-to-size placement
-    if (sectionDraw) {
-      const dragW = Math.abs(sectionDraw.currentScreenX - sectionDraw.startScreenX);
-      const dragH = Math.abs(sectionDraw.currentScreenY - sectionDraw.startScreenY);
-      const isDrag = dragW > 20 || dragH > 20;
-      const worldW = Math.abs(sectionDraw.currentWorldX - sectionDraw.startWorldX);
-      const worldH = Math.abs(sectionDraw.currentWorldY - sectionDraw.startWorldY);
-      const useW = isDrag ? Math.max(200, Math.round(worldW)) : 400;
-      const useH = isDrag ? Math.max(150, Math.round(worldH)) : 300;
-      const placeX = isDrag
-        ? Math.min(sectionDraw.startWorldX, sectionDraw.currentWorldX)
-        : sectionDraw.startWorldX - 200;
-      const placeY = isDrag
-        ? Math.min(sectionDraw.startWorldY, sectionDraw.currentWorldY)
-        : sectionDraw.startWorldY - 150;
-      addNode({
-        id: generateId(),
-        type: 'section',
-        x: placeX,
-        y: placeY,
-        width: useW,
-        height: useH,
-        name: 'Section',
-        color: '#6366f1',
-      } satisfies SectionNode);
-      setActiveTool('select');
-      setSectionDraw(null);
-    }
-    // Table drag-to-size placement
-    if (tableDraw) {
-      const dragW = Math.abs(tableDraw.currentScreenX - tableDraw.startScreenX);
-      const dragH = Math.abs(tableDraw.currentScreenY - tableDraw.startScreenY);
-      const isDrag = dragW > 8 || dragH > 8;
-      const worldW = Math.abs(tableDraw.currentWorldX - tableDraw.startWorldX);
-      const worldH = Math.abs(tableDraw.currentWorldY - tableDraw.startWorldY);
-      const NUM_COLS = isDrag ? Math.max(1, Math.round(worldW / 120)) : 3;
-      const NUM_ROWS = isDrag ? Math.max(1, Math.round(worldH / 36)) : 3;
-      const useW = isDrag ? Math.max(40 * NUM_COLS, Math.round(worldW)) : 360;
-      const useH = isDrag ? Math.max(20 * NUM_ROWS, Math.round(worldH)) : 108;
-      const placeX = isDrag ? Math.min(tableDraw.startWorldX, tableDraw.currentWorldX) : tableDraw.startWorldX - 180;
-      const placeY = isDrag ? Math.min(tableDraw.startWorldY, tableDraw.currentWorldY) : tableDraw.startWorldY - 54;
-      const colW = Math.max(40, Math.round(useW / NUM_COLS));
-      const rowH = Math.max(20, Math.round(useH / NUM_ROWS));
-      const { theme } = useBoardStore.getState();
-      const isDark = theme === 'dark';
-      addNode({
-        id: generateId(),
-        type: 'table',
-        x: placeX,
-        y: placeY,
-        colWidths: Array(NUM_COLS).fill(colW),
-        rowHeights: Array(NUM_ROWS).fill(rowH),
-        cells: Array.from({ length: NUM_ROWS }, () => Array(NUM_COLS).fill('')),
-        headerRow: true,
-        fill: isDark ? '#1e293b' : '#ffffff',
-        headerFill: '#6366f1',
-        stroke: isDark ? '#475569' : '#e2e8f0',
-        fontSize: 13,
-      } satisfies TableNode);
-      setActiveTool('select');
-      setTableDraw(null);
-    }
-
-    // Text drag-to-place
-    if (textDraw) {
-      const dragScreenPx = Math.abs(textDraw.currentScreenX - textDraw.startScreenX);
-      const worldWidth = Math.abs(textDraw.currentWorldX - textDraw.startWorldX);
-      // If drag was meaningful (>20px screen), use that width; otherwise default
-      const useWidth = dragScreenPx > 20 ? Math.max(80, Math.round(worldWidth)) : 240;
-      const placeX = dragScreenPx > 20
-        ? Math.min(textDraw.startWorldX, textDraw.currentWorldX)
-        : textDraw.startWorldX;
-
-      const newId = generateId();
-      addNode({
-        id: newId,
-        type: 'textblock',
-        x: placeX,
-        y: textDraw.startWorldY,
-        text: '',
-        fontSize: 20,
-        width: useWidth,
-        color: 'auto',
-        bold: false,
-        italic: false,
-        underline: false,
-      } satisfies TextBlockNode);
-      // Keep text tool active; open editor for this block
-      setEditingId(newId);
-      setTextDraw(null);
-      setTextCursorPos(null);
-    }
-  }, [drawingLine, snapTarget, addNode, shapeDraw, sectionDraw, tableDraw, activeShapeKind, textDraw, setActiveTool, setEditingId, marqueeDraw, selectIds]);
-
-  // ── Touch: single-finger pan (pan tool) + two-finger pinch/pan (always) ────
-  const handleTouchStart = useCallback(
-    (e: Konva.KonvaEventObject<TouchEvent>) => {
-      const touches = e.evt.touches;
-      if (touches.length === 1) {
-        const isPanMode = activeTool === 'pan' || spacePressed.current;
-        if (isPanMode) {
-          isPanning.current = true;
-          lastTouchPos.current = { x: touches[0].clientX, y: touches[0].clientY };
-        } else {
-          // Tool placement — get stage pointer position for draw tools
-          const stage = stageRef.current;
-          if (!stage) return;
-          const pos = stage.getPointerPosition();
-          if (!pos) return;
-          const cam = useBoardStore.getState().camera;
-          const worldX = (pos.x - cam.x) / cam.scale;
-          const worldY = (pos.y - cam.y) / cam.scale;
-          touchToolStart.current = { clientX: touches[0].clientX, clientY: touches[0].clientY };
-
-          if (activeTool === 'shape') {
-            setShapeDraw({ startScreenX: pos.x, startScreenY: pos.y, startWorldX: worldX, startWorldY: worldY, currentScreenX: pos.x, currentScreenY: pos.y, currentWorldX: worldX, currentWorldY: worldY });
-          } else if (activeTool === 'section') {
-            setSectionDraw({ startScreenX: pos.x, startScreenY: pos.y, startWorldX: worldX, startWorldY: worldY, currentScreenX: pos.x, currentScreenY: pos.y, currentWorldX: worldX, currentWorldY: worldY });
-          } else if (activeTool === 'table') {
-            setTableDraw({ startScreenX: pos.x, startScreenY: pos.y, startWorldX: worldX, startWorldY: worldY, currentScreenX: pos.x, currentScreenY: pos.y, currentWorldX: worldX, currentWorldY: worldY });
-          } else if (activeTool === 'text') {
-            setTextDraw({ startScreenX: pos.x, startScreenY: pos.y, startWorldX: worldX, startWorldY: worldY, currentScreenX: pos.x, currentWorldX: worldX });
-          }
-          // sticky / code / sticker: placed on touchEnd after detecting a tap (minimal movement)
-        }
-      } else if (touches.length === 2) {
-        e.evt.preventDefault();
-        isPanning.current = false;
-        const t0 = touches[0], t1 = touches[1];
-        lastPinchDist.current = Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY);
-        lastPinchMid.current = {
-          x: (t0.clientX + t1.clientX) / 2,
-          y: (t0.clientY + t1.clientY) / 2,
-        };
-      }
-    },
-    [activeTool, setShapeDraw, setSectionDraw, setTableDraw, setTextDraw]
-  );
-
-  const handleTouchMove = useCallback(
-    (e: Konva.KonvaEventObject<TouchEvent>) => {
-      e.evt.preventDefault();
-      const touches = e.evt.touches;
-
-      if (touches.length === 1 && isPanning.current && lastTouchPos.current) {
-        const dx = touches[0].clientX - lastTouchPos.current.x;
-        const dy = touches[0].clientY - lastTouchPos.current.y;
-        lastTouchPos.current = { x: touches[0].clientX, y: touches[0].clientY };
-        const { camera: cam } = useBoardStore.getState();
-        setCamera({ x: cam.x + dx, y: cam.y + dy });
-      } else if (touches.length === 1 && touchToolStart.current) {
-        // Update draw states for drag-to-size tools
-        const stage = stageRef.current;
-        const pos = stage?.getPointerPosition();
-        if (pos) {
-          const { camera: cam } = useBoardStore.getState();
-          const worldX = (pos.x - cam.x) / cam.scale;
-          const worldY = (pos.y - cam.y) / cam.scale;
-          if (shapeDraw) setShapeDraw(prev => prev ? { ...prev, currentScreenX: pos.x, currentScreenY: pos.y, currentWorldX: worldX, currentWorldY: worldY } : null);
-          if (sectionDraw) setSectionDraw(prev => prev ? { ...prev, currentScreenX: pos.x, currentScreenY: pos.y, currentWorldX: worldX, currentWorldY: worldY } : null);
-          if (tableDraw) setTableDraw(prev => prev ? { ...prev, currentScreenX: pos.x, currentScreenY: pos.y, currentWorldX: worldX, currentWorldY: worldY } : null);
-          if (textDraw) setTextDraw(prev => prev ? { ...prev, currentScreenX: pos.x, currentWorldX: worldX } : null);
-        }
-      } else if (touches.length === 2 && lastPinchDist.current !== null && lastPinchMid.current !== null) {
-        const t0 = touches[0], t1 = touches[1];
-        const newDist = Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY);
-        const newMid = {
-          x: (t0.clientX + t1.clientX) / 2,
-          y: (t0.clientY + t1.clientY) / 2,
-        };
-        const dx = newMid.x - lastPinchMid.current.x;
-        const dy = newMid.y - lastPinchMid.current.y;
-        const factor = newDist / lastPinchDist.current;
-        const { camera: cam } = useBoardStore.getState();
-        const newScale = Math.min(Math.max(cam.scale * factor, 0.08), 8);
-        setCamera({
-          scale: newScale,
-          x: newMid.x - (newMid.x - cam.x) * (newScale / cam.scale) + dx,
-          y: newMid.y - (newMid.y - cam.y) * (newScale / cam.scale) + dy,
-        });
-        lastPinchDist.current = newDist;
-        lastPinchMid.current = newMid;
-      }
-    },
-    [setCamera, shapeDraw, sectionDraw, tableDraw, textDraw]
-  );
-
-  const handleTouchEnd = useCallback((e: Konva.KonvaEventObject<TouchEvent>) => {
-    if (e.evt.touches.length < 2) {
-      lastPinchDist.current = null;
-      lastPinchMid.current = null;
-    }
-    if (e.evt.touches.length === 0) {
-      isPanning.current = false;
-      lastTouchPos.current = null;
-
-      // Commit tool placement if a tool draw was in progress
-      if (touchToolStart.current) {
-        const start = touchToolStart.current;
-        touchToolStart.current = null;
-        const changedTouches = e.evt.changedTouches;
-        const endX = changedTouches[0]?.clientX ?? start.clientX;
-        const endY = changedTouches[0]?.clientY ?? start.clientY;
-        const moved = Math.hypot(endX - start.clientX, endY - start.clientY);
-        const isTap = moved < 10;
-
-        // For drag-to-size tools: call handleMouseUp logic via state already set
-        if (shapeDraw || sectionDraw || tableDraw || textDraw) {
-          // These are committed by handleMouseUp which watches the draw states,
-          // but touch doesn't trigger mouseup — fire it manually via the shared logic.
-          // We call handleMouseUp directly since it reads from state.
-          handleMouseUp();
-          return;
-        }
-
-        // Tap-placement tools: sticky, sticker, code
-        if (isTap) {
-          const stage = stageRef.current;
-          if (!stage) return;
-          // Reconstruct world position from touch start (stage may not have pointer from changedTouches)
-          const stageBox = stage.container().getBoundingClientRect();
-          const screenX = start.clientX - stageBox.left;
-          const screenY = start.clientY - stageBox.top;
-          const { camera: cam } = useBoardStore.getState();
-          const worldX = (screenX - cam.x) / cam.scale;
-          const worldY = (screenY - cam.y) / cam.scale;
-
-          if (activeTool === 'sticky') {
-            addNode({ id: generateId(), type: 'sticky', x: worldX - 100, y: worldY - 80, text: '', color: randomStickyColor(), width: 200, height: 160 } satisfies StickyNoteNode);
-            setActiveTool('select');
-          } else if (activeTool === 'sticker') {
-            const rotation = Math.round((Math.random() * 30 - 15) * 10) / 10;
-            addNode({ id: generateId(), type: 'sticker', src: activeSticker, x: worldX, y: worldY, width: 100, height: 100, rotation } satisfies StickerNode);
-          } else if (activeTool === 'code') {
-            addNode({ id: generateId(), type: 'codeblock', x: worldX - 250, y: worldY - 40, width: 500, height: 220, code: `SELECT\n  user_id,\n  COUNT(*) AS event_count\nFROM user_events\nGROUP BY 1\nLIMIT 100`, language: 'sql', title: 'Query', showLineNumbers: true } satisfies CodeBlockNode);
-            setActiveTool('select');
-          } else if (activeTool === 'link') {
-            addNode({ id: generateId(), type: 'link', x: worldX - 160, y: worldY - 30, width: 320, height: 90, url: 'https://', displayMode: 'compact' } satisfies LinkNode);
-            setActiveTool('select');
-          } else if (activeTool === 'task') {
-            addNode({ id: generateId(), type: 'taskcard', x: worldX - 140, y: worldY - 40, width: 280, title: 'New Task Card', tasks: [], color: '#6366f1' } satisfies TaskCardNode);
-            setActiveTool('select');
-          }
-        }
-      }
-    } else if (e.evt.touches.length === 1) {
-      // Transitioned from 2→1 fingers: restart single-touch tracking
-      lastTouchPos.current = { x: e.evt.touches[0].clientX, y: e.evt.touches[0].clientY };
-    }
-  }, [activeTool, activeSticker, addNode, setActiveTool, shapeDraw, sectionDraw, tableDraw, textDraw, handleMouseUp]);
-
-  // ── Anchor callbacks (passed to StickyNote) ─────────────────────────────────
-  // ── Shared image placement logic ─────────────────────────────────────────────
-  const placeImage = useCallback(
-    (file: File, worldX: number, worldY: number, offsetIdx = 0) => {
-      const inWorkspace = !!getWorkspaceName();
-
-      const doPlace = (src: string, assetName: string, assetFolder?: string) => {
-        const imgEl = new window.Image();
-        imgEl.onload = () => {
-          const maxW = 600;
-          const w = Math.min(imgEl.width, maxW);
-          const h = Math.round(imgEl.height * (w / imgEl.width));
-          addNode({
-            id: generateId(),
-            type: 'image',
-            x: worldX - w / 2 + offsetIdx * 24,
-            y: worldY - h / 2 + offsetIdx * 24,
-            width: w,
-            height: h,
-            src,
-            assetName,
-            ...(assetFolder ? { assetFolder } : {}),
-          } satisfies ImageNode);
-          setActiveTool('select');
-          // Auto-save workspace JSON so assetFolder survives a reload without a manual save
-          if (assetFolder && getWorkspaceName()) {
-            setTimeout(() => saveWorkspace(useBoardStore.getState().exportData()), 0);
-          }
-        };
-        imgEl.src = src;
-      };
-
-      if (inWorkspace) {
-        // Workspace mode: save as file, use a short object URL — no base64 in JSON
-        const folder = useBoardStore.getState().imageAssetFolder;
-        const ext = file.name.match(/\.[^.]+$/)?.[0] ?? '.png';
-        const uniqueName = generateId() + ext;
-        const objectUrl = URL.createObjectURL(file);
-        saveImageAsset(uniqueName, file, folder); // async, fire-and-forget
-        doPlace(objectUrl, uniqueName, folder);
-      } else {
-        // Standalone mode: embed as base64 (warn user first time)
-        if (!hasSeenImageNotice()) {
-          pendingImageFile.current = { file, worldX, worldY };
-          setShowImageNotice(true);
-          return;
-        }
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-          const src = ev.target?.result as string;
-          doPlace(src, file.name);
-        };
-        reader.readAsDataURL(file);
-      }
-    },
-    [addNode, setActiveTool]
-  );
-
-  // ── Image file input handler ─────────────────────────────────────────────────
-  const handleImageFileChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      e.target.value = '';
-      if (!file || !pendingImagePos.current) return;
-      const pos = pendingImagePos.current;
-      pendingImagePos.current = null;
-      placeImage(file, pos.x, pos.y);
-    },
-    [placeImage]
-  );
-
-  // ── Image drag-drop onto canvas ──────────────────────────────────────────────
-  const handleDrop = useCallback(
-    (e: React.DragEvent<HTMLDivElement>) => {
-      e.preventDefault();
-
-      // Explorer panel entry drag
-      const entryJson = e.dataTransfer.getData('application/x-devboard-entry');
-      if (entryJson) {
-        try {
-          const pathParts: string[] = JSON.parse(entryJson);
-          const rect = e.currentTarget.getBoundingClientRect();
-          const { camera: cam } = useBoardStore.getState();
-          const worldX = (e.clientX - rect.left - cam.x) / cam.scale;
-          const worldY = (e.clientY - rect.top - cam.y) / cam.scale;
-          placeImageFileAt(pathParts, worldX, worldY);
-        } catch { /* ignore malformed data */ }
-        return;
-      }
-
-      // OS file drop
-      const files = Array.from(e.dataTransfer.files).filter((f) =>
-        f.type.startsWith('image/')
-      );
-      if (!files.length) return;
-      const rect = e.currentTarget.getBoundingClientRect();
-      const { camera: cam } = useBoardStore.getState();
-      const worldX = (e.clientX - rect.left - cam.x) / cam.scale;
-      const worldY = (e.clientY - rect.top - cam.y) / cam.scale;
-      files.forEach((file, i) => placeImage(file, worldX, worldY, i));
-    },
-    [placeImage]
-  );
-
-  const handleAnchorDown = useCallback(
-    (nodeId: string, side: AnchorSide, worldX: number, worldY: number) => {
-      setDrawingLine({
-        fromNodeId: nodeId,
-        fromAnchor: side,
-        fromX: worldX,
-        fromY: worldY,
-        toX: worldX,
-        toY: worldY,
-      });
-    },
-    []
-  );
-
-  const handleAnchorEnter = useCallback((nodeId: string, side: AnchorSide) => {
-    setSnapTarget({ nodeId, side });
-  }, []);
-
-  const handleAnchorLeave = useCallback(() => {
-    setSnapTarget(null);
-  }, []);
-
-  // ── Preview bezier line while drawing ───────────────────────────────────────
+  // ── Preview bezier line while drawing ──────────────────────────────────────
   function previewPoints(): number[] {
+    const { drawingLine, snapTarget } = interaction;
     if (!drawingLine) return [];
     const { fromX, fromY, fromAnchor, toX, toY } = drawingLine;
-    let tx = toX;
-    let ty = toY;
+    let tx = toX, ty = toY;
     if (snapTarget) {
       const toNode = nodes.find(
         (n) => n.id === snapTarget.nodeId && (n.type === 'sticky' || n.type === 'shape' || n.type === 'taskcard')
       ) as (StickyNoteNode | ShapeNode | TaskCardNode) | undefined;
       if (toNode) {
         const c = anchorCoords(toNode as StickyNoteNode | ShapeNode, snapTarget.side);
-        tx = c.x;
-        ty = c.y;
+        tx = c.x; ty = c.y;
       }
     }
     const dist = Math.hypot(tx - fromX, ty - fromY);
@@ -1268,8 +163,7 @@ export default function Canvas() {
     if (snapTarget) {
       toSide = snapTarget.side;
     } else {
-      const dx = tx - fromX;
-      const dy = ty - fromY;
+      const dx = tx - fromX, dy = ty - fromY;
       toSide = Math.abs(dx) >= Math.abs(dy)
         ? dx >= 0 ? 'left' : 'right'
         : dy >= 0 ? 'top' : 'bottom';
@@ -1278,64 +172,69 @@ export default function Canvas() {
     return [fromX, fromY, fromX + cp1.dx, fromY + cp1.dy, tx + cp2.dx, ty + cp2.dy, tx, ty];
   }
 
-  // ── Cursor ──────────────────────────────────────────────────────────────────
+  // ── Cursor ─────────────────────────────────────────────────────────────────
+  const { drawingLine, textDraw } = interaction;
   const toolCursor: Record<string, string> = {
-    select: 'default',
-    pan: 'grab',
-    sticky: 'crosshair',
+    select: 'default', pan: 'grab', sticky: 'crosshair',
     line: drawingLine ? 'crosshair' : 'default',
-    shape: 'crosshair',
-    text: textDraw ? 'crosshair' : 'crosshair',
-    pen: 'crosshair',
-    section: 'crosshair',
-    sticker: 'crosshair',
-    table: 'crosshair',
-    code: 'crosshair',
-    image: 'crosshair',
-    task: 'crosshair',
+    shape: 'crosshair', text: textDraw ? 'crosshair' : 'crosshair',
+    pen: 'crosshair', section: 'crosshair', sticker: 'crosshair',
+    table: 'crosshair', code: 'crosshair', image: 'crosshair', task: 'crosshair',
   };
-  // If a line draw is in progress (e.g. started from an anchor in select mode), always crosshair
   const cursor = cursorOverride ?? (drawingLine ? 'crosshair' : toolCursor[activeTool] ?? 'default');
 
-  // ── Grid ────────────────────────────────────────────────────────────────────
+  // ── Grid ───────────────────────────────────────────────────────────────────
   const dotSpacing = 24 * camera.scale;
   const gridOffX = ((camera.x % dotSpacing) + dotSpacing) % dotSpacing;
   const gridOffY = ((camera.y % dotSpacing) + dotSpacing) % dotSpacing;
-  // Dot radius stops shrinking below 40% zoom
-  const dotScale = Math.max(camera.scale, 0.4);
+  const dotScale  = Math.max(camera.scale, 0.4);
   const dotRadius = 1.2 * dotScale;
 
-  // ── Selected single node (for toolbars) ─────────────────────────────────────
+  // ── Selected node helpers ──────────────────────────────────────────────────
   const singleSelected =
     selectedIds.length === 1 && !editingId
       ? nodes.find((n) => n.id === selectedIds[0])
       : null;
 
-  // ── Selected connector (for connector toolbar) ───────────────────────────────
   const selectedConnectorId =
     selectedIds.length === 1
-      ? (nodes.find(n => n.id === selectedIds[0] && n.type === 'connector')?.id ?? null)
+      ? (nodes.find((n) => n.id === selectedIds[0] && n.type === 'connector')?.id ?? null)
       : null;
 
-  // ── Selected/editing text block (for text toolbar) ───────────────────────────
   const activeTextBlockId =
     (selectedIds.length === 1 &&
       nodes.find((n) => n.id === selectedIds[0] && n.type === 'textblock')?.id) ||
     (editingId && nodes.find((n) => n.id === editingId && n.type === 'textblock')?.id) ||
     null;
 
-  // ── Selected or editing sticky (for sticky toolbar) ──────────────────────────
   const activeStickyId =
     (singleSelected?.type === 'sticky' ? singleSelected.id : null) ||
     (editingId && nodes.find((n) => n.id === editingId && n.type === 'sticky')?.id) ||
     null;
 
-  // ── Text ghost / drag-preview geometry ──────────────────────────────────────
+  // ── Text ghost geometry ────────────────────────────────────────────────────
   const ghostFontSize = Math.round(20 * camera.scale);
   const ghostWidth    = Math.round(240 * camera.scale);
   const ghostLineH    = Math.round(ghostFontSize * 1.5);
 
   const prevPoints = previewPoints();
+
+  // Destructure interaction return for use in JSX
+  const {
+    snapTarget,
+    textCursorPos, setTextCursorPos,
+    shapeDraw, sectionDraw, tableDraw, marqueeDraw,
+    stickerCursorPos, setStickerCursorPos,
+    taskCursorPos, setTaskCursorPos,
+    snapGuides, contextMenu, setContextMenu,
+    handleMouseDown, handleMouseMove, handleMouseUp,
+    handleTouchStart, handleTouchMove, handleTouchEnd,
+    handleAnchorDown, handleAnchorEnter, handleAnchorLeave,
+    computeSnap, clearSnap,
+    handleAltDragStart, handleAltDragEnd,
+    handleMultiDragStart, handleMultiDragMove, handleMultiDragEnd,
+    getShouldSaveHistory, handleNodeContextMenu, handleDragSettled,
+  } = interaction;
 
   return (
     <div
@@ -1354,7 +253,6 @@ export default function Canvas() {
         if (activeTool === 'task') setTaskCursorPos(null);
       }}
       onContextMenu={(e) => {
-        // Only fire if the target is the canvas background (not a node)
         if (e.target === e.currentTarget || (e.target as HTMLElement).tagName === 'CANVAS') {
           e.preventDefault();
           setContextMenu({ x: e.clientX, y: e.clientY, nodeIds: [] });
@@ -1388,7 +286,6 @@ export default function Canvas() {
         onTouchEnd={handleTouchEnd}
         onContextMenu={(e) => {
           e.evt.preventDefault();
-          // Only show canvas menu if no node was directly right-clicked
           if (e.target === e.currentTarget) {
             setContextMenu({ x: e.evt.clientX, y: e.evt.clientY, nodeIds: [] });
           }
@@ -1402,7 +299,7 @@ export default function Canvas() {
             .map((n) => (
               <SectionNodeComponent
                 key={n.id}
-                node={n as SectionNode}
+                node={n as import('../types').SectionNode}
                 isSelected={selectedIds.includes(n.id)}
                 isEditing={editingId === n.id}
               />
@@ -1414,12 +311,12 @@ export default function Canvas() {
             .map((n) => (
               <ConnectorLine
                 key={n.id}
-                node={n as ConnectorNode}
+                node={n as import('../types').ConnectorNode}
                 isSelected={selectedIds.includes(n.id)}
               />
             ))}
 
-          {/* All content nodes in insertion order — newer nodes render on top */}
+          {/* All content nodes in insertion order */}
           {nodes
             .filter((n) => n.type !== 'section' && n.type !== 'connector')
             .map((n) => {
@@ -1471,7 +368,7 @@ export default function Canvas() {
               if (n.type === 'textblock') return (
                 <TextBlock
                   key={n.id}
-                  node={n as TextBlockNode}
+                  node={n as import('../types').TextBlockNode}
                   isSelected={selectedIds.includes(n.id)}
                   isEditing={editingId === n.id}
                   onSnapMove={computeSnap}
@@ -1488,7 +385,7 @@ export default function Canvas() {
               if (n.type === 'sticker') return (
                 <StickerNodeComponent
                   key={n.id}
-                  node={n as StickerNode}
+                  node={n as import('../types').StickerNode}
                   isSelected={selectedIds.includes(n.id)}
                   onSnapMove={computeSnap}
                   onSnapEnd={clearSnap}
@@ -1504,7 +401,7 @@ export default function Canvas() {
               if (n.type === 'table') return (
                 <TableNodeComponent
                   key={n.id}
-                  node={n as TableNode}
+                  node={n as import('../types').TableNode}
                   isSelected={selectedIds.includes(n.id)}
                   isDrawingLine={drawingLine !== null}
                   onAnchorDown={handleAnchorDown}
@@ -1607,7 +504,7 @@ export default function Canvas() {
         </Layer>
       </Stage>
 
-      {/* ── Task card HTML overlays ──────────────────────────────────────── */}
+      {/* ── Task card HTML overlays ────────────────────────────────────────── */}
       {nodes
         .filter((n) => n.type === 'taskcard')
         .map((n) => (
@@ -1624,7 +521,7 @@ export default function Canvas() {
           />
         ))}
 
-      {/* ── Text ghost: hover preview before clicking ─────────────────────── */}
+      {/* ── Text ghost: hover preview before clicking ──────────────────────── */}
       {activeTool === 'text' && textCursorPos && !textDraw && (
         <div
           style={{
@@ -1657,10 +554,9 @@ export default function Canvas() {
         </div>
       )}
 
-      {/* ── Text drag-to-width preview ────────────────────────────────────── */}
+      {/* ── Text drag-to-width preview ─────────────────────────────────────── */}
       {activeTool === 'text' && textDraw && (
         <>
-          {/* Dashed preview box */}
           <div
             style={{
               position: 'absolute',
@@ -1674,7 +570,6 @@ export default function Canvas() {
               pointerEvents: 'none',
             }}
           />
-          {/* Width label */}
           {Math.abs(textDraw.currentScreenX - textDraw.startScreenX) > 40 && (
             <div
               style={{
@@ -1694,7 +589,7 @@ export default function Canvas() {
         </>
       )}
 
-      {/* ── Shape drag-to-size preview ────────────────────────────────────── */}
+      {/* ── Shape drag-to-size preview ─────────────────────────────────────── */}
       {activeTool === 'shape' && shapeDraw && (
         <div
           style={{
@@ -1711,7 +606,7 @@ export default function Canvas() {
         />
       )}
 
-      {/* ── Section drag-to-size preview ─────────────────────────────────── */}
+      {/* ── Section drag-to-size preview ──────────────────────────────────── */}
       {activeTool === 'section' && sectionDraw && (
         <div
           style={{
@@ -1728,7 +623,7 @@ export default function Canvas() {
         />
       )}
 
-      {/* ── Table drag-to-size preview ────────────────────────────────── */}
+      {/* ── Table drag-to-size preview ─────────────────────────────────────── */}
       {activeTool === 'table' && tableDraw && (() => {
         const pdW = Math.abs(tableDraw.currentScreenX - tableDraw.startScreenX);
         const pdH = Math.abs(tableDraw.currentScreenY - tableDraw.startScreenY);
@@ -1793,50 +688,22 @@ export default function Canvas() {
         return (
           <div
             style={{
-              position: 'absolute',
-              left,
-              top,
-              width: W,
-              pointerEvents: 'none',
-              opacity: 0.55,
-              borderRadius: 12,
-              border: `2px solid ${accent}`,
-              background: 'var(--c-panel)',
-              boxShadow: '0 4px 20px rgba(0,0,0,0.18)',
-              overflow: 'hidden',
+              position: 'absolute', left, top, width: W,
+              pointerEvents: 'none', opacity: 0.55, borderRadius: 12,
+              border: `2px solid ${accent}`, background: 'var(--c-panel)',
+              boxShadow: '0 4px 20px rgba(0,0,0,0.18)', overflow: 'hidden',
             }}
           >
-            {/* Header */}
             <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: pad * 0.6,
-              padding: `${pad * 0.8}px ${pad}px`,
-              borderBottom: '1px solid var(--c-border)',
+              display: 'flex', alignItems: 'center', gap: pad * 0.6,
+              padding: `${pad * 0.8}px ${pad}px`, borderBottom: '1px solid var(--c-border)',
             }}>
-              <div style={{
-                width: dotS, height: dotS,
-                borderRadius: '50%',
-                background: accent,
-                flexShrink: 0,
-              }} />
-              <span style={{
-                color: 'var(--c-text-hi)',
-                fontFamily: "'JetBrains Mono', monospace",
-                fontWeight: 700,
-                fontSize: fs,
-                flex: 1,
-              }}>
+              <div style={{ width: dotS, height: dotS, borderRadius: '50%', background: accent, flexShrink: 0 }} />
+              <span style={{ color: 'var(--c-text-hi)', fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, fontSize: fs, flex: 1 }}>
                 New Task Card
               </span>
             </div>
-            {/* Empty task list hint */}
-            <div style={{
-              padding: `${pad * 0.5}px ${pad}px ${pad * 0.8}px`,
-              display: 'flex',
-              alignItems: 'center',
-              gap: pad * 0.5,
-            }}>
+            <div style={{ padding: `${pad * 0.5}px ${pad}px ${pad * 0.8}px`, display: 'flex', alignItems: 'center', gap: pad * 0.5 }}>
               <span style={{ color: 'var(--c-text-lo)', fontSize: fs * 0.9, fontFamily: "'JetBrains Mono', monospace" }}>+</span>
               <span style={{ color: 'var(--c-text-lo)', fontSize: fs * 0.9, fontFamily: "'JetBrains Mono', monospace" }}>Add task…</span>
             </div>
@@ -1861,11 +728,11 @@ export default function Canvas() {
         />
       )}
 
-      {/* ── CodeBlock overlays ──────────────────────────────────────────────── */}
+      {/* ── CodeBlock overlays ─────────────────────────────────────────────── */}
       {nodes.filter((n) => n.type === 'codeblock').map((n) => (
         <CodeBlockComponent
           key={n.id}
-          node={n as CodeBlockNode}
+          node={n as import('../types').CodeBlockNode}
           isSelected={selectedIds.includes(n.id)}
           isDrawingLine={drawingLine !== null}
           onAnchorDown={handleAnchorDown}
@@ -1875,11 +742,11 @@ export default function Canvas() {
         />
       ))}
 
-      {/* ── Link overlays ────────────────────────────────────────────────── */}
+      {/* ── Link overlays ──────────────────────────────────────────────────── */}
       {nodes.filter((n) => n.type === 'link').map((n) => (
         <LinkNodeComponent
           key={n.id}
-          node={n as LinkNode}
+          node={n as import('../types').LinkNode}
           isSelected={selectedIds.includes(n.id)}
           isDrawingLine={drawingLine !== null}
           onAnchorDown={handleAnchorDown}
@@ -1910,21 +777,11 @@ export default function Canvas() {
             />
           );
         })}
-      {singleSelected?.type === 'shape' && (
-        <ShapeToolbar nodeId={singleSelected.id} />
-      )}
-      {singleSelected?.type === 'image' && (
-        <ImageToolbar nodeId={singleSelected.id} />
-      )}
-      {singleSelected?.type === 'codeblock' && (
-        <CodeBlockToolbar nodeId={singleSelected.id} />
-      )}
-      {singleSelected?.type === 'link' && (
-        <LinkToolbar nodeId={singleSelected.id} />
-      )}
-      {singleSelected?.type === 'section' && (
-        <SectionToolbar nodeId={singleSelected.id} />
-      )}
+      {singleSelected?.type === 'shape'     && <ShapeToolbar nodeId={singleSelected.id} />}
+      {singleSelected?.type === 'image'     && <ImageToolbar nodeId={singleSelected.id} />}
+      {singleSelected?.type === 'codeblock' && <CodeBlockToolbar nodeId={singleSelected.id} />}
+      {singleSelected?.type === 'link'      && <LinkToolbar nodeId={singleSelected.id} />}
+      {singleSelected?.type === 'section'   && <SectionToolbar nodeId={singleSelected.id} />}
       {singleSelected?.type === 'table' && (
         <>
           <TableToolbar nodeId={singleSelected.id} />
@@ -1932,15 +789,9 @@ export default function Canvas() {
           <TableReorderControls nodeId={singleSelected.id} />
         </>
       )}
-      {activeTextBlockId && (
-        <TextBlockToolbar nodeId={activeTextBlockId} />
-      )}
-      {selectedConnectorId && (
-        <ConnectorToolbar nodeId={selectedConnectorId} />
-      )}
-      {selectedIds.length > 1 && !editingId && (
-        <MultiSelectToolbar />
-      )}
+      {activeTextBlockId  && <TextBlockToolbar nodeId={activeTextBlockId} />}
+      {selectedConnectorId && <ConnectorToolbar nodeId={selectedConnectorId} />}
+      {selectedIds.length > 1 && !editingId && <MultiSelectToolbar />}
 
       {contextMenu && (
         <ContextMenu menu={contextMenu} onClose={() => setContextMenu(null)} />
@@ -1953,7 +804,6 @@ export default function Canvas() {
           onClose={() => {
             markImageNoticeSeen();
             setShowImageNotice(false);
-            // Place the pending image now that the user dismissed the notice
             const pending = pendingImageFile.current;
             pendingImageFile.current = null;
             if (pending) {
@@ -1966,7 +816,7 @@ export default function Canvas() {
                   const w = Math.min(imgEl.width, maxW);
                   const h = Math.round(imgEl.height * (w / imgEl.width));
                   addNode({
-                    id: generateId(),
+                    id: Math.random().toString(36).slice(2, 11),
                     type: 'image',
                     x: pending.worldX - w / 2,
                     y: pending.worldY - h / 2,
@@ -1983,18 +833,12 @@ export default function Canvas() {
             }
           }}
           onOpenFolder={async () => {
-            // Call openWorkspace() first — showDirectoryPicker must be invoked
-            // within the user-gesture tick. Calling setState before it loses
-            // the activation context in Chrome and silently aborts the picker.
             const result = await openWorkspace();
             markImageNoticeSeen();
             setShowImageNotice(false);
             if (result) {
               useBoardStore.getState().setWorkspaceName(result.name);
-              if (result.data) {
-                useBoardStore.getState().loadBoard(result.data);
-              }
-              // Re-place the pending image now in workspace mode
+              if (result.data) useBoardStore.getState().loadBoard(result.data);
               const pending = pendingImageFile.current;
               pendingImageFile.current = null;
               if (pending) placeImage(pending.file, pending.worldX, pending.worldY);
