@@ -4,6 +4,20 @@
   "description": "Default permissions for DevBoard",
   "windows": ["main"],
   "permissions": [
-    "core:default"
+    "core:default",
+    "dialog:allow-open",
+    "fs:allow-read-file",
+    "fs:allow-read-text-file",
+    "fs:allow-write-file",
+    "fs:allow-write-text-file",
+    "fs:allow-mkdir",
+    "fs:allow-read-dir",
+    "fs:allow-exists",
+    "fs:allow-remove",
+    "fs:allow-rename",
+    "fs:scope-home-recursive",
+    "fs:scope-download-recursive",
+    "fs:scope-desktop-recursive",
+    "fs:scope-document-recursive"
   ]
 }

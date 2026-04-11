@@ -85,8 +85,12 @@ butler push "/tmp/win-build/DevBoard_*_x64-setup.exe" mischa/devboard:windows
 Download and push Linux:
 ```bash
 gh run download <RUN_ID> --repo mfgoes/Devboard --name devboard-linux-x64 --dir /tmp/linux-build
-butler push "/tmp/linux-build/devboard_*.AppImage" mischa/devboard:linux
+butler push "/tmp/linux-build/DevBoard-Linux.AppImage" mischa/devboard:linux
 ```
+
+> Each build also produces fixed-name artifacts (`DevBoard-macOS.dmg`, `DevBoard-Windows.exe`,
+> `DevBoard-Linux.AppImage`) alongside the versioned ones. These are used as stable
+> `releases/latest/download/` URLs on the download page.
 
 ---
 

@@ -746,7 +746,7 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
               onClick={handleOpenFolder}
               title={
                 IN_IFRAME
-                  ? 'Folder access is blocked when embedded on itch.io — open the app directly or use the desktop build'
+                  ? 'Workspace folders are not available when embedded on itch.io'
                   : !FSA_DIR_SUPPORTED
                   ? 'Requires Chrome, Edge, or the desktop app'
                   : 'Open a folder workspace to save images as files and keep JSON small'

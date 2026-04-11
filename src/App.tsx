@@ -16,6 +16,10 @@ async function listenTauriMenus(handlers: Record<string, () => void>) {
     unlisten.push(await listenUrl('menu:open_url', (e) => {
       window.open(e.payload as string, '_blank', 'noopener');
     }));
+    // Tool switcher (View > Tools menu)
+    unlisten.push(await listen('menu:tool', (e) => {
+      useBoardStore.getState().setActiveTool(e.payload as import('./types').Tool);
+    }));
     return () => unlisten.forEach((u) => u());
   } catch {
     return () => {};

@@ -40,7 +40,11 @@
       "Bash(git ls-tree:*)",
       "Bash(butler status:*)",
       "Bash(butler login:*)",
-      "Bash(butler profile:*)"
+      "Bash(butler profile:*)",
+      "Bash(cargo check:*)",
+      "Bash(kill %1)",
+      "Bash(wait)",
+      "Bash(xargs kill:*)"
     ]
   }
 }

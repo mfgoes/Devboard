@@ -7,6 +7,9 @@ on:
       - 'v*'
   workflow_dispatch:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build:
     strategy:
@@ -63,15 +66,32 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
         with:
-          tauriScript: npm run tauri:build
+          tauriScript: npx tauri
           args: --target ${{ matrix.target }}
+
+      - name: Create fixed-name artifact (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: cp src-tauri/target/${{ matrix.target }}/release/bundle/appimage/devboard_*.AppImage DevBoard-Linux.AppImage
+
+      - name: Create fixed-name artifact (macOS)
+        if: matrix.os == 'macos-latest'
+        run: cp "src-tauri/target/${{ matrix.target }}/release/bundle/dmg/DevBoard_"*.dmg "DevBoard-macOS.dmg"
+
+      - name: Create fixed-name artifact (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: bash
+        run: cp src-tauri/target/${{ matrix.target }}/release/bundle/nsis/DevBoard_*-setup.exe DevBoard-Windows.exe
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: devboard-${{ matrix.artifact }}
           path: |
+            DevBoard-macOS.dmg
+            DevBoard-Windows.exe
+            DevBoard-Linux.AppImage
             src-tauri/target/${{ matrix.target }}/release/bundle/deb/*.deb
             src-tauri/target/${{ matrix.target }}/release/bundle/appimage/*.AppImage
             src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg

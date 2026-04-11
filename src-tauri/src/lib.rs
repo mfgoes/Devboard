@@ -85,7 +85,43 @@ pub fn run() {
                 .id("toggle_theme")
                 .build(handle)?;
 
+            // ── Tools submenu (inside View) ───────────────────────────────────
+            let tool_select  = MenuItemBuilder::new("Select\tV")  .id("tool_select") .build(handle)?;
+            let tool_pan     = MenuItemBuilder::new("Pan\tH")      .id("tool_pan")    .build(handle)?;
+            let tool_sticky  = MenuItemBuilder::new("Sticky\tS")   .id("tool_sticky") .build(handle)?;
+            let tool_shape   = MenuItemBuilder::new("Shape\tR")    .id("tool_shape")  .build(handle)?;
+            let tool_text    = MenuItemBuilder::new("Text\tT")     .id("tool_text")   .build(handle)?;
+            let tool_line    = MenuItemBuilder::new("Line\tL")     .id("tool_line")   .build(handle)?;
+            let tool_section = MenuItemBuilder::new("Section\tF")  .id("tool_section").build(handle)?;
+            let tool_image   = MenuItemBuilder::new("Image\tI")    .id("tool_image")  .build(handle)?;
+            let tool_table   = MenuItemBuilder::new("Table\tG")    .id("tool_table")  .build(handle)?;
+            let tool_link    = MenuItemBuilder::new("Link\tU")     .id("tool_link")   .build(handle)?;
+            let tool_code    = MenuItemBuilder::new("Code Block\tK").id("tool_code")  .build(handle)?;
+            let tool_task    = MenuItemBuilder::new("Task Card")   .id("tool_task")   .build(handle)?;
+            let tool_sticker = MenuItemBuilder::new("Sticker")     .id("tool_sticker").build(handle)?;
+
+            let tools_submenu = SubmenuBuilder::new(handle, "Tools")
+                .item(&tool_select)
+                .item(&tool_pan)
+                .separator()
+                .item(&tool_sticky)
+                .item(&tool_shape)
+                .item(&tool_text)
+                .item(&tool_line)
+                .separator()
+                .item(&tool_section)
+                .item(&tool_image)
+                .item(&tool_table)
+                .item(&tool_link)
+                .separator()
+                .item(&tool_code)
+                .item(&tool_task)
+                .item(&tool_sticker)
+                .build()?;
+
             let view_menu = SubmenuBuilder::new(handle, "View")
+                .item(&tools_submenu)
+                .separator()
                 .item(&zoom_in)
                 .item(&zoom_out)
                 .item(&zoom_reset)
@@ -143,6 +179,19 @@ pub fn run() {
                     "zoom_out"      => { let _ = window.emit("menu:zoom_out", ()); }
                     "zoom_reset"    => { let _ = window.emit("menu:zoom_reset", ()); }
                     "toggle_theme"  => { let _ = window.emit("menu:toggle_theme", ()); }
+                    "tool_select"   => { let _ = window.emit("menu:tool", "select"); }
+                    "tool_pan"      => { let _ = window.emit("menu:tool", "pan"); }
+                    "tool_sticky"   => { let _ = window.emit("menu:tool", "sticky"); }
+                    "tool_shape"    => { let _ = window.emit("menu:tool", "shape"); }
+                    "tool_text"     => { let _ = window.emit("menu:tool", "text"); }
+                    "tool_line"     => { let _ = window.emit("menu:tool", "line"); }
+                    "tool_section"  => { let _ = window.emit("menu:tool", "section"); }
+                    "tool_image"    => { let _ = window.emit("menu:tool", "image"); }
+                    "tool_table"    => { let _ = window.emit("menu:tool", "table"); }
+                    "tool_link"     => { let _ = window.emit("menu:tool", "link"); }
+                    "tool_code"     => { let _ = window.emit("menu:tool", "code"); }
+                    "tool_task"     => { let _ = window.emit("menu:tool", "task"); }
+                    "tool_sticker"  => { let _ = window.emit("menu:tool", "sticker"); }
                     "help_itch"     => {
                         let _ = window.emit("menu:open_url", "https://mischa.itch.io/devboard");
                     }
@@ -155,6 +204,8 @@ pub fn run() {
 
             Ok(())
         })
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
         .run(tauri::generate_context!())
         .expect("error while running devboard");
 }
