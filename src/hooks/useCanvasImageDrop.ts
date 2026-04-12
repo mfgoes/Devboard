@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import type React from 'react';
 import { useBoardStore } from '../store/boardStore';
 import { saveImageAsset, saveWorkspace, getWorkspaceName } from '../utils/workspaceManager';
-import { placeImageFileAt } from '../components/WorkspaceExplorer';
+import { placeImageFileAt } from '../utils/canvasPlacement';
 import { hasSeenImageNotice } from '../components/ImageFirstUseModal';
 import type { ImageNode } from '../types';
 

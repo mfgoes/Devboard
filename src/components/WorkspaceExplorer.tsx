@@ -5,195 +5,25 @@
  */
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useBoardStore } from '../store/boardStore';
-import { listDirectory, readWorkspaceFile, readWorkspaceFileAsUrl, readWorkspaceFileInfo, getWorkspaceName, openWorkspace, createDirectory, renameEntry, FSA_DIR_SUPPORTED, IN_IFRAME } from '../utils/workspaceManager';
-import { CodeLanguage, CodeBlockNode, ImageNode } from '../types';
+import { listDirectory, readWorkspaceFile, readWorkspaceFileAsUrl, readWorkspaceFileInfo, getWorkspaceName, openWorkspace, renameEntry, createDirectory, FSA_DIR_SUPPORTED, IN_IFRAME } from '../utils/workspaceManager';
 import { FONTS } from '../utils/fonts';
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-const SKIP_DIRS = new Set([
-  'node_modules', '.git', '.next', 'dist', 'build', '.cache',
-  '__pycache__', '.venv', 'venv', '.idea', '.DS_Store',
-]);
-
-const IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'avif', 'ico']);
-const CODE_EXTS: Record<string, CodeLanguage> = {
-  ts: 'typescript', tsx: 'typescript',
-  js: 'javascript', jsx: 'javascript',
-  py: 'python',
-  sql: 'sql',
-  json: 'json',
-  sh: 'bash', bash: 'bash', zsh: 'bash',
-  cs: 'csharp',
-  gd: 'gdscript',
-  md: 'text', txt: 'text', toml: 'text', yaml: 'text', yml: 'text',
-  html: 'text', css: 'text',
-};
-
-function ext(name: string): string {
-  return name.match(/\.([^.]+)$/)?.[1]?.toLowerCase() ?? '';
-}
-
-function generateId() { return Math.random().toString(36).slice(2, 11); }
-
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-// ── File-type icon colours ────────────────────────────────────────────────────
-// Light-mode variants are darkened for WCAG AA contrast on white backgrounds.
-function fileColor(name: string, isDark = true): string {
-  const e = ext(name);
-  if (isDark) {
-    if (['ts', 'tsx'].includes(e))   return '#b87750';   // accent
-    if (['js', 'jsx'].includes(e))   return '#d4835a';   // orange
-    if (e === 'py')                   return '#7aaa72';   // green
-    if (e === 'sql')                  return '#d4835a';   // orange
-    if (e === 'json')                 return '#e2be72';   // yellow
-    if (['md', 'txt'].includes(e))   return '#8a7b6c';   // text-lo
-    if (IMAGE_EXTS.has(e))           return '#cc9468';   // accent2
-    if (['css', 'html'].includes(e)) return '#c96a6a';   // red
-    return '#afa294';                                      // text-md
-  }
-  // Light mode — higher-contrast equivalents
-  if (['ts', 'tsx'].includes(e))   return '#a06038';    // accent-light
-  if (['js', 'jsx'].includes(e))   return '#b06030';    // orange-light
-  if (e === 'py')                   return '#528a4a';    // green-light
-  if (e === 'sql')                  return '#b06030';    // orange-light
-  if (e === 'json')                 return '#b8921e';    // yellow-light
-  if (['md', 'txt'].includes(e))   return '#9a8878';    // text-lo-light
-  if (IMAGE_EXTS.has(e))           return '#b87848';    // accent2-light
-  if (['css', 'html'].includes(e)) return '#a84040';    // red-light
-  return '#6b5e52';                                       // text-md-light
-}
-
-function FileIcon({ name, kind }: { name: string; kind: 'file' | 'directory' }) {
-  if (kind === 'directory') {
-    return (
-      <svg width="13" height="13" viewBox="0 0 13 13" fill="none" style={{ flexShrink: 0 }}>
-        <path
-          d="M1 3.5a1 1 0 0 1 1-1h3l1.5 1.5H11a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V3.5z"
-          fill="rgba(212, 131, 90, 0.13)" stroke="#d4835a" strokeWidth="1.2" strokeLinejoin="round"
-        />
-      </svg>
-    );
-  }
-  const color = fileColor(name);
-  const e = ext(name);
-  if (IMAGE_EXTS.has(e)) {
-    return (
-      <svg width="13" height="13" viewBox="0 0 13 13" fill="none" style={{ flexShrink: 0 }}>
-        <rect x="1" y="2" width="11" height="9" rx="1.2" stroke={color} strokeWidth="1.2" />
-        <circle cx="4" cy="5" r="1" fill={color} />
-        <path d="M1 9L4 6.5l2 2L8.5 6l3.5 3.5" stroke={color} strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    );
-  }
-  return (
-    <svg width="13" height="13" viewBox="0 0 13 13" fill="none" style={{ flexShrink: 0 }}>
-      <rect x="2" y="1" width="9" height="11" rx="1.2" stroke={color} strokeWidth="1.2" />
-      <line x1="4" y1="4.5" x2="9" y2="4.5" stroke={color} strokeWidth="0.9" strokeLinecap="round" />
-      <line x1="4" y1="6.5" x2="9" y2="6.5" stroke={color} strokeWidth="0.9" strokeLinecap="round" />
-      <line x1="4" y1="8.5" x2="7" y2="8.5" stroke={color} strokeWidth="0.9" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-// ── Tree node ─────────────────────────────────────────────────────────────────
-interface TreeEntry {
-  name: string;
-  kind: 'file' | 'directory';
-  path: string[];
-  children?: TreeEntry[];
-  expanded: boolean;
-  loading: boolean;
-}
-
-function buildEntry(name: string, kind: 'file' | 'directory', parentPath: string[]): TreeEntry {
-  return { name, kind, path: [...parentPath, name], expanded: false, loading: false };
-}
-
-// ── Place-on-canvas helpers ───────────────────────────────────────────────────
-function canvasCenter() {
-  const { camera } = useBoardStore.getState();
-  return {
-    x: (-camera.x + window.innerWidth / 2) / camera.scale,
-    y: (-camera.y + window.innerHeight / 2) / camera.scale,
-  };
-}
-
-async function placeCodeFile(pathParts: string[]) {
-  const relativePath = pathParts.join('/');
-  const content = await readWorkspaceFile(relativePath);
-  if (content === null) return;
-  const { addNode } = useBoardStore.getState();
-  const { x, y } = canvasCenter();
-  const e = ext(pathParts[pathParts.length - 1]);
-  const language: CodeLanguage = CODE_EXTS[e] ?? 'text';
-  const lines = content.split('\n').length;
-  const height = Math.min(Math.max(lines * 16, 120), 520);
-  addNode({
-    id: generateId(),
-    type: 'codeblock',
-    x: x - 260,
-    y: y - height / 2,
-    width: 520,
-    height,
-    code: content,
-    language,
-    title: pathParts[pathParts.length - 1],
-    showLineNumbers: true,
-    linkedFile: relativePath,
-  } satisfies CodeBlockNode);
-}
-
-async function placeImageFile(pathParts: string[]) {
-  const { x, y } = canvasCenter();
-  await placeImageFileAt(pathParts, x, y);
-}
-
-export async function placeImageFileAt(pathParts: string[], worldX: number, worldY: number) {
-  const relativePath = pathParts.join('/');
-  const objectUrl = await readWorkspaceFileAsUrl(relativePath);
-  if (!objectUrl) return;
-  const { addNode } = useBoardStore.getState();
-  const assetName = pathParts[pathParts.length - 1];
-  // folder is everything except the filename; empty string = workspace root
-  const assetFolder = pathParts.slice(0, -1).join('/');
-  const imgEl = new window.Image();
-  imgEl.onload = async () => {
-    const maxW = 480;
-    const w = Math.min(imgEl.width, maxW);
-    const h = Math.round(imgEl.height * (w / imgEl.width));
-    addNode({
-      id: generateId(),
-      type: 'image',
-      x: worldX - w / 2,
-      y: worldY - h / 2,
-      width: w,
-      height: h,
-      src: objectUrl,
-      assetName,
-      assetFolder,
-    } satisfies ImageNode);
-    // Persist metadata immediately so assetFolder survives a reload
-    const { saveWorkspace } = await import('../utils/workspaceManager');
-    setTimeout(() => saveWorkspace(useBoardStore.getState().exportData()), 0);
-  };
-  imgEl.src = objectUrl;
-}
-
-// ── flatVisible — only entries currently rendered in the tree ─────────────────
-function flatVisible(entries: TreeEntry[]): TreeEntry[] {
-  const result: TreeEntry[] = [];
-  for (const e of entries) {
-    result.push(e);
-    if (e.kind === 'directory' && e.expanded && e.children) result.push(...flatVisible(e.children));
-  }
-  return result;
-}
+import { placeCodeFile, placeImageFile } from '../utils/canvasPlacement';
+import { usePanelGeometry } from '../hooks/usePanelGeometry';
+import { useFilePreview } from '../hooks/useFilePreview';
+import { useTreeState } from '../hooks/useTreeState';
+import {
+  SKIP_DIRS,
+  IMAGE_EXTS,
+  CODE_EXTS,
+  ext,
+  generateId,
+  formatSize,
+  fileColor,
+  FileIcon,
+  TreeEntry,
+  buildEntry,
+  flatVisible,
+} from './explorer/fileTreeUtils';
 
 // ── TreeRow ───────────────────────────────────────────────────────────────────
 function TreeRow({
@@ -463,16 +293,36 @@ export default function WorkspaceExplorer({ onClose }: Props) {
   const storeNodes = useBoardStore((s) => s.nodes);
   const pageSnapshots = useBoardStore((s) => s.pageSnapshots);
   const isDark = useBoardStore((s) => s.theme) === 'dark';
+
+  // Hooks for panel geometry, file preview, and tree state
+  const { pos, width, onMouseDownHeader, onMouseDownResizer } = usePanelGeometry();
+  const panelRef = useRef<HTMLDivElement>(null);
+  const { filePreview, showFilePreview, handleFileHover, clearPreview } = useFilePreview(panelRef);
+  const {
+    tree,
+    setTree,
+    rootLoading,
+    setRootLoading,
+    rootError,
+    setRootError,
+    newFolderParent,
+    setNewFolderParent,
+    newFolderName,
+    setNewFolderName,
+    newFolderInputRef,
+    visibleEntriesRef,
+    updateEntry,
+    handleToggle,
+    startNewFolder,
+    commitNewFolder,
+  } = useTreeState(imageAssetFolder);
+
+  // Local state
   const [pagesSectionOpen, setPagesSectionOpen] = useState(true);
   const [confirmingClose, setConfirmingClose] = useState(false);
   const confirmCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [folderEditing, setFolderEditing] = useState(false);
   const [folderDraft, setFolderDraft] = useState('');
-  const [tree, setTree] = useState<TreeEntry[]>([]);
-  const [rootLoading, setRootLoading] = useState(true);
-  const [rootError, setRootError] = useState<string | null>(null);
-  const [pos, setPos] = useState(_savedPos ?? { x: 8, y: 52 });
-  const [width, setWidth] = useState(_savedWidth);
   const [searchQuery, setSearchQuery] = useState('');
   const [focusedIdx, setFocusedIdx] = useState<number | null>(null);
   // Rename state
@@ -483,174 +333,13 @@ export default function WorkspaceExplorer({ onClose }: Props) {
   type ExplorerMenu = { entry: TreeEntry; x: number; y: number };
   const [explorerMenu, setExplorerMenu] = useState<ExplorerMenu | null>(null);
   const explorerMenuRef = useRef<HTMLDivElement>(null);
-  // New folder inline input: parentPath = [] for root, or the path of the parent dir
-  const [newFolderParent, setNewFolderParent] = useState<string[] | null>(null);
-  const [newFolderName, setNewFolderName] = useState('');
-  const newFolderInputRef = useRef<HTMLInputElement>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const visibleEntriesRef = useRef<TreeEntry[]>([]);
-
-  // File preview (image or code)
-  type FilePreview =
-    | { kind: 'image'; entry: TreeEntry; url: string; natW: number; natH: number; size: number; anchorY: number }
-    | { kind: 'code'; entry: TreeEntry; content: string; anchorY: number };
-  const [filePreview, setFilePreview] = useState<FilePreview | null>(null);
-  const previewUrlRef = useRef<string | null>(null);
 
   // Cleanup on unmount
   useEffect(() => () => {
-    if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
     if (confirmCloseTimerRef.current) clearTimeout(confirmCloseTimerRef.current);
   }, []);
 
-  // Hide preview on click outside the explorer panel
-  useEffect(() => {
-    if (!filePreview) return;
-    const handler = (e: MouseEvent) => {
-      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
-        setFilePreview(null);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [filePreview]);
-
-  // Persist across open/close
-  useEffect(() => { _savedPos = pos; }, [pos]);
-  useEffect(() => { _savedWidth = width; }, [width]);
-
-  // Auto-expand the assets/images folder once when the workspace first loads
-  const assetsAutoExpandedRef = useRef(false);
-  useEffect(() => {
-    if (assetsAutoExpandedRef.current || tree.length === 0 || !getWorkspaceName()) return;
-    const assetEntry = tree.find((e) => e.kind === 'directory' && e.name === imageAssetFolder);
-    if (assetEntry) {
-      assetsAutoExpandedRef.current = true;
-      handleToggle(assetEntry.path);
-    }
-  // handleToggle is stable (useCallback with no changing deps); imageAssetFolder rarely changes
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tree]);
-
-  // ── Drag to move (header) ────────────────────────────────────────────────────
-  const onMouseDownHeader = (e: React.MouseEvent) => {
-    if ((e.target as HTMLElement).closest('button')) return;
-    e.preventDefault();
-    const start = { startX: e.clientX, startY: e.clientY, origX: pos.x, origY: pos.y };
-    const onMove = (me: MouseEvent) => {
-      setPos({ x: start.origX + me.clientX - start.startX, y: start.origY + me.clientY - start.startY });
-    };
-    const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
-  };
-
-  // ── Drag to resize (right edge) ──────────────────────────────────────────────
-  const onMouseDownResizer = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const startX = e.clientX;
-    const origW = width;
-    const onMove = (me: MouseEvent) => {
-      setWidth(Math.max(200, origW + me.clientX - startX));
-    };
-    const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
-  };
-
-  // ── Load root on mount ───────────────────────────────────────────────────────
-  useEffect(() => {
-    setRootLoading(true);
-    setRootError(null);
-    listDirectory([])
-      .then((entries) => {
-        const filtered = entries.filter((e) => {
-          if (e.name.startsWith('.')) return false;
-          if (e.kind === 'directory' && SKIP_DIRS.has(e.name)) return false;
-          return true;
-        });
-        setTree(filtered.map((e) => buildEntry(e.name, e.kind, [])));
-        setRootLoading(false);
-      })
-      .catch(() => {
-        // No workspace open — show the empty state (rootError stays null, tree stays [])
-        setRootLoading(false);
-      });
-  }, []);
-
-  // ── Tree update helper ───────────────────────────────────────────────────────
-  const updateEntry = useCallback(
-    (entries: TreeEntry[], path: string[], updater: (e: TreeEntry) => TreeEntry): TreeEntry[] =>
-      entries.map((e) => {
-        if (e.path.join('/') === path.join('/')) return updater(e);
-        if (e.children && path.join('/').startsWith(e.path.join('/'))) {
-          return { ...e, children: updateEntry(e.children, path, updater) };
-        }
-        return e;
-      }),
-    []
-  );
-
-  const handleToggle = useCallback(async (path: string[]) => {
-    const findEntry = (entries: TreeEntry[], p: string[]): TreeEntry | null => {
-      for (const e of entries) {
-        if (e.path.join('/') === p.join('/')) return e;
-        if (e.children) { const found = findEntry(e.children, p); if (found) return found; }
-      }
-      return null;
-    };
-
-    setTree((prev) => {
-      const entry = findEntry(prev, path);
-      if (!entry) return prev;
-      if (entry.expanded) return updateEntry(prev, path, (e) => ({ ...e, expanded: false }));
-      if (entry.children !== undefined) return updateEntry(prev, path, (e) => ({ ...e, expanded: true }));
-      return updateEntry(prev, path, (e) => ({ ...e, expanded: true, loading: true }));
-    });
-
-    try {
-      const rawChildren = await listDirectory(path);
-      const filtered = rawChildren.filter((e) => {
-        if (e.name.startsWith('.')) return false;
-        if (e.kind === 'directory' && SKIP_DIRS.has(e.name)) return false;
-        return true;
-      });
-      const children = filtered.map((e) => buildEntry(e.name, e.kind, path));
-      setTree((prev) =>
-        updateEntry(prev, path, (e) =>
-          e.expanded ? { ...e, children, loading: false } : { ...e, children, loading: false, expanded: false }
-        )
-      );
-    } catch {
-      setTree((prev) => updateEntry(prev, path, (e) => ({ ...e, children: [], loading: false })));
-    }
-  }, [updateEntry]);
-
-  // ── Show file preview (single click / keyboard nav) ─────────────────────────
-  const showFilePreview = useCallback(async (entry: TreeEntry, anchorY: number) => {
-    const e = ext(entry.name);
-    if (IMAGE_EXTS.has(e)) {
-      const info = await readWorkspaceFileInfo(entry.path.join('/'));
-      if (!info) return;
-      if (previewUrlRef.current && previewUrlRef.current !== info.url) URL.revokeObjectURL(previewUrlRef.current);
-      previewUrlRef.current = info.url;
-      const img = new window.Image();
-      img.onload = () => setFilePreview({ kind: 'image', entry, url: info.url, natW: img.naturalWidth, natH: img.naturalHeight, size: info.size, anchorY });
-      img.onerror = () => URL.revokeObjectURL(info.url);
-      img.src = info.url;
-    } else if (CODE_EXTS[e] !== undefined) {
-      const content = await readWorkspaceFile(entry.path.join('/'));
-      if (content === null) return;
-      setFilePreview({ kind: 'code', entry, content, anchorY });
-    }
-  }, []);
-
-  // ── Hover preview (image files only, no focus change) ───────────────────────
-  const handleFileHover = useCallback((entry: TreeEntry, clientY: number) => {
-    showFilePreview(entry, clientY);
-  }, [showFilePreview]);
 
   // ── Place file on canvas (double click / Enter) ───────────────────────────
   const placeFile = useCallback(async (entry: TreeEntry) => {
@@ -669,9 +358,9 @@ export default function WorkspaceExplorer({ onClose }: Props) {
   }, [showFilePreview]);
 
   const handleFileDblClick = useCallback((entry: TreeEntry) => {
-    setFilePreview(null);
+    clearPreview();
     placeFile(entry);
-  }, [placeFile]);
+  }, [placeFile, clearPreview]);
 
   const handleFileDragStart = useCallback((entry: TreeEntry, e: React.DragEvent) => {
     e.dataTransfer.setData('application/x-devboard-entry', JSON.stringify(entry.path));
@@ -800,43 +489,6 @@ export default function WorkspaceExplorer({ onClose }: Props) {
     if (idx !== -1) setFocusedIdx(idx);
   }, []);
 
-  // ── New folder ────────────────────────────────────────────────────────────
-  const startNewFolder = useCallback((parentPath: string[] = []) => {
-    setNewFolderParent(parentPath);
-    setNewFolderName('');
-  }, []);
-
-  // Focus the input once it appears
-  useEffect(() => {
-    if (newFolderParent !== null) {
-      requestAnimationFrame(() => newFolderInputRef.current?.focus());
-    }
-  }, [newFolderParent]);
-
-  const commitNewFolder = useCallback(async () => {
-    const name = newFolderName.trim();
-    if (!name || newFolderParent === null) { setNewFolderParent(null); return; }
-    try {
-      await createDirectory([...newFolderParent, name]);
-      // Refresh the affected level
-      const refreshPath = newFolderParent;
-      const rawChildren = await listDirectory(refreshPath);
-      const filtered = rawChildren.filter((e) => !e.name.startsWith('.') && !(e.kind === 'directory' && SKIP_DIRS.has(e.name)));
-      if (refreshPath.length === 0) {
-        setTree(filtered.map((e) => buildEntry(e.name, e.kind, [])));
-      } else {
-        setTree((prev) =>
-          updateEntry(prev, refreshPath, (e) => ({
-            ...e,
-            children: filtered.map((c) => buildEntry(c.name, c.kind, refreshPath)),
-          }))
-        );
-      }
-    } catch (err) {
-      console.warn('Failed to create folder', err);
-    }
-    setNewFolderParent(null);
-  }, [newFolderName, newFolderParent, updateEntry]);
 
   // Flatten entire loaded tree for search results (includes collapsed dirs)
   const flattenTree = useCallback((entries: TreeEntry[]): TreeEntry[] => {
@@ -899,9 +551,9 @@ export default function WorkspaceExplorer({ onClose }: Props) {
 
   // Auto-preview focused file
   useEffect(() => {
-    if (focusedIdx === null) { setFilePreview(null); return; }
+    if (focusedIdx === null) { clearPreview(); return; }
     const entry = visibleEntries[focusedIdx];
-    if (!entry || entry.kind === 'directory') { setFilePreview(null); return; }
+    if (!entry || entry.kind === 'directory') { clearPreview(); return; }
     const panelMidY = pos.y + Math.min(520, window.innerHeight - pos.y - 16) / 2;
     showFilePreview(entry, panelMidY);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -923,7 +575,7 @@ export default function WorkspaceExplorer({ onClose }: Props) {
       if (entry.kind === 'directory') {
         handleToggle(entry.path);
       } else {
-        setFilePreview(null);
+        clearPreview();
         placeFile(entry);
       }
     } else if (e.key === 'F2') {
@@ -933,7 +585,7 @@ export default function WorkspaceExplorer({ onClose }: Props) {
     } else if (e.key === 'Escape') {
       setExplorerMenu(null);
       setFocusedIdx(null);
-      setFilePreview(null);
+      clearPreview();
     }
   }, [visibleEntries, focusedIdx, handleToggle, placeFile, startRename]);
 

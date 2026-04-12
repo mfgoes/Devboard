@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback } from 'react';
+import { useRef, useState, useCallback, useEffect } from 'react';
 import type React from 'react';
 import Konva from 'konva';
 import { useBoardStore } from '../store/boardStore';
@@ -288,16 +288,53 @@ export function useCanvasInteraction({
     }
   }, []);
 
+  // ── Window-level middle-mouse panning ────────────────────────────────────────
+  // Handle middle-mouse button panning at window level so it works over draggable elements
+  useEffect(() => {
+    const onWindowMouseDown = (e: MouseEvent) => {
+      if (e.button === 1) { // Middle mouse button
+        e.preventDefault();
+        isPanning.current = true;
+        lastPointer.current = { x: e.clientX, y: e.clientY };
+        setCursorOverride('grabbing');
+      }
+    };
+    const onWindowMouseMove = (e: MouseEvent) => {
+      if (isPanning.current) {
+        const dx = e.clientX - lastPointer.current.x;
+        const dy = e.clientY - lastPointer.current.y;
+        lastPointer.current = { x: e.clientX, y: e.clientY };
+        const { camera: cam, setCamera: setC } = useBoardStore.getState();
+        setC({ x: cam.x + dx, y: cam.y + dy });
+      }
+    };
+    const onWindowMouseUp = () => {
+      if (isPanning.current) {
+        isPanning.current = false;
+        setCursorOverride(null);
+      }
+    };
+    window.addEventListener('mousedown', onWindowMouseDown);
+    window.addEventListener('mousemove', onWindowMouseMove);
+    window.addEventListener('mouseup', onWindowMouseUp);
+    return () => {
+      window.removeEventListener('mousedown', onWindowMouseDown);
+      window.removeEventListener('mousemove', onWindowMouseMove);
+      window.removeEventListener('mouseup', onWindowMouseUp);
+    };
+  }, []);
+
   // ── Mouse down ────────────────────────────────────────────────────────────
   const handleMouseDown = useCallback(
     (e: Konva.KonvaEventObject<MouseEvent>) => {
-      const isMiddle = e.evt.button === 1;
+      // Middle mouse panning is now handled at window level for better interaction with draggable elements
       const isPanMode = activeTool === 'pan' || spacePressed.current;
 
-      if (isMiddle || isPanMode) {
+      if (isPanMode && e.evt.button !== 1) { // Skip if middle mouse (already handled at window level)
         isPanning.current = true;
         lastPointer.current = { x: e.evt.clientX, y: e.evt.clientY };
         setCursorOverride('grabbing');
+        e.cancelBubble = true; // Prevent event from bubbling to node components
         return;
       }
 

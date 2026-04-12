@@ -46,7 +46,9 @@
       "Bash(wait)",
       "Bash(xargs kill:*)",
       "Bash(find src:*)",
-      "Bash(grep -c \"var\\(--c-line\\)\" src/components/*.tsx)"
+      "Bash(grep -c \"var\\(--c-line\\)\" src/components/*.tsx)",
+      "Bash(git restore:*)",
+      "Read(//tmp/**)"
     ]
   }
 }
