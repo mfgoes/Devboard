@@ -48,7 +48,10 @@
       "Bash(find src:*)",
       "Bash(grep -c \"var\\(--c-line\\)\" src/components/*.tsx)",
       "Bash(git restore:*)",
-      "Read(//tmp/**)"
+      "Read(//tmp/**)",
+      "Bash(jobs)",
+      "Bash(grep -l \"font-mono\" /Users/mischavandergoes/Documents/GitHub/CollaboCanvas/src/components/*.tsx)",
+      "Bash(killall vite:*)"
     ]
   }
 }

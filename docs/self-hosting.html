@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DevBoard — Self Hosting & Collaboration Guide</title>
+<meta name="description" content="Learn how to self-host DevBoard, deploy it to production, and add real-time collaboration features. Includes architecture suggestions, Docker setup, and contribution guidelines." />
+<meta name="keywords" content="devboard, self-hosting, deployment, collaboration, websocket, supabase, docker, open source" />
+<meta name="author" content="Mischa" />
+<meta name="robots" content="index, follow" />
+<link rel="canonical" href="https://devboard.vercel.app/docs/self-hosting.html" />
+<link rel="icon" type="image/x-icon" href="favicon.ico" />
+
+<!-- Open Graph / Social Media -->
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://devboard.vercel.app/docs/self-hosting.html" />
+<meta property="og:title" content="DevBoard — Self Hosting & Collaboration" />
+<meta property="og:description" content="Deploy DevBoard to your own infrastructure and add real-time collaboration with Supabase, WebSocket, or Firebase." />
+<meta property="og:image" content="https://devboard.vercel.app/og-image.png" />
+<meta property="og:site_name" content="DevBoard" />
+
+<!-- Twitter Card -->
+<meta property="twitter:card" content="summary_large_image" />
+<meta property="twitter:url" content="https://devboard.vercel.app/docs/self-hosting.html" />
+<meta property="twitter:title" content="DevBoard — Self Hosting & Collaboration" />
+<meta property="twitter:description" content="Deploy DevBoard to your own infrastructure and add real-time collaboration features." />
+<meta property="twitter:creator" content="@MishoWave" />
+
+<link rel="stylesheet" href="site.css" />
+<link rel="stylesheet" href="landing.css" />
+
+<style>
+/* Page-specific overrides */
+
+main {
+  padding: 48px 0 96px;
+}
+
+section {
+  margin-bottom: 64px;
+}
+
+.section-label {
+  font-size: 0.65rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--c-accent2);
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+h1 {
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-bottom: 8px;
+  color: var(--c-text-hi);
+}
+
+h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-bottom: 14px;
+  color: var(--c-text-hi);
+}
+
+h3 {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--c-text-hi);
+  margin-bottom: 10px;
+  margin-top: 24px;
+}
+
+.page-meta {
+  font-size: 0.88rem;
+  color: var(--c-text-md);
+  margin-bottom: 40px;
+  line-height: 1.6;
+}
+
+p {
+  color: var(--c-text-md);
+  font-size: 0.88rem;
+  margin-bottom: 12px;
+  line-height: 1.7;
+}
+
+p strong {
+  color: var(--c-text-hi);
+}
+
+p code, li code {
+  background: var(--c-panel);
+  border: 1px solid var(--c-border);
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-size: 0.8rem;
+  color: var(--c-accent2);
+  font-family: 'Monaco', 'Menlo', monospace;
+}
+
+ul, ol {
+  padding-left: 20px;
+  color: var(--c-text-md);
+  font-size: 0.88rem;
+  margin-bottom: 12px;
+}
+
+li {
+  margin-bottom: 6px;
+  line-height: 1.6;
+}
+
+/* Callouts */
+.tip {
+  background: rgba(184,119,80,.06);
+  border-left: 3px solid var(--c-accent);
+  border-radius: 0 6px 6px 0;
+  padding: 12px 16px;
+  margin: 16px 0;
+  font-size: 0.88rem;
+  color: var(--c-text-hi);
+}
+
+.tip strong {
+  color: var(--c-accent2);
+}
+
+.warn {
+  background: rgba(248,113,113,.06);
+  border-left: 3px solid #f87171;
+  border-radius: 0 6px 6px 0;
+  padding: 12px 16px;
+  margin: 16px 0;
+  font-size: 0.88rem;
+  color: var(--c-text-hi);
+}
+
+.warn strong {
+  color: #f87171;
+}
+
+/* Code blocks */
+.code-block {
+  background: var(--c-panel);
+  border: 1px solid var(--c-border);
+  border-radius: 6px;
+  padding: 12px 16px;
+  margin: 12px 0;
+  overflow-x: auto;
+  font-family: 'Monaco', 'Menlo', monospace;
+  font-size: 0.8rem;
+  color: var(--c-text-md);
+  line-height: 1.5;
+}
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin: 20px 0;
+}
+
+.card-option {
+  background: var(--c-panel);
+  border: 1px solid var(--c-border);
+  border-radius: 6px;
+  padding: 20px;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.card-option:hover {
+  border-color: var(--c-accent);
+}
+
+.card-option h4 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--c-accent2);
+  margin-bottom: 8px;
+}
+
+.card-option p {
+  font-size: 0.82rem;
+  margin-bottom: 10px;
+}
+
+.card-option ul {
+  font-size: 0.82rem;
+  padding-left: 16px;
+}
+
+.card-option li {
+  margin-bottom: 4px;
+}
+
+a {
+  color: var(--c-accent2);
+  text-decoration: none;
+  transition: color 0.15s;
+}
+
+a:hover {
+  color: var(--c-accent);
+}
+
+.divider {
+  border: none;
+  border-top: 1px solid var(--c-border);
+  margin: 64px 0;
+}
+
+@media (max-width: 640px) {
+  .grid-2 {
+    grid-template-columns: 1fr;
+  }
+
+  h1 {
+    font-size: 1.5rem;
+  }
+
+  h2 {
+    font-size: 1.1rem;
+  }
+}
+</style>
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Guide",
+  "headline": "DevBoard Self Hosting & Collaboration Guide",
+  "description": "Learn how to self-host DevBoard, deploy it to production, and add real-time collaboration features.",
+  "author": {
+    "@type": "Person",
+    "name": "Mischa",
+    "url": "https://x.com/MishoWave"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "DevBoard",
+    "url": "https://devboard.vercel.app"
+  },
+  "potentialAction": {
+    "@type": "Action",
+    "name": "Deploy DevBoard",
+    "target": "https://devboard.vercel.app/docs/self-hosting.html"
+  }
+}
+</script>
+
+</head>
+<body>
+
+<div class="wrap">
+
+  <!-- Navigation -->
+  <nav>
+    <a class="logo" href="index.html">
+      <img src="assets_landing/devboard_icon.png" alt="DevBoard" class="logo-mark" />
+      DEVBOARD
+    </a>
+    <ul class="nav-links">
+      <li><a href="./index.html">← Back</a></li>
+      <li class="hide-mobile"><a href="https://github.com/mfgoes/Devboard" target="_blank" rel="noopener">GitHub ↗</a></li>
+      <li><a class="nav-cta" href="./download.html">Download free →</a></li>
+    </ul>
+  </nav>
+
+  <!-- Main content -->
+  <main>
+
+<section>
+  <div class="section-label">Extend & Deploy</div>
+  <h1>Self Hosting & Collaboration</h1>
+  <p class="page-meta">Run DevBoard on your own infrastructure or add real-time collaboration to your fork.</p>
+</section>
+
+<!-- ────────────────────────────────────────────────────────────────────── -->
+<section>
+<h2>Self-Hosted Deployment</h2>
+
+<p>DevBoard is a <strong>static single-file HTML app</strong> built with Vite and React. It runs entirely in your browser with <strong>no backend required</strong> for basic usage.</p>
+
+<h3>Option 1: Direct Deployment (Recommended for Most Users)</h3>
+
+<p>The simplest way to deploy DevBoard:</p>
+
+<ol>
+  <li>Build the app: <code>npm run build</code></li>
+  <li>Deploy <code>dist/index.html</code> to any static hosting:</li>
+  <ul>
+    <li><strong>Netlify:</strong> Drag and drop <code>dist/</code> → <a href="https://netlify.com" target="_blank">Netlify.com</a></li>
+    <li><strong>Vercel:</strong> <code>vercel deploy</code></li>
+    <li><strong>GitHub Pages:</strong> Push <code>dist/</code> to a <code>gh-pages</code> branch</li>
+    <li><strong>Your own server:</strong> Copy <code>dist/index.html</code> to any web root (Apache, Nginx, etc.)</li>
+    <li><strong>Docker:</strong> Mount the file in a lightweight HTTP server</li>
+  </ul>
+</ol>
+
+<div class="tip">
+  <strong>Board state is stored in localStorage</strong> — each browser/device maintains its own board. To sync across devices, use the "Share Link" feature (base64-encoded URL) or export/import JSON.
+</div>
+
+<h3>Option 2: Docker Container</h3>
+
+<div class="code-block">FROM nginx:alpine
+COPY dist/index.html /usr/share/nginx/html/
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]</div>
+
+<p>Build and run:</p>
+<div class="code-block">docker build -t devboard .
+docker run -p 8080:80 devboard</div>
+
+<h3>Option 3: Behind Your Domain (Reverse Proxy)</h3>
+
+<div class="tip">
+  <strong>Keep the credits:</strong> Whether you deploy under your own domain or modify the app, please keep the DevBoard logo and attribution visible. It helps spread the word and supports the project.
+</div>
+
+<p><strong>Nginx example:</strong></p>
+
+<div class="code-block">server {
+  listen 80;
+  server_name boards.yourcompany.com;
+
+  location / {
+    alias /var/www/devboard/;
+    try_files $uri $uri/ /index.html;
+  }
+}</div>
+
+<p><strong>Apache example:</strong></p>
+
+<div class="code-block">&lt;Directory /var/www/devboard&gt;
+  RewriteEngine On
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule ^ index.html [L]
+&lt;/Directory&gt;</div>
+
+</section>
+
+<!-- ────────────────────────────────────────────────────────────────────── -->
+<section>
+<h2>Real-Time Collaboration (Coming Soon)</h2>
+
+<p>DevBoard currently supports <strong>single-user boards with URL-based sharing</strong>. Real-time collaboration is on the roadmap but <strong>not yet implemented</strong>.</p>
+
+<div class="warn">
+  <strong>Note:</strong> This section covers architecture suggestions for anyone building collaborative features or forking the project. If you're interested in adding this, see the <strong>Contributing</strong> section below.
+</div>
+
+<h3>Planned Architecture for Collaboration</h3>
+
+<p>To add real-time editing, DevBoard would need:</p>
+
+<ol>
+  <li><strong>WebSocket or WebRTC</strong> for live updates across users</li>
+  <li><strong>Operational Transform (OT) or CRDT</strong> for conflict-free merging of edits</li>
+  <li><strong>Persistent database</strong> to save board state across sessions</li>
+  <li><strong>User authentication</strong> to identify collaborators</li>
+</ol>
+
+<h3>Suggested Tech Stacks</h3>
+
+<div class="grid-2">
+
+<div class="card-option">
+  <h4>🚀 Supabase (Easiest)</h4>
+  <p>PostgreSQL + real-time subscriptions + auth built-in.</p>
+  <ul>
+    <li>Store board JSON in Postgres</li>
+    <li>Use Supabase Realtime for live updates</li>
+    <li>Free tier covers dev/hobby projects</li>
+    <li>Drop-in migrations from Zustand → Supabase</li>
+  </ul>
+  <p style="margin-top: 10px; font-size: 0.78rem; color: var(--c-text-lo);">
+    <a href="https://supabase.com/docs/guides/realtime" target="_blank">Supabase Realtime Docs</a>
+  </p>
+</div>
+
+<div class="card-option">
+  <h4>🔗 WebSocket + Database</h4>
+  <p>Full control; higher maintenance.</p>
+  <ul>
+    <li><strong>Backend:</strong> Node.js (Express/Fastify) + Socket.io</li>
+    <li><strong>Database:</strong> PostgreSQL, MongoDB, or Firebase</li>
+    <li><strong>Sync:</strong> Manual or Yjs/Automerge CRDT</li>
+    <li>Host on Heroku, Railway, or your own server</li>
+  </ul>
+  <p style="margin-top: 10px; font-size: 0.78rem; color: var(--c-text-lo);">
+    <a href="https://docs.socket.io/" target="_blank">Socket.io Docs</a>
+  </p>
+</div>
+
+<div class="card-option">
+  <h4>⚛️ Yjs + Provider</h4>
+  <p>CRDT library; works with any backend.</p>
+  <ul>
+    <li>Conflict-free merging out of the box</li>
+    <li>Pair with WebSocket, WebRTC, or HTTP polling</li>
+    <li>Integrate with existing Zustand store</li>
+    <li>Works offline; syncs when reconnected</li>
+  </ul>
+  <p style="margin-top: 10px; font-size: 0.78rem; color: var(--c-text-lo);">
+    <a href="https://docs.yjs.dev/" target="_blank">Yjs Docs</a>
+  </p>
+</div>
+
+<div class="card-option">
+  <h4>🔥 Firebase Realtime DB</h4>
+  <p>Managed; good for rapid prototyping.</p>
+  <ul>
+    <li>No backend to maintain</li>
+    <li>Real-time listeners built-in</li>
+    <li>Auth via Firebase</li>
+    <li>Scales easily; metered pricing</li>
+  </ul>
+  <p style="margin-top: 10px; font-size: 0.78rem; color: var(--c-text-lo);">
+    <a href="https://firebase.google.com/docs/database" target="_blank">Firebase Docs</a>
+  </p>
+</div>
+
+</div>
+
+<h3>Integration Roadmap (For Contributors)</h3>
+
+<p>If you're forking DevBoard to add collaboration, here's a suggested approach:</p>
+
+<ol>
+  <li><strong>Keep single-user mode default</strong> — don't break existing deploys</li>
+  <li><strong>Add an optional backend flag:</strong> <code>VITE_BACKEND_URL=https://api.example.com</code></li>
+  <li><strong>Create a separate branch</strong> for the backend integration (e.g., <code>collab-supabase</code>)</li>
+  <li><strong>Migrate board state gradually:</strong>
+    <ul>
+      <li>Phase 1: Load/save to backend instead of localStorage</li>
+      <li>Phase 2: WebSocket listener for node changes</li>
+      <li>Phase 3: Multi-user cursors and presence</li>
+    </ul>
+  </li>
+  <li><strong>Document the fork</strong> and link it here</li>
+</ol>
+
+<div class="tip">
+  <strong>Interested in building collaboration?</strong> Open a discussion on <a href="https://github.com/MishaWave/devboard" target="_blank">GitHub</a> or reach out on <a href="https://x.com/MishoWave" target="_blank">X/Twitter</a>. I can point you to the right areas of the codebase.
+</div>
+
+</section>
+
+<!-- ────────────────────────────────────────────────────────────────────── -->
+<section>
+<h2>Contributing to DevBoard</h2>
+
+<p>DevBoard is open-source. Whether you want to add features, fix bugs, or suggest ideas, here's how to get involved:</p>
+
+<h3>Getting Started</h3>
+
+<ol>
+  <li><strong>Fork the repo:</strong> <a href="https://github.com/MishaWave/devboard" target="_blank">github.com/MishaWave/devboard</a></li>
+  <li><strong>Clone your fork:</strong>
+    <div class="code-block">git clone https://github.com/YOUR-USERNAME/devboard.git
+cd devboard
+npm install
+npm run dev</div>
+  </li>
+  <li><strong>Create a feature branch:</strong> <code>git checkout -b feature/my-awesome-feature</code></li>
+  <li><strong>Make your changes</strong> and test locally</li>
+  <li><strong>Push and open a PR:</strong> Describe what you built and why</li>
+</ol>
+
+<h3>Areas Looking for Help</h3>
+
+<ul>
+  <li><strong>Real-time collaboration:</strong> Add WebSocket/Supabase integration (see above)</li>
+  <li><strong>Mobile support:</strong> Touch gestures, responsive UI tweaks</li>
+  <li><strong>Export options:</strong> PDF, Markdown, LaTeX for different workflows</li>
+  <li><strong>Performance:</strong> Large boards (1000+ nodes) can lag; optimizations welcome</li>
+  <li><strong>Templates:</strong> Pre-made boards (design sprint, retro, architecture diagrams)</li>
+  <li><strong>Plugins/extensions:</strong> API for third-party node types</li>
+  <li><strong>Localization:</strong> Translations for UI and docs</li>
+</ul>
+
+<h3>Code Overview (For Contributors)</h3>
+
+<p>Quick reference for the most important files:</p>
+
+<ul>
+  <li><code>src/types/index.ts</code> — All TypeScript types and interfaces</li>
+  <li><code>src/store/boardStore.ts</code> — Zustand state (nodes, camera, clipboard)</li>
+  <li><code>src/App.tsx</code> — Root component, keyboard shortcuts</li>
+  <li><code>src/components/Canvas.tsx</code> — Main canvas, Konva stage, tool handling</li>
+  <li><code>src/components/Toolbar.tsx</code> — Tool picker UI</li>
+  <li><code>src/components/nodes/</code> — Node implementations (StickyNote, ShapeNode, etc.)</li>
+</ul>
+
+<p><strong>Adding a new node type?</strong> The <code>README.md</code> in the repo has a checklist for this.</p>
+
+<h3>Project Guidelines</h3>
+
+<ul>
+  <li><strong>Tests:</strong> Not strictly required, but appreciated</li>
+  <li><strong>Performance:</strong> Avoid large re-renders; use React.memo where appropriate</li>
+  <li><strong>Browser support:</strong> Modern browsers (Safari, Chrome, Firefox, Edge)</li>
+  <li><strong>Accessibility:</strong> Keyboard shortcuts, ARIA labels, high contrast in dark mode</li>
+  <li><strong>Mobile:</strong> Canvas works but not optimized yet; don't break it further</li>
+</ul>
+
+<h3>Reporting Issues & Suggestions</h3>
+
+<p>Found a bug or have an idea? <a href="https://github.com/MishaWave/devboard/issues" target="_blank">Open an issue on GitHub</a>.</p>
+
+<p>Include:</p>
+<ul>
+  <li>What you did (steps to reproduce)</li>
+  <li>What you expected</li>
+  <li>What happened instead</li>
+  <li>Browser, OS, DevBoard version</li>
+</ul>
+
+<h3>Connect with the Community</h3>
+
+<ul>
+  <li><strong>GitHub Discussions:</strong> Ideas, architecture questions, show & tell</li>
+  <li><strong>GitHub Issues:</strong> Bug reports, feature requests</li>
+  <li><strong>X/Twitter:</strong> <a href="https://x.com/MishoWave" target="_blank">@MishoWave</a> — announcements, casual chat</li>
+</ul>
+
+</section>
+
+<!-- ────────────────────────────────────────────────────────────────────── -->
+<section>
+<h2>FAQ</h2>
+
+<h3>Can I use DevBoard offline?</h3>
+<p>Yes. The built <code>dist/index.html</code> is a fully self-contained app. Save the file and open it locally in your browser—no server needed.</p>
+
+<h3>Can I backup my boards?</h3>
+<p><strong>Yes.</strong> Use the "Save JSON" button in the top bar to export your board. Keep it safe, then "Load JSON" to restore anytime.</p>
+
+<h3>Does DevBoard track me?</h3>
+<p>No. All data stays in your browser's localStorage. There's no analytics, tracking, or telemetry. Your boards are yours.</p>
+
+<h3>Can I self-host and add collaboration?</h3>
+<p>Yes—fork the repo and add a backend (see the <strong>Suggested Tech Stacks</strong> section above). Most users keep a branch for this.</p>
+
+<h3>How do I add a custom domain to my deployment?</h3>
+<p>If you're hosting on Netlify or Vercel, follow their docs for custom domains. For your own server, set up a reverse proxy (Nginx/Apache) to point your domain to the app.</p>
+
+</section>
+
+  </main>
+
+</div>
+
+<script>
+// Highlight active nav link
+document.querySelectorAll('.nav-links a').forEach(link => {
+  if (window.location.pathname.includes('self-hosting')) {
+    if (link.textContent.includes('GitHub')) return;
+    link.classList.add('active');
+  }
+});
+</script>
+
+</body>
+</html>

@@ -536,6 +536,7 @@
     <a href="#inputs">Inputs</a>
     <a href="#keyboard">Keyboard</a>
     <a href="#icons">Icons</a>
+    <a href="#panels">Panels &amp; UI Elements</a>
 
     <div style="margin-top: 32px;">
       <button class="mode-toggle" id="modeToggle" onclick="toggleMode()">
@@ -594,7 +595,7 @@
             <div class="mini-swatch"><div class="mini-swatch-dot" style="background:#cdc4b6;"></div><div class="mini-swatch-info"><span class="mini-swatch-name">Border</span><span class="mini-swatch-val">#cdc4b6</span></div></div>
             <div class="mini-swatch"><div class="mini-swatch-dot" style="background:#28201a;"></div><div class="mini-swatch-info"><span class="mini-swatch-name">Text hi</span><span class="mini-swatch-val">#28201a</span></div></div>
             <div class="mini-swatch"><div class="mini-swatch-dot" style="background:#6b5e52;"></div><div class="mini-swatch-info"><span class="mini-swatch-name">Text md</span><span class="mini-swatch-val">#6b5e52</span></div></div>
-            <div class="mini-swatch"><div class="mini-swatch-dot" style="background:#9a8878;"></div><div class="mini-swatch-info"><span class="mini-swatch-name">Text lo</span><span class="mini-swatch-val">#9a8878</span></div></div>
+            <div class="mini-swatch"><div class="mini-swatch-dot" style="background:#7a6b5a;"></div><div class="mini-swatch-info"><span class="mini-swatch-name">Text lo</span><span class="mini-swatch-val">#7a6b5a</span></div></div>
             <div class="mini-swatch"><div class="mini-swatch-dot" style="background:#a06038;"></div><div class="mini-swatch-info"><span class="mini-swatch-name">Accent</span><span class="mini-swatch-val">#a06038</span></div></div>
             <div class="mini-swatch"><div class="mini-swatch-dot" style="background:#b87848;"></div><div class="mini-swatch-info"><span class="mini-swatch-name">Accent 2</span><span class="mini-swatch-val">#b87848</span></div></div>
             <div class="mini-swatch"><div class="mini-swatch-dot" style="background:#528a4a;"></div><div class="mini-swatch-info"><span class="mini-swatch-name">Green</span><span class="mini-swatch-val">#528a4a</span></div></div>
@@ -604,8 +605,35 @@
 
       </div>
 
+      <h3 style="margin-top: 32px; margin-bottom: 16px; font-size: 1rem; font-weight: 600; color: var(--c-text-hi);">Supporting Colors</h3>
+      <p style="margin-bottom: 16px; color: var(--c-text-md);">Neutral and utility colors for shapes, strokes, and secondary elements. These pair with the main palette to provide contrast and visual distinction.</p>
+
+      <div class="palette-compare">
+        <div class="palette-dark">
+          <h4>Dark Mode</h4>
+          <div class="mini-swatch-row">
+            <div class="mini-swatch"><div class="mini-swatch-dot" style="background:#e2e8f0;"></div><div class="mini-swatch-info"><span class="mini-swatch-name">White</span><span class="mini-swatch-val">#e2e8f0</span></div></div>
+            <div class="mini-swatch"><div class="mini-swatch-dot" style="background:#334155;"></div><div class="mini-swatch-info"><span class="mini-swatch-name">Dark</span><span class="mini-swatch-val">#334155</span></div></div>
+            <div class="mini-swatch"><div class="mini-swatch-dot" style="background:#b87750;"></div><div class="mini-swatch-info"><span class="mini-swatch-name">Indigo</span><span class="mini-swatch-val">var(--c-line)</span></div></div>
+            <div class="mini-swatch"><div class="mini-swatch-dot" style="background:#22c55e;"></div><div class="mini-swatch-info"><span class="mini-swatch-name">Bright Green</span><span class="mini-swatch-val">#22c55e</span></div></div>
+          </div>
+          <p style="font-size: 0.75rem; color: var(--c-text-lo); margin-top: 12px;"><strong>Usage:</strong> Shape fills (white), dark strokes, UI accents (indigo), alerts (green).</p>
+        </div>
+
+        <div class="palette-light">
+          <h4>Light Mode</h4>
+          <div class="mini-swatch-row">
+            <div class="mini-swatch"><div class="mini-swatch-dot" style="background:#f0f4f8; outline: 1px solid #cbd5e1;"></div><div class="mini-swatch-info"><span class="mini-swatch-name">White</span><span class="mini-swatch-val">#e2e8f0</span></div></div>
+            <div class="mini-swatch"><div class="mini-swatch-dot" style="background:#3a3a42;"></div><div class="mini-swatch-info"><span class="mini-swatch-name">Dark</span><span class="mini-swatch-val">#334155</span></div></div>
+            <div class="mini-swatch"><div class="mini-swatch-dot" style="background:#8b5a3c;"></div><div class="mini-swatch-info"><span class="mini-swatch-name">Indigo</span><span class="mini-swatch-val">var(--c-line)</span></div></div>
+            <div class="mini-swatch"><div class="mini-swatch-dot" style="background:#16a34a;"></div><div class="mini-swatch-info"><span class="mini-swatch-name">Bright Green</span><span class="mini-swatch-val">#22c55e</span></div></div>
+          </div>
+          <p style="font-size: 0.75rem; color: var(--c-text-lo); margin-top: 12px;"><strong>Usage:</strong> Shape fills (white), dark strokes, UI accents (indigo), alerts (green).</p>
+        </div>
+      </div>
+
       <!-- live preview strip — updates with the toggle -->
-      <div class="preview-strip">
+      <div class="preview-strip" style="margin-top: 24px;">
         <div class="preview-strip-label">Live preview — toggle mode to see both</div>
         <div class="preview-strip-body">
           <button class="btn btn-primary">Download free →</button>
@@ -614,6 +642,81 @@
           <span class="pill">Bezier curves</span>
           <span class="pill">Smart anchors</span>
           <kbd>⌘</kbd><kbd>D</kbd>
+        </div>
+      </div>
+
+      <h3 style="margin-top: 32px; margin-bottom: 16px; font-size: 1rem; font-weight: 600; color: var(--c-text-hi);">Text Color Hierarchy</h3>
+      <p style="margin-bottom: 16px; color: var(--c-text-md);">Establish visual hierarchy and accessibility by using the text color tokens intentionally. Ensure adequate contrast on both light and dark backgrounds.</p>
+
+      <div class="palette-compare">
+        <div class="palette-dark">
+          <h4>Dark Mode</h4>
+          <div class="mini-swatch-row">
+            <div style="flex: 1; display: flex; flex-direction: column; gap: 8px;">
+              <div class="mini-swatch"><div class="mini-swatch-dot" style="background:#ece6dd; outline: 1px solid #3c3529;"></div><div class="mini-swatch-info"><span class="mini-swatch-name">Text hi</span><span class="mini-swatch-val">#ece6dd</span></div></div>
+              <div style="padding: 8px; background: #1c1916; border-radius: 4px; border: 1px solid #3c3529;">
+                <div style="font-size: 0.8rem; color: #ece6dd;">Heading text</div>
+                <div style="font-size: 0.75rem; color: #ece6dd; opacity: 0.9;">Primary content</div>
+              </div>
+            </div>
+            <div style="flex: 1; display: flex; flex-direction: column; gap: 8px;">
+              <div class="mini-swatch"><div class="mini-swatch-dot" style="background:#afa294;"></div><div class="mini-swatch-info"><span class="mini-swatch-name">Text md</span><span class="mini-swatch-val">#afa294</span></div></div>
+              <div style="padding: 8px; background: #1c1916; border-radius: 4px; border: 1px solid #3c3529;">
+                <div style="font-size: 0.75rem; color: #afa294;">Body copy goes here with secondary labels</div>
+              </div>
+            </div>
+            <div style="flex: 1; display: flex; flex-direction: column; gap: 8px;">
+              <div class="mini-swatch"><div class="mini-swatch-dot" style="background:#8a7b6c;"></div><div class="mini-swatch-info"><span class="mini-swatch-name">Text lo</span><span class="mini-swatch-val">#8a7b6c</span></div></div>
+              <div style="padding: 8px; background: #1c1916; border-radius: 4px; border: 1px solid #3c3529;">
+                <div style="font-size: 0.7rem; color: #8a7b6c;">Helper text & metadata</div>
+              </div>
+            </div>
+            <div style="flex: 1; display: flex; flex-direction: column; gap: 8px;">
+              <div class="mini-swatch"><div class="mini-swatch-dot" style="background:#4a3a28;"></div><div class="mini-swatch-info"><span class="mini-swatch-name">Text off</span><span class="mini-swatch-val">#4a3a28</span></div></div>
+              <div style="padding: 8px; background: #1c1916; border-radius: 4px; border: 1px solid #3c3529;">
+                <div style="font-size: 0.7rem; color: #4a3a28;">Disabled state</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="palette-light">
+          <h4>Light Mode</h4>
+          <div class="mini-swatch-row">
+            <div style="flex: 1; display: flex; flex-direction: column; gap: 8px;">
+              <div class="mini-swatch"><div class="mini-swatch-dot" style="background:#28201a; outline: 1px solid #cdc4b6;"></div><div class="mini-swatch-info"><span class="mini-swatch-name">Text hi</span><span class="mini-swatch-val">#28201a</span></div></div>
+              <div style="padding: 8px; background: #f6f1ea; border-radius: 4px; border: 1px solid #cdc4b6;">
+                <div style="font-size: 0.8rem; color: #28201a;">Heading text</div>
+                <div style="font-size: 0.75rem; color: #28201a; opacity: 0.9;">Primary content</div>
+              </div>
+            </div>
+            <div style="flex: 1; display: flex; flex-direction: column; gap: 8px;">
+              <div class="mini-swatch"><div class="mini-swatch-dot" style="background:#6b5e52;"></div><div class="mini-swatch-info"><span class="mini-swatch-name">Text md</span><span class="mini-swatch-val">#6b5e52</span></div></div>
+              <div style="padding: 8px; background: #f6f1ea; border-radius: 4px; border: 1px solid #cdc4b6;">
+                <div style="font-size: 0.75rem; color: #6b5e52;">Body copy goes here with secondary labels</div>
+              </div>
+            </div>
+            <div style="flex: 1; display: flex; flex-direction: column; gap: 8px;">
+              <div class="mini-swatch"><div class="mini-swatch-dot" style="background:#7a6b5a;"></div><div class="mini-swatch-info"><span class="mini-swatch-name">Text lo</span><span class="mini-swatch-val">#7a6b5a</span></div></div>
+              <div style="padding: 8px; background: #f6f1ea; border-radius: 4px; border: 1px solid #cdc4b6;">
+                <div style="font-size: 0.7rem; color: #7a6b5a;">Helper text & metadata</div>
+              </div>
+            </div>
+            <div style="flex: 1; display: flex; flex-direction: column; gap: 8px;">
+              <div class="mini-swatch"><div class="mini-swatch-dot" style="background:#bbb5af;"></div><div class="mini-swatch-info"><span class="mini-swatch-name">Text off</span><span class="mini-swatch-val">#bbb5af</span></div></div>
+              <div style="padding: 8px; background: #f6f1ea; border-radius: 4px; border: 1px solid #cdc4b6;">
+                <div style="font-size: 0.7rem; color: #bbb5af;">Disabled state</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="padding: 20px; background: var(--c-panel); border-radius: 8px; border: 1px solid var(--c-border); margin-top: 24px;">
+        <div style="font-size: 0.65rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--c-text-lo); margin-bottom: 12px;">Example: File explorer status message</div>
+        <div style="padding: 12px; background: var(--c-canvas); border-radius: 4px; display: flex; flex-direction: column; gap: 8px;">
+          <div style="font-size: 0.85rem; color: var(--c-text-hi); font-weight: 500;">assets/</div>
+          <div style="font-size: 0.75rem; color: var(--c-text-lo);">Single-click to preview · double-click to place</div>
         </div>
       </div>
     </section>
@@ -675,6 +778,29 @@
             <span class="type-spec">0.65rem / 600 / 0.1em / upper</span>
           </div>
           <span class="type-sample" style="font-size: 0.65rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--c-accent2);">All features</span>
+        </div>
+      </div>
+
+      <!-- Visual Hierarchy Summary -->
+      <div style="margin-top: 40px; padding: 20px; background: var(--c-panel); border-radius: 8px; border: 1px solid var(--c-border);">
+        <h3 style="font-size: 1rem; font-weight: 700; margin-bottom: 12px; color: var(--c-text-hi);">Visual Hierarchy</h3>
+        <div style="display: flex; flex-direction: column; gap: 8px; font-size: 0.9rem;">
+          <div>
+            <span style="font-weight: 600; color: var(--c-text-hi);">Structure</span>
+            <span style="color: var(--c-text-md);"> → Plus Jakarta Sans</span>
+          </div>
+          <div>
+            <span style="font-weight: 600; color: var(--c-text-hi);">Interaction</span>
+            <span style="color: var(--c-text-md);"> → Plus Jakarta Sans (buttons, labels, UI controls)</span>
+          </div>
+          <div>
+            <span style="font-weight: 600; color: var(--c-text-hi);">Data / Output</span>
+            <span style="color: var(--c-text-md);"> → Monospace (timer display, code, numeric output)</span>
+          </div>
+          <div>
+            <span style="font-weight: 600; color: var(--c-text-hi);">Personality</span>
+            <span style="color: var(--c-text-md);"> → Monospace (sparingly, for visual interest)</span>
+          </div>
         </div>
       </div>
     </section>
@@ -873,6 +999,103 @@
         <!-- github -->
         <div class="icon-tile"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></div>
       </div>
+    </section>
+
+    <!-- ── Panels & UI Elements ── -->
+    <section class="ds-section" id="panels">
+      <div class="ds-section-title">Components</div>
+      <h2>Panels &amp; UI Elements</h2>
+      <p>Floating panels, toolbars, and dialog components used throughout DevBoard.</p>
+
+      <h3 style="margin-top: 24px; margin-bottom: 12px; font-size: 0.9rem; font-weight: 600; color: var(--c-text-hi);">Floating Toolbar (Sticky Color Picker)</h3>
+      <div style="background: var(--c-canvas); border: 1px solid var(--c-border); border-radius: 8px; padding: 24px; display: flex; gap: 16px; align-items: center; justify-content: center;">
+        <div style="background: var(--c-panel); border: 1px solid var(--c-border); border-radius: 6px; padding: 6px 8px; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 16px rgba(0,0,0,0.15);">
+          <button style="width: 24px; height: 24px; display: flex; align-items: center; justify-center; border-radius: 4px; background: transparent; border: none; cursor: pointer; color: var(--c-text-lo); font-weight: 700; font-size: 13px; font-family: serif; transition: all 0.15s;" onmouseover="this.style.background='var(--c-hover)';this.style.color='var(--c-text-hi)'" onmouseout="this.style.background='transparent';this.style.color='var(--c-text-lo)'">B</button>
+          <button style="width: 24px; height: 24px; display: flex; align-items: center; justify-center; border-radius: 4px; background: transparent; border: none; cursor: pointer; color: var(--c-text-lo); font-style: italic; font-size: 13px; font-family: serif; transition: all 0.15s;" onmouseover="this.style.background='var(--c-hover)';this.style.color='var(--c-text-hi)'" onmouseout="this.style.background='transparent';this.style.color='var(--c-text-lo)'">I</button>
+          <button style="width: 24px; height: 24px; display: flex; align-items: center; justify-center; border-radius: 4px; background: transparent; border: none; cursor: pointer; color: var(--c-text-lo); text-decoration: underline; font-size: 13px; font-family: serif; transition: all 0.15s;" onmouseover="this.style.background='var(--c-hover)';this.style.color='var(--c-text-hi)'" onmouseout="this.style.background='transparent';this.style.color='var(--c-text-lo)'">U</button>
+          <div style="width: 1px; height: 16px; background: var(--c-border);"></div>
+          <button style="width: 24px; height: 24px; display: flex; align-items: center; justify-center; border-radius: 4px; background: transparent; border: none; cursor: pointer; color: var(--c-text-lo); transition: all 0.15s;" onmouseover="this.style.background='var(--c-hover)';this.style.color='var(--c-text-hi)'" onmouseout="this.style.background='transparent';this.style.color='var(--c-text-lo)'">•</button>
+          <div style="width: 1px; height: 16px; background: var(--c-border);"></div>
+          <button style="height: 24px; padding: 0 8px; border-radius: 4px; background: transparent; border: none; cursor: pointer; color: var(--c-text-lo); font-size: 11px; font-family: monospace; transition: all 0.15s;" onmouseover="this.style.background='var(--c-hover)';this.style.color='var(--c-text-hi)'" onmouseout="this.style.background='transparent';this.style.color='var(--c-text-lo)'">13px</button>
+          <div style="width: 1px; height: 16px; background: var(--c-border);"></div>
+          <button style="height: 24px; padding: 0 8px; border-radius: 4px; background: transparent; border: none; cursor: pointer; color: var(--c-text-lo); transition: all 0.15s; display: flex; align-items: center; gap: 6px;" onmouseover="this.style.background='var(--c-hover)';this.style.color='var(--c-text-hi)'" onmouseout="this.style.background='transparent';this.style.color='var(--c-text-lo)'">
+            <span style="width: 14px; height: 14px; border-radius: 3px; background: #FFF9C4; border: 1px solid rgba(255,255,255,0.2);"></span>
+            <svg width="8" height="5" viewBox="0 0 8 5" fill="currentColor"><path d="M0 0l4 5 4-5z"/></svg>
+          </button>
+        </div>
+      </div>
+      <p style="font-size: 0.75rem; color: var(--c-text-lo); margin-top: 12px;">Floating toolbar with text formatting (bold, italic, underline), bullet list toggle, font size selector, and color picker. Appears above selected sticky notes.</p>
+
+      <h3 style="margin-top: 24px; margin-bottom: 12px; font-size: 0.9rem; font-weight: 600; color: var(--c-text-hi);">Shape Toolbar</h3>
+      <div style="background: var(--c-canvas); border: 1px solid var(--c-border); border-radius: 8px; padding: 24px; display: flex; gap: 8px; align-items: center; justify-content: center;">
+        <div style="background: var(--c-panel); border: 1px solid var(--c-border); border-radius: 8px; padding: 4px; display: flex; align-items: center; gap: 0; overflow: visible; box-shadow: 0 4px 16px rgba(0,0,0,0.15);">
+          <button style="height: 32px; padding: 0 10px; border-radius: 8px; background: transparent; border: none; cursor: pointer; color: var(--c-text-hi); font-size: 12px; transition: all 0.15s; display: flex; align-items: center; gap: 8px;" onmouseover="this.style.background='var(--c-hover)'" onmouseout="this.style.background='transparent'">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="4" width="12" height="8" rx="1"/></svg>
+            <span>Rectangle</span>
+          </button>
+          <div style="width: 1px; height: 24px; background: var(--c-border); margin: 0 4px;"></div>
+          <button style="height: 32px; padding: 0 10px; border-radius: 8px; background: transparent; border: none; cursor: pointer; color: var(--c-text-lo); font-size: 12px; transition: all 0.15s; display: flex; align-items: center; gap: 8px;" onmouseover="this.style.background='var(--c-hover)';this.style.color='var(--c-text-hi)'" onmouseout="this.style.background='transparent';this.style.color='var(--c-text-lo)'">
+            <span style="width: 14px; height: 14px; border-radius: 3px; border: 1px solid rgba(255,255,255,0.2); background: #e2e8f0;"></span>
+            <svg width="8" height="5" viewBox="0 0 8 5" fill="currentColor"><path d="M0 0l4 5 4-5z"/></svg>
+          </button>
+          <button style="height: 32px; padding: 0 10px; border-radius: 8px; background: transparent; border: none; cursor: pointer; color: var(--c-text-lo); font-size: 12px; transition: all 0.15s; display: flex; align-items: center; gap: 8px;" onmouseover="this.style.background='var(--c-hover)';this.style.color='var(--c-text-hi)'" onmouseout="this.style.background='transparent';this.style.color='var(--c-text-lo)'">
+            <span style="width: 14px; height: 14px; border-radius: 3px; border: 2px solid #334155;"></span>
+            <svg width="8" height="5" viewBox="0 0 8 5" fill="currentColor"><path d="M0 0l4 5 4-5z"/></svg>
+          </button>
+        </div>
+      </div>
+      <p style="font-size: 0.75rem; color: var(--c-text-lo); margin-top: 12px;">Toolbar for editing shapes: shape type selector (with icon), fill color, and stroke color. Appears above selected shapes.</p>
+
+      <h3 style="margin-top: 24px; margin-bottom: 12px; font-size: 0.9rem; font-weight: 600; color: var(--c-text-hi);">Modal / Welcome Dialog</h3>
+      <div style="background: var(--c-canvas); border: 1px solid var(--c-border); border-radius: 8px; padding: 24px; display: flex; align-items: center; justify-content: center;">
+        <div style="background: var(--c-panel); border: 1px solid var(--c-border); border-radius: 12px; padding: 32px; width: 360px; box-shadow: 0 20px 64px rgba(0,0,0,0.3);">
+          <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 20px;">
+            <h4 style="font-size: 1.1rem; font-weight: 700; color: var(--c-text-hi); margin: 0;">Welcome to DevBoard</h4>
+            <button style="width: 24px; height: 24px; border: none; background: transparent; cursor: pointer; color: var(--c-text-lo); font-size: 18px; transition: color 0.15s;" onmouseover="this.style.color='var(--c-text-hi)'" onmouseout="this.style.color='var(--c-text-lo)'">×</button>
+          </div>
+          <p style="font-size: 0.85rem; color: var(--c-text-md); margin-bottom: 20px; line-height: 1.5;">A thinking canvas for solo devs. Drop ideas, connect them, ship faster.</p>
+          <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px;">
+            <label style="font-size: 0.75rem; font-weight: 600; color: var(--c-text-lo); text-transform: uppercase; margin-bottom: 4px;">Features</label>
+            <div style="display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: var(--c-text-md);">
+              <span style="width: 4px; height: 4px; border-radius: 50%; background: var(--c-text-lo); flex-shrink: 0;"></span>
+              Sticky notes, shapes, text, connectors
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: var(--c-text-md);">
+              <span style="width: 4px; height: 4px; border-radius: 50%; background: var(--c-text-lo); flex-shrink: 0;"></span>
+              Pan &amp; zoom with keyboard + mouse
+            </div>
+          </div>
+          <button style="width: 100%; padding: 10px 16px; background: var(--c-accent); border: none; border-radius: 6px; color: white; font-weight: 600; font-size: 0.85rem; cursor: pointer; transition: opacity 0.15s;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">Get started</button>
+        </div>
+      </div>
+      <p style="font-size: 0.75rem; color: var(--c-text-lo); margin-top: 12px;">Modal dialog with title, description, feature list, and action button. Appears on first visit or logo click.</p>
+
+      <h3 style="margin-top: 24px; margin-bottom: 12px; font-size: 0.9rem; font-weight: 600; color: var(--c-text-hi);">Color Swatch Grid</h3>
+      <div style="background: var(--c-canvas); border: 1px solid var(--c-border); border-radius: 8px; padding: 24px; display: flex; align-items: center; justify-content: center;">
+        <div style="background: var(--c-panel); border: 1px solid var(--c-border); border-radius: 8px; padding: 10px; display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.15);">
+          <button style="width: 28px; height: 28px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.2); background: #FFF9C4; cursor: pointer; transition: transform 0.1s;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'" title="Cream"></button>
+          <button style="width: 28px; height: 28px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.2); background: #FFE0B2; cursor: pointer; transition: transform 0.1s;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'" title="Apricot"></button>
+          <button style="width: 28px; height: 28px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.2); background: #C8E6C9; cursor: pointer; transition: transform 0.1s;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'" title="Mint"></button>
+          <button style="width: 28px; height: 28px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.2); background: #F8BBD0; cursor: pointer; transition: transform 0.1s;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'" title="Rose"></button>
+          <button style="width: 28px; height: 28px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.2); background: #E1BEE7; cursor: pointer; transition: transform 0.1s;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'" title="Lavender"></button>
+          <button style="width: 28px; height: 28px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.2); background: #BBDEFB; cursor: pointer; transition: transform 0.1s;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'" title="Blue"></button>
+          <button style="width: 28px; height: 28px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.2); background: #CFD8DC; cursor: pointer; transition: transform 0.1s;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'" title="Slate"></button>
+          <button style="width: 28px; height: 28px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.2); background: #F5D76E; cursor: pointer; transition: transform 0.1s;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'" title="Gold"></button>
+          <button style="width: 28px; height: 28px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.2); background: #E6956B; cursor: pointer; transition: transform 0.1s;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'" title="Rust"></button>
+          <button style="width: 28px; height: 28px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.2); background: #9BC184; cursor: pointer; transition: transform 0.1s;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'" title="Forest"></button>
+        </div>
+      </div>
+      <p style="font-size: 0.75rem; color: var(--c-text-lo); margin-top: 12px;">10-color palette grid for sticky notes and shapes: 7 soft pastels (Cream, Apricot, Mint, Rose, Lavender, Blue, Slate) + 3 richer accent colors (Gold, Rust, Forest).</p>
+
+      <h3 style="margin-top: 24px; margin-bottom: 12px; font-size: 0.9rem; font-weight: 600; color: var(--c-text-hi);">Floating Top Bar</h3>
+      <div style="background: var(--c-canvas); border: 1px solid var(--c-border); border-radius: 8px; padding: 24px; display: flex; align-items: center; justify-content: center;">
+        <div style="background: var(--c-panel); border: 1px solid var(--c-border); border-radius: 8px; padding: 8px 16px; display: flex; align-items: center; gap: 16px; width: 100%; max-width: 600px; box-shadow: 0 4px 16px rgba(0,0,0,0.15);">
+          <input type="text" placeholder="Untitled board" style="flex: 1; background: transparent; border: none; color: var(--c-text-hi); font-size: 14px; font-weight: 600; outline: none; font-family: inherit;" />
+          <button style="height: 32px; padding: 0 12px; border-radius: 6px; background: transparent; border: none; cursor: pointer; color: var(--c-text-lo); font-size: 12px; transition: all 0.15s;" onmouseover="this.style.background='var(--c-hover)';this.style.color='var(--c-text-hi)'" onmouseout="this.style.background='transparent';this.style.color='var(--c-text-lo)'">Export</button>
+          <button style="height: 32px; padding: 0 12px; border-radius: 6px; background: var(--c-accent); border: none; cursor: pointer; color: white; font-weight: 600; font-size: 12px; transition: opacity 0.15s;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">Share</button>
+        </div>
+      </div>
+      <p style="font-size: 0.75rem; color: var(--c-text-lo); margin-top: 12px;">Top bar with editable board title, export button, and share button. Persists at the top of the canvas.</p>
     </section>
 
   </main>

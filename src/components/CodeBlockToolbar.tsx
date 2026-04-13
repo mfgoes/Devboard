@@ -100,7 +100,7 @@ export default function CodeBlockToolbar({ nodeId }: Props) {
           onClick={() => setShowLang((v) => !v)}
           className="flex items-center gap-1.5 h-8 px-2 rounded-lg text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
         >
-          <span className="font-mono text-[11px] text-[#79b8ff]">{currentLang.label}</span>
+          <span className="font-sans text-[11px] text-[#79b8ff]">{currentLang.label}</span>
           <svg width="8" height="5" viewBox="0 0 8 5" fill="currentColor" className="text-[var(--c-text-lo)]">
             <path d="M0 0l4 5 4-5z" />
           </svg>
@@ -112,7 +112,7 @@ export default function CodeBlockToolbar({ nodeId }: Props) {
                 key={l.value}
                 onClick={() => { update({ language: l.value }); setShowLang(false); }}
                 className={[
-                  'w-full text-left px-3 py-2 font-mono text-[12px] transition-colors',
+                  'w-full text-left px-3 py-2 font-sans text-[12px] transition-colors',
                   node.language === l.value
                     ? 'bg-[var(--c-line)] text-white'
                     : 'text-[var(--c-text-md)] hover:bg-[var(--c-hover)]',

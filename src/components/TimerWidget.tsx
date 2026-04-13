@@ -115,7 +115,7 @@ export default function TimerWidget({ onClose }: { onClose: () => void }) {
         className="flex items-center justify-between px-3 py-2.5 border-b border-[var(--c-border)] cursor-grab active:cursor-grabbing"
         onMouseDown={onMouseDownHeader}
       >
-        <span className="font-mono text-[11px] font-semibold text-[var(--c-text-hi)] tracking-widest uppercase flex items-center gap-1.5">
+        <span className="font-sans text-[11px] font-semibold text-[var(--c-text-hi)] tracking-widest uppercase flex items-center gap-1.5">
           <IconTimer />
           Timer
         </span>
@@ -173,7 +173,7 @@ export default function TimerWidget({ onClose }: { onClose: () => void }) {
         <div className="flex items-center justify-between">
           <button
             onClick={handleAddMin}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded border border-[var(--c-border)] font-mono text-[11px] text-[var(--c-text-md)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded border border-[var(--c-border)] font-sans text-[11px] text-[var(--c-text-md)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
           >
             <span className="text-[13px] leading-none font-bold">+</span> 1 min
           </button>

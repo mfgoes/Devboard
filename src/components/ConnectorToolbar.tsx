@@ -135,7 +135,7 @@ function DropItem({
     <button
       onClick={onClick}
       className={[
-        'flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-mono transition-colors w-full text-left',
+        'flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-sans transition-colors w-full text-left',
         active ? 'bg-[var(--c-line)] text-white' : 'text-[var(--c-text-md)] hover:bg-[var(--c-hover)]',
       ].join(' ')}
     >

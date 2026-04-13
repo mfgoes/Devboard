@@ -688,7 +688,7 @@ export function useCanvasInteraction({
         y: placeY,
         width: useWidth,
         height: useHeight,
-        fill: '#E1BEE7',
+        fill: '#e2e8f0',
         stroke: 'transparent',
         strokeWidth: 2,
         text: '',
@@ -698,6 +698,7 @@ export function useCanvasInteraction({
         textAlign: 'center',
       } satisfies ShapeNode);
       setShapeDraw(null);
+      setActiveTool('select');
     }
     if (sectionDraw) {
       const dragW = Math.abs(sectionDraw.currentScreenX - sectionDraw.startScreenX);

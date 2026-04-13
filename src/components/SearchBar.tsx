@@ -197,7 +197,7 @@ export default function SearchBar({ onClose }: { onClose: () => void }) {
   const showPageName = allPages && activeMatch && activeMatch.pageId !== activePageId;
 
   return (
-    <div className="fixed top-14 left-1/2 -translate-x-1/2 z-[200] flex items-center gap-1.5 px-3 py-1.5 bg-[var(--c-panel)] border border-[var(--c-border)] rounded-xl shadow-lg font-mono text-[12px] select-none animate-fade-in">
+    <div className="fixed top-14 left-1/2 -translate-x-1/2 z-[200] flex items-center gap-1.5 px-3 py-1.5 bg-[var(--c-panel)] border border-[var(--c-border)] rounded-xl shadow-lg font-sans text-[12px] select-none animate-fade-in">
       {/* Search icon */}
       <svg width="13" height="13" viewBox="0 0 13 13" fill="none" className="text-[var(--c-text-off)] shrink-0">
         <circle cx="5.5" cy="5.5" r="4" stroke="currentColor" strokeWidth="1.3" />
@@ -212,7 +212,7 @@ export default function SearchBar({ onClose }: { onClose: () => void }) {
         onChange={(e) => setQuery(e.target.value)}
         onKeyDown={handleKeyDown}
         placeholder="Find on board…"
-        className="w-48 bg-transparent text-[var(--c-text-hi)] text-[12px] font-mono placeholder:text-[var(--c-text-off)] focus:outline-none"
+        className="w-48 bg-transparent text-[var(--c-text-hi)] text-[12px] font-sans placeholder:text-[var(--c-text-off)] focus:outline-none"
       />
 
       {/* Match counter */}

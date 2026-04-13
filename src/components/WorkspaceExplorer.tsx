@@ -77,6 +77,11 @@ function TreeRow({
   // Hover preview for image files
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const handleClick = (clientY: number) => {
+    // Cancel rename on any other item when clicking this one
+    if (renamingPath && renamingPath !== entry.path.join('/')) {
+      onRenameCancel();
+    }
+
     if (isRenaming) return;
     if (isDir) { onToggle(entry.path); return; }
     if (!canOpen) return;
@@ -223,7 +228,7 @@ function TreeRow({
           ))}
           {entry.children.length === 0 && (
             <div
-              className="text-[10px] text-[var(--c-text-lo)] font-mono italic"
+              className="text-[10px] text-[var(--c-text-lo)] font-sans italic"
               style={{ paddingLeft: 8 + (depth + 1) * 14 + 18 }}
             >
               empty
@@ -466,8 +471,9 @@ export default function WorkspaceExplorer({ onClose }: Props) {
       setRenamingPath(null);
       renamingEntryRef.current = null;
     };
-    window.addEventListener('mousedown', handler);
-    return () => window.removeEventListener('mousedown', handler);
+    // Use click instead of mousedown since panel's onMouseDown stops propagation
+    window.addEventListener('click', handler);
+    return () => window.removeEventListener('click', handler);
   }, [renamingPath]);
 
   // Dismiss explorer context menu on outside click
@@ -478,8 +484,9 @@ export default function WorkspaceExplorer({ onClose }: Props) {
         setExplorerMenu(null);
       }
     };
-    window.addEventListener('mousedown', handler);
-    return () => window.removeEventListener('mousedown', handler);
+    // Use click instead of mousedown since panel's onMouseDown stops propagation
+    window.addEventListener('click', handler);
+    return () => window.removeEventListener('click', handler);
   }, [explorerMenu]);
 
   const handleEntryContextMenu = useCallback((entry: TreeEntry, x: number, y: number) => {
@@ -904,7 +911,7 @@ export default function WorkspaceExplorer({ onClose }: Props) {
 
       {/* Footer hint */}
       <div style={{ padding: '8px 12px', borderTop: '1px solid var(--c-border)', flexShrink: 0, borderRadius: '0 0 12px 12px' }}>
-        <p style={{ fontSize: 9, color: 'var(--c-text-off)', fontFamily: FONTS.ui, lineHeight: 1.4, margin: 0 }}>
+        <p style={{ fontSize: 9, color: 'var(--c-text-lo)', fontFamily: FONTS.ui, lineHeight: 1.4, margin: 0 }}>
           Single-click to preview · drag or double-click (↵) to place · ↑↓ navigate
         </p>
       </div>

@@ -215,10 +215,13 @@ export default function ShapeNode({
     if (!group) return;
     const newWidth  = Math.max(20, w * group.scaleX());
     const newHeight = Math.max(20, h * group.scaleY());
+
+    // Keep the top-left corner in place by maintaining node.x and node.y
+    // Only the width and height change during a resize operation
     saveHistory();
     updateNode(node.id, {
-      x: group.x() - group.offsetX(),
-      y: group.y() - group.offsetY(),
+      x: node.x,
+      y: node.y,
       width:  newWidth,
       height: newHeight,
       rotation: group.rotation(),

@@ -110,16 +110,16 @@ function DefaultFolderRow({ folder, onChange }: { folder: string; onChange: (f: 
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') setEditing(false); e.stopPropagation(); }}
           placeholder="assets"
-          className="flex-1 bg-[var(--c-canvas)] border border-[var(--c-border)] focus:border-[var(--c-line)] rounded px-2 py-0.5 font-mono text-[10px] text-[var(--c-text-hi)] outline-none"
+          className="flex-1 bg-[var(--c-canvas)] border border-[var(--c-border)] focus:border-[var(--c-line)] rounded px-2 py-0.5 font-sans text-[10px] text-[var(--c-text-hi)] outline-none"
         />
-        <button onClick={commit} className="px-2 py-0.5 rounded bg-[var(--c-line)] text-white font-mono text-[9px]">OK</button>
+        <button onClick={commit} className="px-2 py-0.5 rounded bg-[var(--c-line)] text-white font-sans text-[9px]">OK</button>
       </div>
     );
   }
   return (
     <button
       onClick={() => { setDraft(folder); setEditing(true); }}
-      className="w-full flex items-center gap-1.5 text-left font-mono text-[9px] text-[var(--c-text-lo)] hover:text-[var(--c-text-md)] transition-colors"
+      className="w-full flex items-center gap-1.5 text-left font-sans text-[9px] text-[var(--c-text-md)] hover:text-[var(--c-text-hi)] transition-colors"
       title="Default folder for new images — click to change"
     >
       <svg width="9" height="9" viewBox="0 0 9 9" fill="none">
@@ -498,12 +498,12 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
         onMouseDown={() => setTemplatesModalOpen(false)}
       >
         <div
-          className="relative w-[420px] max-h-[70vh] flex flex-col rounded-2xl border border-[var(--c-border)] bg-[var(--c-panel)] shadow-2xl overflow-hidden"
+          className="relative w-[420px] max-h-[70vh] flex flex-col rounded-2xl border border-[var(--c-border)] bg-[var(--c-panel)] shadow-2xl overflow-hidden font-sans"
           onMouseDown={(e) => e.stopPropagation()}
         >
           {/* Header */}
           <div className="flex items-center justify-between px-5 py-3.5 border-b border-[var(--c-border)] shrink-0">
-            <span className="font-mono text-[13px] font-semibold text-[var(--c-text-hi)] tracking-wide">Templates</span>
+            <span className="font-sans text-[13px] font-semibold text-[var(--c-text-hi)] tracking-wide">Templates</span>
             <button
               onClick={() => setTemplatesModalOpen(false)}
               className="w-6 h-6 flex items-center justify-center rounded text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
@@ -523,8 +523,8 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
               >
                 <span className="mt-0.5 shrink-0 text-[var(--c-line)]"><IconTemplate /></span>
                 <div className="min-w-0">
-                  <div className="font-mono text-[12px] text-[var(--c-text-hi)] group-hover:text-[var(--c-text-hi)]">{t.name}</div>
-                  <div className="font-mono text-[10px] text-[var(--c-text-lo)] mt-0.5 leading-snug">{t.description}</div>
+                  <div className="font-sans text-[12px] text-[var(--c-text-hi)] group-hover:text-[var(--c-text-hi)]">{t.name}</div>
+                  <div className="font-sans text-[10px] text-[var(--c-text-lo)] mt-0.5 leading-snug">{t.description}</div>
                 </div>
               </button>
             ))}
@@ -532,7 +532,7 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
         </div>
       </div>
     )}
-    <div className="absolute top-0 left-0 right-0 z-[190] flex items-center justify-between px-4 h-11 bg-[var(--c-panel)] border-b border-[var(--c-border)]">
+    <div className="absolute top-0 left-0 right-0 z-[190] flex items-center justify-between px-4 h-11 bg-[var(--c-panel)] border-b border-[var(--c-border)] font-sans">
       {/* Left: Logo + dropdown + title */}
       <div className="flex items-center gap-3 min-w-0">
 
@@ -548,7 +548,7 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
                 : 'text-[var(--c-line)] hover:opacity-80 hover:bg-[var(--c-hover)]',
             ].join(' ')}
           >
-            <span className="font-mono text-[11px] font-semibold tracking-widest uppercase">DevBoard</span>
+            <span className="font-sans text-[11px] font-semibold tracking-widest uppercase">DevBoard</span>
             <IconChevronDown />
           </button>
 
@@ -564,7 +564,7 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
                 <MenuItem onClick={() => menuAction(handleSaveAsJSON)} icon={<IconJson />}>Save board as…</MenuItem>
                 <MenuItem onClick={handleOpenFolder} icon={<IconFolder />}>
                   Open folder…
-                  {workspaceName && <span className="ml-auto text-[9px] text-[var(--c-line)] font-mono truncate max-w-[80px]">{workspaceName}</span>}
+                  {workspaceName && <span className="ml-auto text-[9px] text-[var(--c-line)] font-sans truncate max-w-[80px]">{workspaceName}</span>}
                 </MenuItem>
                 <MenuDivider />
                 <MenuLabel>Templates</MenuLabel>
@@ -694,7 +694,7 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
                 </span>
               </span>
               {/* Active page name — hidden on mobile */}
-              <span className="hidden sm:inline font-mono text-[11px] tracking-wide max-w-[100px] truncate">
+              <span className="hidden sm:inline font-sans text-[11px] tracking-wide max-w-[100px] truncate">
                 {activePage?.name ?? 'Page 1'}
               </span>
             </button>
@@ -713,13 +713,13 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
               if (e.key === 'Enter') commitTitle();
               if (e.key === 'Escape') { setTitleDraft(boardTitle); setEditingTitle(false); }
             }}
-            className="hidden sm:block bg-transparent border-b border-[var(--c-line)] text-[var(--c-text-hi)] font-mono text-sm outline-none min-w-0 max-w-[220px]"
+            className="hidden sm:block bg-transparent border-b border-[var(--c-line)] text-[var(--c-text-hi)] font-sans text-sm outline-none min-w-0 max-w-[220px]"
           />
         ) : (
           <button
             onClick={() => { setTitleDraft(boardTitle); setEditingTitle(true); }}
             title="Rename board"
-            className="hidden sm:block font-mono text-sm text-[var(--c-text-hi)] hover:text-[var(--c-text-hi)] truncate max-w-[220px] text-left"
+            className="hidden sm:block font-sans text-sm text-[var(--c-text-hi)] hover:text-[var(--c-text-hi)] truncate max-w-[220px] text-left"
           >
             {boardTitle}
           </button>
@@ -731,7 +731,7 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
               onClick={() => setWorkspaceMenuOpen((v) => !v)}
               title={`Workspace: ${workspaceName}`}
               className={[
-                'flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono border transition-colors max-w-[160px]',
+                'flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-sans border transition-colors max-w-[160px]',
                 workspaceMenuOpen
                   ? 'text-[var(--c-line)] border-[var(--c-line)]/50 bg-[var(--c-line)]/15'
                   : 'text-[var(--c-line)] border-[var(--c-line)]/30 bg-[var(--c-line)]/10 hover:bg-[var(--c-line)]/20',
@@ -743,7 +743,13 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
             </button>
           ) : (
             <button
-              onClick={handleOpenFolder}
+              onClick={() => {
+                if (IN_IFRAME) {
+                  toast('Workspace folders are not available when embedded on itch.io');
+                } else {
+                  handleOpenFolder();
+                }
+              }}
               title={
                 IN_IFRAME
                   ? 'Workspace folders are not available when embedded on itch.io'
@@ -751,7 +757,7 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
                   ? 'Requires Chrome, Edge, or the desktop app'
                   : 'Open a folder workspace to save images as files and keep JSON small'
               }
-              className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono border border-dashed border-[var(--c-border)] text-[var(--c-text-lo)] hover:text-[var(--c-line)] hover:border-[var(--c-line)]/40 hover:bg-[var(--c-line)]/8 transition-colors"
+              className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-sans border border-dashed border-[var(--c-border)] text-[var(--c-text-md)] hover:text-[var(--c-line)] hover:border-[var(--c-line)]/40 hover:bg-[var(--c-line)]/8 transition-colors"
             >
               <IconFolder />
               {IN_IFRAME ? 'Workspace unavailable' : 'Open workspace…'}
@@ -761,21 +767,21 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
             <div className="absolute top-full left-0 mt-1.5 z-[300] bg-[var(--c-panel)] border border-[var(--c-border)] rounded-xl shadow-2xl min-w-[190px] overflow-hidden">
               {/* Header */}
               <div className="px-3 py-2 border-b border-[var(--c-border)]">
-                <p className="font-mono text-[9px] text-[var(--c-text-lo)] uppercase tracking-wider">Active workspace</p>
-                <p className="font-mono text-[11px] text-[var(--c-line)] font-semibold truncate mt-0.5" title={workspaceName}>{workspaceName}</p>
+                <p className="font-sans text-[9px] text-[var(--c-text-lo)] uppercase tracking-wider">Active workspace</p>
+                <p className="font-sans text-[11px] text-[var(--c-line)] font-semibold truncate mt-0.5" title={workspaceName}>{workspaceName}</p>
               </div>
               {/* Actions */}
               <div className="py-1">
                 <button
                   onClick={() => { setWorkspaceMenuOpen(false); handleOpenFolder(); }}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-left font-mono text-[11px] text-[var(--c-text-md)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
+                  className="w-full flex items-center gap-2 px-3 py-2 text-left font-sans text-[11px] text-[var(--c-text-md)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
                 >
                   <IconFolder />
                   Switch workspace…
                 </button>
                 <button
                   onClick={() => { setWorkspaceMenuOpen(false); onToggleExplorer(); }}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-left font-mono text-[11px] text-[var(--c-text-md)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
+                  className="w-full flex items-center gap-2 px-3 py-2 text-left font-sans text-[11px] text-[var(--c-text-md)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
                 >
                   <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
                     <rect x="1" y="1" width="4" height="4" rx="0.8" stroke="currentColor" strokeWidth="1.1"/>
@@ -798,7 +804,7 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
                     setWorkspaceName(null);
                     toast('Workspace closed');
                   }}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-left font-mono text-[11px] text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
+                  className="w-full flex items-center gap-2 px-3 py-2 text-left font-sans text-[11px] text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
                 >
                   <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
                     <path d="M2 2l7 7M9 2l-7 7" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
@@ -815,7 +821,7 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
             <button
               onClick={() => setMissingWarningOpen((v) => !v)}
               title={`${missingImages.length} missing image${missingImages.length > 1 ? 's' : ''}`}
-              className="hidden sm:flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono text-[#f59e0b] border border-[#f59e0b]/40 bg-[#f59e0b]/10 hover:bg-[#f59e0b]/20 transition-colors"
+              className="hidden sm:flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-sans text-[#f59e0b] border border-[#f59e0b]/40 bg-[#f59e0b]/10 hover:bg-[#f59e0b]/20 transition-colors"
             >
               <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
                 <path d="M5 1L9.5 9H0.5L5 1Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
@@ -827,8 +833,8 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
             {missingWarningOpen && (
               <div className="absolute top-full left-0 mt-1.5 z-[300] bg-[var(--c-panel)] border border-[#f59e0b]/40 rounded-xl shadow-2xl min-w-[220px] overflow-hidden">
                 <div className="px-3 py-2 border-b border-[var(--c-border)]">
-                  <p className="font-mono text-[10px] text-[#f59e0b] font-semibold uppercase tracking-wider">Missing images</p>
-                  <p className="font-mono text-[9px] text-[var(--c-text-lo)] mt-0.5">Re-open the workspace folder to reload.</p>
+                  <p className="font-sans text-[10px] text-[#f59e0b] font-semibold uppercase tracking-wider">Missing images</p>
+                  <p className="font-sans text-[9px] text-[var(--c-text-lo)] mt-0.5">Re-open the workspace folder to reload.</p>
                 </div>
                 <ul className="max-h-[160px] overflow-y-auto py-1">
                   {missingImages.map((img) => (
@@ -838,14 +844,14 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
                         <path d="M1 8L3.5 5.5l2 2L8 5l2 2.5" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
                         <line x1="1" y1="1" x2="10" y2="10" stroke="currentColor" strokeWidth="1" opacity="0.5" />
                       </svg>
-                      <span className="font-mono text-[10px] text-[var(--c-text-md)] truncate" title={img.assetName}>{img.assetName}</span>
+                      <span className="font-sans text-[10px] text-[var(--c-text-md)] truncate" title={img.assetName}>{img.assetName}</span>
                     </li>
                   ))}
                 </ul>
                 <div className="px-3 py-2 border-t border-[var(--c-border)] flex flex-col gap-1.5">
                   <button
                     onClick={handleAutoFix}
-                    className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--c-line)] hover:opacity-80 text-white font-mono text-[10px] font-semibold transition-colors"
+                    className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--c-line)] hover:opacity-80 text-white font-sans text-[10px] font-semibold transition-colors"
                   >
                     <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
                       <path d="M5.5 1a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9z" stroke="currentColor" strokeWidth="1.1"/>
@@ -856,7 +862,7 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
                   {hasWorkspaceHandle() && (
                     <button
                       onClick={() => { setMissingWarningOpen(false); handleOpenFolder(); }}
-                      className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--c-hover)] hover:bg-[#f59e0b]/15 text-[var(--c-text-lo)] hover:text-[#f59e0b] font-mono text-[10px] transition-colors"
+                      className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--c-hover)] hover:bg-[#f59e0b]/15 text-[var(--c-text-lo)] hover:text-[#f59e0b] font-sans text-[10px] transition-colors"
                     >
                       <IconFolder />
                       Re-open workspace folder
@@ -878,7 +884,7 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
           <button
             onClick={() => setTemplatesModalOpen(true)}
             title="Templates"
-            className="hidden sm:flex items-center gap-1 px-2 h-7 rounded font-mono text-[11px] tracking-wide transition-colors text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]"
+            className="hidden sm:flex items-center gap-1 px-2 h-7 rounded font-sans text-[11px] tracking-wide transition-colors text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]"
           >
             <IconTemplate />
             <span>Templates</span>
@@ -892,7 +898,7 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
             onClick={() => setExportOpen((v) => !v)}
             title="Save / Export"
             className={[
-              'flex items-center gap-1 px-2.5 h-7 rounded font-mono text-[11px] tracking-wide transition-colors',
+              'flex items-center gap-1 px-2.5 h-7 rounded font-sans text-[11px] tracking-wide transition-colors',
               exportOpen
                 ? 'bg-[var(--c-line)] opacity-90 text-white'
                 : 'bg-[var(--c-line)] text-white hover:opacity-80',
@@ -956,7 +962,7 @@ function MenuDivider() {
 
 function MenuLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="px-3 py-0.5 font-mono text-[10px] text-[var(--c-text-off)] uppercase tracking-widest select-none">
+    <div className="px-3 py-0.5 font-sans text-[10px] text-[var(--c-text-off)] uppercase tracking-widest select-none">
       {children}
     </div>
   );
@@ -981,7 +987,7 @@ function MenuItem({
     <button
       onClick={disabled ? undefined : onClick}
       className={[
-        'w-full flex items-center gap-2.5 px-3 py-1.5 font-mono text-[12px] text-left transition-colors',
+        'w-full flex items-center gap-2.5 px-3 py-1.5 font-sans text-[12px] text-left transition-colors',
         disabled
           ? 'text-[var(--c-text-off)] cursor-default'
           : 'text-[var(--c-text-md)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
@@ -1001,7 +1007,7 @@ function MenuItem({
         </span>
       )}
       {badge && (
-        <span className="text-[9px] font-mono text-[var(--c-text-off)] border border-[var(--c-border)] rounded px-1 py-0.5 uppercase tracking-wide">
+        <span className="text-[9px] font-sans text-[var(--c-text-off)] border border-[var(--c-border)] rounded px-1 py-0.5 uppercase tracking-wide">
           {badge}
         </span>
       )}
@@ -1253,7 +1259,7 @@ function MenuItemSub({ label, icon, children }: { label: string; icon?: React.Re
     <div className="relative" onMouseEnter={show} onMouseLeave={hide}>
       <button
         className={[
-          'w-full flex items-center gap-2.5 px-3 py-1.5 font-mono text-[12px] text-left transition-colors',
+          'w-full flex items-center gap-2.5 px-3 py-1.5 font-sans text-[12px] text-left transition-colors',
           open
             ? 'text-[var(--c-text-hi)] bg-[var(--c-hover)]'
             : 'text-[var(--c-text-md)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
@@ -1285,7 +1291,7 @@ function Tooltip({ label, children }: { label: string; children: React.ReactNode
     <div className="relative" onMouseEnter={() => setVisible(true)} onMouseLeave={() => setVisible(false)}>
       {children}
       {visible && (
-        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-2 py-1 rounded bg-[var(--c-panel)] border border-[var(--c-border)] text-[var(--c-text-md)] font-mono text-[10px] whitespace-nowrap shadow-lg pointer-events-none z-[200]">
+        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-2 py-1 rounded bg-[var(--c-panel)] border border-[var(--c-border)] text-[var(--c-text-md)] font-sans text-[10px] whitespace-nowrap shadow-lg pointer-events-none z-[200]">
           {label}
           <div className="absolute bottom-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent border-b-[4px] border-b-[var(--c-border)]" />
         </div>
@@ -1312,7 +1318,7 @@ function TopBarBtn({
       onClick={onClick}
       title={title}
       className={[
-        'px-3 h-7 rounded font-mono text-[11px] tracking-wide transition-colors',
+        'px-3 h-7 rounded font-sans text-[11px] tracking-wide transition-colors',
         accent
           ? 'bg-[var(--c-line)] text-white hover:opacity-80'
           : 'text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',

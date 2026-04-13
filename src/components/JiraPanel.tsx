@@ -177,7 +177,7 @@ export default function JiraPanel({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="absolute top-11 right-0 z-[200] w-[380px] max-h-[calc(100vh-60px)] bg-[var(--c-panel)] border-l border-b border-[var(--c-border)] shadow-xl flex flex-col font-mono text-[12px] select-none overflow-hidden">
+    <div className="absolute top-11 right-0 z-[200] w-[380px] max-h-[calc(100vh-60px)] bg-[var(--c-panel)] border-l border-b border-[var(--c-border)] shadow-xl flex flex-col font-sans text-[12px] select-none overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--c-border)] bg-[var(--c-panel)]">
         <div className="flex items-center gap-2">
@@ -219,7 +219,7 @@ export default function JiraPanel({ onClose }: { onClose: () => void }) {
               value={domain}
               onChange={(e) => setDomain(e.target.value)}
               placeholder="yourcompany.atlassian.net"
-              className="mt-0.5 w-full px-2 py-1.5 rounded bg-[var(--c-canvas)] border border-[var(--c-border)] text-[var(--c-text-hi)] text-[12px] font-mono placeholder:text-[var(--c-text-off)] focus:outline-none focus:border-[var(--c-line)]"
+              className="mt-0.5 w-full px-2 py-1.5 rounded bg-[var(--c-canvas)] border border-[var(--c-border)] text-[var(--c-text-hi)] text-[12px] font-sans placeholder:text-[var(--c-text-off)] focus:outline-none focus:border-[var(--c-line)]"
             />
           </label>
           <label className="block">
@@ -229,7 +229,7 @@ export default function JiraPanel({ onClose }: { onClose: () => void }) {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@company.com"
-              className="mt-0.5 w-full px-2 py-1.5 rounded bg-[var(--c-canvas)] border border-[var(--c-border)] text-[var(--c-text-hi)] text-[12px] font-mono placeholder:text-[var(--c-text-off)] focus:outline-none focus:border-[var(--c-line)]"
+              className="mt-0.5 w-full px-2 py-1.5 rounded bg-[var(--c-canvas)] border border-[var(--c-border)] text-[var(--c-text-hi)] text-[12px] font-sans placeholder:text-[var(--c-text-off)] focus:outline-none focus:border-[var(--c-line)]"
             />
           </label>
           <label className="block">
@@ -239,7 +239,7 @@ export default function JiraPanel({ onClose }: { onClose: () => void }) {
               value={token}
               onChange={(e) => setToken(e.target.value)}
               placeholder="paste token here"
-              className="mt-0.5 w-full px-2 py-1.5 rounded bg-[var(--c-canvas)] border border-[var(--c-border)] text-[var(--c-text-hi)] text-[12px] font-mono placeholder:text-[var(--c-text-off)] focus:outline-none focus:border-[var(--c-line)]"
+              className="mt-0.5 w-full px-2 py-1.5 rounded bg-[var(--c-canvas)] border border-[var(--c-border)] text-[var(--c-text-hi)] text-[12px] font-sans placeholder:text-[var(--c-text-off)] focus:outline-none focus:border-[var(--c-line)]"
             />
           </label>
           <div className="flex items-center gap-2 pt-1">
@@ -271,7 +271,7 @@ export default function JiraPanel({ onClose }: { onClose: () => void }) {
               value={jql}
               onChange={(e) => setJql(e.target.value)}
               rows={2}
-              className="mt-0.5 w-full px-2 py-1.5 rounded bg-[var(--c-canvas)] border border-[var(--c-border)] text-[var(--c-text-hi)] text-[11px] font-mono placeholder:text-[var(--c-text-off)] focus:outline-none focus:border-[var(--c-line)] resize-none"
+              className="mt-0.5 w-full px-2 py-1.5 rounded bg-[var(--c-canvas)] border border-[var(--c-border)] text-[var(--c-text-hi)] text-[11px] font-sans placeholder:text-[var(--c-text-off)] focus:outline-none focus:border-[var(--c-line)] resize-none"
             />
           </label>
           <div className="flex items-center gap-2">

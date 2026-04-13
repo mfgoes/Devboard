@@ -190,7 +190,7 @@ export default function MultiSelectToolbar() {
             <button
               title="Font size"
               onClick={() => setShowFontSizes((v) => !v)}
-              className="h-8 px-2 rounded-lg text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors font-mono text-[11px] tabular-nums"
+              className="h-8 px-2 rounded-lg text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors font-sans text-[11px] tabular-nums"
             >
               {commonFontSize !== null ? `${commonFontSize}px` : 'mixed'}
             </button>
@@ -203,7 +203,7 @@ export default function MultiSelectToolbar() {
                       key={preset.value}
                       onClick={() => { applyText({ fontSize: preset.value } as Partial<CanvasNode>); setShowFontSizes(false); }}
                       className={[
-                        'w-full flex items-center gap-2 px-4 py-2 font-mono text-[12px] transition-colors',
+                        'w-full flex items-center gap-2 px-4 py-2 font-sans text-[12px] transition-colors',
                         active ? 'bg-[var(--c-line)] text-white' : 'text-[var(--c-text-md)] hover:bg-[var(--c-hover)]',
                       ].join(' ')}
                     >
@@ -219,7 +219,7 @@ export default function MultiSelectToolbar() {
       )}
 
       {/* Count badge */}
-      <div className="px-2 py-1 text-[10px] font-mono text-[var(--c-text-off)]">
+      <div className="px-2 py-1 text-[10px] font-sans text-[var(--c-text-off)]">
         {selected.length} selected
       </div>
     </div>

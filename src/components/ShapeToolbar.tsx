@@ -3,6 +3,7 @@ import { useBoardStore } from '../store/boardStore';
 import { ShapeNode, ShapeKind } from '../types';
 import { useToolbarPosition } from '../utils/useToolbarPosition';
 import ColorSwatches from './ColorSwatches';
+import { PALETTE } from '../utils/palette';
 
 const TEXT_COLORS = [
   { label: 'Auto',   hex: '' },
@@ -22,30 +23,21 @@ const FONT_SIZE_PRESETS = [
   { label: 'Extra large', value: 24 },
 ];
 
+// Shape fills use the same palette as stickies
 const SHAPE_FILLS = [
-  { hex: '#E1BEE7', label: 'Dusty Lavender' },
-  { hex: '#BBDEFB', label: 'Airy Blue' },
-  { hex: '#CFD8DC', label: 'Cool Slate' },
-  { hex: '#FFF9C4', label: 'Soft Cream' },
-  { hex: '#FFE0B2', label: 'Muted Apricot' },
-  { hex: '#C8E6C9', label: 'Pale Mint' },
-  { hex: '#F8BBD0', label: 'Blush Rose' },
+  ...PALETTE.map((p) => ({ hex: p.sticky, label: p.label })),
   { hex: '#e2e8f0', label: 'White' },
   { hex: '#334155', label: 'Dark' },
   { hex: 'var(--c-line)', label: 'Indigo' },
-  { hex: '#22c55e', label: 'Green' },
   { hex: 'transparent', label: 'No fill' },
 ];
 
+// Shape strokes use the more saturated section colors
 const SHAPE_STROKES = [
   { hex: 'transparent', label: 'No stroke' },
-  { hex: '#90CAF9', label: 'Blue' },
-  { hex: '#CE93D8', label: 'Lavender' },
-  { hex: '#A5D6A7', label: 'Mint' },
-  { hex: 'var(--c-line)', label: 'Indigo' },
+  ...PALETTE.map((p) => ({ hex: p.section, label: p.label })),
   { hex: '#334155', label: 'Dark' },
   { hex: '#e2e8f0', label: 'White' },
-  { hex: '#F48FB1', label: 'Rose' },
 ];
 
 const KIND_DEFS: { kind: ShapeKind; label: string; icon: React.ReactNode }[] = [
@@ -165,7 +157,7 @@ export default function ShapeToolbar({ nodeId }: Props) {
               className="flex items-center gap-1.5 h-8 px-2 rounded-lg text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
             >
               {current.icon}
-              <span className="font-mono text-[11px] text-[var(--c-text-lo)]">{current.label}</span>
+              <span className="font-sans text-[11px] text-[var(--c-text-lo)]">{current.label}</span>
               <svg width="8" height="5" viewBox="0 0 8 5" fill="currentColor" className="text-[var(--c-text-lo)]">
                 <path d="M0 0l4 5 4-5z" />
               </svg>
@@ -179,7 +171,7 @@ export default function ShapeToolbar({ nodeId }: Props) {
                 key={kind}
                 onClick={() => { update({ kind }); setShowKind(false); }}
                 className={[
-                  'w-full flex items-center gap-2.5 px-3 py-2 text-[12px] font-mono transition-colors',
+                  'w-full flex items-center gap-2.5 px-3 py-2 text-[12px] font-sans transition-colors',
                   node.kind === kind
                     ? 'bg-[var(--c-line)] text-white'
                     : 'text-[var(--c-text-md)] hover:bg-[var(--c-hover)]',
@@ -340,7 +332,7 @@ export default function ShapeToolbar({ nodeId }: Props) {
         <button
           title="Font size"
           onClick={() => { closeAll(); setShowFontSizes((v) => !v); }}
-          className="h-8 px-2 rounded-lg text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors font-mono text-[11px] tabular-nums"
+          className="h-8 px-2 rounded-lg text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors font-sans text-[11px] tabular-nums"
         >
           {node.fontSize ?? 14}px
         </button>
@@ -353,7 +345,7 @@ export default function ShapeToolbar({ nodeId }: Props) {
                   key={preset.label}
                   onClick={() => { update({ fontSize: preset.value }); setCustomSize(''); setShowFontSizes(false); }}
                   className={[
-                    'w-full text-left px-4 py-2 font-mono text-[13px] transition-colors flex items-center gap-2',
+                    'w-full text-left px-4 py-2 font-sans text-[13px] transition-colors flex items-center gap-2',
                     active ? 'bg-[var(--c-line)] text-white' : 'text-[var(--c-text-md)] hover:bg-[var(--c-hover)]',
                   ].join(' ')}
                 >
@@ -378,7 +370,7 @@ export default function ShapeToolbar({ nodeId }: Props) {
                   if (e.key === 'Escape') setShowFontSizes(false);
                   e.stopPropagation();
                 }}
-                className="w-full bg-[var(--c-canvas)] border border-[var(--c-border)] rounded-lg px-3 py-1.5 text-[var(--c-text-hi)] font-mono text-[12px] outline-none focus:border-[var(--c-line)]"
+                className="w-full bg-[var(--c-canvas)] border border-[var(--c-border)] rounded-lg px-3 py-1.5 text-[var(--c-text-hi)] font-sans text-[12px] outline-none focus:border-[var(--c-line)]"
               />
             </div>
           </div>
@@ -437,7 +429,7 @@ export default function ShapeToolbar({ nodeId }: Props) {
                 key={align}
                 onClick={() => { update({ textAlign: align }); setShowAlign(false); }}
                 className={[
-                  'w-full flex items-center gap-2.5 px-3 py-2 text-[12px] font-mono transition-colors capitalize',
+                  'w-full flex items-center gap-2.5 px-3 py-2 text-[12px] font-sans transition-colors capitalize',
                   (node.textAlign ?? 'center') === align
                     ? 'bg-[var(--c-line)] text-white'
                     : 'text-[var(--c-text-md)] hover:bg-[var(--c-hover)]',

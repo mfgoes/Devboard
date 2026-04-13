@@ -30,7 +30,7 @@ function IconBtn({
         {children}
       </button>
       {hovered && (
-        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-0.5 rounded-md bg-[var(--c-panel)] border border-[var(--c-border)] shadow-lg pointer-events-none whitespace-nowrap font-mono text-[10px] text-[var(--c-text-md)] z-50">
+        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-0.5 rounded-md bg-[var(--c-panel)] border border-[var(--c-border)] shadow-lg pointer-events-none whitespace-nowrap font-sans text-[10px] text-[var(--c-text-md)] z-50">
           {label}
         </div>
       )}
@@ -132,13 +132,13 @@ export default function ImageToolbar({ nodeId }: Props) {
               <circle cx="4.5" cy="4.5" r="1" fill="currentColor" />
             </svg>
           )}
-          <span className={['font-mono text-[11px] max-w-[160px] truncate', isMissing ? 'text-[#f59e0b]' : 'text-[var(--c-text-md)]'].join(' ')}>
+          <span className={['font-sans text-[11px] max-w-[160px] truncate', isMissing ? 'text-[#f59e0b]' : 'text-[var(--c-text-md)]'].join(' ')}>
             {isMissing ? `Missing: ${fileName}` : fileName}
           </span>
           {nameHovered && (
             <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2.5 py-1.5 rounded-lg bg-[var(--c-panel)] border border-[var(--c-border)] shadow-xl pointer-events-none z-50 flex flex-col gap-0.5" style={{ minWidth: 'max-content' }}>
-              <span className="font-mono text-[9px] text-[var(--c-text-off)] uppercase tracking-widest">path</span>
-              <span className="font-mono text-[11px] text-[var(--c-text-hi)]">
+              <span className="font-sans text-[9px] text-[var(--c-text-off)] uppercase tracking-widest">path</span>
+              <span className="font-sans text-[11px] text-[var(--c-text-hi)]">
                 <span className="text-[var(--c-text-off)]">{folder}/</span>{fileName}
               </span>
             </div>

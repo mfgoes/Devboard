@@ -35,7 +35,7 @@ export default function WelcomeModal({ onClose }: Props) {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="bg-[var(--c-panel)] border border-[var(--c-border)] rounded-xl shadow-2xl w-full max-w-lg mx-4 p-6 font-mono">
+      <div className="bg-[var(--c-panel)] border border-[var(--c-border)] rounded-xl shadow-2xl w-full max-w-lg mx-4 p-6 font-sans">
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">

@@ -54,15 +54,15 @@ export function fileColor(name: string, isDark = true): string {
     return '#afa294';                                      // text-md
   }
   // Light mode — higher-contrast equivalents
-  if (['ts', 'tsx'].includes(e))   return '#a06038';    // accent-light
-  if (['js', 'jsx'].includes(e))   return '#b06030';    // orange-light
-  if (e === 'py')                   return '#528a4a';    // green-light
-  if (e === 'sql')                  return '#b06030';    // orange-light
-  if (e === 'json')                 return '#b8921e';    // yellow-light
-  if (['md', 'txt'].includes(e))   return '#9a8878';    // text-lo-light
-  if (IMAGE_EXTS.has(e))           return '#b87848';    // accent2-light
-  if (['css', 'html'].includes(e)) return '#a84040';    // red-light
-  return '#6b5e52';                                       // text-md-light
+  if (['ts', 'tsx'].includes(e))   return '#7a3d1a';    // accent-light, darkened
+  if (['js', 'jsx'].includes(e))   return '#8a3a15';    // orange-light, darkened
+  if (e === 'py')                   return '#2d5a2a';    // green-light, darkened
+  if (e === 'sql')                  return '#8a3a15';    // orange-light, darkened
+  if (e === 'json')                 return '#6d5c0a';    // yellow-light, darkened
+  if (['md', 'txt'].includes(e))   return '#5c4d42';    // text-lo-light, darkened
+  if (IMAGE_EXTS.has(e))           return '#8a5a2a';    // accent2-light, darkened
+  if (['css', 'html'].includes(e)) return '#7a2222';    // red-light, darkened
+  return '#3d322a';                                       // text-md-light, darkened
 }
 
 export function FileIcon({ name, kind }: { name: string; kind: 'file' | 'directory' }) {

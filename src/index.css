@@ -1,4 +1,12 @@
 @tailwind base;
+
+/* Set default UI font globally */
+@layer base {
+  body {
+    font-family: var(--font-ui);
+  }
+}
+
 @tailwind components;
 @tailwind utilities;
 
@@ -35,7 +43,7 @@
   --c-border: #cdc4b6;
   --c-text-hi: #28201a;
   --c-text-md: #6b5e52;
-  --c-text-lo: #9a8878;
+  --c-text-lo: #7a6b5a;
   --c-text-off: #bbb5af;
   --c-dot: #d8d0c4;
   --c-line: #a06038;
@@ -68,7 +76,7 @@
 
 /* Textarea inside sticky note — no browser chrome */
 textarea {
-  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-family: inherit;
 }
 
 textarea::placeholder {

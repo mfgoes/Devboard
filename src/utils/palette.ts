@@ -10,6 +10,9 @@ export const PALETTE = [
   { label: 'Lavender', sticky: '#E1BEE7', section: '#CE93D8' },
   { label: 'Blue',     sticky: '#BBDEFB', section: '#90CAF9' },
   { label: 'Slate',    sticky: '#CFD8DC', section: '#B0BEC5' },
+  { label: 'Gold',     sticky: '#F5D76E', section: '#e2be72' },
+  { label: 'Rust',     sticky: '#E6956B', section: '#d4835a' },
+  { label: 'Forest',   sticky: '#9BC184', section: '#7aaa72' },
 ] as const;
 
 /** Design system accent colors (warm brown palette). */

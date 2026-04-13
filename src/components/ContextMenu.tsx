@@ -89,7 +89,7 @@ export default function ContextMenu({ menu, onClose }: Props) {
   }) => (
     <button
       className={[
-        'w-full flex items-center justify-between px-3 py-1.5 text-[12px] font-mono rounded transition-colors text-left',
+        'w-full flex items-center justify-between px-3 py-1.5 text-[12px] font-sans rounded transition-colors text-left',
         disabled
           ? 'opacity-40 cursor-default'
           : danger
@@ -146,7 +146,7 @@ export default function ContextMenu({ menu, onClose }: Props) {
         onMouseLeave={hide}
       >
         <button
-          className="w-full flex items-center justify-between px-3 py-1.5 text-[12px] font-mono rounded transition-colors text-left text-[var(--c-text-md)] hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]"
+          className="w-full flex items-center justify-between px-3 py-1.5 text-[12px] font-sans rounded transition-colors text-left text-[var(--c-text-md)] hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]"
         >
           <span>{label}</span>
           <span className="text-[10px] text-[var(--c-text-off)] ml-3">▶</span>

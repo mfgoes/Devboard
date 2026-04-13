@@ -331,7 +331,7 @@ export default function Toolbar() {
                     onClick={() => !isComingSoon && setActiveTool(tool.id)}
                     className={[
                       tool.mobileHidden ? 'hidden sm:flex' : 'flex',
-                      'relative flex-col items-center justify-center rounded-lg transition-all duration-100 font-mono text-[10px] gap-0.5',
+                      'relative flex-col items-center justify-center rounded-lg transition-all duration-100 font-sans text-[10px] gap-0.5',
                       'w-12 h-12 sm:w-10 sm:h-10 focus:outline-none',
                       isActive
                         ? 'bg-[var(--c-line)] text-white shadow-sm'
@@ -370,7 +370,7 @@ export default function Toolbar() {
               title="Insert (Task, Code, Image…)"
               onClick={() => setInsertOpen((o) => !o)}
               className={[
-                'flex flex-col items-center justify-center rounded-lg transition-all duration-100 font-mono text-[10px] gap-0.5',
+                'flex flex-col items-center justify-center rounded-lg transition-all duration-100 font-sans text-[10px] gap-0.5',
                 'w-10 h-10 focus:outline-none',
                 insertOpen || insertActive
                   ? 'bg-[var(--c-line)] text-white shadow-sm'
@@ -398,8 +398,8 @@ export default function Toolbar() {
             >
               {/* Panel header */}
               <div className="px-4 py-3 border-b border-[var(--c-border)]">
-                <p className="font-mono text-xs font-semibold text-[var(--c-text-hi)] tracking-wide uppercase">Insert</p>
-                <p className="font-mono text-[10px] text-[var(--c-text-lo)] mt-0.5">Click a block, then click the canvas</p>
+                <p className="font-sans text-xs font-semibold text-[var(--c-text-hi)] tracking-wide uppercase">Insert</p>
+                <p className="font-sans text-[10px] text-[var(--c-text-lo)] mt-0.5">Click a block, then click the canvas</p>
               </div>
 
               {/* Grid of insert items */}
@@ -428,18 +428,18 @@ export default function Toolbar() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <span className={[
-                            'font-mono text-[12px] font-semibold leading-tight',
+                            'font-sans text-[12px] font-semibold leading-tight',
                             isActive ? 'text-[var(--c-line)]' : 'text-[var(--c-text-hi)]',
                           ].join(' ')}>
                             {item.label}
                           </span>
                           {item.shortcut && (
-                            <span className="font-mono text-[9px] text-[var(--c-text-off)] bg-[var(--c-hover)] px-1 rounded">
+                            <span className="font-sans text-[9px] text-[var(--c-text-off)] bg-[var(--c-hover)] px-1 rounded">
                               {item.shortcut}
                             </span>
                           )}
                         </div>
-                        <span className="font-mono text-[10px] text-[var(--c-text-lo)] leading-tight block mt-0.5">
+                        <span className="font-sans text-[10px] text-[var(--c-text-lo)] leading-tight block mt-0.5">
                           {item.description}
                         </span>
                       </div>

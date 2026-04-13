@@ -7,6 +7,8 @@ import { FONTS } from '../../utils/fonts';
 
 const NEUTRAL_DARK  = '#64748b';
 const NEUTRAL_LIGHT = '#94a3b8';
+const BASE_FONT_SIZE = 12;
+const MIN_SCREEN_FONT_SIZE = 11; // Minimum font size in screen pixels for readability
 
 function resolveColor(color: string, theme: string): string {
   if (color === 'neutral') return theme === 'light' ? NEUTRAL_LIGHT : NEUTRAL_DARK;
@@ -59,7 +61,7 @@ interface Props {
 export default function SectionNodeComponent({ node, isSelected, isEditing }: Props) {
   const groupRef = useRef<Konva.Group>(null);
   const trRef    = useRef<Konva.Transformer>(null);
-  const { updateNode, updateNodes, selectIds, setEditingId, saveHistory, theme } = useBoardStore();
+  const { updateNode, updateNodes, selectIds, setEditingId, saveHistory, theme, camera } = useBoardStore();
 
   const dragStartRef = useRef<{
     sectionX: number;
@@ -145,10 +147,13 @@ export default function SectionNodeComponent({ node, isSelected, isEditing }: Pr
   const resolvedColor = resolveColor(node.color, theme);
   const fillColor   = hexToRgba(resolvedColor, 0.1);
   const borderColor = hexToRgba(resolvedColor, 0.55);
-  const labelText   = node.name || 'Section';
+  const fullName = node.name || 'Section';
+  const labelText = fullName.length > 20 ? fullName.slice(0, 20) + '...' : fullName;
   const textColor   = getTextColorForBackground(resolvedColor);
   const pillW = Math.max(72, labelText.length * 8 + 24);
   const pillH = 26;
+  // Responsive font size: maintain readability when zooming out
+  const fontSize = Math.max(BASE_FONT_SIZE, MIN_SCREEN_FONT_SIZE / camera.scale);
 
   return (
     <>
@@ -190,11 +195,12 @@ export default function SectionNodeComponent({ node, isSelected, isEditing }: Pr
           y={-pillH / 2 + 6}
           width={pillW - 20}
           text={isEditing ? '' : labelText}
-          fontSize={12}
+          fontSize={fontSize}
           fontStyle="bold"
           fontFamily={FONTS.ui}
           fill={textColor}
           listening={false}
+          wrap="none"
         />
       </Group>
 

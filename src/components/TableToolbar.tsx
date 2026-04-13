@@ -256,7 +256,7 @@ export default function TableToolbar({ nodeId }: { nodeId: string }) {
       {tableSelectionState?.nodeId === nodeId && (
         <>
           <div className="w-px h-5 bg-[var(--c-border)] mx-1" />
-          <span className="text-[10px] font-mono text-[var(--c-text-off)] px-1 whitespace-nowrap">
+          <span className="text-[10px] font-sans text-[var(--c-text-off)] px-1 whitespace-nowrap">
             R{focusRow + 1} C{focusCol + 1}
           </span>
         </>

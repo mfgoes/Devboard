@@ -127,7 +127,7 @@ export default function TextBlockToolbar({ nodeId }: { nodeId: string }) {
         <button
           title="Text size"
           onClick={() => { closeAll(); setShowSizes((v) => !v); }}
-          className="h-9 px-2.5 rounded-lg text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors font-mono text-[11px] tabular-nums"
+          className="h-9 px-2.5 rounded-lg text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors font-sans text-[11px] tabular-nums"
         >
           {node.fontSize}px
         </button>
@@ -140,7 +140,7 @@ export default function TextBlockToolbar({ nodeId }: { nodeId: string }) {
                   key={preset.label}
                   onClick={() => { update({ fontSize: preset.value }); setCustomSize(''); setShowSizes(false); }}
                   className={[
-                    'w-full text-left px-4 py-2 font-mono text-[13px] transition-colors flex items-center gap-2',
+                    'w-full text-left px-4 py-2 font-sans text-[13px] transition-colors flex items-center gap-2',
                     active
                       ? 'bg-[var(--c-line)] text-white'
                       : 'text-[var(--c-text-md)] hover:bg-[var(--c-hover)]',
@@ -167,7 +167,7 @@ export default function TextBlockToolbar({ nodeId }: { nodeId: string }) {
                   if (e.key === 'Escape') setShowSizes(false);
                   e.stopPropagation();
                 }}
-                className="w-full bg-[var(--c-canvas)] border border-[var(--c-border)] rounded-lg px-3 py-1.5 text-[var(--c-text-hi)] font-mono text-[12px] outline-none focus:border-[var(--c-line)]"
+                className="w-full bg-[var(--c-canvas)] border border-[var(--c-border)] rounded-lg px-3 py-1.5 text-[var(--c-text-hi)] font-sans text-[12px] outline-none focus:border-[var(--c-line)]"
               />
             </div>
           </div>
@@ -287,7 +287,7 @@ export default function TextBlockToolbar({ nodeId }: { nodeId: string }) {
                 key={align}
                 onClick={() => { update({ textAlign: align }); setShowAlign(false); }}
                 className={[
-                  'w-full flex items-center gap-2.5 px-3 py-2 text-[12px] font-mono transition-colors capitalize',
+                  'w-full flex items-center gap-2.5 px-3 py-2 text-[12px] font-sans transition-colors capitalize',
                   (node.textAlign ?? 'left') === align
                     ? 'bg-[var(--c-line)] text-white'
                     : 'text-[var(--c-text-md)] hover:bg-[var(--c-hover)]',
@@ -340,11 +340,11 @@ export default function TextBlockToolbar({ nodeId }: { nodeId: string }) {
                   if (e.key === 'Escape') setShowLink(false);
                   e.stopPropagation();
                 }}
-                className="flex-1 bg-[var(--c-canvas)] border border-[var(--c-border)] rounded-lg px-3 py-1.5 text-[var(--c-text-hi)] font-mono text-[12px] outline-none focus:border-[var(--c-line)]"
+                className="flex-1 bg-[var(--c-canvas)] border border-[var(--c-border)] rounded-lg px-3 py-1.5 text-[var(--c-text-hi)] font-sans text-[12px] outline-none focus:border-[var(--c-line)]"
               />
               <button
                 onClick={() => { update({ link: linkValue || undefined }); setShowLink(false); }}
-                className="px-3 py-1.5 bg-[var(--c-line)] text-white rounded-lg text-[12px] font-mono hover:bg-[#4f51c7] transition-colors whitespace-nowrap"
+                className="px-3 py-1.5 bg-[var(--c-line)] text-white rounded-lg text-[12px] font-sans hover:bg-[#4f51c7] transition-colors whitespace-nowrap"
               >
                 Set
               </button>

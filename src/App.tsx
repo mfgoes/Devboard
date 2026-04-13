@@ -30,6 +30,7 @@ import Toolbar from './components/Toolbar';
 import ZoomToolbar from './components/ZoomToolbar';
 import TopBar from './components/TopBar';
 import WelcomeModal from './components/WelcomeModal';
+import OnboardingModal from './components/OnboardingModal';
 import PagesPanel from './components/PagesPanel';
 import TimerWidget from './components/TimerWidget';
 import WorkspaceExplorer from './components/WorkspaceExplorer';
@@ -66,6 +67,7 @@ function generateId() { return Math.random().toString(36).slice(2, 11); }
 export default function App() {
   // Only show welcome modal when explicitly triggered (logo click)
   const [showWelcome, setShowWelcome] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const [showBraveNotice, setShowBraveNotice] = useState(false);
   const [toastData, setToastData] = useState<ToastPayload | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout>>();
@@ -104,6 +106,15 @@ export default function App() {
   // Load from URL hash once on mount
   useEffect(() => {
     loadFromHash();
+  }, []);
+
+  // Show onboarding modal on first visit (before welcome board seeded)
+  useEffect(() => {
+    const isFirstVisit = !localStorage.getItem('devboard-visited');
+    const hasSeenOnboarding = localStorage.getItem('devboard-onboarding-dismissed');
+    if (isFirstVisit && !hasSeenOnboarding) {
+      setShowOnboarding(true);
+    }
   }, []);
 
   // Seed welcome board on first visit (canvas-native start screen)
@@ -372,14 +383,14 @@ export default function App() {
   const handleCloseWelcome = () => setShowWelcome(false);
 
   return (
-    <div className="relative w-full h-full overflow-hidden bg-[var(--c-canvas)] font-mono">
+    <div className="relative w-full h-full overflow-hidden bg-[var(--c-canvas)] font-sans">
       {toastData && (
-        <div className="fixed top-14 left-1/2 -translate-x-1/2 z-[300] flex items-center gap-3 px-4 py-2 rounded bg-[var(--c-line)] text-white font-mono text-xs shadow-lg select-none animate-fade-in">
+        <div className="fixed top-14 left-1/2 -translate-x-1/2 z-[300] flex items-center gap-3 px-4 py-2 rounded bg-[var(--c-line)] text-white font-sans text-xs shadow-lg select-none animate-fade-in">
           <span className="pointer-events-none">{toastData.msg}</span>
           {toastData.action && (
             <button
               onClick={() => { toastData.action!.onClick(); setToastData(null); }}
-              className="px-2 py-0.5 rounded bg-white/20 hover:bg-white/30 transition-colors text-white font-mono text-[11px] whitespace-nowrap"
+              className="px-2 py-0.5 rounded bg-white/20 hover:bg-white/30 transition-colors text-white font-sans text-[11px] whitespace-nowrap"
             >
               {toastData.action.label}
             </button>
@@ -422,6 +433,7 @@ export default function App() {
       </div>
       <Toolbar />
       <ZoomToolbar />
+      {showOnboarding && <OnboardingModal onClose={() => setShowOnboarding(false)} />}
       {showWelcome && <WelcomeModal onClose={handleCloseWelcome} />}
     </div>
   );

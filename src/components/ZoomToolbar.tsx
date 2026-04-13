@@ -23,21 +23,21 @@ export default function ZoomToolbar() {
         <button
           title="Zoom out"
           onClick={zoomOut}
-          className="w-8 h-8 flex items-center justify-center rounded-lg text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors font-mono text-lg leading-none"
+          className="w-8 h-8 flex items-center justify-center rounded-lg text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors font-sans text-lg leading-none"
         >
           −
         </button>
         <button
           title="Reset zoom (100%)"
           onClick={zoomReset}
-          className="min-w-[52px] h-8 flex items-center justify-center rounded-lg text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors font-mono text-[11px] tabular-nums"
+          className="min-w-[52px] h-8 flex items-center justify-center rounded-lg text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors font-sans text-[11px] tabular-nums"
         >
           {zoomPct}%
         </button>
         <button
           title="Zoom in"
           onClick={zoomIn}
-          className="w-8 h-8 flex items-center justify-center rounded-lg text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors font-mono text-lg leading-none"
+          className="w-8 h-8 flex items-center justify-center rounded-lg text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors font-sans text-lg leading-none"
         >
           +
         </button>
