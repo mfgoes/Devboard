@@ -10,6 +10,7 @@ const STICKY_COLORS = PALETTE.map((p) => ({ hex: p.sticky, label: p.label }));
 export { STICKY_COLORS };
 
 const FONT_SIZE_PRESETS = [
+  { label: 'Dynamic',     value: 'dynamic' }, // Auto-adjust based on text (default)
   { label: 'Small',       value: 10 },
   { label: 'Medium',      value: 16 },
   { label: 'Large',       value: 22 },
@@ -157,17 +158,29 @@ export default function StickyColorPicker({ nodeId, isEditing = false }: Props) 
           onClick={() => { setShowColors(false); setShowFontSizes((v) => !v); }}
           className="h-6 px-2 rounded text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors font-sans text-[11px] tabular-nums"
         >
-          {node.fontSize ?? 13}px
+          {node.fontSizeMode === 'dynamic' ? 'Dynamic' : `${node.fontSize ?? 13}px`}
         </button>
         {showFontSizes && (
           <div className="absolute top-full left-0 mt-1 py-1.5 bg-[var(--c-panel)] border border-[var(--c-border)] rounded-xl shadow-2xl z-50 min-w-[164px]">
             {FONT_SIZE_PRESETS.map((preset) => {
-              const active = (node.fontSize ?? 13) === preset.value;
+              const isDynamic = preset.value === 'dynamic';
+              const active = isDynamic
+                ? node.fontSizeMode === 'dynamic'
+                : !isDynamic && node.fontSizeMode !== 'dynamic' && (node.fontSize ?? 13) === preset.value;
               return (
                 <button
                   key={preset.label}
                   onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => { saveHistory(); updateNode(nodeId, { fontSize: preset.value }); setCustomSize(''); setShowFontSizes(false); }}
+                  onClick={() => {
+                    saveHistory();
+                    if (isDynamic) {
+                      updateNode(nodeId, { fontSizeMode: 'dynamic' });
+                    } else {
+                      updateNode(nodeId, { fontSize: preset.value as number, fontSizeMode: 'fixed' });
+                    }
+                    setCustomSize('');
+                    setShowFontSizes(false);
+                  }}
                   className={[
                     'w-full text-left px-4 py-2 font-sans text-[13px] transition-colors flex items-center gap-2',
                     active ? 'bg-[var(--c-line)] text-white' : 'text-[var(--c-text-md)] hover:bg-[var(--c-hover)]',
@@ -189,7 +202,7 @@ export default function StickyColorPicker({ nodeId, isEditing = false }: Props) 
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     const v = parseInt(customSize, 10);
-                    if (v >= 8 && v <= 200) { saveHistory(); updateNode(nodeId, { fontSize: v }); setCustomSize(''); setShowFontSizes(false); }
+                    if (v >= 8 && v <= 200) { saveHistory(); updateNode(nodeId, { fontSize: v, fontSizeMode: 'fixed' }); setCustomSize(''); setShowFontSizes(false); }
                   }
                   if (e.key === 'Escape') setShowFontSizes(false);
                   e.stopPropagation();

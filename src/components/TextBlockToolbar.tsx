@@ -44,8 +44,9 @@ const SIZE_PRESETS = [
 ];
 
 export default function TextBlockToolbar({ nodeId }: { nodeId: string }) {
-  const { nodes, updateNode, saveHistory } = useBoardStore();
+  const { nodes, updateNode, saveHistory, editingId } = useBoardStore();
   const node = nodes.find((n) => n.id === nodeId) as TextBlockNode | undefined;
+  const isEditing = editingId === nodeId;
 
   const [showColors, setShowColors] = useState(false);
   const [showSizes, setShowSizes]   = useState(false);
@@ -76,6 +77,24 @@ export default function TextBlockToolbar({ nodeId }: { nodeId: string }) {
   const sizeLabel = matchedPreset?.label ?? `${node.fontSize}px`;
 
   const fontStyle = [node.bold ? 'bold' : '', node.italic ? 'italic' : ''].filter(Boolean).join(' ') || 'normal';
+
+  // Selection-aware formatting: use execCommand when editing, node flag otherwise
+  const execFormat = (command: 'bold' | 'italic' | 'underline') => {
+    if (isEditing) {
+      document.execCommand(command);
+      const div = document.querySelector<HTMLDivElement>('[data-textblock-editor="true"]');
+      if (div) updateNode(nodeId, { text: div.innerHTML });
+    } else {
+      saveHistory();
+      if (command === 'bold')      updateNode(nodeId, { bold: !node.bold });
+      if (command === 'italic')    updateNode(nodeId, { italic: !node.italic });
+      if (command === 'underline') updateNode(nodeId, { underline: !node.underline });
+    }
+  };
+
+  const isBold      = isEditing ? document.queryCommandState('bold')      : node.bold;
+  const isItalic    = isEditing ? document.queryCommandState('italic')    : node.italic;
+  const isUnderline = isEditing ? document.queryCommandState('underline') : node.underline;
 
   return (
     <div
@@ -180,10 +199,11 @@ export default function TextBlockToolbar({ nodeId }: { nodeId: string }) {
       <div className="px-0.5 py-1">
         <button
           title="Bold"
-          onClick={() => update({ bold: !node.bold })}
+          onMouseDown={(e) => { if (isEditing) e.preventDefault(); }}
+          onClick={() => execFormat('bold')}
           className={[
             'w-9 h-9 flex items-center justify-center rounded-lg transition-colors font-bold text-[14px]',
-            node.bold
+            isBold
               ? 'bg-[var(--c-line)] text-white'
               : 'text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
           ].join(' ')}
@@ -197,10 +217,11 @@ export default function TextBlockToolbar({ nodeId }: { nodeId: string }) {
       <div className="px-0.5 py-1">
         <button
           title="Italic"
-          onClick={() => update({ italic: !node.italic })}
+          onMouseDown={(e) => { if (isEditing) e.preventDefault(); }}
+          onClick={() => execFormat('italic')}
           className={[
             'w-9 h-9 flex items-center justify-center rounded-lg transition-colors text-[14px] italic',
-            node.italic
+            isItalic
               ? 'bg-[var(--c-line)] text-white'
               : 'text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
           ].join(' ')}
@@ -214,10 +235,11 @@ export default function TextBlockToolbar({ nodeId }: { nodeId: string }) {
       <div className="px-0.5 py-1">
         <button
           title="Underline"
-          onClick={() => update({ underline: !node.underline })}
+          onMouseDown={(e) => { if (isEditing) e.preventDefault(); }}
+          onClick={() => execFormat('underline')}
           className={[
             'w-9 h-9 flex items-center justify-center rounded-lg transition-colors text-[14px] underline',
-            node.underline
+            isUnderline
               ? 'bg-[var(--c-line)] text-white'
               : 'text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
           ].join(' ')}

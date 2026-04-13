@@ -140,19 +140,19 @@ const gameplayLoop: Template = {
         id: 'gl-n1', type: 'sticky',
         x: 242, y: GL_IL_ROW1_Y,
         width: GL_IL_W, height: stickyHeight(GL_IL_T1, GL_IL_W, GL_IL_FS),
-        color: '#FFF9C4', fontSize: GL_IL_FS, text: GL_IL_T1,
+        color: '#FFF9C4', fontSize: GL_IL_FS, text: GL_IL_T1, fontSizeMode: 'fixed',
       },
       {
         id: 'gl-n2', type: 'sticky',
         x: 50, y: GL_IL_ROW2_Y,
         width: GL_IL_W, height: stickyHeight(GL_IL_T2, GL_IL_W, GL_IL_FS),
-        color: '#FFE0B2', fontSize: GL_IL_FS, text: GL_IL_T2,
+        color: '#FFE0B2', fontSize: GL_IL_FS, text: GL_IL_T2, fontSizeMode: 'fixed',
       },
       {
         id: 'gl-n3', type: 'sticky',
         x: 430, y: GL_IL_ROW2_Y,
         width: GL_IL_W, height: stickyHeight(GL_IL_T3, GL_IL_W, GL_IL_FS),
-        color: '#C8E6C9', fontSize: GL_IL_FS, text: GL_IL_T3,
+        color: '#C8E6C9', fontSize: GL_IL_FS, text: GL_IL_T3, fontSizeMode: 'fixed',
       },
 
       // Cycle time hint
@@ -183,25 +183,25 @@ const gameplayLoop: Template = {
         id: 'gl-n4', type: 'sticky',
         x: 222, y: GL_OL_ROW1_Y,
         width: GL_OL_W, height: stickyHeight(GL_OL_T4, GL_OL_W, GL_OL_FS),
-        color: '#F8BBD0', fontSize: GL_OL_FS, text: GL_OL_T4,
+        color: '#F8BBD0', fontSize: GL_OL_FS, text: GL_OL_T4, fontSizeMode: 'fixed',
       },
       {
         id: 'gl-n5', type: 'sticky',
         x: 42, y: GL_OL_ROW2_Y,
         width: GL_OL_SW, height: stickyHeight(GL_OL_T5, GL_OL_SW, GL_OL_FS),
-        color: '#BBDEFB', fontSize: GL_OL_FS, text: GL_OL_T5,
+        color: '#BBDEFB', fontSize: GL_OL_FS, text: GL_OL_T5, fontSizeMode: 'fixed',
       },
       {
         id: 'gl-n6', type: 'sticky',
         x: 420, y: GL_OL_ROW2_Y,
         width: GL_OL_SW, height: stickyHeight(GL_OL_T6, GL_OL_SW, GL_OL_FS),
-        color: '#C8E6C9', fontSize: GL_OL_FS, text: GL_OL_T6,
+        color: '#C8E6C9', fontSize: GL_OL_FS, text: GL_OL_T6, fontSizeMode: 'fixed',
       },
       {
         id: 'gl-n7', type: 'sticky',
         x: 222, y: GL_OL_ROW3_Y,
         width: GL_OL_W, height: stickyHeight(GL_OL_T7, GL_OL_W, GL_OL_FS),
-        color: '#E1BEE7', fontSize: GL_OL_FS, text: GL_OL_T7,
+        color: '#E1BEE7', fontSize: GL_OL_FS, text: GL_OL_T7, fontSizeMode: 'fixed',
       },
 
       // Cycle time hint
@@ -239,12 +239,12 @@ const gameplayLoop: Template = {
       },
 
       // Reality-check stickies — y positions computed by yStack, heights by stickyHeight
-      { id: 'gl-r1', type: 'sticky', x: GL_R_X, y: glRYs[0], width: GL_R_W, height: stickyHeight(GL_R_TEXTS[0], GL_R_W, GL_R_FS), color: '#FFF9C4', fontSize: GL_R_FS, text: GL_R_TEXTS[0] },
-      { id: 'gl-r2', type: 'sticky', x: GL_R_X, y: glRYs[1], width: GL_R_W, height: stickyHeight(GL_R_TEXTS[1], GL_R_W, GL_R_FS), color: '#FFE0B2', fontSize: GL_R_FS, text: GL_R_TEXTS[1] },
-      { id: 'gl-r3', type: 'sticky', x: GL_R_X, y: glRYs[2], width: GL_R_W, height: stickyHeight(GL_R_TEXTS[2], GL_R_W, GL_R_FS), color: '#BBDEFB', fontSize: GL_R_FS, text: GL_R_TEXTS[2] },
-      { id: 'gl-r4', type: 'sticky', x: GL_R_X, y: glRYs[3], width: GL_R_W, height: stickyHeight(GL_R_TEXTS[3], GL_R_W, GL_R_FS), color: '#F8BBD0', fontSize: GL_R_FS, text: GL_R_TEXTS[3] },
-      { id: 'gl-r5', type: 'sticky', x: GL_R_X, y: glRYs[4], width: GL_R_W, height: stickyHeight(GL_R_TEXTS[4], GL_R_W, GL_R_FS), color: '#C8E6C9', fontSize: GL_R_FS, text: GL_R_TEXTS[4] },
-      { id: 'gl-r6', type: 'sticky', x: GL_R_X, y: glRYs[5], width: GL_R_W, height: stickyHeight(GL_R_TEXTS[5], GL_R_W, GL_R_FS), color: '#CFD8DC', fontSize: GL_R_FS, text: GL_R_TEXTS[5] },
+      { id: 'gl-r1', type: 'sticky', x: GL_R_X, y: glRYs[0], width: GL_R_W, height: stickyHeight(GL_R_TEXTS[0], GL_R_W, GL_R_FS), color: '#FFF9C4', fontSize: GL_R_FS, text: GL_R_TEXTS[0] , fontSizeMode: 'fixed' },
+      { id: 'gl-r2', type: 'sticky', x: GL_R_X, y: glRYs[1], width: GL_R_W, height: stickyHeight(GL_R_TEXTS[1], GL_R_W, GL_R_FS), color: '#FFE0B2', fontSize: GL_R_FS, text: GL_R_TEXTS[1] , fontSizeMode: 'fixed' },
+      { id: 'gl-r3', type: 'sticky', x: GL_R_X, y: glRYs[2], width: GL_R_W, height: stickyHeight(GL_R_TEXTS[2], GL_R_W, GL_R_FS), color: '#BBDEFB', fontSize: GL_R_FS, text: GL_R_TEXTS[2] , fontSizeMode: 'fixed' },
+      { id: 'gl-r4', type: 'sticky', x: GL_R_X, y: glRYs[3], width: GL_R_W, height: stickyHeight(GL_R_TEXTS[3], GL_R_W, GL_R_FS), color: '#F8BBD0', fontSize: GL_R_FS, text: GL_R_TEXTS[3] , fontSizeMode: 'fixed' },
+      { id: 'gl-r5', type: 'sticky', x: GL_R_X, y: glRYs[4], width: GL_R_W, height: stickyHeight(GL_R_TEXTS[4], GL_R_W, GL_R_FS), color: '#C8E6C9', fontSize: GL_R_FS, text: GL_R_TEXTS[4] , fontSizeMode: 'fixed' },
+      { id: 'gl-r6', type: 'sticky', x: GL_R_X, y: glRYs[5], width: GL_R_W, height: stickyHeight(GL_R_TEXTS[5], GL_R_W, GL_R_FS), color: '#CFD8DC', fontSize: GL_R_FS, text: GL_R_TEXTS[5] , fontSizeMode: 'fixed' },
 
       // ── Decorative stickers ────────────────────────────────────────────────
       // Fire = inner loop is on fire
@@ -534,24 +534,24 @@ const kanbanBoard: Template = {
       { id: 'kb-sec-4', type: 'section', x: colX(4), y: 10, width: COL_W, height: COL_H, name: 'Backlog',     color: '#B0BEC5' },
 
       // ── To do (1 card) ────────────────────────────────────────────────────
-      { id: 'kb-t0', type: 'sticky', x: stickyX(0), y: stickyY(0), width: STICKY_W, height: STICKY_H, text: 'Design onboarding flow', color: '#FFF9C4' },
+      { id: 'kb-t0', type: 'sticky', x: stickyX(0), y: stickyY(0), width: STICKY_W, height: STICKY_H, text: 'Design onboarding flow', color: '#FFF9C4' , fontSizeMode: 'fixed' },
 
       // ── In progress (3 cards) ─────────────────────────────────────────────
-      { id: 'kb-p0', type: 'sticky', x: stickyX(1), y: stickyY(0), width: STICKY_W, height: STICKY_H, text: 'Implement auth flow', color: '#BBDEFB' },
-      { id: 'kb-p1', type: 'sticky', x: stickyX(1), y: stickyY(1), width: STICKY_W, height: STICKY_H, text: 'Fix navigation bug', color: '#BBDEFB' },
-      { id: 'kb-p2', type: 'sticky', x: stickyX(1), y: stickyY(2), width: STICKY_W, height: STICKY_H, text: 'Write unit tests', color: '#BBDEFB' },
+      { id: 'kb-p0', type: 'sticky', x: stickyX(1), y: stickyY(0), width: STICKY_W, height: STICKY_H, text: 'Implement auth flow', color: '#BBDEFB' , fontSizeMode: 'fixed' },
+      { id: 'kb-p1', type: 'sticky', x: stickyX(1), y: stickyY(1), width: STICKY_W, height: STICKY_H, text: 'Fix navigation bug', color: '#BBDEFB' , fontSizeMode: 'fixed' },
+      { id: 'kb-p2', type: 'sticky', x: stickyX(1), y: stickyY(2), width: STICKY_W, height: STICKY_H, text: 'Write unit tests', color: '#BBDEFB' , fontSizeMode: 'fixed' },
 
       // ── In review (2 cards) ───────────────────────────────────────────────
-      { id: 'kb-r0', type: 'sticky', x: stickyX(2), y: stickyY(0), width: STICKY_W, height: STICKY_H, text: 'Code review PR #42', color: '#E1BEE7' },
-      { id: 'kb-r1', type: 'sticky', x: stickyX(2), y: stickyY(1), width: STICKY_W, height: STICKY_H, text: 'Test edge cases', color: '#E1BEE7' },
+      { id: 'kb-r0', type: 'sticky', x: stickyX(2), y: stickyY(0), width: STICKY_W, height: STICKY_H, text: 'Code review PR #42', color: '#E1BEE7' , fontSizeMode: 'fixed' },
+      { id: 'kb-r1', type: 'sticky', x: stickyX(2), y: stickyY(1), width: STICKY_W, height: STICKY_H, text: 'Test edge cases', color: '#E1BEE7' , fontSizeMode: 'fixed' },
 
       // ── Completed (1 card) ────────────────────────────────────────────────
-      { id: 'kb-d0', type: 'sticky', x: stickyX(3), y: stickyY(0), width: STICKY_W, height: STICKY_H, text: 'Set up CI/CD pipeline', color: '#C8E6C9' },
+      { id: 'kb-d0', type: 'sticky', x: stickyX(3), y: stickyY(0), width: STICKY_W, height: STICKY_H, text: 'Set up CI/CD pipeline', color: '#C8E6C9' , fontSizeMode: 'fixed' },
 
       // ── Backlog (3 cards) ─────────────────────────────────────────────────
-      { id: 'kb-b0', type: 'sticky', x: stickyX(4), y: stickyY(0), width: STICKY_W, height: STICKY_H, text: 'Performance audit', color: '#CFD8DC' },
-      { id: 'kb-b1', type: 'sticky', x: stickyX(4), y: stickyY(1), width: STICKY_W, height: STICKY_H, text: 'Add dark mode', color: '#CFD8DC' },
-      { id: 'kb-b2', type: 'sticky', x: stickyX(4), y: stickyY(2), width: STICKY_W, height: STICKY_H, text: 'Update documentation', color: '#CFD8DC' },
+      { id: 'kb-b0', type: 'sticky', x: stickyX(4), y: stickyY(0), width: STICKY_W, height: STICKY_H, text: 'Performance audit', color: '#CFD8DC' , fontSizeMode: 'fixed' },
+      { id: 'kb-b1', type: 'sticky', x: stickyX(4), y: stickyY(1), width: STICKY_W, height: STICKY_H, text: 'Add dark mode', color: '#CFD8DC' , fontSizeMode: 'fixed' },
+      { id: 'kb-b2', type: 'sticky', x: stickyX(4), y: stickyY(2), width: STICKY_W, height: STICKY_H, text: 'Update documentation', color: '#CFD8DC' , fontSizeMode: 'fixed' },
     ],
   },
 };
@@ -790,8 +790,8 @@ const dataEngineerFlow: Template = {
       { id: 'de1-dl',   type: 'sticky', x: 350, y: DE1_R1Y, width: DE1_WB, height: stickyHeight(DE1_T_DL,   DE1_WB, 13), color: '#FFF9C4', fontSize: 13, text: DE1_T_DL   },
       { id: 'de1-req',  type: 'sticky', x: 510, y: DE1_R1Y, width: DE1_WC, height: stickyHeight(DE1_T_REQ,  DE1_WC, 13), color: '#FFF9C4', fontSize: 13, text: DE1_T_REQ  },
       // Row 2: Success = | Ticket #
-      { id: 'de1-succ', type: 'sticky', x: 60,  y: DE1_R2Y, width: DE1_WD, height: stickyHeight(DE1_T_SUCC, DE1_WD, 13), color: '#FFF9C4', fontSize: 13, text: DE1_T_SUCC },
-      { id: 'de1-tick', type: 'sticky', x: 500, y: DE1_R2Y, width: DE1_WE, height: stickyHeight(DE1_T_TICK, DE1_WE, 13), color: '#FFF9C4', fontSize: 13, text: DE1_T_TICK },
+      { id: 'de1-succ', type: 'sticky', x: 60,  y: DE1_R2Y, width: DE1_WD, height: stickyHeight(DE1_T_SUCC, DE1_WD, 13), color: '#FFF9C4', fontSize: 13, text: DE1_T_SUCC , fontSizeMode: 'fixed' },
+      { id: 'de1-tick', type: 'sticky', x: 500, y: DE1_R2Y, width: DE1_WE, height: stickyHeight(DE1_T_TICK, DE1_WE, 13), color: '#FFF9C4', fontSize: 13, text: DE1_T_TICK , fontSizeMode: 'fixed' },
 
       deArr('de-arr1', DE1_Y + DE1_H, DE2_Y),
 
@@ -806,11 +806,11 @@ const dataEngineerFlow: Template = {
       },
 
       // Row 1: Source 1 | Source 2
-      { id: 'de2-s1', type: 'sticky', x: 60,  y: DE2_R1Y, width: DE2_SW, height: stickyHeight(DE2_T1, DE2_SW, 12), color: '#FFE0B2', fontSize: 12, text: DE2_T1 },
-      { id: 'de2-s2', type: 'sticky', x: 360, y: DE2_R1Y, width: DE2_SW, height: stickyHeight(DE2_T2, DE2_SW, 12), color: '#FFE0B2', fontSize: 12, text: DE2_T2 },
+      { id: 'de2-s1', type: 'sticky', x: 60,  y: DE2_R1Y, width: DE2_SW, height: stickyHeight(DE2_T1, DE2_SW, 12), color: '#FFE0B2', fontSize: 12, text: DE2_T1 , fontSizeMode: 'fixed' },
+      { id: 'de2-s2', type: 'sticky', x: 360, y: DE2_R1Y, width: DE2_SW, height: stickyHeight(DE2_T2, DE2_SW, 12), color: '#FFE0B2', fontSize: 12, text: DE2_T2 , fontSizeMode: 'fixed' },
       // Row 2: Source 3 | Source 4
-      { id: 'de2-s3', type: 'sticky', x: 60,  y: DE2_R2Y, width: DE2_SW, height: stickyHeight(DE2_T3, DE2_SW, 12), color: '#FFE0B2', fontSize: 12, text: DE2_T3 },
-      { id: 'de2-s4', type: 'sticky', x: 360, y: DE2_R2Y, width: DE2_SW, height: stickyHeight(DE2_T4, DE2_SW, 12), color: '#FFE0B2', fontSize: 12, text: DE2_T4 },
+      { id: 'de2-s3', type: 'sticky', x: 60,  y: DE2_R2Y, width: DE2_SW, height: stickyHeight(DE2_T3, DE2_SW, 12), color: '#FFE0B2', fontSize: 12, text: DE2_T3 , fontSizeMode: 'fixed' },
+      { id: 'de2-s4', type: 'sticky', x: 360, y: DE2_R2Y, width: DE2_SW, height: stickyHeight(DE2_T4, DE2_SW, 12), color: '#FFE0B2', fontSize: 12, text: DE2_T4 , fontSizeMode: 'fixed' },
       // Row 3: Join Notes (full width)
       { id: 'de2-jn',  type: 'sticky', x: 60,  y: DE2_R3Y, width: DE2_JW, height: stickyHeight(DE2_T5, DE2_JW, 12), color: '#FFE0B2', fontSize: 12, text: DE2_T5 },
 
@@ -833,11 +833,11 @@ const dataEngineerFlow: Template = {
       },
 
       // Row 1: % NULLs | Duplicates
-      { id: 'de3-nl', type: 'sticky', x: 60,  y: DE3_R1Y, width: DE3_W, height: stickyHeight(DE3_T1, DE3_W, 12), color: '#BBDEFB', fontSize: 12, text: DE3_T1 },
-      { id: 'de3-du', type: 'sticky', x: 385, y: DE3_R1Y, width: DE3_W, height: stickyHeight(DE3_T2, DE3_W, 12), color: '#BBDEFB', fontSize: 12, text: DE3_T2 },
+      { id: 'de3-nl', type: 'sticky', x: 60,  y: DE3_R1Y, width: DE3_W, height: stickyHeight(DE3_T1, DE3_W, 12), color: '#BBDEFB', fontSize: 12, text: DE3_T1 , fontSizeMode: 'fixed' },
+      { id: 'de3-du', type: 'sticky', x: 385, y: DE3_R1Y, width: DE3_W, height: stickyHeight(DE3_T2, DE3_W, 12), color: '#BBDEFB', fontSize: 12, text: DE3_T2 , fontSizeMode: 'fixed' },
       // Row 2: Min/Max | Row Counts
-      { id: 'de3-mm', type: 'sticky', x: 60,  y: DE3_R2Y, width: DE3_W, height: stickyHeight(DE3_T3, DE3_W, 12), color: '#BBDEFB', fontSize: 12, text: DE3_T3 },
-      { id: 'de3-rc', type: 'sticky', x: 385, y: DE3_R2Y, width: DE3_W, height: stickyHeight(DE3_T4, DE3_W, 12), color: '#BBDEFB', fontSize: 12, text: DE3_T4 },
+      { id: 'de3-mm', type: 'sticky', x: 60,  y: DE3_R2Y, width: DE3_W, height: stickyHeight(DE3_T3, DE3_W, 12), color: '#BBDEFB', fontSize: 12, text: DE3_T3 , fontSizeMode: 'fixed' },
+      { id: 'de3-rc', type: 'sticky', x: 385, y: DE3_R2Y, width: DE3_W, height: stickyHeight(DE3_T4, DE3_W, 12), color: '#BBDEFB', fontSize: 12, text: DE3_T4 , fontSizeMode: 'fixed' },
 
       deArr('de-arr3', DE3_Y + DE3_H, DE4_Y),
 
@@ -936,10 +936,10 @@ const dataEngineerFlow: Template = {
 
       // Row 1: Bar | Line | Pie  (3 × 190, gap 10)
       { id: 'de5-bar',  type: 'sticky', x: 60,  y: DE5_R1Y, width: DE5_W1, height: stickyHeight(DE5_T1, DE5_W1, 12), color: '#C8E6C9', fontSize: 12, text: DE5_T1 },
-      { id: 'de5-line', type: 'sticky', x: 260, y: DE5_R1Y, width: DE5_W1, height: stickyHeight(DE5_T2, DE5_W1, 12), color: '#C8E6C9', fontSize: 12, text: DE5_T2 },
+      { id: 'de5-line', type: 'sticky', x: 260, y: DE5_R1Y, width: DE5_W1, height: stickyHeight(DE5_T2, DE5_W1, 12), color: '#C8E6C9', fontSize: 12, text: DE5_T2 , fontSizeMode: 'fixed' },
       { id: 'de5-pie',  type: 'sticky', x: 460, y: DE5_R1Y, width: DE5_W1, height: stickyHeight(DE5_T3, DE5_W1, 12), color: '#C8E6C9', fontSize: 12, text: DE5_T3 },
       // Row 2: Scatter | Key Number  (2 × 295, gap 10)
-      { id: 'de5-scat', type: 'sticky', x: 60,  y: DE5_R2Y, width: DE5_W2, height: stickyHeight(DE5_T4, DE5_W2, 12), color: '#C8E6C9', fontSize: 12, text: DE5_T4 },
+      { id: 'de5-scat', type: 'sticky', x: 60,  y: DE5_R2Y, width: DE5_W2, height: stickyHeight(DE5_T4, DE5_W2, 12), color: '#C8E6C9', fontSize: 12, text: DE5_T4 , fontSizeMode: 'fixed' },
       { id: 'de5-num',  type: 'sticky', x: 365, y: DE5_R2Y, width: DE5_W2, height: stickyHeight(DE5_T5, DE5_W2, 12), color: '#C8E6C9', fontSize: 12, text: DE5_T5 },
 
       deArr('de-arr5', DE5_Y + DE5_H, DE6_Y),
@@ -955,12 +955,12 @@ const dataEngineerFlow: Template = {
       },
 
       // Row 1: Findings 1–3  (3 × 190, gap 10)
-      { id: 'de6-f1', type: 'sticky', x: 60,  y: DE6_R1Y, width: DE6_W1, height: stickyHeight(DE6_T1, DE6_W1, 12), color: '#E1BEE7', fontSize: 12, text: DE6_T1 },
-      { id: 'de6-f2', type: 'sticky', x: 260, y: DE6_R1Y, width: DE6_W1, height: stickyHeight(DE6_T2, DE6_W1, 12), color: '#E1BEE7', fontSize: 12, text: DE6_T2 },
-      { id: 'de6-f3', type: 'sticky', x: 460, y: DE6_R1Y, width: DE6_W1, height: stickyHeight(DE6_T3, DE6_W1, 12), color: '#E1BEE7', fontSize: 12, text: DE6_T3 },
+      { id: 'de6-f1', type: 'sticky', x: 60,  y: DE6_R1Y, width: DE6_W1, height: stickyHeight(DE6_T1, DE6_W1, 12), color: '#E1BEE7', fontSize: 12, text: DE6_T1 , fontSizeMode: 'fixed' },
+      { id: 'de6-f2', type: 'sticky', x: 260, y: DE6_R1Y, width: DE6_W1, height: stickyHeight(DE6_T2, DE6_W1, 12), color: '#E1BEE7', fontSize: 12, text: DE6_T2 , fontSizeMode: 'fixed' },
+      { id: 'de6-f3', type: 'sticky', x: 460, y: DE6_R1Y, width: DE6_W1, height: stickyHeight(DE6_T3, DE6_W1, 12), color: '#E1BEE7', fontSize: 12, text: DE6_T3 , fontSizeMode: 'fixed' },
       // Row 2: Caveat | Hypothesis  (2 × 295, gap 10)
-      { id: 'de6-cav', type: 'sticky', x: 60,  y: DE6_R2Y, width: DE6_W2, height: stickyHeight(DE6_T4, DE6_W2, 12), color: '#E1BEE7', fontSize: 12, text: DE6_T4 },
-      { id: 'de6-hyp', type: 'sticky', x: 365, y: DE6_R2Y, width: DE6_W2, height: stickyHeight(DE6_T5, DE6_W2, 12), color: '#E1BEE7', fontSize: 12, text: DE6_T5 },
+      { id: 'de6-cav', type: 'sticky', x: 60,  y: DE6_R2Y, width: DE6_W2, height: stickyHeight(DE6_T4, DE6_W2, 12), color: '#E1BEE7', fontSize: 12, text: DE6_T4 , fontSizeMode: 'fixed' },
+      { id: 'de6-hyp', type: 'sticky', x: 365, y: DE6_R2Y, width: DE6_W2, height: stickyHeight(DE6_T5, DE6_W2, 12), color: '#E1BEE7', fontSize: 12, text: DE6_T5 , fontSizeMode: 'fixed' },
 
       deArr('de-arr6', DE6_Y + DE6_H, DE7_Y),
 
@@ -975,7 +975,7 @@ const dataEngineerFlow: Template = {
       },
 
       // Row 1: Recommendations | Open Questions
-      { id: 'de7-rec', type: 'sticky', x: 60,  y: DE7_R1Y, width: DE7_W, height: stickyHeight(DE7_T1, DE7_W, 12), color: '#CFD8DC', fontSize: 12, text: DE7_T1 },
+      { id: 'de7-rec', type: 'sticky', x: 60,  y: DE7_R1Y, width: DE7_W, height: stickyHeight(DE7_T1, DE7_W, 12), color: '#CFD8DC', fontSize: 12, text: DE7_T1 , fontSizeMode: 'fixed' },
       { id: 'de7-oq',  type: 'sticky', x: 385, y: DE7_R1Y, width: DE7_W, height: stickyHeight(DE7_T2, DE7_W, 12), color: '#CFD8DC', fontSize: 12, text: DE7_T2 },
       // Row 2: Notebook Link | Dashboard Idea
       { id: 'de7-nb',  type: 'sticky', x: 60,  y: DE7_R2Y, width: DE7_W, height: stickyHeight(DE7_T3, DE7_W, 12), color: '#CFD8DC', fontSize: 12, text: DE7_T3 },
@@ -993,8 +993,8 @@ const dataEngineerFlow: Template = {
         color: '#B0BEC5',
       },
 
-      { id: 'de8-t1', type: 'sticky', x: 60,  y: DE8_Y + 55, width: DE8_W, height: stickyHeight(DE8_T1, DE8_W, 12), color: '#CFD8DC', fontSize: 12, text: DE8_T1 },
-      { id: 'de8-t2', type: 'sticky', x: 385, y: DE8_Y + 55, width: DE8_W, height: stickyHeight(DE8_T2, DE8_W, 12), color: '#CFD8DC', fontSize: 12, text: DE8_T2 },
+      { id: 'de8-t1', type: 'sticky', x: 60,  y: DE8_Y + 55, width: DE8_W, height: stickyHeight(DE8_T1, DE8_W, 12), color: '#CFD8DC', fontSize: 12, text: DE8_T1 , fontSizeMode: 'fixed' },
+      { id: 'de8-t2', type: 'sticky', x: 385, y: DE8_Y + 55, width: DE8_W, height: stickyHeight(DE8_T2, DE8_W, 12), color: '#CFD8DC', fontSize: 12, text: DE8_T2 , fontSizeMode: 'fixed' },
     ],
   },
 };
@@ -1035,9 +1035,9 @@ const startFromScratch: Template = {
       },
 
       // ── Three feature stickies ───────────────────────────────────────────────
-      { id: 'sc-s1', type: 'sticky', x: SC_X1, y: SC_ROW_Y, width: SC_SW, height: SC_SH, color: '#FFF9C4', fontSize: 13, text: SC_ST1 },
-      { id: 'sc-s2', type: 'sticky', x: SC_X2, y: SC_ROW_Y, width: SC_SW, height: SC_SH, color: '#E1BEE7', fontSize: 13, text: SC_ST2 },
-      { id: 'sc-s3', type: 'sticky', x: SC_X3, y: SC_ROW_Y, width: SC_SW, height: SC_SH, color: '#C8E6C9', fontSize: 13, text: SC_ST3 },
+      { id: 'sc-s1', type: 'sticky', x: SC_X1, y: SC_ROW_Y, width: SC_SW, height: SC_SH, color: '#FFF9C4', fontSize: 13, text: SC_ST1 , fontSizeMode: 'fixed' },
+      { id: 'sc-s2', type: 'sticky', x: SC_X2, y: SC_ROW_Y, width: SC_SW, height: SC_SH, color: '#E1BEE7', fontSize: 13, text: SC_ST2 , fontSizeMode: 'fixed' },
+      { id: 'sc-s3', type: 'sticky', x: SC_X3, y: SC_ROW_Y, width: SC_SW, height: SC_SH, color: '#C8E6C9', fontSize: 13, text: SC_ST3 , fontSizeMode: 'fixed' },
 
       // ── Connectors ──────────────────────────────────────────────────────────
       {

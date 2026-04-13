@@ -27,6 +27,7 @@ export interface StickyNoteNode {
   height: number;
   bulletList?: boolean;
   fontSize?: number;
+  fontSizeMode?: 'fixed' | 'dynamic'; // 'fixed' = manual size, 'dynamic' = auto-adjust
   bold?: boolean;
   italic?: boolean;
   underline?: boolean;

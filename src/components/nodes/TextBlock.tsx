@@ -6,6 +6,37 @@ import { useBoardStore } from '../../store/boardStore';
 import { useTheme } from '../../theme';
 import { resolveCssColor } from '../../utils/palette';
 import { FONTS } from '../../utils/fonts';
+import { isRichText, layoutRichText } from '../../utils/richText';
+
+function TextBlockRichText({ node, fillColor }: { node: TextBlockNode; fillColor: string }) {
+  const runs = layoutRichText(
+    node.text,
+    node.width,
+    node.fontSize,
+    1.5,
+    node.bold,
+    node.italic,
+  );
+  return (
+    <>
+      {runs.map((run, i) => (
+        <Text
+          key={i}
+          x={run.x}
+          y={run.y}
+          text={run.text}
+          fontSize={node.fontSize}
+          fontStyle={[run.bold ? 'bold' : '', run.italic ? 'italic' : ''].filter(Boolean).join(' ') || 'normal'}
+          textDecoration={run.underline ? 'underline' : ''}
+          lineHeight={1}
+          fontFamily={FONTS.ui}
+          fill={run.link ? resolveCssColor('--c-line') : fillColor}
+          listening={false}
+        />
+      ))}
+    </>
+  );
+}
 
 interface Props {
   node: TextBlockNode;
@@ -121,6 +152,9 @@ export default function TextBlock({ node, isSelected, isEditing, onSnapMove, onS
   const hasLink = !!node.link;
   const textDecoration = (node.underline || hasLink) ? 'underline' : '';
 
+  const hasRichText = isRichText(node.text);
+  const fillColor = hasLink ? resolveCssColor('--c-line') : (node.color === 'auto' ? t.textHi : node.color);
+
   // Rough hit area height
   const lineCount  = (node.text || ' ').split('\n').length;
   const hitHeight  = Math.max(node.fontSize * 1.5 * lineCount, node.fontSize * 2);
@@ -154,6 +188,7 @@ export default function TextBlock({ node, isSelected, isEditing, onSnapMove, onS
             nx = snapped.x; ny = snapped.y;
             e.target.x(nx); e.target.y(ny);
           }
+          updateNode(node.id, { x: nx, y: ny });
           onMultiDragMove?.(node.id, nx, ny);
         }}
         onDragEnd={(e) => { onSnapEnd?.(); onAltDragEnd?.(); onMultiDragEnd?.(); handleDragEnd(e); }}
@@ -162,21 +197,38 @@ export default function TextBlock({ node, isSelected, isEditing, onSnapMove, onS
         {/* Transparent hit area */}
         <Rect width={node.width} height={hitHeight} fill="transparent" />
 
-        {/* Hide text while editing — textarea overlay takes over */}
-        {!isEditing && (
+        {/* Hide text while editing — contenteditable overlay takes over */}
+        {!isEditing && !node.text && (
           <Text
             width={node.width}
-            text={node.text || 'Double-click to edit'}
+            text="Double-click to edit"
+            fontSize={node.fontSize}
+            fontStyle="italic"
+            lineHeight={1.5}
+            fontFamily={FONTS.ui}
+            fill={t.textOff}
+            wrap="word"
+            align={node.textAlign ?? 'left'}
+            listening={false}
+          />
+        )}
+        {!isEditing && node.text && !hasRichText && (
+          <Text
+            width={node.width}
+            text={node.text}
             fontSize={node.fontSize}
             fontStyle={fontStyle}
             textDecoration={textDecoration}
             lineHeight={1.5}
             fontFamily={FONTS.ui}
-            fill={node.text ? (hasLink ? resolveCssColor('--c-line') : node.color === 'auto' ? t.textHi : node.color) : t.textOff}
+            fill={fillColor}
             wrap="word"
             align={node.textAlign ?? 'left'}
             listening={false}
           />
+        )}
+        {!isEditing && node.text && hasRichText && (
+          <TextBlockRichText node={node} fillColor={fillColor} />
         )}
         {node.locked && (
           <Text x={node.width - 16} y={0} text="🔒" fontSize={11} listening={false} />

@@ -1,9 +1,8 @@
 import { useRef, useEffect, useState } from 'react';
 import { Group, Rect, Ellipse, Line, Text, Transformer, Circle } from 'react-konva';
 import Konva from 'konva';
-import { ShapeNode as ShapeNodeType, AnchorSide, ConnectorNode } from '../../types';
+import { ShapeNode as ShapeNodeType, AnchorSide } from '../../types';
 import { useBoardStore } from '../../store/boardStore';
-import { anchorCoords, cpOffset } from './ConnectorLine';
 import { useTheme } from '../../theme';
 import { resolveCssColor } from '../../utils/palette';
 import { FONTS } from '../../utils/fonts';
@@ -30,7 +29,7 @@ interface Props {
   onContextMenu?: (nodeId: string, x: number, y: number) => void;
 }
 
-const DOT_OFFSET = 32;
+const DOT_OFFSET = 16;
 
 const ANCHOR_DEFS: {
   side: AnchorSide;
@@ -98,14 +97,12 @@ export default function ShapeNode({
   const groupRef = useRef<Konva.Group>(null);
   const trRef    = useRef<Konva.Transformer>(null);
   const t = useTheme();
-  const { updateNode, selectIds, setEditingId, setActiveTool, activeTool, saveHistory, addNode } = useBoardStore();
+  const { updateNode, selectIds, setEditingId, setActiveTool, activeTool, saveHistory } = useBoardStore();
 
   const isLineTool = activeTool === 'line';
   const [liveScale, setLiveScale] = useState({ sx: 1, sy: 1 });
   const [hoveredAnchor, setHoveredAnchor] = useState<AnchorSide | null>(null);
-  type SmartGhost = { fromSide: AnchorSide; targetId: string; targetSide: AnchorSide; toWorldX: number; toWorldY: number; pts: number[] };
-  const [smartGhost, setSmartGhost] = useState<SmartGhost | null>(null);
-  const [dragPos, setDragPos] = useState<{ x: number; y: number } | null>(null);
+const [dragPos, setDragPos] = useState<{ x: number; y: number } | null>(null);
   const showAnchors = (isSelected && !isEditing) || isLineTool || (isDrawingLine === true && !isEditing);
 
   // Rotation tracking via window events
@@ -332,6 +329,7 @@ export default function ShapeNode({
             e.target.x(tlx + ox); e.target.y(tly + oy);
           }
           setDragPos({ x: tlx, y: tly });
+          updateNode(node.id, { x: tlx, y: tly });
           onMultiDragMove?.(node.id, tlx, tly);
         }}
         onDragEnd={(e) => { onSnapEnd?.(); onAltDragEnd?.(); onMultiDragEnd?.(); handleDragEnd(e); }}
@@ -385,32 +383,23 @@ export default function ShapeNode({
           const active  = snapped || hovered;
           const [gdx, gdy] = GHOST_DIR[side];
           const [tx, ty]   = TOOLTIP_OFFSET[side];
-          const ghost = hovered && smartGhost?.fromSide === side ? smartGhost : null;
           return (
             <Group key={side}>
-              {/* Ghost: smart bezier to nearby target, or simple dashed ray */}
+              {/* Ghost: dashed ray indicating drag direction */}
               {hovered && (
-                ghost ? (
+                <>
                   <Line
-                    points={ghost.pts} bezier={true}
+                    points={[bx, by, bx + gdx * GHOST_LEN, by + gdy * GHOST_LEN]}
                     stroke={resolveCssColor('--c-line')} strokeWidth={2}
-                    opacity={0.35} lineCap="round" listening={false}
+                    opacity={0.22} dash={[6, 4]} lineCap="round" listening={false}
                   />
-                ) : (
-                  <>
-                    <Line
-                      points={[bx, by, bx + gdx * GHOST_LEN, by + gdy * GHOST_LEN]}
-                      stroke={resolveCssColor('--c-line')} strokeWidth={2}
-                      opacity={0.22} dash={[6, 4]} lineCap="round" listening={false}
-                    />
-                    <Line
-                      x={bx + gdx * GHOST_LEN} y={by + gdy * GHOST_LEN}
-                      points={CHEVRON[side]}
-                      stroke={resolveCssColor('--c-line')} strokeWidth={2}
-                      opacity={0.35} lineCap="round" lineJoin="round" listening={false}
-                    />
-                  </>
-                )
+                  <Line
+                    x={bx + gdx * GHOST_LEN} y={by + gdy * GHOST_LEN}
+                    points={CHEVRON[side]}
+                    stroke={resolveCssColor('--c-line')} strokeWidth={2}
+                    opacity={0.35} lineCap="round" lineJoin="round" listening={false}
+                  />
+                </>
               )}
               <Circle
                 x={vx} y={vy}
@@ -421,53 +410,13 @@ export default function ShapeNode({
                 shadowEnabled={active} shadowColor={resolveCssColor('--c-select-glow')} shadowBlur={18}
                 onMouseDown={(e) => {
                   e.cancelBubble = true;
-                  if (ghost) {
-                    addNode({
-                      id: generateId(), type: 'connector',
-                      fromNodeId: node.id, fromAnchor: side,
-                      fromX: bx, fromY: by,
-                      toNodeId: ghost.targetId, toAnchor: ghost.targetSide,
-                      toX: ghost.toWorldX, toY: ghost.toWorldY,
-                      color: resolveCssColor('--c-line-default'), strokeWidth: 2,
-                      lineStyle: 'curved', strokeStyle: 'solid',
-                      arrowHeadStart: 'none', arrowHeadEnd: 'arrow',
-                    } as ConnectorNode);
-                    setSmartGhost(null);
-                    setHoveredAnchor(null);
-                  } else {
-                    onAnchorDown?.(node.id, side, bx, by);
-                  }
+                  onAnchorDown?.(node.id, side, bx, by);
                 }}
                 onMouseEnter={() => {
                   setHoveredAnchor(side);
                   onAnchorEnter?.(node.id, side);
-                  const PROXIMITY = 280;
-                  let best: { nodeId: string; side: AnchorSide; dist: number; wx: number; wy: number } | null = null;
-                  for (const n of useBoardStore.getState().nodes) {
-                    if (n.id === node.id || (n.type !== 'sticky' && n.type !== 'shape' && n.type !== 'table' && n.type !== 'codeblock')) continue;
-                    const rn = n.type === 'table'
-                      ? { x: n.x, y: n.y, width: (n as import('../../types').TableNode).colWidths.reduce((a: number, b: number) => a + b, 0), height: (n as import('../../types').TableNode).rowHeights.reduce((a: number, b: number) => a + b, 0) }
-                      : n as { x: number; y: number; width: number; height: number };
-                    for (const ts of ['top', 'right', 'bottom', 'left'] as AnchorSide[]) {
-                      const a = anchorCoords(rn, ts);
-                      const d = Math.hypot(a.x - bx, a.y - by);
-                      if (d < PROXIMITY && (!best || d < best.dist)) best = { nodeId: n.id, side: ts, dist: d, wx: a.x, wy: a.y };
-                    }
-                  }
-                  if (best) {
-                    const tension = Math.min(Math.max(best.dist * 0.42, 55), 220);
-                    const cp1 = cpOffset(side, tension);
-                    const cp2 = cpOffset(best.side, tension);
-                    setSmartGhost({
-                      fromSide: side, targetId: best.nodeId, targetSide: best.side,
-                      toWorldX: best.wx, toWorldY: best.wy,
-                      pts: [bx, by, bx + cp1.dx, by + cp1.dy, best.wx + cp2.dx, best.wy + cp2.dy, best.wx, best.wy],
-                    });
-                  } else {
-                    setSmartGhost(null);
-                  }
                 }}
-                onMouseLeave={() => { setHoveredAnchor(null); setSmartGhost(null); onAnchorLeave?.(); }}
+                onMouseLeave={() => { setHoveredAnchor(null); onAnchorLeave?.(); }}
               />
               {active && (
                 <Line
@@ -478,10 +427,10 @@ export default function ShapeNode({
               )}
               {hovered && (
                 <Group x={vx + tx} y={vy + ty}>
-                  <Rect width={ghost ? 102 : 60} height={18} fill={t.panelBg} cornerRadius={4} opacity={0.92} />
+                  <Rect width={60} height={18} fill={t.panelBg} cornerRadius={4} opacity={0.92} />
                   <Text
-                    width={ghost ? 102 : 60} height={18}
-                    text={ghost ? 'Click to connect' : 'Connect'}
+                    width={60} height={18}
+                    text="Connect"
                     fontSize={10} fontFamily={FONTS.ui}
                     fill={t.textHi} align="center" verticalAlign="middle" listening={false}
                   />

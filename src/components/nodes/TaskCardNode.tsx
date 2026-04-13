@@ -368,35 +368,57 @@ export default function TaskCardNode({ node, camera, isSelected, isDrawingLine, 
         </div>
       </div>
 
-      {/* Connector anchor dots — left + right, visible when selected or in line mode */}
+      {/* Connector anchor dots — all four sides, visible when selected or in line mode */}
       {(isSelected || activeTool === 'line' || isDrawingLine) && cardScreenH > 0 && (() => {
         const screenH = cardScreenH;
         const hh = screenH / camera.scale / 2;
-        const worldPos = {
-          left:  { x: node.x,              y: node.y + hh },
-          right: { x: node.x + node.width,  y: node.y + hh },
-        } as Record<AnchorSide, { x: number; y: number }>;
+        const hw = node.width / 2;
+        const worldPos: Record<AnchorSide, { x: number; y: number }> = {
+          left:   { x: node.x,              y: node.y + hh },
+          right:  { x: node.x + node.width,  y: node.y + hh },
+          top:    { x: node.x + hw,          y: node.y },
+          bottom: { x: node.x + hw,          y: node.y + (node.height ?? hh * 2) },
+        };
 
-        return (['left', 'right'] as AnchorSide[]).map((side) => {
+        const DOT_INACTIVE = 10;
+        const DOT_ACTIVE   = 16;
+        const GHOST_LEN    = 72 * camera.scale;
+
+        const screenPositions: Record<AnchorSide, { left: number; top: number }> = {
+          left:   { left: -DOT_INACTIVE / 2,        top: screenH / 2 - DOT_INACTIVE / 2 },
+          right:  { left: screenW - DOT_INACTIVE / 2, top: screenH / 2 - DOT_INACTIVE / 2 },
+          top:    { left: screenW / 2 - DOT_INACTIVE / 2, top: -DOT_INACTIVE / 2 },
+          bottom: { left: screenW / 2 - DOT_INACTIVE / 2, top: screenH - DOT_INACTIVE / 2 },
+        };
+        const ghostDir: Record<AnchorSide, { dx: number; dy: number }> = {
+          left: { dx: -1, dy: 0 }, right: { dx: 1, dy: 0 },
+          top:  { dx: 0, dy: -1 }, bottom: { dx: 0, dy: 1 },
+        };
+
+        return (['left', 'right', 'top', 'bottom'] as AnchorSide[]).map((side) => {
           const isSnap    = snapAnchor === side;
           const isHovered = hoveredAnchor === side;
           const active    = isSnap || isHovered;
-          const DOT       = active ? 10 : 7;
-          const topPos    = screenH / 2 - DOT / 2;
-          const leftPos   = side === 'left' ? -DOT / 2 : screenW - DOT / 2;
-          const GHOST_LEN = 72 * camera.scale;
+          const DOT       = active ? DOT_ACTIVE : DOT_INACTIVE;
+          const { left: leftPos, top: topPos } = screenPositions[side];
+          const { dx, dy } = ghostDir[side];
+          // When active, center the larger dot on the same position
+          const offset = (DOT_ACTIVE - DOT_INACTIVE) / 2;
+          const adjustedLeft = active ? leftPos - offset : leftPos;
+          const adjustedTop  = active ? topPos  - offset : topPos;
 
           return (
-            <div key={side} style={{ position: 'absolute', left: leftPos, top: topPos, zIndex: 300, pointerEvents: 'all' }}>
+            <div key={side} style={{ position: 'absolute', left: adjustedLeft, top: adjustedTop, zIndex: 300, pointerEvents: 'none' }}>
               {/* Dashed ghost ray on hover */}
               {isHovered && (
                 <div style={{
                   position: 'absolute',
-                  top: DOT / 2,
-                  left: side === 'left' ? -(GHOST_LEN + DOT / 2) : DOT / 2,
-                  width: GHOST_LEN,
-                  height: 0,
-                  borderTop: '2px dashed var(--c-line)',
+                  top:  dy < 0 ? -(GHOST_LEN) + DOT / 2 : dy > 0 ? DOT / 2 : DOT / 2,
+                  left: dx < 0 ? -(GHOST_LEN) + DOT / 2 : dx > 0 ? DOT / 2 : DOT / 2,
+                  width:  dy !== 0 ? 2 : GHOST_LEN,
+                  height: dx !== 0 ? 2 : GHOST_LEN,
+                  borderTop:  dx !== 0 ? '2px dashed var(--c-line)' : undefined,
+                  borderLeft: dy !== 0 ? '2px dashed var(--c-line)' : undefined,
                   opacity: 0.35,
                   pointerEvents: 'none',
                 }} />
@@ -413,11 +435,12 @@ export default function TaskCardNode({ node, camera, isSelected, isDrawingLine, 
                   width: DOT,
                   height: DOT,
                   borderRadius: '50%',
-                  background: active ? 'var(--c-line)' : 'var(--c-panel)',
+                  background: active ? 'var(--c-line)' : 'white',
                   border: '2px solid var(--c-line)',
                   cursor: 'crosshair',
-                  boxShadow: active ? '0 0 0 3px rgba(99,102,241,0.25)' : 'none',
+                  boxShadow: active ? '0 0 0 6px rgba(99,102,241,0.18)' : 'none',
                   transition: 'width 0.1s, height 0.1s, background 0.1s, box-shadow 0.1s',
+                  pointerEvents: 'all',
                 }}
               />
             </div>

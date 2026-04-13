@@ -1,15 +1,23 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { Group, Rect, Text, Transformer, Circle, Line } from 'react-konva';
 import Konva from 'konva';
-import { StickyNoteNode, AnchorSide, ConnectorNode } from '../../types';
+import { StickyNoteNode, AnchorSide } from '../../types';
 import { useBoardStore } from '../../store/boardStore';
-import { anchorCoords, cpOffset } from './ConnectorLine';
 import { useTheme } from '../../theme';
 import { resolveCssColor } from '../../utils/palette';
 import { isRichText, layoutRichText } from '../../utils/richText';
 import { FONTS } from '../../utils/fonts';
+import { calculateDynamicFontSize } from '../../utils/dynamicFontSize';
 
 function generateId() { return Math.random().toString(36).slice(2, 11); }
+
+// Get the effective font size (dynamic or fixed)
+function getEffectiveFontSize(node: StickyNoteNode): number {
+  if (node.fontSizeMode === 'dynamic') {
+    return calculateDynamicFontSize(node.text, node.width, node.height);
+  }
+  return node.fontSize ?? 13;
+}
 
 // ── Color lerp helpers ────────────────────────────────────────────────────────
 function hexToRgb(hex: string): [number, number, number] {
@@ -29,15 +37,15 @@ function lerpColor(a: string, b: string, t: number): string {
 // ── Rich text renderer ────────────────────────────────────────────────────────
 function StickyRichText({ node, liveWidth }: { node: StickyNoteNode; liveWidth?: number }) {
   const effectiveWidth = liveWidth ?? node.width;
+  const fs = getEffectiveFontSize(node);
   const runs = layoutRichText(
     node.text,
     effectiveWidth - 20,
-    node.fontSize ?? 13,
+    fs,
     1.5,
     node.bold ?? false,
     node.italic ?? false,
   );
-  const fs = node.fontSize ?? 13;
   return (
     <>
       {runs.map((run, i) => (
@@ -81,7 +89,7 @@ interface Props {
 }
 
 // Distance the dot sits outside the node border (world units)
-const DOT_OFFSET = 32;
+const DOT_OFFSET = 16;
 
 // Each anchor: border connection point (cx/cy) + visual offset (dx/dy)
 const ANCHOR_DEFS: {
@@ -138,7 +146,8 @@ export default function StickyNote({
   const groupRef = useRef<Konva.Group>(null);
   const trRef    = useRef<Konva.Transformer>(null);
   const t = useTheme();
-  const { updateNode, selectIds, setEditingId, setActiveTool, activeTool, saveHistory, addNode } = useBoardStore();
+  const { updateNode, selectIds, setEditingId, setActiveTool, activeTool, saveHistory } = useBoardStore();
+  const cameraScale = useBoardStore(state => state.camera.scale);
 
   const isLineTool = activeTool === 'line';
   const [liveScale, setLiveScale] = useState({ sx: 1, sy: 1 });
@@ -190,8 +199,6 @@ export default function StickyNote({
   }, [node.color]);
 
   useEffect(() => () => { if (colorAnim.current) cancelAnimationFrame(colorAnim.current.raf); }, []);
-  type SmartGhost = { fromSide: AnchorSide; targetId: string; targetSide: AnchorSide; toWorldX: number; toWorldY: number; pts: number[] };
-  const [smartGhost, setSmartGhost] = useState<SmartGhost | null>(null);
   // Track drag position so anchor dots (rendered outside Group) follow during drag
   const [dragPos, setDragPos] = useState<{ x: number; y: number } | null>(null);
 
@@ -275,8 +282,8 @@ export default function StickyNote({
     const newHeight = Math.max(80,  group.height() * group.scaleY());
     saveHistory();
     updateNode(node.id, {
-      x: group.x() - group.offsetX(),
-      y: group.y() - group.offsetY(),
+      x: group.x() - newWidth / 2,
+      y: group.y() - newHeight / 2,
       width:  newWidth,
       height: newHeight,
     });
@@ -327,6 +334,7 @@ export default function StickyNote({
             e.target.x(tlx + ox); e.target.y(tly + oy);
           }
           setDragPos({ x: tlx, y: tly });
+          updateNode(node.id, { x: tlx, y: tly });
           onMultiDragMove?.(node.id, tlx, tly);
           // Wobble: tilt in direction of horizontal movement
           const cx = e.target.x();
@@ -374,8 +382,8 @@ export default function StickyNote({
             scaleY={1 / liveScale.sy}
             width={node.width * liveScale.sx - 20}
             height={node.height * liveScale.sy - 20}
-            text="Type anything."
-            fontSize={node.fontSize ?? 13}
+            text="Add a note…"
+            fontSize={Math.max(10, Math.min(18, 13 / cameraScale))}
             fontStyle="italic"
             lineHeight={1.5}
             fontFamily={FONTS.ui}
@@ -396,7 +404,7 @@ export default function StickyNote({
             width={node.width * liveScale.sx - 20}
             height={node.height * liveScale.sy - 20}
             text={node.text}
-            fontSize={node.fontSize ?? 13}
+            fontSize={getEffectiveFontSize(node)}
             fontStyle={[node.bold ? 'bold' : '', node.italic ? 'italic' : ''].filter(Boolean).join(' ') || 'normal'}
             textDecoration={node.underline ? 'underline' : ''}
             lineHeight={1.5}
@@ -439,32 +447,23 @@ export default function StickyNote({
           const active  = snapped || hovered;
           const [gdx, gdy] = GHOST_DIR[side];
           const [tx, ty]   = TOOLTIP_OFFSET[side];
-          const ghost = hovered && smartGhost?.fromSide === side ? smartGhost : null;
           return (
             <Group key={side}>
-              {/* Ghost: smart bezier to nearby target, or simple dashed ray */}
+              {/* Ghost: dashed ray indicating drag direction */}
               {hovered && (
-                ghost ? (
+                <>
                   <Line
-                    points={ghost.pts} bezier={true}
+                    points={[bx, by, bx + gdx * GHOST_LEN, by + gdy * GHOST_LEN]}
                     stroke={resolveCssColor('--c-line')} strokeWidth={2}
-                    opacity={0.35} lineCap="round" listening={false}
+                    opacity={0.22} dash={[6, 4]} lineCap="round" listening={false}
                   />
-                ) : (
-                  <>
-                    <Line
-                      points={[bx, by, bx + gdx * GHOST_LEN, by + gdy * GHOST_LEN]}
-                      stroke={resolveCssColor('--c-line')} strokeWidth={2}
-                      opacity={0.22} dash={[6, 4]} lineCap="round" listening={false}
-                    />
-                    <Line
-                      x={bx + gdx * GHOST_LEN} y={by + gdy * GHOST_LEN}
-                      points={CHEVRON[side]}
-                      stroke={resolveCssColor('--c-line')} strokeWidth={2}
-                      opacity={0.35} lineCap="round" lineJoin="round" listening={false}
-                    />
-                  </>
-                )
+                  <Line
+                    x={bx + gdx * GHOST_LEN} y={by + gdy * GHOST_LEN}
+                    points={CHEVRON[side]}
+                    stroke={resolveCssColor('--c-line')} strokeWidth={2}
+                    opacity={0.35} lineCap="round" lineJoin="round" listening={false}
+                  />
+                </>
               )}
               {/* Dot */}
               <Circle
@@ -476,53 +475,13 @@ export default function StickyNote({
                 shadowEnabled={active} shadowColor={resolveCssColor('--c-select-glow')} shadowBlur={18}
                 onMouseDown={(e) => {
                   e.cancelBubble = true;
-                  if (ghost) {
-                    addNode({
-                      id: generateId(), type: 'connector',
-                      fromNodeId: node.id, fromAnchor: side,
-                      fromX: bx, fromY: by,
-                      toNodeId: ghost.targetId, toAnchor: ghost.targetSide,
-                      toX: ghost.toWorldX, toY: ghost.toWorldY,
-                      color: resolveCssColor('--c-line-default'), strokeWidth: 2,
-                      lineStyle: 'curved', strokeStyle: 'solid',
-                      arrowHeadStart: 'none', arrowHeadEnd: 'arrow',
-                    } as ConnectorNode);
-                    setSmartGhost(null);
-                    setHoveredAnchor(null);
-                  } else {
-                    onAnchorDown?.(node.id, side, bx, by);
-                  }
+                  onAnchorDown?.(node.id, side, bx, by);
                 }}
                 onMouseEnter={() => {
                   setHoveredAnchor(side);
                   onAnchorEnter?.(node.id, side);
-                  const PROXIMITY = 280;
-                  let best: { nodeId: string; side: AnchorSide; dist: number; wx: number; wy: number } | null = null;
-                  for (const n of useBoardStore.getState().nodes) {
-                    if (n.id === node.id || (n.type !== 'sticky' && n.type !== 'shape' && n.type !== 'table' && n.type !== 'codeblock')) continue;
-                    const rn = n.type === 'table'
-                      ? { x: n.x, y: n.y, width: (n as import('../../types').TableNode).colWidths.reduce((a: number, b: number) => a + b, 0), height: (n as import('../../types').TableNode).rowHeights.reduce((a: number, b: number) => a + b, 0) }
-                      : n as { x: number; y: number; width: number; height: number };
-                    for (const ts of ['top', 'right', 'bottom', 'left'] as AnchorSide[]) {
-                      const a = anchorCoords(rn, ts);
-                      const d = Math.hypot(a.x - bx, a.y - by);
-                      if (d < PROXIMITY && (!best || d < best.dist)) best = { nodeId: n.id, side: ts, dist: d, wx: a.x, wy: a.y };
-                    }
-                  }
-                  if (best) {
-                    const tension = Math.min(Math.max(best.dist * 0.42, 55), 220);
-                    const cp1 = cpOffset(side, tension);
-                    const cp2 = cpOffset(best.side, tension);
-                    setSmartGhost({
-                      fromSide: side, targetId: best.nodeId, targetSide: best.side,
-                      toWorldX: best.wx, toWorldY: best.wy,
-                      pts: [bx, by, bx + cp1.dx, by + cp1.dy, best.wx + cp2.dx, best.wy + cp2.dy, best.wx, best.wy],
-                    });
-                  } else {
-                    setSmartGhost(null);
-                  }
                 }}
-                onMouseLeave={() => { setHoveredAnchor(null); setSmartGhost(null); onAnchorLeave?.(); }}
+                onMouseLeave={() => { setHoveredAnchor(null); onAnchorLeave?.(); }}
               />
               {/* Directional arrow inside dot */}
               {active && (
@@ -535,10 +494,10 @@ export default function StickyNote({
               {/* Tooltip pill */}
               {hovered && (
                 <Group x={vx + tx} y={vy + ty}>
-                  <Rect width={ghost ? 102 : 60} height={18} fill={t.panelBg} cornerRadius={4} opacity={0.92} />
+                  <Rect width={60} height={18} fill={t.panelBg} cornerRadius={4} opacity={0.92} />
                   <Text
-                    width={ghost ? 102 : 60} height={18}
-                    text={ghost ? 'Click to connect' : 'Connect'}
+                    width={60} height={18}
+                    text="Connect"
                     fontSize={10} fontFamily={FONTS.ui}
                     fill={t.textHi} align="center" verticalAlign="middle" listening={false}
                   />
@@ -581,8 +540,8 @@ export default function StickyNote({
           borderStrokeWidth={2}
           padding={0}
           boundBoxFunc={(oldBox, newBox) => {
-            const widthChanged  = Math.abs(newBox.width  - oldBox.width)  > 0.5;
-            const heightChanged = Math.abs(newBox.height - oldBox.height) > 0.5;
+            const widthChanged  = Math.abs(newBox.width  - oldBox.width)  > 0.1;
+            const heightChanged = Math.abs(newBox.height - oldBox.height) > 0.1;
 
             // Side-only drag: snap width to square (1:1) or wide (2:1)
             if (widthChanged && !heightChanged) {

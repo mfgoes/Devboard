@@ -96,6 +96,7 @@ export default function StickerNodeComponent({ node, isSelected, onSnapMove, onS
             cx = snapped.x + node.width / 2; cy = snapped.y + node.height / 2;
             e.target.x(cx); e.target.y(cy);
           }
+          updateNode(node.id, { x: cx, y: cy });
           onMultiDragMove?.(node.id, cx, cy);
         }}
         onDragEnd={(e) => {

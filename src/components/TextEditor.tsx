@@ -3,6 +3,14 @@ import { useBoardStore } from '../store/boardStore';
 import { StickyNoteNode, TextBlockNode, ShapeNode, SectionNode } from '../types';
 import { useTheme } from '../theme';
 import { isRichText, textToHtml } from '../utils/richText';
+import { calculateDynamicFontSize } from '../utils/dynamicFontSize';
+
+function getEffectiveFontSize(node: StickyNoteNode): number {
+  if (node.fontSizeMode === 'dynamic') {
+    return calculateDynamicFontSize(node.text, node.width, node.height);
+  }
+  return node.fontSize ?? 13;
+}
 
 function autoResize(el: HTMLTextAreaElement) {
   el.style.height = 'auto';
@@ -45,6 +53,7 @@ export default function TextEditor() {
   const { editingId, nodes, camera, updateNode, setEditingId, saveHistory } = useBoardStore();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const stickyEditorRef = useRef<HTMLDivElement>(null);
+  const textBlockEditorRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const editingNode = nodes.find((n) => n.id === editingId) as
@@ -73,13 +82,22 @@ export default function TextEditor() {
       const sel = window.getSelection();
       sel?.removeAllRanges();
       sel?.addRange(range);
+    } else if (editingNode?.type === 'textblock') {
+      const div = textBlockEditorRef.current;
+      if (!div) return;
+      const tb = editingNode as TextBlockNode;
+      div.innerHTML = isRichText(tb.text) ? tb.text : textToHtml(tb.text);
+      div.focus();
+      const range = document.createRange();
+      range.selectNodeContents(div);
+      range.collapse(false);
+      const sel = window.getSelection();
+      sel?.removeAllRanges();
+      sel?.addRange(range);
     } else if (textareaRef.current) {
       textareaRef.current.focus();
       const len = textareaRef.current.value.length;
       textareaRef.current.setSelectionRange(len, len);
-      if (editingNode?.type === 'textblock') {
-        autoResize(textareaRef.current);
-      }
     }
   }, [editingId]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -240,17 +258,53 @@ export default function TextEditor() {
     const tb = editingNode as TextBlockNode;
     const fs = Math.round(tb.fontSize * camera.scale);
     const tbColor = tb.link ? '#60a5fa' : (tb.color === 'auto' ? t.textHi : tb.color);
+
+    const syncTextBlockContent = () => {
+      const div = textBlockEditorRef.current;
+      if (!div) return;
+      updateNode(editingId, { text: div.innerHTML });
+    };
+
+    const handleTextBlockKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setEditingId(null);
+        return;
+      }
+      e.stopPropagation();
+      if (e.key === 'Enter' && (editingNode as TextBlockNode).bulletList) {
+        e.preventDefault();
+        document.execCommand('insertHTML', false, '<br>• ');
+        syncTextBlockContent();
+      }
+    };
+
+    const handleTextBlockPaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
+      const text = e.clipboardData.getData('text/plain').trim();
+      if (text && /^https?:\/\/\S+$/i.test(text)) {
+        e.preventDefault();
+        const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        document.execCommand(
+          'insertHTML', false,
+          `<a href="${escaped}" style="color:#60a5fa;text-decoration:underline;word-break:break-all">${escaped}</a>`,
+        );
+        syncTextBlockContent();
+      }
+    };
+
     return (
-      <textarea
-        ref={textareaRef}
-        value={tb.text}
-        onChange={(e) => {
-          updateNode(editingId, { text: e.target.value });
-          autoResize(e.target);
-        }}
+      <div
+        ref={textBlockEditorRef}
+        contentEditable
+        suppressContentEditableWarning
+        data-textblock-editor="true"
+        onInput={syncTextBlockContent}
         onFocus={saveHistory}
-        onBlur={handleBlur}
-        onKeyDown={handleKeyDown}
+        onBlur={() => setTimeout(() => {
+          if (document.activeElement !== textBlockEditorRef.current) setEditingId(null);
+        }, 150)}
+        onKeyDown={handleTextBlockKeyDown}
+        onPaste={handleTextBlockPaste}
         style={{
           position: 'absolute',
           left: sx,
@@ -260,7 +314,6 @@ export default function TextEditor() {
           background: 'transparent',
           border: 'none',
           outline: 'none',
-          resize: 'none',
           fontSize: fs,
           lineHeight: 1.5,
           fontFamily: "'Plus Jakarta Sans', sans-serif",
@@ -271,8 +324,10 @@ export default function TextEditor() {
           color: tbColor,
           padding: 0,
           zIndex: 100,
-          overflow: 'hidden',
+          overflow: 'visible',
           caretColor: tbColor,
+          whiteSpace: 'normal',
+          wordWrap: 'break-word',
         }}
       />
     );
@@ -280,16 +335,25 @@ export default function TextEditor() {
 
   // Sticky note — contenteditable for inline rich text support
   const stickyNode = editingNode as StickyNoteNode;
-  const fs = Math.round((stickyNode.fontSize ?? 13) * camera.scale);
+
+  // Always use current text from node for font size calculation
+  // (syncStickyContent updates it in real-time)
+  // Use world-space font size directly (Konva applies camera scaling automatically)
+  const worldFontSize = getEffectiveFontSize(stickyNode);
+  const fs = worldFontSize * camera.scale;
 
   const syncStickyContent = () => {
     const div = stickyEditorRef.current;
     if (!div) return;
     const html = div.innerHTML;
-    const newHeight = Math.max(
-      stickyNode.height,
-      measureStickyHeight(html, stickyNode.width - 20, stickyNode.fontSize ?? 13, true),
-    );
+
+    // For both modes, auto-expand height if content overflows.
+    // Dynamic mode: font shrinks as text grows; height expands only if font hits its floor.
+    const effectiveSize = stickyNode.fontSizeMode === 'dynamic'
+      ? calculateDynamicFontSize(html.replace(/<[^>]*>/g, '').trim(), stickyNode.width, stickyNode.height)
+      : (stickyNode.fontSize ?? 13);
+    const neededHeight = measureStickyHeight(html, stickyNode.width - 20, effectiveSize, true);
+    const newHeight = Math.max(stickyNode.height, neededHeight);
     updateNode(editingId, { text: html, height: newHeight });
   };
 
@@ -341,7 +405,7 @@ export default function TextEditor() {
         left: sx + 10 * camera.scale,
         top: sy + 10 * camera.scale,
         width: sw - 20 * camera.scale,
-        minHeight: (stickyNode.height - 20) * camera.scale,
+        // No maxHeight — sticky auto-expands to fit content via syncStickyContent
         // Transparent so the Konva card (background, shadow, corner fold) shows through
         background: 'transparent',
         border: 'none',
@@ -357,7 +421,9 @@ export default function TextEditor() {
         padding: 0,
         zIndex: 100,
         overflow: 'hidden',
-        wordBreak: 'break-word',
+        whiteSpace: 'normal',
+        wordWrap: 'break-word',
+        textRendering: 'geometricPrecision' as const,
       }}
     />
   );

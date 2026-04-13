@@ -171,18 +171,21 @@ export default function App() {
             x: s1x, y: ROW_Y,
             text: 'Drop ideas\n\nSticky notes, shapes, text — put anything on the canvas.',
             color: DEMO_COLORS.ideas, width: SW, height: 130,
+            fontSizeMode: 'fixed',
           } as import('./types').StickyNoteNode,
           {
             id: idS2, type: 'sticky',
             x: s2x, y: ROW_Y,
             text: 'Connect them\n\nDraw arrows between ideas to map flows and relationships.',
             color: DEMO_COLORS.connect, width: SW, height: 130,
+            fontSizeMode: 'fixed',
           } as import('./types').StickyNoteNode,
           {
             id: idS3, type: 'sticky',
             x: s3x, y: ROW_Y,
             text: 'Share & export\n\nSave as PNG or a shareable link. Offline. No account.',
             color: DEMO_COLORS.share, width: SW, height: 130,
+            fontSizeMode: 'fixed',
           } as import('./types').StickyNoteNode,
 
           // ── Connectors between stickies ──────────────────────────────────────

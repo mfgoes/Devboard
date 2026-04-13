@@ -51,7 +51,10 @@
       "Read(//tmp/**)",
       "Bash(jobs)",
       "Bash(grep -l \"font-mono\" /Users/mischavandergoes/Documents/GitHub/CollaboCanvas/src/components/*.tsx)",
-      "Bash(killall vite:*)"
+      "Bash(killall vite:*)",
+      "Bash(grep -l \"draggable\" /Users/mischavandergoes/Documents/GitHub/CollaboCanvas/src/components/nodes/*.tsx)",
+      "Bash(git checkout:*)",
+      "Bash(grep -v \"^--$\")"
     ]
   }
 }

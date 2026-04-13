@@ -88,18 +88,24 @@ export function parseRichText(html: string): RichRun[][] {
     }
 
     if (tag === 'br') {
-      flush();
+      // Only flush for <br> if we haven't just started a new line (avoids
+      // double-blank from <div><br></div> pattern used by contenteditable)
+      if (currentLine.length > 0 || lines.length === 0) {
+        flush();
+      } else {
+        lines.push([]);
+      }
       return;
     }
 
     const isBlock = tag === 'div' || tag === 'p';
-    if (isBlock && (currentLine.length > 0 || lines.length > 0)) flush();
+    if (isBlock && currentLine.length > 0) flush();
 
     for (const child of Array.from(el.childNodes)) {
       walk(child, b, i, u, lk);
     }
 
-    if (isBlock) flush();
+    if (isBlock && currentLine.length > 0) flush();
   }
 
   for (const child of Array.from(div.childNodes)) {

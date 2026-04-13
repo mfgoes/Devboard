@@ -112,14 +112,16 @@ export default function SectionNodeComponent({ node, isSelected, isEditing }: Pr
     if (!dragStartRef.current) return;
     const dx = e.target.x() - dragStartRef.current.sectionX;
     const dy = e.target.y() - dragStartRef.current.sectionY;
+    const updates: { id: string; updates: any }[] = [
+      { id: node.id, updates: { x: e.target.x(), y: e.target.y() } }
+    ];
     if (dragStartRef.current.children.length > 0) {
-      updateNodes(
-        dragStartRef.current.children.map((c) => ({
-          id: c.id,
-          updates: { x: c.x + dx, y: c.y + dy },
-        }))
-      );
+      updates.push(...dragStartRef.current.children.map((c) => ({
+        id: c.id,
+        updates: { x: c.x + dx, y: c.y + dy },
+      })));
     }
+    updateNodes(updates);
   };
 
   const handleDragEnd = (e: Konva.KonvaEventObject<DragEvent>) => {
@@ -150,10 +152,23 @@ export default function SectionNodeComponent({ node, isSelected, isEditing }: Pr
   const fullName = node.name || 'Section';
   const labelText = fullName.length > 20 ? fullName.slice(0, 20) + '...' : fullName;
   const textColor   = getTextColorForBackground(resolvedColor);
-  const pillW = Math.max(72, labelText.length * 8 + 24);
-  const pillH = 26;
-  // Responsive font size: maintain readability when zooming out
-  const fontSize = Math.max(BASE_FONT_SIZE, MIN_SCREEN_FONT_SIZE / camera.scale);
+  // Counter-scale all pill dimensions so the header stays at a constant screen size
+  const s = camera.scale;
+  const pillH = 26 / s;
+  const screenFontSize = Math.max(MIN_SCREEN_FONT_SIZE, BASE_FONT_SIZE);
+  const fontSize = screenFontSize / s;
+  // Measure text width so the pill fits the label tightly
+  const measuredTextW = (() => {
+    try {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return 120;
+      ctx.font = `bold ${screenFontSize}px ${FONTS.ui}`;
+      return ctx.measureText(labelText).width;
+    } catch { return 120; }
+  })();
+  const PILL_PAD_X = 20; // 10px padding on each side in screen pixels
+  const pillW = (measuredTextW + PILL_PAD_X) / s;
 
   return (
     <>
@@ -182,18 +197,18 @@ export default function SectionNodeComponent({ node, isSelected, isEditing }: Pr
           cornerRadius={12}
         />
         <Rect
-          x={12}
+          x={12 / s}
           y={-pillH / 2}
           width={pillW}
           height={pillH}
           fill={resolvedColor}
-          cornerRadius={8}
+          cornerRadius={8 / s}
           opacity={isEditing ? 0 : 1}
         />
         <Text
-          x={22}
-          y={-pillH / 2 + 6}
-          width={pillW - 20}
+          x={22 / s}
+          y={-pillH / 2 + 6 / s}
+          width={pillW - 20 / s}
           text={isEditing ? '' : labelText}
           fontSize={fontSize}
           fontStyle="bold"
@@ -201,6 +216,7 @@ export default function SectionNodeComponent({ node, isSelected, isEditing }: Pr
           fill={textColor}
           listening={false}
           wrap="none"
+          ellipsis={true}
         />
       </Group>
 

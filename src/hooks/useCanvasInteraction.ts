@@ -359,6 +359,7 @@ export function useCanvasInteraction({
           color: randomStickyColor(),
           width: 200,
           height: 160,
+          fontSizeMode: 'dynamic',
         } satisfies StickyNoteNode);
         setActiveTool('select');
         return;
@@ -501,6 +502,23 @@ export function useCanvasInteraction({
 
       if (activeTool === 'select' && clickedStage) {
         const pos = stageRef.current!.getPointerPosition()!;
+        const worldX = (pos.x - camera.x) / camera.scale;
+        const worldY = (pos.y - camera.y) / camera.scale;
+
+        // Task cards are HTML overlays — Konva has no node for them, so the stage
+        // sees their area as empty. If the click lands inside a task card, select it
+        // rather than starting a marquee (which would immediately deselect on mouseup).
+        const hitCard = useBoardStore.getState().nodes.find((n) => {
+          if (n.type !== 'taskcard') return false;
+          const tc = n as TaskCardNode;
+          const h = tc.height ?? 9999;
+          return worldX >= tc.x && worldX <= tc.x + tc.width && worldY >= tc.y && worldY <= tc.y + h;
+        });
+        if (hitCard) {
+          selectIds([hitCard.id]);
+          return;
+        }
+
         setMarqueeDraw({
           startScreenX: pos.x, startScreenY: pos.y,
           currentScreenX: pos.x, currentScreenY: pos.y,
@@ -526,23 +544,6 @@ export function useCanvasInteraction({
         const worldX = (pos.x - camera.x) / camera.scale;
         const worldY = (pos.y - camera.y) / camera.scale;
         setDrawingLine((prev) => prev ? { ...prev, toX: worldX, toY: worldY } : null);
-
-        const threshold = 50 / camera.scale;
-        let best: { nodeId: string; side: AnchorSide } | null = null;
-        let bestDist = threshold;
-        for (const n of useBoardStore.getState().nodes) {
-          if ((n.type !== 'sticky' && n.type !== 'shape' && n.type !== 'taskcard') || n.id === drawingLine.fromNodeId) continue;
-          if (n.type === 'taskcard' && !(n as TaskCardNode).height) continue;
-          const sides = n.type === 'taskcard'
-            ? (['left', 'right'] as AnchorSide[])
-            : (['top', 'right', 'bottom', 'left'] as AnchorSide[]);
-          for (const side of sides) {
-            const { x: ax, y: ay } = anchorCoords(n as StickyNoteNode | ShapeNode, side);
-            const d = Math.hypot(worldX - ax, worldY - ay);
-            if (d < bestDist) { bestDist = d; best = { nodeId: n.id, side }; }
-          }
-        }
-        setSnapTarget(best);
       }
       if (marqueeDraw) {
         const pos = stageRef.current?.getPointerPosition();
@@ -902,7 +903,7 @@ export function useCanvasInteraction({
           const worldY = (screenY - cam.y) / cam.scale;
 
           if (activeTool === 'sticky') {
-            addNode({ id: generateId(), type: 'sticky', x: worldX - 100, y: worldY - 80, text: '', color: randomStickyColor(), width: 200, height: 160 } satisfies StickyNoteNode);
+            addNode({ id: generateId(), type: 'sticky', x: worldX - 100, y: worldY - 80, text: '', color: randomStickyColor(), width: 200, height: 160, fontSizeMode: 'dynamic' } satisfies StickyNoteNode);
             setActiveTool('select');
           } else if (activeTool === 'sticker') {
             const rotation = Math.round((Math.random() * 30 - 15) * 10) / 10;

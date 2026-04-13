@@ -137,6 +137,7 @@ export default function JiraPanel({ onClose }: { onClose: () => void }) {
       height: 200,
       text: lines,
       color,
+      fontSizeMode: 'fixed',
     } as import('../types').StickyNoteNode);
     toast(`Imported ${issue.key}`);
   };
@@ -171,6 +172,7 @@ export default function JiraPanel({ onClose }: { onClose: () => void }) {
         height: 200,
         text: lines,
         color,
+        fontSizeMode: 'fixed',
       } as import('../types').StickyNoteNode);
     });
     toast(`Imported ${issues.length} issues`);
