@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useBoardStore } from '../store/boardStore';
 import { TextBlockNode } from '../types';
+import { useToolbarPosition } from '../utils/useToolbarPosition';
 
 const TEXT_COLORS = [
   { label: 'Auto',   hex: 'auto' },
@@ -44,9 +45,22 @@ const SIZE_PRESETS = [
 ];
 
 export default function TextBlockToolbar({ nodeId }: { nodeId: string }) {
-  const { nodes, updateNode, saveHistory, editingId } = useBoardStore();
+  const { nodes, updateNode, saveHistory, editingId, camera } = useBoardStore();
   const node = nodes.find((n) => n.id === nodeId) as TextBlockNode | undefined;
   const isEditing = editingId === nodeId;
+
+  // Calculate screen-space position for toolbar positioning
+  const sx = node ? node.x * camera.scale + camera.x : 0;
+  const sy = node ? node.y * camera.scale + camera.y : 0;
+  const sw = node ? node.width * camera.scale : 0;
+  const anchorDotY = sy - 20 * camera.scale;
+  const toolbarTop = anchorDotY - 40 - 8;
+
+  const { ref: tbRef, style: tbStyle } = useToolbarPosition({
+    centerX: sx + sw / 2,
+    preferredTop: toolbarTop,
+    nodeScreenBottom: sy,
+  });
 
   const [showColors, setShowColors] = useState(false);
   const [showSizes, setShowSizes]   = useState(false);
@@ -98,7 +112,9 @@ export default function TextBlockToolbar({ nodeId }: { nodeId: string }) {
 
   return (
     <div
-      className="absolute top-14 left-1/2 -translate-x-1/2 z-50 flex items-center rounded-xl border border-[var(--c-border)] bg-[var(--c-panel)] shadow-2xl"
+      ref={tbRef}
+      style={tbStyle}
+      className="flex items-center gap-0 rounded-xl border border-[var(--c-border)] bg-[var(--c-panel)] shadow-2xl"
       onMouseDown={(e) => e.stopPropagation()}
     >
       {/* ── Color ──────────────────────────────────────────────────── */}

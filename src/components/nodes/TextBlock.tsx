@@ -17,9 +17,54 @@ function TextBlockRichText({ node, fillColor }: { node: TextBlockNode; fillColor
     node.bold,
     node.italic,
   );
+
+  // Group runs by line and calculate line widths
+  const lineHeight = Math.round(node.fontSize * 1.5);
+  const lineGroups: { [key: number]: typeof runs } = {};
+  const lineWidths: { [key: number]: number } = {};
+
+  for (const run of runs) {
+    const lineIndex = Math.round(run.y / lineHeight);
+    if (!lineGroups[lineIndex]) {
+      lineGroups[lineIndex] = [];
+      lineWidths[lineIndex] = 0;
+    }
+    lineGroups[lineIndex].push(run);
+  }
+
+  // Calculate line widths from run positions
+  for (const lineIndex in lineGroups) {
+    const lineRuns = lineGroups[lineIndex];
+    if (lineRuns.length === 0) continue;
+
+    // Measure the last run to get total width
+    const lastRun = lineRuns[lineRuns.length - 1];
+    const ctx = document.createElement('canvas').getContext('2d');
+    if (ctx) {
+      const style = [lastRun.bold ? 'bold' : '', lastRun.italic ? 'italic' : ''].filter(Boolean).join(' ') || 'normal';
+      ctx.font = `${style} ${node.fontSize}px 'Plus Jakarta Sans', sans-serif`;
+      lineWidths[lineIndex] = lastRun.x + ctx.measureText(lastRun.text).width;
+    }
+  }
+
+  const alignedRuns = runs.map((run) => {
+    const lineIndex = Math.round(run.y / lineHeight);
+    const lineWidth = lineWidths[lineIndex] || node.width;
+
+    const align = node.textAlign ?? 'left';
+    let alignOffset = 0;
+    if (align === 'center') {
+      alignOffset = (node.width - lineWidth) / 2;
+    } else if (align === 'right') {
+      alignOffset = node.width - lineWidth;
+    }
+
+    return { ...run, x: run.x + alignOffset };
+  });
+
   return (
     <>
-      {runs.map((run, i) => (
+      {alignedRuns.map((run, i) => (
         <Text
           key={i}
           x={run.x}
@@ -155,9 +200,27 @@ export default function TextBlock({ node, isSelected, isEditing, onSnapMove, onS
   const hasRichText = isRichText(node.text);
   const fillColor = hasLink ? resolveCssColor('--c-line') : (node.color === 'auto' ? t.textHi : node.color);
 
-  // Rough hit area height
-  const lineCount  = (node.text || ' ').split('\n').length;
-  const hitHeight  = Math.max(node.fontSize * 1.5 * lineCount, node.fontSize * 2);
+  // Calculate hit area height based on actual rendered content
+  let hitHeight = node.fontSize * 2; // minimum
+  if (hasRichText) {
+    // For rich text, measure the actual layout to get true height
+    const runs = layoutRichText(
+      node.text,
+      node.width,
+      node.fontSize,
+      1.5,
+      node.bold,
+      node.italic,
+    );
+    if (runs.length > 0) {
+      const maxY = Math.max(...runs.map(r => r.y));
+      hitHeight = maxY + node.fontSize * 1.5;
+    }
+  } else {
+    // For plain text, estimate based on line count
+    const lineCount = (node.text || ' ').split('\n').length;
+    hitHeight = Math.max(node.fontSize * 1.5 * lineCount, node.fontSize * 2);
+  }
 
   return (
     <>
