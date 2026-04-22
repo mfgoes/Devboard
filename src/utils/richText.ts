@@ -43,6 +43,137 @@ export function htmlToPlainText(html: string): string {
   return (div.textContent ?? '').replace(/\u00a0/g, ' ');
 }
 
+/** Extract first N non-empty lines of plain text from HTML for preview display */
+export function htmlToPreviewLines(html: string, maxLines = 5): string {
+  if (!html) return '';
+  const text = html
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(?:p|div|h[1-6]|li|blockquote|pre)>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+  return text.split('\n').filter(l => l.trim()).slice(0, maxLines).join('\n');
+}
+
+export interface PreviewSegment {
+  text: string;
+  bold: boolean;
+  italic: boolean;
+}
+
+export interface PreviewLine {
+  kind: 'h1' | 'h2' | 'h3' | 'bullet' | 'numbered' | 'text';
+  segments: PreviewSegment[];
+}
+
+/** Parse HTML into structured preview lines for Markdown-light rendering */
+export function htmlToPreviewStructured(html: string, maxLines = 5): PreviewLine[] {
+  if (!html) return [];
+  const root = document.createElement('div');
+  root.innerHTML = html;
+  const lines: PreviewLine[] = [];
+
+  function extractSegs(node: Node, bold: boolean, italic: boolean): PreviewSegment[] {
+    const out: PreviewSegment[] = [];
+    for (const child of Array.from(node.childNodes)) {
+      if (child.nodeType === Node.TEXT_NODE) {
+        const t = child.textContent ?? '';
+        if (t) out.push({ text: t, bold, italic });
+      } else if (child.nodeType === Node.ELEMENT_NODE) {
+        const el = child as HTMLElement;
+        const tag = el.tagName.toLowerCase();
+        if (tag === 'br') continue;
+        let b = bold, i = italic;
+        if (tag === 'b' || tag === 'strong') b = true;
+        if (tag === 'i' || tag === 'em') i = true;
+        if (tag === 'span') {
+          const fw = el.style.fontWeight;
+          if (fw === 'bold' || fw === '700') b = true;
+          if (el.style.fontStyle === 'italic') i = true;
+        }
+        out.push(...extractSegs(el, b, i));
+      }
+    }
+    return out;
+  }
+
+  function mergeSegs(raw: PreviewSegment[]): PreviewSegment[] {
+    const out: PreviewSegment[] = [];
+    for (const s of raw) {
+      const last = out[out.length - 1];
+      if (last && last.bold === s.bold && last.italic === s.italic) {
+        last.text += s.text;
+      } else if (s.text) {
+        out.push({ ...s });
+      }
+    }
+    return out;
+  }
+
+  function pushLine(node: Node, kind: PreviewLine['kind']) {
+    if (lines.length >= maxLines) return;
+    const segments = mergeSegs(extractSegs(node, false, false));
+    const text = segments.map(s => s.text).join('').trim();
+    if (text) lines.push({ kind, segments });
+  }
+
+  function walk(el: Element) {
+    if (lines.length >= maxLines) return;
+    const tag = el.tagName.toLowerCase();
+
+    if (tag === 'h1') { pushLine(el, 'h1'); return; }
+    if (tag === 'h2') { pushLine(el, 'h2'); return; }
+    if (tag === 'h3') { pushLine(el, 'h3'); return; }
+
+    if (tag === 'ul' || tag === 'ol') {
+      const kind: PreviewLine['kind'] = tag === 'ol' ? 'numbered' : 'bullet';
+      for (const child of Array.from(el.children)) {
+        if (lines.length >= maxLines) break;
+        if (child.tagName.toLowerCase() === 'li') pushLine(child, kind);
+      }
+      return;
+    }
+
+    if (tag === 'li') { pushLine(el, 'bullet'); return; }
+
+    if (tag === 'div' || tag === 'p') {
+      const hasBlock = Array.from(el.childNodes).some(n => {
+        if (n.nodeType !== Node.ELEMENT_NODE) return false;
+        const t = (n as HTMLElement).tagName.toLowerCase();
+        return ['h1','h2','h3','ul','ol','li','div','p'].includes(t);
+      });
+      if (hasBlock) {
+        for (const child of Array.from(el.childNodes)) {
+          if (lines.length >= maxLines) break;
+          if (child.nodeType === Node.ELEMENT_NODE) walk(child as Element);
+          else if (child.nodeType === Node.TEXT_NODE) {
+            const t = (child.textContent ?? '').trim();
+            if (t) lines.push({ kind: 'text', segments: [{ text: t, bold: false, italic: false }] });
+          }
+        }
+      } else {
+        pushLine(el, 'text');
+      }
+      return;
+    }
+
+    pushLine(el, 'text');
+  }
+
+  for (const child of Array.from(root.childNodes)) {
+    if (lines.length >= maxLines) break;
+    if (child.nodeType === Node.TEXT_NODE) {
+      const t = (child.textContent ?? '').trim();
+      if (t) lines.push({ kind: 'text', segments: [{ text: t, bold: false, italic: false }] });
+    } else if (child.nodeType === Node.ELEMENT_NODE) {
+      walk(child as Element);
+    }
+  }
+
+  return lines;
+}
+
 /** Parse HTML into an array of logical lines, each line an array of styled runs */
 export function parseRichText(html: string): RichRun[][] {
   const div = document.createElement('div');

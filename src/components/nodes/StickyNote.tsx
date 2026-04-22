@@ -35,9 +35,12 @@ function lerpColor(a: string, b: string, t: number): string {
 }
 
 // ── Rich text renderer ────────────────────────────────────────────────────────
-function StickyRichText({ node, liveWidth }: { node: StickyNoteNode; liveWidth?: number }) {
+function StickyRichText({ node, liveWidth, liveHeight }: { node: StickyNoteNode; liveWidth?: number; liveHeight?: number }) {
   const effectiveWidth = liveWidth ?? node.width;
-  const fs = getEffectiveFontSize(node);
+  const effectiveHeight = liveHeight ?? node.height;
+  const fs = node.fontSizeMode === 'dynamic'
+    ? calculateDynamicFontSize(node.text, effectiveWidth, effectiveHeight)
+    : (node.fontSize ?? 13);
   const runs = layoutRichText(
     node.text,
     effectiveWidth - 20,
@@ -151,6 +154,9 @@ export default function StickyNote({
 
   const isLineTool = activeTool === 'line';
   const [liveScale, setLiveScale] = useState({ sx: 1, sy: 1 });
+  const liveDynFontSize = (node.fontSizeMode === 'dynamic')
+    ? calculateDynamicFontSize(node.text, node.width * liveScale.sx, node.height * liveScale.sy)
+    : undefined;
   const [hoveredAnchor, setHoveredAnchor] = useState<AnchorSide | null>(null);
 
   // ── Drag wobble ──────────────────────────────────────────────────────────────
@@ -404,7 +410,7 @@ export default function StickyNote({
             width={node.width * liveScale.sx - 20}
             height={node.height * liveScale.sy - 20}
             text={node.text}
-            fontSize={getEffectiveFontSize(node)}
+            fontSize={liveDynFontSize ?? getEffectiveFontSize(node)}
             fontStyle={[node.bold ? 'bold' : '', node.italic ? 'italic' : ''].filter(Boolean).join(' ') || 'normal'}
             textDecoration={node.underline ? 'underline' : ''}
             lineHeight={1.5}
@@ -418,7 +424,7 @@ export default function StickyNote({
         )}
         {node.text && !isEditing && isRichText(node.text) && (
           <Group scaleX={1 / liveScale.sx} scaleY={1 / liveScale.sy}>
-            <StickyRichText node={node} liveWidth={node.width * liveScale.sx} />
+            <StickyRichText node={node} liveWidth={node.width * liveScale.sx} liveHeight={node.height * liveScale.sy} />
           </Group>
         )}
         {/* Lock indicator */}

@@ -1,0 +1,1200 @@
+import { useRef, useEffect, useState, useCallback, useMemo } from 'react';
+import { useBoardStore } from '../store/boardStore';
+import { CanvasNode, Document } from '../types';
+import { htmlToMarkdown, markdownToHtml } from '../utils/exportMarkdown';
+import { saveAs } from 'file-saver';
+import { hasWorkspaceHandle, saveTextFileToWorkspace } from '../utils/workspaceManager';
+import { toast } from '../utils/toast';
+import { focusNode } from '../utils/focusNode';
+import { IconCode, IconEye, IconSaveFile } from './icons';
+
+// ── Inline chip utilities ─────────────────────────────────────────────────────
+
+const CHIP_PATTERN = /(\[\[[^\]]+\]\])|(@node:[a-zA-Z0-9_-]+)|(#[a-zA-Z][a-zA-Z0-9_-]*)/g;
+
+function applyChipsToDOM(container: HTMLElement): void {
+  const textNodes: Text[] = [];
+  function walk(node: Node) {
+    if (node.nodeType === Node.TEXT_NODE) { textNodes.push(node as Text); return; }
+    if (node.nodeType === Node.ELEMENT_NODE && (node as HTMLElement).dataset.chip) return;
+    node.childNodes.forEach(walk);
+  }
+  walk(container);
+
+  for (const textNode of textNodes) {
+    const text = textNode.textContent ?? '';
+    CHIP_PATTERN.lastIndex = 0;
+    if (!CHIP_PATTERN.test(text)) continue;
+    CHIP_PATTERN.lastIndex = 0;
+
+    const parent = textNode.parentNode;
+    if (!parent) continue;
+
+    const frag = document.createDocumentFragment();
+    let lastIdx = 0;
+    let match: RegExpExecArray | null;
+
+    while ((match = CHIP_PATTERN.exec(text)) !== null) {
+      if (match.index > lastIdx) frag.appendChild(document.createTextNode(text.slice(lastIdx, match.index)));
+
+      const span = document.createElement('span');
+      span.contentEditable = 'false';
+
+      if (match[1]) {
+        const title = match[1].slice(2, -2);
+        span.className = 'chip-wiki';
+        span.dataset.chip = 'wiki';
+        span.dataset.title = title;
+        span.textContent = title;
+      } else if (match[2]) {
+        const nodeId = match[2].slice(6);
+        span.className = 'chip-node';
+        span.dataset.chip = 'node';
+        span.dataset.nodeid = nodeId;
+        span.textContent = nodeId;
+      } else if (match[3]) {
+        span.className = 'chip-tag';
+        span.dataset.chip = 'tag';
+        span.textContent = match[3];
+      }
+      frag.appendChild(span);
+      lastIdx = match.index + match[0].length;
+    }
+    if (lastIdx < text.length) frag.appendChild(document.createTextNode(text.slice(lastIdx)));
+    parent.replaceChild(frag, textNode);
+  }
+}
+
+function stripChipsFromHTML(html: string): string {
+  const div = document.createElement('div');
+  div.innerHTML = html;
+  div.querySelectorAll('[data-chip]').forEach((el) => {
+    const chip = el as HTMLElement;
+    const type = chip.dataset.chip;
+    let raw = '';
+    if (type === 'wiki') raw = `[[${chip.dataset.title ?? chip.textContent}]]`;
+    else if (type === 'node') raw = `@node:${chip.dataset.nodeid ?? chip.textContent}`;
+    else raw = chip.textContent ?? '';
+    chip.replaceWith(document.createTextNode(raw));
+  });
+  return div.innerHTML;
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function stripHtml(html: string): string {
+  return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function relativeTime(ms: number): string {
+  const diff = Date.now() - ms;
+  if (diff < 60_000) return 'just now';
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
+  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
+  return `${Math.floor(diff / 86_400_000)}d ago`;
+}
+
+function generateMarkdownFilename(title: string): string {
+  return (title.trim() || 'untitled').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') + '.md';
+}
+
+function getNodeLabel(node: CanvasNode, docs: Document[]): string {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const n = node as any;
+  switch (node.type) {
+    case 'sticky': return (n.text as string).split('\n')[0].slice(0, 60) || 'Sticky';
+    case 'textblock': return (n.text as string).slice(0, 60) || 'Text block';
+    case 'shape': return n.text || n.kind || 'Shape';
+    case 'document': {
+      const linked = docs.find((d) => d.id === n.docId);
+      return linked?.title || n.title || 'Note';
+    }
+    case 'section': return n.name || 'Section';
+    case 'taskcard': return n.title || 'Task card';
+    case 'codeblock': return n.title || 'Code block';
+    default: return node.type;
+  }
+}
+
+// ── Formatting toolbar ───────────────────────────────────────────────────────
+
+const BLOCK_LABELS: Record<string, string> = {
+  p: 'Paragraph', h1: 'Heading 1', h2: 'Heading 2', h3: 'Heading 3',
+};
+
+function getBlockType(savedRange: Range | null): string {
+  const range = savedRange ?? (window.getSelection()?.rangeCount ? window.getSelection()!.getRangeAt(0) : null);
+  if (!range) return 'p';
+  let el: Node | null = range.startContainer;
+  while (el && !(el as HTMLElement).contentEditable) {
+    const tag = (el as HTMLElement).tagName?.toLowerCase();
+    if (tag === 'h1' || tag === 'h2' || tag === 'h3' || tag === 'p') return tag;
+    el = el.parentElement;
+  }
+  return 'p';
+}
+
+function applyBlock(format: string, savedRange: Range | null) {
+  const range = savedRange;
+  if (!range) return;
+  const sel = window.getSelection();
+  if (sel) { sel.removeAllRanges(); sel.addRange(range); }
+
+  let node: Node | null = range.startContainer;
+  while (node && (node as HTMLElement).contentEditable !== 'true') node = node.parentElement;
+  const root = node as HTMLElement | null;
+  if (!root) return;
+
+  let block: HTMLElement | null = range.startContainer as HTMLElement;
+  if (block.nodeType === Node.TEXT_NODE) block = block.parentElement;
+  while (block && block.parentElement !== root) block = block.parentElement;
+  if (!block || block === root) return;
+
+  const newEl = document.createElement(format);
+  while (block.firstChild) newEl.appendChild(block.firstChild);
+  block.replaceWith(newEl);
+  newEl.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+interface FmtBarProps {
+  viewMode: 'edit' | 'source';
+  onToggleSource: () => void;
+  onToggleEdit: () => void;
+  onSave: () => void;
+  onWikilinkClick: (rect: DOMRect) => void;
+  onNodeLinkClick: (rect: DOMRect) => void;
+}
+
+function FormattingBar({ viewMode, onToggleSource, onToggleEdit, onSave, onWikilinkClick, onNodeLinkClick }: FmtBarProps) {
+  const [showBlock, setShowBlock] = useState(false);
+  const savedRangeRef = useRef<Range | null>(null);
+  const [, tick] = useState(0);
+  const wikilinkBtnRef = useRef<HTMLButtonElement>(null);
+  const nodeBtnRef = useRef<HTMLButtonElement>(null);
+
+  const saveSelection = () => {
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0) savedRangeRef.current = sel.getRangeAt(0).cloneRange();
+  };
+
+  const restoreSelection = () => {
+    const r = savedRangeRef.current;
+    if (!r) return;
+    const sel = window.getSelection();
+    if (sel) { sel.removeAllRanges(); sel.addRange(r); }
+  };
+
+  const fmt = (cmd: string, val?: string) => {
+    restoreSelection();
+    document.execCommand(cmd, false, val);
+    document.activeElement?.dispatchEvent(new Event('input', { bubbles: true }));
+  };
+
+  const isActive = (cmd: string) => {
+    try { return document.queryCommandState(cmd); } catch { return false; }
+  };
+
+  const currentBlock = getBlockType(showBlock ? savedRangeRef.current : null);
+
+  const btnStyle = (active: boolean): React.CSSProperties => ({
+    height: 26,
+    minWidth: 26,
+    padding: '0 7px',
+    background: active ? 'rgba(184,119,80,0.25)' : 'rgba(255,255,255,0.06)',
+    border: active ? '1px solid rgba(184,119,80,0.5)' : '1px solid rgba(255,255,255,0.1)',
+    borderRadius: 5,
+    color: active ? 'var(--c-line)' : 'var(--c-text-lo)',
+    cursor: 'pointer',
+    fontSize: 12,
+    fontFamily: 'inherit',
+    fontWeight: active ? 600 : 400,
+    flexShrink: 0,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    transition: 'background 0.12s',
+  });
+
+  return (
+    <div
+      style={{
+        padding: '4px 8px 4px 16px',
+        borderBottom: '1px solid rgba(255,255,255,0.07)',
+        background: 'rgba(255,255,255,0.02)',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 4,
+        flexShrink: 0,
+        flexWrap: 'wrap',
+      }}
+      onMouseDown={(e) => e.stopPropagation()}
+    >
+      {viewMode === 'edit' && (
+        <>
+          {/* Block format dropdown */}
+          <div style={{ position: 'relative', flexShrink: 0 }}>
+            <button
+              style={{ ...btnStyle(false), width: 98, justifyContent: 'space-between', paddingRight: 6 }}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                saveSelection();
+                setShowBlock((v) => !v);
+                tick((n) => n + 1);
+              }}
+            >
+              <span>{BLOCK_LABELS[currentBlock] ?? 'Paragraph'}</span>
+              <span style={{ fontSize: 9, opacity: 0.6 }}>▼</span>
+            </button>
+            {showBlock && (
+              <div style={{
+                position: 'absolute', top: '100%', left: 0, zIndex: 500,
+                background: 'var(--c-panel)', border: '1px solid rgba(255,255,255,0.12)',
+                borderRadius: 7, boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+                minWidth: 130, overflow: 'hidden', marginTop: 3,
+              }}>
+                {(['p', 'h1', 'h2', 'h3'] as const).map((tag) => (
+                  <div
+                    key={tag}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      applyBlock(tag, savedRangeRef.current);
+                      setShowBlock(false);
+                    }}
+                    style={{
+                      padding: '7px 12px',
+                      cursor: 'pointer',
+                      background: currentBlock === tag ? 'rgba(184,119,80,0.15)' : 'transparent',
+                      color: currentBlock === tag ? 'var(--c-line)' : 'var(--c-text-hi)',
+                      fontSize: tag === 'h1' ? 16 : tag === 'h2' ? 14 : tag === 'h3' ? 13 : 13,
+                      fontWeight: tag !== 'p' ? 700 : 400,
+                      transition: 'background 0.1s',
+                    }}
+                    onMouseEnter={(e) => { if (currentBlock !== tag) (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)'; }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = currentBlock === tag ? 'rgba(184,119,80,0.15)' : 'transparent'; }}
+                  >
+                    {BLOCK_LABELS[tag]}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div style={{ width: 1, height: 18, background: 'rgba(255,255,255,0.12)', margin: '0 2px', flexShrink: 0 }} />
+
+          {/* Bold / Italic / Underline / Strike */}
+          <button style={btnStyle(isActive('bold'))} onMouseDown={(e) => { e.preventDefault(); saveSelection(); fmt('bold'); tick(n=>n+1); }} title="Bold (⌘B)"><b>B</b></button>
+          <button style={{ ...btnStyle(isActive('italic')), fontStyle: 'italic' }} onMouseDown={(e) => { e.preventDefault(); saveSelection(); fmt('italic'); tick(n=>n+1); }} title="Italic (⌘I)"><i>I</i></button>
+          <button style={{ ...btnStyle(isActive('underline')), textDecoration: 'underline' }} onMouseDown={(e) => { e.preventDefault(); saveSelection(); fmt('underline'); tick(n=>n+1); }} title="Underline (⌘U)">U</button>
+          <button style={btnStyle(isActive('strikeThrough'))} onMouseDown={(e) => { e.preventDefault(); saveSelection(); fmt('strikeThrough'); tick(n=>n+1); }} title="Strikethrough"><s>S</s></button>
+
+          <div style={{ width: 1, height: 18, background: 'rgba(255,255,255,0.12)', margin: '0 2px', flexShrink: 0 }} />
+
+          {/* Lists */}
+          <button style={btnStyle(isActive('insertUnorderedList'))} onMouseDown={(e) => { e.preventDefault(); saveSelection(); fmt('insertUnorderedList'); tick(n=>n+1); }} title="Bullet list">• List</button>
+          <button style={btnStyle(isActive('insertOrderedList'))} onMouseDown={(e) => { e.preventDefault(); saveSelection(); fmt('insertOrderedList'); tick(n=>n+1); }} title="Numbered list">1. List</button>
+
+          <div style={{ width: 1, height: 18, background: 'rgba(255,255,255,0.12)', margin: '0 2px', flexShrink: 0 }} />
+
+          {/* Save */}
+          <button style={btnStyle(false)} title="Save as Markdown" onMouseDown={(e) => { e.preventDefault(); onSave(); }}>
+            <IconSaveFile />
+          </button>
+
+          <div style={{ width: 1, height: 18, background: 'rgba(255,255,255,0.12)', margin: '0 2px', flexShrink: 0 }} />
+
+          {/* Wikilink picker button */}
+          <button
+            ref={wikilinkBtnRef}
+            style={{ ...btnStyle(false), gap: 3, fontFamily: 'monospace', fontSize: 11 }}
+            title="Link to a note"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              saveSelection();
+              if (wikilinkBtnRef.current) onWikilinkClick(wikilinkBtnRef.current.getBoundingClientRect());
+            }}
+          >[[]]</button>
+
+          {/* Node pill picker button */}
+          <button
+            ref={nodeBtnRef}
+            style={{ ...btnStyle(false), color: 'rgba(52,211,153,0.85)', fontSize: 11, fontFamily: 'monospace' }}
+            title="Link to a canvas node"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              saveSelection();
+              if (nodeBtnRef.current) onNodeLinkClick(nodeBtnRef.current.getBoundingClientRect());
+            }}
+          >@node</button>
+        </>
+      )}
+
+      <div style={{ flex: 1 }} />
+
+      {/* Edit / Source toggle */}
+      <div style={{ display: 'flex', gap: 2, background: 'rgba(255,255,255,0.06)', borderRadius: 7, padding: 2, flexShrink: 0 }}>
+        <button
+          title="Rich text editor"
+          onMouseDown={(e) => { e.preventDefault(); if (viewMode === 'source') onToggleEdit(); }}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 5,
+            padding: '4px 10px', borderRadius: 5, border: 'none', cursor: 'pointer',
+            fontSize: 11, fontFamily: 'inherit', fontWeight: 500,
+            background: viewMode === 'edit' ? 'var(--c-panel)' : 'transparent',
+            color: viewMode === 'edit' ? 'var(--c-text-hi)' : 'var(--c-text-lo)',
+            boxShadow: viewMode === 'edit' ? '0 1px 3px rgba(0,0,0,0.2)' : 'none',
+            transition: 'all 0.15s',
+          }}
+        ><IconEye /> Preview</button>
+        <button
+          title="Markdown source"
+          onMouseDown={(e) => { e.preventDefault(); if (viewMode === 'edit') onToggleSource(); }}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 5,
+            padding: '4px 10px', borderRadius: 5, border: 'none', cursor: 'pointer',
+            fontSize: 11, fontFamily: 'inherit', fontWeight: 500,
+            background: viewMode === 'source' ? 'var(--c-panel)' : 'transparent',
+            color: viewMode === 'source' ? 'var(--c-text-hi)' : 'var(--c-text-lo)',
+            boxShadow: viewMode === 'source' ? '0 1px 3px rgba(0,0,0,0.2)' : 'none',
+            transition: 'all 0.15s',
+          }}
+        ><IconCode /> Source</button>
+      </div>
+    </div>
+  );
+}
+
+// ── Picker components ─────────────────────────────────────────────────────────
+
+const PICKER_WIDTH = 280;
+
+interface WikilinkPickerProps {
+  pos: { x: number; y: number };
+  documents: Document[];
+  activeDocId: string | null;
+  onSelect: (title: string) => void;
+  onCreate: (title: string) => void;
+  onClose: () => void;
+}
+
+function WikilinkPicker({ pos, documents, activeDocId, onSelect, onCreate, onClose }: WikilinkPickerProps) {
+  const [query, setQuery] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => { inputRef.current?.focus(); }, []);
+
+  const filtered = useMemo(() => {
+    const q = query.toLowerCase().trim();
+    return documents
+      .filter((d) => d.id !== activeDocId && (!q || d.title.toLowerCase().includes(q) || stripHtml(d.content).toLowerCase().includes(q)))
+      .slice(0, 8);
+  }, [query, documents, activeDocId]);
+
+  const exactMatch = documents.some((d) => d.title.toLowerCase() === query.toLowerCase().trim() && d.id !== activeDocId);
+  const left = Math.min(pos.x, window.innerWidth - PICKER_WIDTH - 12);
+
+  return (
+    <>
+      <div style={{ position: 'fixed', inset: 0, zIndex: 9998 }} onMouseDown={onClose} />
+      <div style={{
+        position: 'fixed', left, top: pos.y, width: PICKER_WIDTH, zIndex: 9999,
+        background: 'var(--c-panel)', border: '1px solid var(--c-border)',
+        borderRadius: 10, boxShadow: '0 8px 28px rgba(0,0,0,0.4)', overflow: 'hidden',
+      }}>
+        <div style={{ padding: '8px 10px', borderBottom: '1px solid var(--c-border)', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ flexShrink: 0, opacity: 0.5 }}>
+            <rect x="1" y="1" width="10" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.2"/>
+            <path d="M3 4.5h6M3 6.5h6M3 8.5h4" stroke="currentColor" strokeWidth="1" strokeLinecap="round"/>
+          </svg>
+          <input
+            ref={inputRef}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') { e.preventDefault(); onClose(); }
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                if (filtered.length > 0) onSelect(filtered[0].title);
+                else if (query.trim()) onCreate(query.trim());
+              }
+            }}
+            placeholder="Search notes…"
+            style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: 'var(--c-text-hi)', fontSize: 13, fontFamily: 'inherit' }}
+          />
+        </div>
+        <div style={{ maxHeight: 220, overflowY: 'auto' }}>
+          {filtered.map((d) => (
+            <div
+              key={d.id}
+              onMouseDown={(e) => { e.preventDefault(); onSelect(d.title); }}
+              style={{ padding: '8px 12px', cursor: 'pointer', transition: 'background 0.1s' }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--c-hover)'; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+            >
+              <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--c-text-hi)', marginBottom: 2, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
+                {d.title || 'Untitled'}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--c-text-lo)', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
+                {stripHtml(d.content).slice(0, 80) || 'Empty'}
+              </div>
+            </div>
+          ))}
+          {query.trim() && !exactMatch && (
+            <div
+              onMouseDown={(e) => { e.preventDefault(); onCreate(query.trim()); }}
+              style={{ padding: '8px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 7, borderTop: filtered.length > 0 ? '1px solid var(--c-border)' : 'none', transition: 'background 0.1s' }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--c-hover)'; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+            >
+              <span style={{ fontSize: 15, lineHeight: 1, color: 'var(--c-line)' }}>+</span>
+              <span style={{ fontSize: 13, color: 'var(--c-text-md)' }}>New note: <b style={{ color: 'var(--c-text-hi)' }}>"{query.trim()}"</b></span>
+            </div>
+          )}
+          {filtered.length === 0 && !query.trim() && (
+            <div style={{ padding: '12px', fontSize: 12, color: 'var(--c-text-lo)', textAlign: 'center' }}>No other notes yet</div>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
+interface NodePickerProps {
+  pos: { x: number; y: number };
+  nodes: CanvasNode[];
+  documents: Document[];
+  onSelect: (nodeId: string, label: string) => void;
+  onClose: () => void;
+}
+
+function NodePicker({ pos, nodes, documents, onSelect, onClose }: NodePickerProps) {
+  const [query, setQuery] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => { inputRef.current?.focus(); }, []);
+
+  const SKIP_TYPES = new Set(['connector']);
+  const filtered = useMemo(() => {
+    const q = query.toLowerCase().trim();
+    return nodes
+      .filter((n) => !SKIP_TYPES.has(n.type))
+      .map((n) => ({ node: n, label: getNodeLabel(n, documents) }))
+      .filter(({ label }) => !q || label.toLowerCase().includes(q))
+      .slice(0, 10);
+  }, [query, nodes, documents]);
+
+  const left = Math.min(pos.x, window.innerWidth - PICKER_WIDTH - 12);
+
+  const typeIcon = (type: string) => {
+    if (type === 'sticky') return '📌';
+    if (type === 'document') return '📄';
+    if (type === 'shape') return '◻';
+    if (type === 'section') return '□';
+    if (type === 'taskcard') return '☑';
+    if (type === 'codeblock') return '{}';
+    if (type === 'textblock') return 'T';
+    return '·';
+  };
+
+  return (
+    <>
+      <div style={{ position: 'fixed', inset: 0, zIndex: 9998 }} onMouseDown={onClose} />
+      <div style={{
+        position: 'fixed', left, top: pos.y, width: PICKER_WIDTH, zIndex: 9999,
+        background: 'var(--c-panel)', border: '1px solid var(--c-border)',
+        borderRadius: 10, boxShadow: '0 8px 28px rgba(0,0,0,0.4)', overflow: 'hidden',
+      }}>
+        <div style={{ padding: '8px 10px', borderBottom: '1px solid var(--c-border)', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ flexShrink: 0, opacity: 0.5 }}>
+            <rect x="1" y="2" width="10" height="8" rx="1.2" stroke="currentColor" strokeWidth="1.2"/>
+          </svg>
+          <input
+            ref={inputRef}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') { e.preventDefault(); onClose(); }
+              if (e.key === 'Enter' && filtered.length > 0) {
+                e.preventDefault();
+                onSelect(filtered[0].node.id, filtered[0].label);
+              }
+            }}
+            placeholder="Search canvas nodes…"
+            style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: 'var(--c-text-hi)', fontSize: 13, fontFamily: 'inherit' }}
+          />
+        </div>
+        <div style={{ maxHeight: 220, overflowY: 'auto' }}>
+          {filtered.map(({ node, label }) => (
+            <div
+              key={node.id}
+              onMouseDown={(e) => { e.preventDefault(); onSelect(node.id, label); }}
+              style={{ padding: '8px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, transition: 'background 0.1s' }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--c-hover)'; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+            >
+              <span style={{ fontSize: 12, opacity: 0.6, flexShrink: 0, fontFamily: 'monospace' }}>{typeIcon(node.type)}</span>
+              <span style={{ fontSize: 13, color: 'var(--c-text-hi)', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{label}</span>
+              <span style={{ fontSize: 10, color: 'var(--c-text-lo)', flexShrink: 0, marginLeft: 'auto' }}>{node.type}</span>
+            </div>
+          ))}
+          {filtered.length === 0 && (
+            <div style={{ padding: '12px', fontSize: 12, color: 'var(--c-text-lo)', textAlign: 'center' }}>No canvas nodes found</div>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ── Doc emoji picker ─────────────────────────────────────────────────────────
+
+const DOC_EMOJIS = [
+  '📝','📋','📌','📍','📎','📁','🗂️','🗒️','🗓️','📅',
+  '💡','🔦','🕯️','🔍','🔎','🔑','🔒','🔓','⚙️','🛠️',
+  '🚀','🛸','🌍','🌙','☀️','⭐','🌟','✨','💫','🌈',
+  '🔥','⚡','❄️','💧','🌊','🍀','🌸','🌺','🌻','🍁',
+  '❤️','🧡','💛','💚','💙','💜','🖤','🤍','💎','🏆',
+  '🎯','🎨','🎮','🎵','🎸','🎲','🧩','⚽','🎉','🎊',
+  '😀','😊','🤔','😎','🥳','🫡','👀','🦁','🐯','🦄',
+  '✅','❌','⚠️','💬','📈','📉','💻','📡','🧪','🔭',
+];
+
+interface DocEmojiPickerProps {
+  pos: { x: number; y: number };
+  current?: string;
+  onSelect: (emoji: string) => void;
+  onRemove: () => void;
+  onClose: () => void;
+}
+
+function DocEmojiPicker({ pos, current, onSelect, onRemove, onClose }: DocEmojiPickerProps) {
+  const COLS = 10;
+  const left = Math.min(pos.x, window.innerWidth - COLS * 34 - 24);
+  const top = Math.min(pos.y, window.innerHeight - 260 - 12);
+  return (
+    <>
+      <div style={{ position: 'fixed', inset: 0, zIndex: 9998 }} onMouseDown={onClose} />
+      <div style={{
+        position: 'fixed', left, top, zIndex: 9999,
+        background: 'var(--c-panel)', border: '1px solid var(--c-border)',
+        borderRadius: 12, boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+        padding: 10,
+      }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2, width: COLS * 34 }}>
+          {DOC_EMOJIS.map((e) => (
+            <button
+              key={e}
+              onMouseDown={(ev) => { ev.preventDefault(); onSelect(e); }}
+              style={{
+                width: 32, height: 32, fontSize: 18, lineHeight: 1,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                borderRadius: 6, cursor: 'pointer', transition: 'background 0.1s',
+                border: e === current ? '1.5px solid var(--c-line)' : '1.5px solid transparent',
+                background: e === current ? 'rgba(184,119,80,0.15)' : 'transparent',
+              }}
+              onMouseEnter={(ev) => { if (e !== current) (ev.currentTarget as HTMLElement).style.background = 'var(--c-hover)'; }}
+              onMouseLeave={(ev) => { (ev.currentTarget as HTMLElement).style.background = e === current ? 'rgba(184,119,80,0.15)' : 'transparent'; }}
+            >{e}</button>
+          ))}
+        </div>
+        {current && (
+          <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--c-border)' }}>
+            <button
+              onMouseDown={(e) => { e.preventDefault(); onRemove(); }}
+              style={{
+                width: '100%', padding: '6px', background: 'transparent',
+                border: '1px solid var(--c-border)', borderRadius: 7,
+                color: 'var(--c-text-lo)', cursor: 'pointer', fontSize: 12, fontFamily: 'inherit',
+                transition: 'background 0.1s, color 0.1s',
+              }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--c-hover)'; (e.currentTarget as HTMLElement).style.color = 'var(--c-red)'; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = 'var(--c-text-lo)'; }}
+            >Remove icon</button>
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
+// ── DocumentMode ─────────────────────────────────────────────────────────────
+
+interface DocumentModeProps {
+  onClose?: () => void;
+}
+
+export default function DocumentMode({ onClose }: DocumentModeProps) {
+  const { documents, activeDocId, updateDocument, addDocument, closeDocument, openDocumentWithMorph, nodes, pages, activePageId, boardTitle } = useBoardStore();
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [viewMode, setViewMode] = useState<'edit' | 'source'>('edit');
+  const [sourceText, setSourceText] = useState('');
+  const [, forceUpdate] = useState(0);
+  const [docHistory, setDocHistory] = useState<string[]>([]);
+  const [wikiPreview, setWikiPreview] = useState<{ x: number; y: number; doc: Document } | null>(null);
+  const wikiPreviewTitle = useRef<string | null>(null);
+  const [wikilinkPicker, setWikilinkPicker] = useState<{ x: number; y: number } | null>(null);
+  const [nodePicker, setNodePicker] = useState<{ x: number; y: number } | null>(null);
+  const [emojiPicker, setEmojiPicker] = useState<{ x: number; y: number } | null>(null);
+  const [isHoveringDoc, setIsHoveringDoc] = useState(false);
+  const savedSelectionRef = useRef<Range | null>(null);
+
+  const doc = documents.find((d) => d.id === activeDocId) as Document | undefined;
+  const activePage = pages.find((p) => p.id === activePageId);
+  const handleClose = onClose ?? closeDocument;
+
+  // Backlinks: other docs that reference [[this doc's title]]
+  const backlinks = useMemo(() => {
+    if (!doc?.title?.trim()) return [];
+    const esc = doc.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const pat = new RegExp(`\\[\\[${esc}\\]\\]`, 'gi');
+    return documents
+      .filter((d) => d.id !== doc.id && pat.test(d.content.replace(/<[^>]+>/g, ' ')))
+      .map((d) => {
+        const text = d.content.replace(/<[^>]+>/g, ' ');
+        const idx = text.search(pat);
+        const start = Math.max(0, idx - 70);
+        const end = Math.min(text.length, idx + 70);
+        return { from: d, context: '…' + text.slice(start, end).trim() + '…' };
+      });
+  }, [doc?.id, doc?.title, documents]);
+
+  // Canvas node mentions: @node:id patterns found in this doc
+  const mentionedNodes = useMemo(() => {
+    if (!doc?.content) return [];
+    const ids = new Set<string>();
+    const re = /@node:([a-zA-Z0-9_-]+)/g;
+    let m: RegExpExecArray | null;
+    const text = doc.content.replace(/<[^>]+>/g, ' ');
+    while ((m = re.exec(text)) !== null) ids.add(m[1]);
+    return nodes.filter((n) => ids.has(n.id));
+  }, [doc?.id, doc?.content, nodes]);
+
+  // Sync content to DOM when switching documents; auto-bootstrap H1 for new docs
+  useEffect(() => {
+    if (!doc || !contentRef.current) return;
+    let content = doc.content ?? '';
+    if (!content.trim() && doc.title) {
+      content = `<h1>${doc.title}</h1><p><br></p>`;
+      updateDocument(doc.id, { content });
+    }
+    contentRef.current.innerHTML = content;
+    applyChipsToDOM(contentRef.current);
+    setViewMode('edit');
+    // Place cursor at end of H1 if it was just created
+    const h1 = contentRef.current.querySelector('h1');
+    if (h1) {
+      const range = document.createRange();
+      range.selectNodeContents(h1);
+      range.collapse(false);
+      const sel = window.getSelection();
+      sel?.removeAllRanges();
+      sel?.addRange(range);
+    } else {
+      contentRef.current.focus();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [doc?.id]);
+
+  // Keep formatting button states updated on selection change
+  useEffect(() => {
+    const onSel = () => forceUpdate((n) => n + 1);
+    document.addEventListener('selectionchange', onSel);
+    return () => document.removeEventListener('selectionchange', onSel);
+  }, []);
+
+  // When H1 in editor changes, sync to doc.title
+  const handleInput = useCallback(() => {
+    if (!contentRef.current || !doc) return;
+    const firstBlock = contentRef.current.firstElementChild as HTMLElement | null;
+    const updates: Partial<Document> = { content: stripChipsFromHTML(contentRef.current.innerHTML) };
+    if (firstBlock?.tagName === 'H1') {
+      const h1Text = firstBlock.textContent ?? '';
+      if (h1Text && h1Text !== doc.title) updates.title = h1Text;
+    }
+    updateDocument(doc.id, updates);
+  }, [doc?.id, doc?.title, updateDocument]);
+
+  const switchToSource = () => {
+    if (!doc) return;
+    setSourceText(htmlToMarkdown(doc.content ?? ''));
+    setViewMode('source');
+  };
+
+  const switchToEdit = () => {
+    if (!doc) return;
+    const html = markdownToHtml(sourceText);
+    updateDocument(doc.id, { content: html });
+    setViewMode('edit');
+    requestAnimationFrame(() => {
+      if (contentRef.current) {
+        contentRef.current.innerHTML = html;
+        applyChipsToDOM(contentRef.current);
+      }
+    });
+  };
+
+  const handleSave = async () => {
+    if (!doc) return;
+    const md = htmlToMarkdown(doc.content ?? '');
+    const filename = generateMarkdownFilename(doc.title);
+    if (hasWorkspaceHandle()) {
+      try {
+        await saveTextFileToWorkspace('documents', filename, md);
+        if (!doc.linkedFile) updateDocument(doc.id, { linkedFile: `documents/${filename}` });
+        toast(`Saved: documents/${filename}`);
+      } catch (err) {
+        console.error(err);
+        toast('Save failed');
+      }
+    } else {
+      saveAs(new Blob([md], { type: 'text/markdown;charset=utf-8' }), filename);
+    }
+  };
+
+  // ── Chip insertion ────────────────────────────────────────────────────────
+
+  const insertChipInEditor = useCallback((chipEl: HTMLElement) => {
+    if (!contentRef.current) return;
+    contentRef.current.focus();
+    const sel = window.getSelection();
+    if (!sel) return;
+
+    if (savedSelectionRef.current) {
+      sel.removeAllRanges();
+      sel.addRange(savedSelectionRef.current);
+      savedSelectionRef.current = null;
+    }
+
+    if (sel.rangeCount > 0) {
+      const range = sel.getRangeAt(0);
+      range.deleteContents();
+      range.insertNode(chipEl);
+      const space = document.createTextNode(' ');
+      range.setStartAfter(chipEl);
+      range.insertNode(space);
+      range.setStartAfter(space);
+      range.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+
+    contentRef.current.dispatchEvent(new Event('input', { bubbles: true }));
+  }, []);
+
+  const insertWikiChip = useCallback((title: string) => {
+    const span = document.createElement('span');
+    span.className = 'chip-wiki';
+    span.dataset.chip = 'wiki';
+    span.dataset.title = title;
+    span.textContent = title;
+    span.contentEditable = 'false';
+    insertChipInEditor(span);
+    setWikilinkPicker(null);
+  }, [insertChipInEditor]);
+
+  const insertNodeChip = useCallback((nodeId: string, label: string) => {
+    const span = document.createElement('span');
+    span.className = 'chip-node';
+    span.dataset.chip = 'node';
+    span.dataset.nodeid = nodeId;
+    span.textContent = label;
+    span.contentEditable = 'false';
+    insertChipInEditor(span);
+    setNodePicker(null);
+  }, [insertChipInEditor]);
+
+  const handleCreateAndLink = useCallback((title: string) => {
+    const newId = addDocument({ title, content: `<h1>${title}</h1><p><br></p>` });
+    void newId;
+    insertWikiChip(title);
+  }, [addDocument, insertWikiChip]);
+
+  // ── Toolbar callbacks ─────────────────────────────────────────────────────
+
+  const handleWikilinkClick = useCallback((rect: DOMRect) => {
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0) savedSelectionRef.current = sel.getRangeAt(0).cloneRange();
+    setNodePicker(null);
+    setWikilinkPicker({ x: rect.left, y: rect.bottom + 6 });
+  }, []);
+
+  const handleNodeLinkClick = useCallback((rect: DOMRect) => {
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0) savedSelectionRef.current = sel.getRangeAt(0).cloneRange();
+    setWikilinkPicker(null);
+    setNodePicker({ x: rect.left, y: rect.bottom + 6 });
+  }, []);
+
+  if (!doc) return null;
+
+  return (
+    <div
+      style={{
+        width: '100%',
+        height: '100%',
+        background: 'var(--c-canvas)',
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
+      {/* Top bar */}
+      <div
+        style={{
+          height: 44,
+          borderBottom: '1px solid rgba(255,255,255,0.08)',
+          background: 'var(--c-panel)',
+          display: 'flex',
+          alignItems: 'center',
+          padding: '0 16px',
+          gap: 8,
+          flexShrink: 0,
+        }}
+      >
+        {/* Zoom out (back to canvas) */}
+        <button
+          onClick={handleClose}
+          title="Zoom out (Esc)"
+          style={{
+            display: 'flex', alignItems: 'center', gap: 5, padding: '0 8px', height: 28,
+            background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
+            borderRadius: 6, color: 'var(--c-text-lo)', cursor: 'pointer', fontSize: 11,
+            fontFamily: 'inherit', flexShrink: 0, transition: 'background 0.12s',
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.12)'; e.currentTarget.style.color = 'var(--c-text-hi)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; e.currentTarget.style.color = 'var(--c-text-lo)'; }}
+        >
+          <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+            <path d="M7 2L4 5.5L7 9" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          Zoom out
+        </button>
+
+        {/* Back through wikilink history */}
+        {docHistory.length > 0 && (() => {
+          const prevDoc = documents.find((d) => d.id === docHistory[docHistory.length - 1]);
+          return (
+            <button
+              title={`Back to: ${prevDoc?.title || 'previous note'}`}
+              onClick={() => {
+                const prevId = docHistory[docHistory.length - 1];
+                setDocHistory((h) => h.slice(0, -1));
+                openDocumentWithMorph(prevId);
+              }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 5, padding: '0 8px', height: 28,
+                background: 'rgba(184,119,80,0.12)', border: '1px solid rgba(184,119,80,0.3)',
+                borderRadius: 6, color: 'var(--c-line)', cursor: 'pointer', fontSize: 11,
+                fontFamily: 'inherit', flexShrink: 0, transition: 'background 0.12s',
+                maxWidth: 180,
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(184,119,80,0.22)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(184,119,80,0.12)'; }}
+            >
+              <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+                <path d="M7 2L4 5.5L7 9" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              <span style={{ overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
+                {prevDoc?.title || 'Back'}
+              </span>
+            </button>
+          );
+        })()}
+
+        {/* Breadcrumb */}
+        <span style={{ fontSize: 12, color: 'var(--c-text-lo)', userSelect: 'none', flexShrink: 0 }}>
+          {activePage?.name ?? boardTitle}
+        </span>
+        <span style={{ fontSize: 12, color: 'var(--c-text-lo)', opacity: 0.4, flexShrink: 0 }}>›</span>
+        <input
+          type="text"
+          value={doc.title}
+          onChange={(e) => {
+            const newTitle = e.target.value;
+            updateDocument(doc.id, { title: newTitle });
+            if (contentRef.current) {
+              const firstBlock = contentRef.current.firstElementChild;
+              if (firstBlock?.tagName === 'H1') firstBlock.textContent = newTitle;
+            }
+          }}
+          placeholder="Untitled note"
+          style={{
+            flex: 1,
+            fontSize: 14,
+            fontWeight: 600,
+            color: 'var(--c-text-hi)',
+            background: 'transparent',
+            border: 'none',
+            outline: 'none',
+            fontFamily: 'inherit',
+            minWidth: 0,
+          }}
+        />
+      </div>
+
+      {/* Body: editor */}
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <FormattingBar
+            viewMode={viewMode}
+            onToggleSource={switchToSource}
+            onToggleEdit={switchToEdit}
+            onSave={handleSave}
+            onWikilinkClick={handleWikilinkClick}
+            onNodeLinkClick={handleNodeLinkClick}
+          />
+
+          {viewMode === 'edit' && (
+            <div
+              style={{ flex: 1, overflowY: 'auto', position: 'relative' }}
+              onMouseLeave={() => { wikiPreviewTitle.current = null; setWikiPreview(null); }}
+              onMouseMove={(e) => {
+                const chip = (e.target as HTMLElement).closest?.('[data-chip="wiki"]') as HTMLElement | null;
+                if (chip) {
+                  const title = chip.dataset.title ?? '';
+                  if (wikiPreviewTitle.current !== title) {
+                    wikiPreviewTitle.current = title;
+                    const linked = documents.find((d) => d.title === title);
+                    if (linked) {
+                      const rect = chip.getBoundingClientRect();
+                      setWikiPreview({ x: Math.min(rect.left, window.innerWidth - 340), y: rect.bottom + 10, doc: linked });
+                    } else {
+                      setWikiPreview(null);
+                    }
+                  }
+                } else if (wikiPreviewTitle.current !== null) {
+                  wikiPreviewTitle.current = null;
+                  setWikiPreview(null);
+                }
+              }}
+              onClick={(e) => {
+                const target = e.target as HTMLElement;
+                const chip = target.closest('[data-chip]') as HTMLElement | null;
+                if (!chip) return;
+                const type = chip.dataset.chip;
+                if (type === 'wiki') {
+                  const title = chip.dataset.title;
+                  const linked = documents.find((d) => d.title === title);
+                  if (linked && doc) {
+                    setDocHistory((prev) => [...prev, doc.id]);
+                    openDocumentWithMorph(linked.id);
+                  }
+                } else if (type === 'node') {
+                  const nodeId = chip.dataset.nodeid;
+                  if (nodeId) { handleClose(); focusNode(nodeId, 420); }
+                }
+              }}
+            >
+              {/* Emoji area — above the H1, hover-zone scoped to this div */}
+              <div
+                style={{ padding: '40px max(48px, calc(50% - 380px)) 0' }}
+                onMouseEnter={() => setIsHoveringDoc(true)}
+                onMouseLeave={() => setIsHoveringDoc(false)}
+              >
+                {doc.emoji ? (
+                  <button
+                    title="Change icon"
+                    onClick={(e) => {
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      setEmojiPicker({ x: rect.left, y: rect.bottom + 8 });
+                    }}
+                    style={{
+                      fontSize: 52, lineHeight: 1, display: 'block', marginBottom: 12,
+                      background: 'none', border: '1.5px solid transparent', borderRadius: 10,
+                      cursor: 'pointer', padding: '4px 6px', transition: 'border-color 0.15s',
+                    }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--c-border)'; }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = 'transparent'; }}
+                  >{doc.emoji}</button>
+                ) : (
+                  <button
+                    onClick={(e) => {
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      setEmojiPicker({ x: rect.left, y: rect.bottom + 8 });
+                    }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12,
+                      padding: '5px 10px', borderRadius: 7, cursor: 'pointer', fontSize: 12,
+                      fontFamily: 'inherit', background: 'transparent',
+                      border: '1px solid var(--c-border)', color: 'var(--c-text-lo)',
+                      opacity: isHoveringDoc ? 1 : 0, transition: 'opacity 0.15s',
+                      pointerEvents: isHoveringDoc ? 'auto' : 'none',
+                    }}
+                  >
+                    <svg width="13" height="13" viewBox="0 0 13 13" fill="none" style={{ flexShrink: 0 }}>
+                      <circle cx="6.5" cy="6.5" r="5.5" stroke="currentColor" strokeWidth="1.2" />
+                      <circle cx="4.5" cy="5.5" r="0.8" fill="currentColor" />
+                      <circle cx="8.5" cy="5.5" r="0.8" fill="currentColor" />
+                      <path d="M4 8C4.5 9.2 8.5 9.2 9 8" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
+                    </svg>
+                    Add icon
+                  </button>
+                )}
+              </div>
+
+              <div
+                ref={contentRef}
+                contentEditable
+                suppressContentEditableWarning
+                className="doc-content"
+                onInput={handleInput}
+                style={{
+                  padding: '12px max(48px, calc(50% - 380px)) 48px',
+                  color: 'var(--c-text-hi)',
+                  fontSize: '16px',
+                  lineHeight: 1.8,
+                  fontFamily: "'Plus Jakarta Sans', sans-serif",
+                  outline: 'none',
+                  wordWrap: 'break-word',
+                  minHeight: '100%',
+                }}
+              />
+
+              {/* Canvas node mentions panel */}
+              {mentionedNodes.length > 0 && (
+                <div style={{ margin: '0 max(48px, calc(50% - 380px)) 32px', padding: '14px 16px', background: 'var(--c-panel)', border: '1px solid var(--c-border)', borderRadius: 10 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--c-text-lo)', marginBottom: 8 }}>
+                    Mentioned on canvas
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {mentionedNodes.map((n) => (
+                      <button
+                        key={n.id}
+                        onClick={() => { handleClose(); focusNode(n.id, 420); }}
+                        className="chip-node"
+                        style={{ cursor: 'pointer', border: 'none', fontFamily: 'inherit', fontSize: 12 }}
+                      >
+                        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" style={{ marginRight: 4, flexShrink: 0 }}>
+                          <rect x="1" y="1.5" width="8" height="6" rx="1" stroke="currentColor" strokeWidth="1.1"/>
+                        </svg>
+                        {getNodeLabel(n, documents)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Backlinks panel */}
+              <div style={{ margin: '0 max(48px, calc(50% - 380px)) 80px', borderTop: '1px solid var(--c-border)', paddingTop: 24 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--c-text-lo)', marginBottom: 12 }}>
+                  Linked mentions ({backlinks.length})
+                </div>
+                {backlinks.length === 0 && (
+                  <div style={{ fontSize: 12, color: 'var(--c-text-lo)' }}>No other notes reference this one yet.</div>
+                )}
+                {backlinks.map((bl) => (
+                  <div
+                    key={bl.from.id}
+                    onClick={() => { if (doc) setDocHistory((h) => [...h, doc.id]); openDocumentWithMorph(bl.from.id); }}
+                    style={{ padding: '10px 14px', marginBottom: 8, background: 'var(--c-panel)', border: '1px solid var(--c-border)', borderRadius: 8, cursor: 'pointer', transition: 'background 120ms' }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--c-hover)'; }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--c-panel)'; }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: 'var(--c-text-hi)', marginBottom: 4 }}>
+                      <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><rect x="1" y="1" width="9" height="9" rx="1.2" stroke="currentColor" strokeWidth="1.1"/><path d="M3 4h5M3 6h5M3 8h3" stroke="currentColor" strokeWidth="1" strokeLinecap="round"/></svg>
+                      {bl.from.title || 'Untitled'}
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--c-text-md)', lineHeight: 1.5 }}>{bl.context}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {viewMode === 'source' && (
+            <textarea
+              value={sourceText}
+              onChange={(e) => setSourceText(e.target.value)}
+              spellCheck={false}
+              style={{
+                flex: 1,
+                padding: '48px max(48px, calc(50% - 380px))',
+                background: 'transparent',
+                border: 'none',
+                outline: 'none',
+                resize: 'none',
+                color: 'var(--c-text-hi)',
+                fontSize: '14px',
+                lineHeight: 1.7,
+                fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                overflowY: 'auto',
+                opacity: 0.85,
+              }}
+            />
+          )}
+        </div>
+      </div>
+
+      {/* Wiki hover preview card */}
+      {wikiPreview && (
+        <div
+          style={{
+            position: 'fixed',
+            left: wikiPreview.x,
+            top: wikiPreview.y,
+            width: 320,
+            background: 'var(--c-panel)',
+            border: '1px solid var(--c-border)',
+            borderRadius: 12,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.35)',
+            padding: '14px 16px',
+            zIndex: 9999,
+            pointerEvents: 'none',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }}>
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none" style={{ flexShrink: 0, opacity: 0.6 }}>
+              <rect x="1" y="1" width="11" height="11" rx="1.5" stroke="var(--c-text-lo)" strokeWidth="1.2"/>
+              <path d="M3.5 4.5h6M3.5 6.5h6M3.5 8.5h4" stroke="var(--c-text-lo)" strokeWidth="1" strokeLinecap="round"/>
+            </svg>
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--c-text-hi)', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
+              {wikiPreview.doc.title || 'Untitled'}
+            </span>
+          </div>
+          <div style={{ fontSize: 13, color: 'var(--c-text-md)', lineHeight: 1.6, marginBottom: 10, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+            {stripHtml(wikiPreview.doc.content).slice(0, 200) || 'Empty note'}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--c-text-lo)' }}>
+            <span>{relativeTime(wikiPreview.doc.updatedAt)}</span>
+            {wikiPreview.doc.tags && wikiPreview.doc.tags.length > 0 && (
+              <>
+                <span style={{ opacity: 0.4 }}>·</span>
+                <span>{wikiPreview.doc.tags.map((t) => `#${t}`).join(' ')}</span>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Wikilink picker */}
+      {wikilinkPicker && (
+        <WikilinkPicker
+          pos={wikilinkPicker}
+          documents={documents}
+          activeDocId={activeDocId}
+          onSelect={insertWikiChip}
+          onCreate={handleCreateAndLink}
+          onClose={() => setWikilinkPicker(null)}
+        />
+      )}
+
+      {/* Node picker */}
+      {nodePicker && (
+        <NodePicker
+          pos={nodePicker}
+          nodes={nodes}
+          documents={documents}
+          onSelect={insertNodeChip}
+          onClose={() => setNodePicker(null)}
+        />
+      )}
+
+      {/* Emoji picker */}
+      {emojiPicker && doc && (
+        <DocEmojiPicker
+          pos={emojiPicker}
+          current={doc.emoji}
+          onSelect={(e) => { updateDocument(doc.id, { emoji: e }); setEmojiPicker(null); }}
+          onRemove={() => { updateDocument(doc.id, { emoji: undefined }); setEmojiPicker(null); }}
+          onClose={() => setEmojiPicker(null)}
+        />
+      )}
+    </div>
+  );
+}

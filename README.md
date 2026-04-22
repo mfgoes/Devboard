@@ -144,6 +144,7 @@ src/
 
 ### Later / ideas
 
+- [ ] **Line tool upgrade** — intentional diagramming mode: Flexible, Powerful, Not constrained to grids
 - [ ] More export options (entire board, PDF, with background)
 - [ ] Advertise on Reddit + X
 - [ ] Enable pages (see Figjam / Figma) which makes organising your boards easier

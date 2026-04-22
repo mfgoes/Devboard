@@ -2,8 +2,9 @@ import { useCallback } from 'react';
 import type React from 'react';
 import { useBoardStore } from '../store/boardStore';
 import { saveImageAsset, saveWorkspace, getWorkspaceName } from '../utils/workspaceManager';
-import { placeImageFileAt } from '../utils/canvasPlacement';
+import { placeImageFileAt, placeDocumentFileAt } from '../utils/canvasPlacement';
 import { hasSeenImageNotice } from '../components/ImageFirstUseModal';
+import { DOC_EXTS, ext } from '../components/explorer/fileTreeUtils';
 import type { ImageNode } from '../types';
 
 function generateId(): string {
@@ -100,7 +101,12 @@ export function useCanvasImageDrop({
           const { camera: cam } = useBoardStore.getState();
           const worldX = (e.clientX - rect.left - cam.x) / cam.scale;
           const worldY = (e.clientY - rect.top - cam.y) / cam.scale;
-          placeImageFileAt(pathParts, worldX, worldY);
+          const fileExt = ext(pathParts[pathParts.length - 1]);
+          if (DOC_EXTS.has(fileExt)) {
+            placeDocumentFileAt(pathParts, worldX, worldY);
+          } else {
+            placeImageFileAt(pathParts, worldX, worldY);
+          }
         } catch { /* ignore malformed data */ }
         return;
       }

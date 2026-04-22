@@ -1,0 +1,105 @@
+{
+  "nodes": [
+    {
+      "id": "sticky-shipping",
+      "type": "sticky",
+      "x": 80,
+      "y": 80,
+      "text": "Ship to itch.io\n\nSingle HTML file, offline, no account needed.",
+      "color": "#fde68a",
+      "width": 200,
+      "height": 130,
+      "fontSizeMode": "fixed"
+    },
+    {
+      "id": "sticky-tech",
+      "type": "sticky",
+      "x": 320,
+      "y": 80,
+      "text": "Tech Stack\n\nReact + Konva + Zustand + Vite singlefile",
+      "color": "#bae6fd",
+      "width": 200,
+      "height": 130,
+      "fontSizeMode": "fixed"
+    },
+    {
+      "id": "sticky-docs",
+      "type": "sticky",
+      "x": 560,
+      "y": 80,
+      "text": "Document System\n\nRich text notes with wikilinks and canvas node pills.",
+      "color": "#bbf7d0",
+      "width": 200,
+      "height": 130,
+      "fontSizeMode": "fixed"
+    },
+    {
+      "id": "connector-1",
+      "type": "connector",
+      "fromNodeId": "sticky-shipping",
+      "fromAnchor": "right",
+      "fromX": 280,
+      "fromY": 145,
+      "toNodeId": "sticky-tech",
+      "toAnchor": "left",
+      "toX": 320,
+      "toY": 145,
+      "color": "#94a3b8",
+      "strokeWidth": 2,
+      "lineStyle": "curved",
+      "strokeStyle": "solid",
+      "arrowHeadStart": "none",
+      "arrowHeadEnd": "arrow"
+    },
+    {
+      "id": "connector-2",
+      "type": "connector",
+      "fromNodeId": "sticky-tech",
+      "fromAnchor": "right",
+      "fromX": 520,
+      "fromY": 145,
+      "toNodeId": "sticky-docs",
+      "toAnchor": "left",
+      "toX": 560,
+      "toY": 145,
+      "color": "#94a3b8",
+      "strokeWidth": 2,
+      "lineStyle": "curved",
+      "strokeStyle": "solid",
+      "arrowHeadStart": "none",
+      "arrowHeadEnd": "arrow"
+    },
+    {
+      "id": "doc-card-overview",
+      "type": "document",
+      "x": 80,
+      "y": 260,
+      "width": 200,
+      "height": 80,
+      "docId": "doc-overview"
+    },
+    {
+      "id": "doc-card-techstack",
+      "type": "document",
+      "x": 320,
+      "y": 260,
+      "width": 200,
+      "height": 80,
+      "docId": "doc-techstack"
+    },
+    {
+      "id": "doc-card-sprint",
+      "type": "document",
+      "x": 560,
+      "y": 260,
+      "width": 200,
+      "height": 80,
+      "docId": "doc-sprint"
+    }
+  ],
+  "camera": {
+    "x": 293,
+    "y": 361,
+    "scale": 1
+  }
+}

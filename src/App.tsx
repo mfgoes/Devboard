@@ -1,6 +1,6 @@
-import { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { saveBoard } from './utils/fileSave';
-import { saveWorkspace, getWorkspaceName } from './utils/workspaceManager';
+import { saveWorkspace, getWorkspaceName, restoreWorkspace, setOnWorkspaceSavedCallback } from './utils/workspaceManager';
 import { setToastListener, toast, ToastPayload } from './utils/toast';
 
 // Tauri event listener — only active when running inside a Tauri window
@@ -31,9 +31,13 @@ import ZoomToolbar from './components/ZoomToolbar';
 import TopBar from './components/TopBar';
 import WelcomeModal from './components/WelcomeModal';
 import OnboardingModal from './components/OnboardingModal';
+import FocusMode from './components/FocusMode';
+import DocumentMode from './components/DocumentMode';
+import StackView from './components/StackView';
+import QuickSwitcher from './components/QuickSwitcher';
 import PagesPanel from './components/PagesPanel';
 import TimerWidget from './components/TimerWidget';
-import WorkspaceExplorer from './components/WorkspaceExplorer';
+import WorkspaceExplorer, { WORKSPACE_EXPLORER_WIDTH } from './components/WorkspaceExplorer';
 import JiraPanel from './components/JiraPanel';
 import SearchBar from './components/SearchBar';
 import { useBoardStore } from './store/boardStore';
@@ -77,6 +81,85 @@ export default function App() {
   const [searchOpen, setSearchOpen] = useState(false);
   const explorerOpen = useBoardStore((s) => s.explorerOpen);
   const setExplorerOpen = useBoardStore((s) => s.setExplorerOpen);
+  const appMode = useBoardStore((s) => s.appMode);
+  const pages = useBoardStore((s) => s.pages);
+  const activePageId = useBoardStore((s) => s.activePageId);
+  const morphSourceRect = useBoardStore((s) => s.morphSourceRect);
+  const closeDocument = useBoardStore((s) => s.closeDocument);
+  const addDocument = useBoardStore((s) => s.addDocument);
+  const openDocumentWithMorph = useBoardStore((s) => s.openDocumentWithMorph);
+
+  const activePage = pages.find((p) => p.id === activePageId);
+  const isStackPage = activePage?.layoutMode === 'stack';
+  const contentTop = showBraveNotice ? 84 : 44;
+  const [explorerWidth, setExplorerWidth] = useState(WORKSPACE_EXPLORER_WIDTH);
+  const explorerOffset = explorerOpen ? explorerWidth : 0;
+  const explorerDragRef = useRef(false);
+
+  // ── Zoom-morph state machine ─────────────────────────────────────────────
+  const MORPH_MS = 380;
+  const [morphPhase, setMorphPhase] = useState<'idle' | 'opening' | 'open' | 'closing'>('idle');
+  const prevAppMode = useRef(appMode);
+
+  useEffect(() => {
+    if (appMode === 'document' && prevAppMode.current !== 'document') {
+      setMorphPhase('opening');
+      requestAnimationFrame(() => requestAnimationFrame(() => setMorphPhase('open')));
+    }
+    prevAppMode.current = appMode;
+  }, [appMode]);
+
+  const closeDoc = useCallback(() => {
+    setMorphPhase('closing');
+    setTimeout(() => {
+      closeDocument();
+      setMorphPhase('idle');
+    }, MORPH_MS);
+  }, [closeDocument]);
+
+  // Esc closes document
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && morphPhase === 'open') {
+        e.preventDefault();
+        closeDoc();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [morphPhase, closeDoc]);
+
+  // Cmd+N on stack pages → new note
+  const handleNewStackNote = useCallback(() => {
+    const id = addDocument({ title: '', content: '' });
+    openDocumentWithMorph(id);
+  }, [addDocument, openDocumentWithMorph]);
+
+  // Snap-close doc without animation (used when jumping to a canvas node)
+  const snapCloseDoc = useCallback(() => {
+    closeDocument();
+    setMorphPhase('idle');
+  }, [closeDocument]);
+
+  // Pan canvas to center on a node and select it
+  const focusNode = useCallback((nodeId: string) => {
+    const state = useBoardStore.getState();
+    const node = state.nodes.find((n) => n.id === nodeId);
+    if (!node) return;
+    const n = node as { x: number; y: number; width?: number; height?: number };
+    const w = n.width ?? 200;
+    const h = n.height ?? 120;
+    const scale = state.camera.scale;
+    const topH = 44;
+    state.setCamera({
+      x: window.innerWidth / 2 - (n.x + w / 2) * scale,
+      y: topH + (window.innerHeight - topH) / 2 - (n.y + h / 2) * scale,
+    });
+    state.selectIds([nodeId]);
+  }, []);
+
+  // Cmd+K quick switcher
+  const [qsOpen, setQsOpen] = useState(false);
 
   useEffect(() => {
     setToastListener((payload) => {
@@ -106,6 +189,23 @@ export default function App() {
   // Load from URL hash once on mount
   useEffect(() => {
     loadFromHash();
+  }, []);
+
+  // Register callback so the explorer tree reloads after every workspace save.
+  useEffect(() => {
+    setOnWorkspaceSavedCallback(() => useBoardStore.getState().bumpWorkspaceSaved());
+  }, []);
+
+  // Restore previously granted localhost workspace handle when possible.
+  useEffect(() => {
+    restoreWorkspace().then((result) => {
+      if (!result) return;
+      useBoardStore.getState().setWorkspaceName(result.name);
+      useBoardStore.getState().bumpWorkspaceSaved();
+      if (result.data) useBoardStore.getState().loadBoard(result.data);
+    }).catch((err) => {
+      console.warn('Failed to restore workspace', err);
+    });
   }, []);
 
   // Show onboarding modal on first visit (before welcome board seeded)
@@ -219,6 +319,13 @@ export default function App() {
   // Global copy / paste / duplicate shortcuts
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      // Cmd+K: quick switcher
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setQsOpen((v) => !v);
+        return;
+      }
+
       // Cmd+F: open search bar (must run before tag guard so it works from any context)
       if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
         e.preventDefault();
@@ -226,8 +333,21 @@ export default function App() {
         return;
       }
 
-      const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
-      if (tag === 'input' || tag === 'textarea') return;
+      // Cmd+N on stack page → new note
+      if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
+        const currentPage = useBoardStore.getState().pages.find((p) => p.id === useBoardStore.getState().activePageId);
+        if (currentPage?.layoutMode === 'stack') {
+          e.preventDefault();
+          const id = useBoardStore.getState().addDocument({ title: '', content: '' });
+          useBoardStore.getState().openDocumentWithMorph(id);
+          return;
+        }
+      }
+
+      const el = (e.target as HTMLElement);
+      const tag = el?.tagName?.toLowerCase();
+      // Skip shortcuts when typing in inputs, textareas, or contentEditable elements
+      if (tag === 'input' || tag === 'textarea' || el?.isContentEditable) return;
 
       const mod = e.metaKey || e.ctrlKey;
 
@@ -415,7 +535,6 @@ export default function App() {
       />
       {showTimer && <TimerWidget onClose={() => setShowTimer(false)} />}
       {pagesOpen && <PagesPanel onClose={() => setPagesOpen(false)} />}
-      {explorerOpen && <WorkspaceExplorer onClose={() => setExplorerOpen(false)} />}
       {jiraOpen && <JiraPanel onClose={() => setJiraOpen(false)} />}
       {searchOpen && <SearchBar onClose={() => setSearchOpen(false)} />}
       {showBraveNotice && (
@@ -431,13 +550,135 @@ export default function App() {
           </button>
         </div>
       )}
-      <div className={`absolute inset-0 ${showBraveNotice ? 'top-[5.25rem]' : 'top-11'}`}>
-        <Canvas />
+      {explorerOpen && (
+        <div
+          style={{
+            position: 'absolute',
+            top: contentTop,
+            left: 0,
+            bottom: 0,
+            width: explorerWidth,
+            zIndex: 180,
+            borderRight: '1px solid var(--c-border)',
+            background: 'var(--c-panel)',
+            boxShadow: '8px 0 24px rgba(0,0,0,0.08)',
+          }}
+        >
+          <WorkspaceExplorer onClose={() => setExplorerOpen(false)} />
+          {/* Resize handle */}
+          <div
+            style={{
+              position: 'absolute',
+              top: 0,
+              right: -3,
+              width: 6,
+              bottom: 0,
+              cursor: 'col-resize',
+              zIndex: 10,
+            }}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              explorerDragRef.current = true;
+              const startX = e.clientX;
+              const startW = explorerWidth;
+              const onMove = (ev: MouseEvent) => {
+                if (!explorerDragRef.current) return;
+                const next = Math.max(180, Math.min(560, startW + ev.clientX - startX));
+                setExplorerWidth(next);
+              };
+              const onUp = () => {
+                explorerDragRef.current = false;
+                window.removeEventListener('mousemove', onMove);
+                window.removeEventListener('mouseup', onUp);
+              };
+              window.addEventListener('mousemove', onMove);
+              window.addEventListener('mouseup', onUp);
+            }}
+          />
+        </div>
+      )}
+      <div
+        style={{
+          position: 'absolute',
+          top: contentTop,
+          right: 0,
+          bottom: 0,
+          left: explorerOffset,
+        }}
+      >
+        {isStackPage ? (
+          <StackView pageId={activePageId} pageName={activePage?.name ?? ''} />
+        ) : (
+          <Canvas />
+        )}
       </div>
-      <Toolbar />
-      <ZoomToolbar />
+      {!isStackPage && <Toolbar />}
+      {!isStackPage && <ZoomToolbar />}
+      {appMode !== 'document' && <FocusMode />}
       {showOnboarding && <OnboardingModal onClose={() => setShowOnboarding(false)} />}
       {showWelcome && <WelcomeModal onClose={handleCloseWelcome} />}
+
+      <QuickSwitcher
+        open={qsOpen}
+        onClose={() => setQsOpen(false)}
+        onPickPage={(id) => {
+          setQsOpen(false);
+          if (morphPhase !== 'idle') snapCloseDoc();
+          useBoardStore.getState().switchPage(id);
+        }}
+        onPickDoc={(id) => {
+          setQsOpen(false);
+          const state = useBoardStore.getState();
+          const doc = state.documents.find((d) => d.id === id);
+          if (doc?.pageId && doc.pageId !== state.activePageId) state.switchPage(doc.pageId);
+          state.openDocumentWithMorph(id);
+        }}
+        onPickNode={(id) => {
+          setQsOpen(false);
+          if (morphPhase !== 'idle') {
+            snapCloseDoc();
+            setTimeout(() => focusNode(id), 50);
+          } else {
+            focusNode(id);
+          }
+        }}
+      />
+
+      {/* Zoom-morph overlay — document editor */}
+      {morphPhase !== 'idle' && (() => {
+        const W = window.innerWidth;
+        const H = window.innerHeight;
+        const src = morphSourceRect;
+        const isOpen = morphPhase === 'open';
+        const frameStyle: React.CSSProperties = {
+          position: 'fixed',
+          left: isOpen ? explorerOffset : (src?.left ?? explorerOffset + (W - explorerOffset) / 2 - 150),
+          top: isOpen ? contentTop : (src?.top ?? H / 2 - 100),
+          width: isOpen ? Math.max(0, W - explorerOffset) : (src?.width ?? 300),
+          height: isOpen ? Math.max(0, H - contentTop) : (src?.height ?? 200),
+          borderRadius: isOpen ? 0 : 10,
+          overflow: 'hidden',
+          transition: `left ${MORPH_MS}ms ease, top ${MORPH_MS}ms ease, width ${MORPH_MS}ms ease, height ${MORPH_MS}ms ease, border-radius ${MORPH_MS}ms ease`,
+        };
+        return (
+          <div style={{ position: 'fixed', inset: 0, zIndex: 170, pointerEvents: 'none' }}>
+            <div style={{
+              position: 'fixed',
+              left: explorerOffset,
+              top: contentTop,
+              width: Math.max(0, W - explorerOffset),
+              height: Math.max(0, H - contentTop),
+              background: 'rgba(0,0,0,0.45)',
+              opacity: isOpen ? 1 : 0,
+              transition: `opacity ${MORPH_MS}ms ease`,
+              pointerEvents: 'none',
+            }} />
+            <div style={{ ...frameStyle, pointerEvents: 'auto' }}>
+              <DocumentMode onClose={closeDoc} />
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

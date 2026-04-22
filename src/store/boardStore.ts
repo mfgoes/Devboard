@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { CanvasNode, ConnectorNode, StickyNoteNode, Camera, Tool, BoardData, ShapeKind, TableNode, PageMeta } from '../types';
+import { CanvasNode, ConnectorNode, StickyNoteNode, Camera, Tool, BoardData, ShapeKind, TableNode, PageMeta, Document, DocumentNode } from '../types';
 
 export interface TableCellRef { nodeId: string; row: number; col: number; }
 
@@ -8,33 +8,122 @@ function generateId(): string {
   return Math.random().toString(36).slice(2, 11);
 }
 
+function normalizeDocumentPageIds(
+  documents: Document[],
+  activePageId: string,
+  nodes: CanvasNode[],
+  pageSnapshots: Record<string, { nodes: CanvasNode[]; camera: Camera }>,
+): Document[] {
+  const docPageMap = new Map<string, string>();
+
+  const collectDocPages = (list: CanvasNode[], pageId: string) => {
+    for (const node of list) {
+      if (node.type !== 'document') continue;
+      const docId = (node as DocumentNode).docId;
+      if (docId && !docPageMap.has(docId)) docPageMap.set(docId, pageId);
+    }
+  };
+
+  collectDocPages(nodes, activePageId);
+  for (const [pageId, snap] of Object.entries(pageSnapshots)) {
+    collectDocPages(snap.nodes, pageId);
+  }
+
+  return documents.map((doc) =>
+    doc.pageId
+      ? doc
+      : { ...doc, pageId: docPageMap.get(doc.id) ?? activePageId }
+  );
+}
+
+// ── Migration: inline DocumentNode → Document entity + docId ref ─────────────
+function migrateInlineDocuments(
+  nodes: CanvasNode[],
+  pageSnapshots: Record<string, { nodes: CanvasNode[]; camera: Camera }>,
+  existingDocs: Document[],
+  activePageId: string,
+): { nodes: CanvasNode[]; pageSnapshots: Record<string, { nodes: CanvasNode[]; camera: Camera }>; documents: Document[] } {
+  const documents: Document[] = normalizeDocumentPageIds(existingDocs, activePageId, nodes, pageSnapshots);
+  const now = Date.now();
+
+  const migrateList = (list: CanvasNode[], pageId: string): CanvasNode[] =>
+    list.map((n) => {
+      if (n.type === 'document' && !n.docId && n.content !== undefined) {
+        const docId = `doc_${generateId()}`;
+        documents.push({
+          id: docId,
+          title: n.title ?? 'Untitled',
+          content: n.content,
+          pageId,
+          linkedFile: n.linkedFile,
+          orderIndex: n.orderIndex,
+          createdAt: now,
+          updatedAt: now,
+        });
+        return {
+          id: n.id,
+          type: 'document',
+          x: n.x,
+          y: n.y,
+          width: n.width,
+          height: n.height,
+          docId,
+          locked: n.locked,
+          groupId: n.groupId,
+        } as DocumentNode;
+      }
+      return n;
+    });
+
+  return {
+    nodes: migrateList(nodes, activePageId),
+    pageSnapshots: Object.fromEntries(
+      Object.entries(pageSnapshots).map(([id, snap]) => [
+        id,
+        { ...snap, nodes: migrateList(snap.nodes, id) },
+      ]),
+    ),
+    documents,
+  };
+}
+
 interface BoardState {
   boardTitle: string;
   nodes: CanvasNode[];
   camera: Camera;
+  // Documents (Phase 2 — first-class entities)
+  documents: Document[];
+  schemaVersion: number;
   // Pages
   pages: PageMeta[];
   activePageId: string;
   pageSnapshots: Record<string, { nodes: CanvasNode[]; camera: Camera }>;
+  // Ephemeral UI
   activeTool: Tool;
   selectedIds: string[];
   editingId: string | null;
-  clipboard: CanvasNode[]; // not persisted
-  past: CanvasNode[][]; // not persisted
-  future: CanvasNode[][]; // not persisted
-  activeShapeKind: ShapeKind; // not persisted
-  activeSticker: string; // not persisted
+  focusDocumentId: string | null;  // legacy — kept for backward compat during transition
+  appMode: 'canvas' | 'document';  // not persisted
+  activeDocId: string | null;       // not persisted
+  recentDocIds: string[];           // not persisted
+  morphSourceRect: { left: number; top: number; width: number; height: number } | null; // not persisted
+  clipboard: CanvasNode[];
+  past: CanvasNode[][];
+  future: CanvasNode[][];
+  activeShapeKind: ShapeKind;
+  activeSticker: string;
   theme: 'dark' | 'light';
-  tableEditState: TableCellRef | null;       // not persisted
-  tableSelectionState: TableCellRef | null;  // not persisted
-  tableHoverDivider: { nodeId: string; kind: 'col' | 'row'; idx: number } | null; // not persisted
-  tableHoverEdge: { nodeId: string; showBottom: boolean; showRight: boolean } | null; // not persisted
-  tableHoverCell: { nodeId: string; row: number; col: number } | null; // not persisted
-  workspaceName: string | null; // not persisted — set when a folder is open
+  tableEditState: TableCellRef | null;
+  tableSelectionState: TableCellRef | null;
+  tableHoverDivider: { nodeId: string; kind: 'col' | 'row'; idx: number } | null;
+  tableHoverEdge: { nodeId: string; showBottom: boolean; showRight: boolean } | null;
+  tableHoverCell: { nodeId: string; row: number; col: number } | null;
+  workspaceName: string | null;
+  workspaceSavedAt: number; // not persisted — bumped after each saveWorkspace call
   explorerOpen: boolean;
-  imageAssetFolder: string; // subfolder in workspace to auto-save dragged images (persisted)
+  imageAssetFolder: string;
 
-  // Actions
+  // ── Existing actions ──────────────────────────────────────────────────────
   setBoardTitle: (title: string) => void;
   toggleTheme: () => void;
   addNode: (node: CanvasNode) => void;
@@ -45,6 +134,7 @@ interface BoardState {
   setCamera: (camera: Partial<Camera>) => void;
   selectIds: (ids: string[]) => void;
   setEditingId: (id: string | null) => void;
+  setFocusDocument: (id: string | null) => void;
   setActiveShapeKind: (kind: ShapeKind) => void;
   setActiveSticker: (src: string) => void;
   setTableEditState: (s: TableCellRef | null) => void;
@@ -54,9 +144,9 @@ interface BoardState {
   setTableHoverCell: (s: { nodeId: string; row: number; col: number } | null) => void;
   setReaction: (nodeId: string, emoji: string | null) => void;
   setWorkspaceName: (name: string | null) => void;
+  bumpWorkspaceSaved: () => void;
   setExplorerOpen: (open: boolean) => void;
   setImageAssetFolder: (folder: string) => void;
-  // Page actions
   addPage: (name?: string) => void;
   deletePage: (id: string) => void;
   renamePage: (id: string, name: string) => void;
@@ -75,6 +165,15 @@ interface BoardState {
   ungroupNodes: (groupId: string) => void;
   bringToFront: (ids: string[]) => void;
   sendToBack: (ids: string[]) => void;
+
+  // ── Document entity actions ───────────────────────────────────────────────
+  addDocument: (partial: Partial<Document>) => string;
+  updateDocument: (id: string, patch: Partial<Document>) => void;
+  deleteDocument: (id: string) => void;
+  openDocument: (id: string) => void;
+  openDocumentWithMorph: (id: string, rect?: { left: number; top: number; width: number; height: number }) => void;
+  closeDocument: () => void;
+  setPageLayoutMode: (id: string, mode: 'freeform' | 'stack') => void;
 }
 
 export const useBoardStore = create<BoardState>()(
@@ -83,12 +182,19 @@ export const useBoardStore = create<BoardState>()(
       boardTitle: 'Untitled Board',
       nodes: [],
       camera: { x: 0, y: 0, scale: 1 },
+      documents: [],
+      schemaVersion: 3,
       pages: [{ id: 'page-1', name: 'Page 1' }],
       activePageId: 'page-1',
       pageSnapshots: {},
       activeTool: 'select',
       selectedIds: [],
       editingId: null,
+      focusDocumentId: null,
+      appMode: 'canvas',
+      activeDocId: null,
+      recentDocIds: [],
+      morphSourceRect: null,
       clipboard: [],
       past: [],
       future: [],
@@ -101,6 +207,7 @@ export const useBoardStore = create<BoardState>()(
       tableHoverEdge: null,
       tableHoverCell: null,
       workspaceName: null,
+      workspaceSavedAt: 0,
       explorerOpen: false,
       imageAssetFolder: 'assets',
 
@@ -140,7 +247,6 @@ export const useBoardStore = create<BoardState>()(
         set((state) => {
           const deletedIds = new Set(state.selectedIds);
           const remaining = state.nodes.filter((n) => !deletedIds.has(n.id));
-          // Cascade: remove connectors whose endpoints reference deleted nodes
           const cleaned = remaining.filter((n) => {
             if (n.type === 'connector') {
               const c = n as ConnectorNode;
@@ -161,12 +267,13 @@ export const useBoardStore = create<BoardState>()(
       selectIds: (ids) => set((s) => ({
         selectedIds: ids,
         ...(ids.length === 0 ? { tableEditState: null, tableSelectionState: null } : {}),
-        // Clear table state when switching to a different node
         ...(ids.length > 0 && s.tableSelectionState && !ids.includes(s.tableSelectionState.nodeId)
           ? { tableEditState: null, tableSelectionState: null } : {}),
       })),
 
       setEditingId: (id) => set({ editingId: id }),
+
+      setFocusDocument: (id) => set({ focusDocumentId: id }),
 
       setActiveShapeKind: (kind) => set({ activeShapeKind: kind }),
 
@@ -183,6 +290,7 @@ export const useBoardStore = create<BoardState>()(
       setTableHoverCell: (s) => set({ tableHoverCell: s }),
 
       setWorkspaceName: (name) => set({ workspaceName: name }),
+      bumpWorkspaceSaved: () => set({ workspaceSavedAt: Date.now() }),
       setExplorerOpen: (open) => set({ explorerOpen: open }),
       setImageAssetFolder: (folder) => set({ imageAssetFolder: folder }),
 
@@ -201,7 +309,7 @@ export const useBoardStore = create<BoardState>()(
         const newName = name ?? `Page ${pages.length + 1}`;
         set({
           pageSnapshots: { ...pageSnapshots, [activePageId]: { nodes, camera } },
-          pages: [...pages, { id: newId, name: newName }],
+          pages: [...pages, { id: newId, name: newName, layoutMode: 'freeform' as const }],
           activePageId: newId,
           nodes: [],
           camera: { x: 0, y: 0, scale: 1 },
@@ -214,13 +322,12 @@ export const useBoardStore = create<BoardState>()(
 
       deletePage: (id) => {
         const { nodes, camera, activePageId, pages, pageSnapshots } = get();
-        if (pages.length <= 1) return; // never delete last page
+        if (pages.length <= 1) return;
         const idx = pages.findIndex((p) => p.id === id);
         const newPages = pages.filter((p) => p.id !== id);
         const newSnapshots = { ...pageSnapshots };
         delete newSnapshots[id];
         if (id === activePageId) {
-          // Switch to adjacent page
           const nextPage = newPages[Math.max(0, idx - 1)];
           const snap = newSnapshots[nextPage.id] ?? { nodes: [], camera: { x: 0, y: 0, scale: 1 } };
           delete newSnapshots[nextPage.id];
@@ -236,7 +343,6 @@ export const useBoardStore = create<BoardState>()(
             future: [],
           });
         } else {
-          // Save current active page back
           set({
             pages: newPages,
             pageSnapshots: { ...newSnapshots, [activePageId]: { nodes, camera } },
@@ -269,7 +375,6 @@ export const useBoardStore = create<BoardState>()(
 
       duplicatePage: (id) => {
         const { nodes, camera, activePageId, pages, pageSnapshots } = get();
-        // Get the source page's data
         const srcData = id === activePageId
           ? { nodes, camera }
           : (pageSnapshots[id] ?? { nodes: [], camera: { x: 0, y: 0, scale: 1 } });
@@ -283,11 +388,12 @@ export const useBoardStore = create<BoardState>()(
             [activePageId]: { nodes, camera },
             [newId]: { nodes: newNodes, camera: { ...srcData.camera } },
           },
-          pages: [...pages, { id: newId, name: newName }],
+          pages: [...pages, { id: newId, name: newName, layoutMode: srcMeta?.layoutMode ?? 'freeform' }],
         });
       },
 
       loadBoard: (data) => {
+        const incomingDocs = data.documents ?? [];
         if (data.pages && data.pages.length > 0 && data.activePageId) {
           const activePg = data.pages.find((p) => p.id === data.activePageId) ?? data.pages[0];
           const snapshots: Record<string, { nodes: CanvasNode[]; camera: Camera }> = {};
@@ -296,13 +402,20 @@ export const useBoardStore = create<BoardState>()(
               snapshots[p.id] = { nodes: p.nodes, camera: p.camera };
             }
           }
+          // Run migration if needed
+          const needsMigration = !data.schemaVersion || data.schemaVersion < 3;
+          const { nodes: migratedNodes, pageSnapshots: migratedSnaps, documents } = needsMigration
+            ? migrateInlineDocuments(activePg.nodes, snapshots, incomingDocs, activePg.id)
+            : { nodes: activePg.nodes, pageSnapshots: snapshots, documents: normalizeDocumentPageIds(incomingDocs, activePg.id, activePg.nodes, snapshots) };
           set({
             boardTitle: data.boardTitle,
-            pages: data.pages.map((p) => ({ id: p.id, name: p.name })),
+            pages: data.pages.map((p) => ({ id: p.id, name: p.name, layoutMode: p.layoutMode })),
             activePageId: activePg.id,
-            pageSnapshots: snapshots,
-            nodes: activePg.nodes,
+            pageSnapshots: migratedSnaps,
+            nodes: migratedNodes,
             camera: activePg.camera ?? { x: 0, y: 0, scale: 1 },
+            documents,
+            schemaVersion: 3,
             selectedIds: [],
             editingId: null,
             tableEditState: null,
@@ -311,12 +424,18 @@ export const useBoardStore = create<BoardState>()(
             future: [],
           });
         } else {
+          const needsMigration = !data.schemaVersion || data.schemaVersion < 3;
+          const { nodes: migratedNodes, documents } = needsMigration
+            ? migrateInlineDocuments(data.nodes, {}, incomingDocs, 'page-1')
+            : { nodes: data.nodes, documents: normalizeDocumentPageIds(incomingDocs, 'page-1', data.nodes, {}) };
           set({
             boardTitle: data.boardTitle,
-            nodes: data.nodes,
+            nodes: migratedNodes,
             pages: [{ id: 'page-1', name: 'Page 1' }],
             activePageId: 'page-1',
             pageSnapshots: {},
+            documents,
+            schemaVersion: 3,
             selectedIds: [],
             editingId: null,
             tableEditState: null,
@@ -329,18 +448,17 @@ export const useBoardStore = create<BoardState>()(
       },
 
       exportData: () => {
-        const { boardTitle, nodes, camera, pages, activePageId, pageSnapshots } = get();
+        const { boardTitle, nodes, camera, pages, activePageId, pageSnapshots, documents, schemaVersion } = get();
         const allPages = pages.map((p) => {
           if (p.id === activePageId) return { ...p, nodes, camera };
           const snap = pageSnapshots[p.id] ?? { nodes: [], camera: { x: 0, y: 0, scale: 1 } };
           return { ...p, ...snap };
         });
-        return { boardTitle, nodes, pages: allPages, activePageId };
+        return { boardTitle, nodes, pages: allPages, activePageId, documents, schemaVersion };
       },
 
       copySelected: () => {
         const { selectedIds, nodes } = get();
-        // Copy only non-connector nodes
         const copied = nodes.filter(
           (n) => selectedIds.includes(n.id) && n.type !== 'connector'
         );
@@ -357,7 +475,6 @@ export const useBoardStore = create<BoardState>()(
           x: n.x + OFFSET,
           y: n.y + OFFSET,
         }));
-        // Update clipboard to the pasted copies so repeated Cmd+V keeps offsetting
         set((state) => ({
           past: [...state.past, state.nodes],
           future: [],
@@ -398,24 +515,14 @@ export const useBoardStore = create<BoardState>()(
         const { nodes, past, future } = get();
         if (!past.length) return;
         const prev = past[past.length - 1];
-        set({
-          past: past.slice(0, -1),
-          future: [nodes, ...future],
-          nodes: prev,
-          selectedIds: [],
-        });
+        set({ past: past.slice(0, -1), future: [nodes, ...future], nodes: prev, selectedIds: [] });
       },
 
       redo: () => {
         const { nodes, past, future } = get();
         if (!future.length) return;
         const next = future[0];
-        set({
-          past: [...past, nodes],
-          future: future.slice(1),
-          nodes: next,
-          selectedIds: [],
-        });
+        set({ past: [...past, nodes], future: future.slice(1), nodes: next, selectedIds: [] });
       },
 
       toggleLock: (ids) =>
@@ -428,9 +535,7 @@ export const useBoardStore = create<BoardState>()(
             past: [...state.past, state.nodes],
             future: [],
             nodes: state.nodes.map((n) =>
-              set_.has(n.id)
-                ? ({ ...n, locked: anyUnlocked } as CanvasNode)
-                : n
+              set_.has(n.id) ? ({ ...n, locked: anyUnlocked } as CanvasNode) : n
             ),
           };
         }),
@@ -469,11 +574,7 @@ export const useBoardStore = create<BoardState>()(
           const set_ = new Set(ids);
           const rest = state.nodes.filter((n) => !set_.has(n.id));
           const moved = state.nodes.filter((n) => set_.has(n.id));
-          return {
-            past: [...state.past, state.nodes],
-            future: [],
-            nodes: [...rest, ...moved],
-          };
+          return { past: [...state.past, state.nodes], future: [], nodes: [...rest, ...moved] };
         }),
 
       sendToBack: (ids) =>
@@ -481,18 +582,153 @@ export const useBoardStore = create<BoardState>()(
           const set_ = new Set(ids);
           const rest = state.nodes.filter((n) => !set_.has(n.id));
           const moved = state.nodes.filter((n) => set_.has(n.id));
+          return { past: [...state.past, state.nodes], future: [], nodes: [...moved, ...rest] };
+        }),
+
+      // ── Document entity actions ─────────────────────────────────────────────
+
+      addDocument: (partial) => {
+        const id = partial.id ?? `doc_${generateId()}`;
+        const now = Date.now();
+        const doc: Document = {
+          id,
+          title: partial.title ?? 'Untitled',
+          content: partial.content ?? '',
+          pageId: partial.pageId ?? get().activePageId,
+          linkedFile: partial.linkedFile,
+          orderIndex: partial.orderIndex,
+          createdAt: partial.createdAt ?? now,
+          updatedAt: partial.updatedAt ?? now,
+          tags: partial.tags,
+        };
+        set((state) => ({ documents: [...state.documents, doc] }));
+        return id;
+      },
+
+      updateDocument: (id, patch) =>
+        set((state) => ({
+          documents: state.documents.map((d) =>
+            d.id === id ? { ...d, ...patch, updatedAt: Date.now() } : d
+          ),
+        })),
+
+      deleteDocument: (docId) =>
+        set((state) => {
+          // Find all canvas card IDs referencing this document across all pages
+          const allNodes = [
+            ...state.nodes,
+            ...Object.values(state.pageSnapshots).flatMap((s) => s.nodes),
+          ];
+          const cardIds = new Set(
+            allNodes
+              .filter((n) => n.type === 'document' && (n as DocumentNode).docId === docId)
+              .map((n) => n.id)
+          );
+
+          // Remove those cards + their connectors from current nodes
+          const cleanNodes = (list: CanvasNode[]) =>
+            list.filter((n) => {
+              if (cardIds.has(n.id)) return false;
+              if (n.type === 'connector') {
+                const c = n as ConnectorNode;
+                if (c.fromNodeId && cardIds.has(c.fromNodeId)) return false;
+                if (c.toNodeId && cardIds.has(c.toNodeId)) return false;
+              }
+              return true;
+            });
+
           return {
-            past: [...state.past, state.nodes],
-            future: [],
-            nodes: [...moved, ...rest],
+            documents: state.documents.filter((d) => d.id !== docId),
+            nodes: cleanNodes(state.nodes),
+            pageSnapshots: Object.fromEntries(
+              Object.entries(state.pageSnapshots).map(([pid, snap]) => [
+                pid,
+                { ...snap, nodes: cleanNodes(snap.nodes) },
+              ]),
+            ),
+            ...(state.activeDocId === docId ? { appMode: 'canvas' as const, activeDocId: null } : {}),
+            selectedIds: state.selectedIds.filter((id) => !cardIds.has(id)),
           };
+        }),
+
+      openDocument: (id) =>
+        set((state) => ({
+          appMode: 'document',
+          activeDocId: id,
+          focusDocumentId: id,
+          morphSourceRect: null,
+          recentDocIds: [id, ...state.recentDocIds.filter((r) => r !== id)].slice(0, 10),
+        })),
+
+      openDocumentWithMorph: (id, rect) =>
+        set((state) => ({
+          appMode: 'document',
+          activeDocId: id,
+          focusDocumentId: id,
+          morphSourceRect: rect ?? null,
+          recentDocIds: [id, ...state.recentDocIds.filter((r) => r !== id)].slice(0, 10),
+        })),
+
+      closeDocument: () =>
+        set({ appMode: 'canvas', focusDocumentId: null, activeDocId: null, morphSourceRect: null }),
+
+      setPageLayoutMode: (id, mode) =>
+        set((state) => {
+          const updatedPages = state.pages.map((p) => (p.id === id ? { ...p, layoutMode: mode } : p));
+          if (mode !== 'freeform') return { pages: updatedPages };
+
+          // When switching to freeform, materialize any documents that have no canvas node yet.
+          const CARD_W = 280, CARD_H = 176, GAP = 24, COLS = 3;
+          const existingDocIds = new Set(
+            state.nodes
+              .filter((n) => n.type === 'document')
+              .map((n) => (n as DocumentNode).docId)
+              .filter(Boolean)
+          );
+          const orphans = state.documents.filter(
+            (d) => (d.pageId ?? id) === id && !existingDocIds.has(d.id)
+          );
+          if (orphans.length === 0) return { pages: updatedPages };
+
+          // Find a clear vertical offset below any existing nodes on this page
+          const bottomY = state.nodes.length > 0
+            ? Math.max(...state.nodes.map((n) => (n as { y: number; height?: number }).y + ((n as { height?: number }).height ?? 0))) + GAP * 2
+            : 0;
+
+          const newNodes: DocumentNode[] = orphans.map((doc, i) => {
+            const col = i % COLS;
+            const row = Math.floor(i / COLS);
+            return {
+              id: generateId(),
+              type: 'document',
+              x: col * (CARD_W + GAP),
+              y: bottomY + row * (CARD_H + GAP),
+              width: CARD_W,
+              height: CARD_H,
+              docId: doc.id,
+            } as DocumentNode;
+          });
+
+          return { pages: updatedPages, nodes: [...state.nodes, ...newNodes] };
         }),
     }),
     {
       name: 'devboard-v2',
+      version: 3,
+      migrate: (persistedState: unknown, version: number) => {
+        // Runs when the stored version is older than the current version (3).
+        // Pre-version-3 stores have no schemaVersion and inline content on DocumentNodes.
+        const state = persistedState as Partial<BoardState>;
+        if (version < 3) {
+          const nodes = (state.nodes ?? []) as CanvasNode[];
+          const snapshots = (state.pageSnapshots ?? {}) as Record<string, { nodes: CanvasNode[]; camera: Camera }>;
+          const { nodes: migratedNodes, pageSnapshots, documents } =
+            migrateInlineDocuments(nodes, snapshots, [], state.activePageId ?? 'page-1');
+          return { ...state, nodes: migratedNodes, pageSnapshots, documents, schemaVersion: 3 };
+        }
+        return state;
+      },
       partialize: (state) => {
-        // Strip object-URL src from workspace image nodes — they can't survive a page reload
-        // and the actual files live in the workspace assets/ folder.
         const sanitiseNodes = (nodes: CanvasNode[]) =>
           nodes.map((n) => {
             if (n.type === 'image' && n.assetName && n.src && !n.src.startsWith('data:')) {
@@ -509,6 +745,8 @@ export const useBoardStore = create<BoardState>()(
           activePageId: state.activePageId,
           explorerOpen: state.explorerOpen,
           imageAssetFolder: state.imageAssetFolder,
+          documents: state.documents,
+          schemaVersion: state.schemaVersion,
           pageSnapshots: Object.fromEntries(
             Object.entries(state.pageSnapshots).map(([id, snap]) => [
               id,

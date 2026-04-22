@@ -12,10 +12,10 @@ import {
   StickerNode,
   TableNode,
   TextBlockNode,
-  ImageNode,
   LinkNode,
   TaskCardNode,
   CodeBlockNode,
+  DocumentNode,
 } from '../types';
 import { STICKY_COLORS } from '../components/StickyColorPicker';
 import { SECTION_TO_STICKY, resolveCssColor } from '../utils/palette';
@@ -28,6 +28,11 @@ function generateId(): string {
 function randomStickyColor(): string {
   return STICKY_COLORS[Math.floor(Math.random() * STICKY_COLORS.length)].hex;
 }
+function initShapeDraw(sx: number, sy: number, wx: number, wy: number): ShapeDraw {
+  return { startScreenX: sx, startScreenY: sy, startWorldX: wx, startWorldY: wy, currentScreenX: sx, currentScreenY: sy, currentWorldX: wx, currentWorldY: wy };
+}
+
+const CODE_DEFAULT = `SELECT\n  user_id,\n  COUNT(*) AS event_count,\n  DATE_TRUNC('day', created_at) AS day\nFROM user_events\nWHERE created_at >= '2024-01-01'\nGROUP BY 1, 3\nORDER BY 3 DESC, 2 DESC\nLIMIT 100`;
 
 // ── Exported interfaces (Canvas.tsx uses them in JSX) ───────────────────────
 export interface DrawingLine {
@@ -91,42 +96,43 @@ export function useCanvasInteraction({
   pendingImagePos,
 }: UseCanvasInteractionOptions) {
   // ── Store subscriptions ──────────────────────────────────────────────────
-  const camera       = useBoardStore((s) => s.camera);
-  const activeTool   = useBoardStore((s) => s.activeTool);
+  const camera          = useBoardStore((s) => s.camera);
+  const activeTool      = useBoardStore((s) => s.activeTool);
   const activeShapeKind = useBoardStore((s) => s.activeShapeKind);
   const activeSticker   = useBoardStore((s) => s.activeSticker);
-  const { setCamera, addNode, selectIds, setActiveTool, setEditingId } = useBoardStore();
+  const { setCamera, addNode, addDocument, selectIds, setActiveTool, setEditingId } = useBoardStore();
 
   // ── Refs ─────────────────────────────────────────────────────────────────
-  const isPanning        = useRef(false);
-  const lastPointer      = useRef({ x: 0, y: 0 });
+  const isPanning         = useRef(false);
+  const lastPointer       = useRef({ x: 0, y: 0 });
   const altDragInProgress = useRef(false);
-  const nudging          = useRef(false);
-  const multiDragBase    = useRef<{
+  const nudging           = useRef(false);
+  const multiDragBase     = useRef<{
     draggingId: string;
     startX: number;
     startY: number;
     peers: { id: string; origX: number; origY: number }[];
   } | null>(null);
-  const lastTouchPos    = useRef<{ x: number; y: number } | null>(null);
-  const lastPinchDist   = useRef<number | null>(null);
-  const lastPinchMid    = useRef<{ x: number; y: number } | null>(null);
-  const touchToolStart  = useRef<{ clientX: number; clientY: number } | null>(null);
-  void nudging; // declared for potential future use
+  const lastTouchPos   = useRef<{ x: number; y: number } | null>(null);
+  const lastPinchDist  = useRef<number | null>(null);
+  const lastPinchMid   = useRef<{ x: number; y: number } | null>(null);
+  const touchToolStart = useRef<{ clientX: number; clientY: number } | null>(null);
+  void nudging;
 
   // ── Draw state ───────────────────────────────────────────────────────────
-  const [drawingLine,      setDrawingLine]      = useState<DrawingLine | null>(null);
-  const [snapTarget,       setSnapTarget]       = useState<{ nodeId: string; side: AnchorSide } | null>(null);
-  const [textCursorPos,    setTextCursorPos]    = useState<{ x: number; y: number } | null>(null);
-  const [textDraw,         setTextDraw]         = useState<TextDraw | null>(null);
-  const [shapeDraw,        setShapeDraw]        = useState<ShapeDraw | null>(null);
-  const [sectionDraw,      setSectionDraw]      = useState<ShapeDraw | null>(null);
-  const [tableDraw,        setTableDraw]        = useState<ShapeDraw | null>(null);
-  const [marqueeDraw,      setMarqueeDraw]      = useState<MarqueeDraw | null>(null);
-  const [stickerCursorPos, setStickerCursorPos] = useState<{ x: number; y: number } | null>(null);
-  const [taskCursorPos,    setTaskCursorPos]    = useState<{ x: number; y: number } | null>(null);
-  const [snapGuides,       setSnapGuides]       = useState<SnapGuide[]>([]);
-  const [contextMenu,      setContextMenu]      = useState<ContextMenuState | null>(null);
+  const [drawingLine,       setDrawingLine]       = useState<DrawingLine | null>(null);
+  const [snapTarget,        setSnapTarget]        = useState<{ nodeId: string; side: AnchorSide } | null>(null);
+  const [textCursorPos,     setTextCursorPos]     = useState<{ x: number; y: number } | null>(null);
+  const [textDraw,          setTextDraw]          = useState<TextDraw | null>(null);
+  const [shapeDraw,         setShapeDraw]         = useState<ShapeDraw | null>(null);
+  const [sectionDraw,       setSectionDraw]       = useState<ShapeDraw | null>(null);
+  const [tableDraw,         setTableDraw]         = useState<ShapeDraw | null>(null);
+  const [marqueeDraw,       setMarqueeDraw]       = useState<MarqueeDraw | null>(null);
+  const [stickerCursorPos,  setStickerCursorPos]  = useState<{ x: number; y: number } | null>(null);
+  const [taskCursorPos,     setTaskCursorPos]     = useState<{ x: number; y: number } | null>(null);
+  const [documentCursorPos, setDocumentCursorPos] = useState<{ x: number; y: number } | null>(null);
+  const [snapGuides,        setSnapGuides]        = useState<SnapGuide[]>([]);
+  const [contextMenu,       setContextMenu]       = useState<ContextMenuState | null>(null);
 
   // ── Cancel all in-progress operations ────────────────────────────────────
   const cancelAll = useCallback(() => {
@@ -139,6 +145,8 @@ export function useCanvasInteraction({
     setTableDraw(null);
     setMarqueeDraw(null);
     setStickerCursorPos(null);
+    setTaskCursorPos(null);
+    setDocumentCursorPos(null);
     selectIds([]);
     setActiveTool('select');
   }, [selectIds, setActiveTool]);
@@ -289,10 +297,9 @@ export function useCanvasInteraction({
   }, []);
 
   // ── Window-level middle-mouse panning ────────────────────────────────────────
-  // Handle middle-mouse button panning at window level so it works over draggable elements
   useEffect(() => {
     const onWindowMouseDown = (e: MouseEvent) => {
-      if (e.button === 1) { // Middle mouse button
+      if (e.button === 1) {
         e.preventDefault();
         isPanning.current = true;
         lastPointer.current = { x: e.clientX, y: e.clientY };
@@ -324,17 +331,50 @@ export function useCanvasInteraction({
     };
   }, []);
 
+  // ── Place node for click-to-place tools ──────────────────────────────────
+  const placeNodeForTool = useCallback((tool: string, worldX: number, worldY: number): boolean => {
+    switch (tool) {
+      case 'sticky':
+        addNode({ id: generateId(), type: 'sticky', x: worldX - 100, y: worldY - 80, text: '', color: randomStickyColor(), width: 200, height: 160, fontSizeMode: 'dynamic' } satisfies StickyNoteNode);
+        setActiveTool('select');
+        return true;
+      case 'task':
+        addNode({ id: generateId(), type: 'taskcard', x: worldX - 140, y: worldY - 40, width: 280, title: 'New Task Card', tasks: [], color: resolveCssColor('--c-line-default') } satisfies TaskCardNode);
+        setActiveTool('select');
+        return true;
+      case 'code':
+        addNode({ id: generateId(), type: 'codeblock', x: worldX - 250, y: worldY - 40, width: 500, height: 220, code: CODE_DEFAULT, language: 'sql', title: 'Query: User Activity Summary', showLineNumbers: true } satisfies CodeBlockNode);
+        setActiveTool('select');
+        return true;
+      case 'link':
+        addNode({ id: generateId(), type: 'link', x: worldX - 160, y: worldY - 30, width: 320, height: 90, url: 'https://', displayMode: 'compact' } satisfies LinkNode);
+        setActiveTool('select');
+        return true;
+      case 'sticker': {
+        const rotation = Math.round((Math.random() * 30 - 15) * 10) / 10;
+        addNode({ id: generateId(), type: 'sticker', src: activeSticker, x: worldX, y: worldY, width: 100, height: 100, rotation } satisfies StickerNode);
+        return true;
+      }
+      case 'document': {
+        const docId = addDocument({ title: '', content: '' });
+        addNode({ id: generateId(), type: 'document', x: worldX - 140, y: worldY - 88, width: 280, height: 176, docId } as DocumentNode);
+        setActiveTool('select');
+        return true;
+      }
+      default:
+        return false;
+    }
+  }, [addNode, addDocument, setActiveTool, activeSticker]);
+
   // ── Mouse down ────────────────────────────────────────────────────────────
   const handleMouseDown = useCallback(
     (e: Konva.KonvaEventObject<MouseEvent>) => {
-      // Middle mouse panning is now handled at window level for better interaction with draggable elements
       const isPanMode = activeTool === 'pan' || spacePressed.current;
-
-      if (isPanMode && e.evt.button !== 1) { // Skip if middle mouse (already handled at window level)
+      if (isPanMode && e.evt.button !== 1) {
         isPanning.current = true;
         lastPointer.current = { x: e.evt.clientX, y: e.evt.clientY };
         setCursorOverride('grabbing');
-        e.cancelBubble = true; // Prevent event from bubbling to node components
+        e.cancelBubble = true;
         return;
       }
 
@@ -345,188 +385,40 @@ export function useCanvasInteraction({
       }
 
       const clickedStage = e.target === e.target.getStage();
-
-      if (activeTool === 'sticky' && clickedStage) {
-        const pos = stageRef.current!.getPointerPosition()!;
-        const worldX = (pos.x - camera.x) / camera.scale;
-        const worldY = (pos.y - camera.y) / camera.scale;
-        addNode({
-          id: generateId(),
-          type: 'sticky',
-          x: worldX - 100,
-          y: worldY - 80,
-          text: '',
-          color: randomStickyColor(),
-          width: 200,
-          height: 160,
-          fontSizeMode: 'dynamic',
-        } satisfies StickyNoteNode);
-        setActiveTool('select');
-        return;
-      }
-
-      if (activeTool === 'task' && clickedStage) {
-        const pos = stageRef.current!.getPointerPosition()!;
-        const worldX = (pos.x - camera.x) / camera.scale;
-        const worldY = (pos.y - camera.y) / camera.scale;
-        addNode({
-          id: generateId(),
-          type: 'taskcard',
-          x: worldX - 140,
-          y: worldY - 40,
-          width: 280,
-          title: 'New Task Card',
-          tasks: [],
-          color: resolveCssColor('--c-line-default'),
-        } satisfies TaskCardNode);
-        setActiveTool('select');
-        return;
-      }
-
-      if (activeTool === 'code' && clickedStage) {
-        const pos = stageRef.current!.getPointerPosition()!;
-        const worldX = (pos.x - camera.x) / camera.scale;
-        const worldY = (pos.y - camera.y) / camera.scale;
-        addNode({
-          id: generateId(),
-          type: 'codeblock',
-          x: worldX - 250,
-          y: worldY - 40,
-          width: 500,
-          height: 220,
-          code: `SELECT\n  user_id,\n  COUNT(*) AS event_count,\n  DATE_TRUNC('day', created_at) AS day\nFROM user_events\nWHERE created_at >= '2024-01-01'\nGROUP BY 1, 3\nORDER BY 3 DESC, 2 DESC\nLIMIT 100`,
-          language: 'sql',
-          title: 'Query: User Activity Summary',
-          showLineNumbers: true,
-        } satisfies CodeBlockNode);
-        setActiveTool('select');
-        return;
-      }
-
-      if (activeTool === 'link' && clickedStage) {
-        const pos = stageRef.current!.getPointerPosition()!;
-        const worldX = (pos.x - camera.x) / camera.scale;
-        const worldY = (pos.y - camera.y) / camera.scale;
-        addNode({
-          id: generateId(),
-          type: 'link',
-          x: worldX - 160,
-          y: worldY - 30,
-          width: 320,
-          height: 90,
-          url: 'https://',
-          displayMode: 'compact',
-        } satisfies LinkNode);
-        setActiveTool('select');
-        return;
-      }
+      const pos = stageRef.current!.getPointerPosition()!;
+      const worldX = (pos.x - camera.x) / camera.scale;
+      const worldY = (pos.y - camera.y) / camera.scale;
 
       if (activeTool === 'image' && clickedStage) {
-        const pos = stageRef.current!.getPointerPosition()!;
-        pendingImagePos.current = {
-          x: (pos.x - camera.x) / camera.scale,
-          y: (pos.y - camera.y) / camera.scale,
-        };
+        pendingImagePos.current = { x: worldX, y: worldY };
         imageInputRef.current?.click();
         return;
       }
 
-      if (activeTool === 'sticker') {
-        const pos = stageRef.current!.getPointerPosition()!;
-        const worldX = (pos.x - camera.x) / camera.scale;
-        const worldY = (pos.y - camera.y) / camera.scale;
-        const rotation = Math.round((Math.random() * 30 - 15) * 10) / 10;
-        addNode({
-          id: generateId(),
-          type: 'sticker',
-          src: activeSticker,
-          x: worldX,
-          y: worldY,
-          width: 100,
-          height: 100,
-          rotation,
-        } satisfies StickerNode);
-        return;
+      if (activeTool === 'sticker' || clickedStage) {
+        if (placeNodeForTool(activeTool, worldX, worldY)) return;
       }
 
-      if (activeTool === 'shape') {
-        const pos = stageRef.current!.getPointerPosition()!;
-        const worldX = (pos.x - camera.x) / camera.scale;
-        const worldY = (pos.y - camera.y) / camera.scale;
-        setShapeDraw({
-          startScreenX: pos.x, startScreenY: pos.y,
-          startWorldX: worldX, startWorldY: worldY,
-          currentScreenX: pos.x, currentScreenY: pos.y,
-          currentWorldX: worldX, currentWorldY: worldY,
-        });
-        return;
-      }
-
-      if (activeTool === 'section') {
-        const pos = stageRef.current!.getPointerPosition()!;
-        const worldX = (pos.x - camera.x) / camera.scale;
-        const worldY = (pos.y - camera.y) / camera.scale;
-        setSectionDraw({
-          startScreenX: pos.x, startScreenY: pos.y,
-          startWorldX: worldX, startWorldY: worldY,
-          currentScreenX: pos.x, currentScreenY: pos.y,
-          currentWorldX: worldX, currentWorldY: worldY,
-        });
-        return;
-      }
-
-      if (activeTool === 'table') {
-        const pos = stageRef.current!.getPointerPosition()!;
-        const worldX = (pos.x - camera.x) / camera.scale;
-        const worldY = (pos.y - camera.y) / camera.scale;
-        setTableDraw({
-          startScreenX: pos.x, startScreenY: pos.y,
-          startWorldX: worldX, startWorldY: worldY,
-          currentScreenX: pos.x, currentScreenY: pos.y,
-          currentWorldX: worldX, currentWorldY: worldY,
-        });
-        return;
-      }
-
+      if (activeTool === 'shape')   { setShapeDraw(initShapeDraw(pos.x, pos.y, worldX, worldY)); return; }
+      if (activeTool === 'section') { setSectionDraw(initShapeDraw(pos.x, pos.y, worldX, worldY)); return; }
+      if (activeTool === 'table')   { setTableDraw(initShapeDraw(pos.x, pos.y, worldX, worldY)); return; }
       if (activeTool === 'text' && clickedStage) {
-        const pos = stageRef.current!.getPointerPosition()!;
-        const worldX = (pos.x - camera.x) / camera.scale;
-        const worldY = (pos.y - camera.y) / camera.scale;
-        setTextDraw({
-          startScreenX: pos.x, startScreenY: pos.y,
-          startWorldX: worldX, startWorldY: worldY,
-          currentScreenX: pos.x, currentWorldX: worldX,
-        });
+        setTextDraw({ startScreenX: pos.x, startScreenY: pos.y, startWorldX: worldX, startWorldY: worldY, currentScreenX: pos.x, currentWorldX: worldX });
         return;
       }
 
       if (activeTool === 'select' && clickedStage) {
-        const pos = stageRef.current!.getPointerPosition()!;
-        const worldX = (pos.x - camera.x) / camera.scale;
-        const worldY = (pos.y - camera.y) / camera.scale;
-
-        // Task cards are HTML overlays — Konva has no node for them, so the stage
-        // sees their area as empty. If the click lands inside a task card, select it
-        // rather than starting a marquee (which would immediately deselect on mouseup).
         const hitCard = useBoardStore.getState().nodes.find((n) => {
           if (n.type !== 'taskcard') return false;
           const tc = n as TaskCardNode;
           const h = tc.height ?? 9999;
           return worldX >= tc.x && worldX <= tc.x + tc.width && worldY >= tc.y && worldY <= tc.y + h;
         });
-        if (hitCard) {
-          selectIds([hitCard.id]);
-          return;
-        }
-
-        setMarqueeDraw({
-          startScreenX: pos.x, startScreenY: pos.y,
-          currentScreenX: pos.x, currentScreenY: pos.y,
-        });
-        return;
+        if (hitCard) { selectIds([hitCard.id]); return; }
+        setMarqueeDraw({ startScreenX: pos.x, startScreenY: pos.y, currentScreenX: pos.x, currentScreenY: pos.y });
       }
     },
-    [activeTool, activeShapeKind, activeSticker, camera, addNode, selectIds, setActiveTool, drawingLine]
+    [activeTool, camera, selectIds, drawingLine, placeNodeForTool]
   );
 
   // ── Mouse move ────────────────────────────────────────────────────────────
@@ -581,6 +473,10 @@ export function useCanvasInteraction({
         const pos = stageRef.current?.getPointerPosition();
         if (pos) setTaskCursorPos({ x: pos.x, y: pos.y });
       }
+      if (activeTool === 'document') {
+        const pos = stageRef.current?.getPointerPosition();
+        if (pos) setDocumentCursorPos({ x: pos.x, y: pos.y });
+      }
       if (activeTool === 'table' && tableDraw) {
         const pos = stageRef.current?.getPointerPosition();
         if (pos) {
@@ -604,7 +500,7 @@ export function useCanvasInteraction({
         }
       }
     },
-    [camera, setCamera, drawingLine, activeTool, shapeDraw, sectionDraw, tableDraw, textDraw, marqueeDraw]
+    [camera, setCamera, drawingLine, activeTool, shapeDraw, sectionDraw, tableDraw, textDraw, marqueeDraw, setTaskCursorPos, setStickerCursorPos, setDocumentCursorPos]
   );
 
   // ── Mouse up ──────────────────────────────────────────────────────────────
@@ -804,15 +700,10 @@ export function useCanvasInteraction({
           const worldY = (pos.y - cam.y) / cam.scale;
           touchToolStart.current = { clientX: touches[0].clientX, clientY: touches[0].clientY };
 
-          if (activeTool === 'shape') {
-            setShapeDraw({ startScreenX: pos.x, startScreenY: pos.y, startWorldX: worldX, startWorldY: worldY, currentScreenX: pos.x, currentScreenY: pos.y, currentWorldX: worldX, currentWorldY: worldY });
-          } else if (activeTool === 'section') {
-            setSectionDraw({ startScreenX: pos.x, startScreenY: pos.y, startWorldX: worldX, startWorldY: worldY, currentScreenX: pos.x, currentScreenY: pos.y, currentWorldX: worldX, currentWorldY: worldY });
-          } else if (activeTool === 'table') {
-            setTableDraw({ startScreenX: pos.x, startScreenY: pos.y, startWorldX: worldX, startWorldY: worldY, currentScreenX: pos.x, currentScreenY: pos.y, currentWorldX: worldX, currentWorldY: worldY });
-          } else if (activeTool === 'text') {
-            setTextDraw({ startScreenX: pos.x, startScreenY: pos.y, startWorldX: worldX, startWorldY: worldY, currentScreenX: pos.x, currentWorldX: worldX });
-          }
+          if (activeTool === 'shape')        setShapeDraw(initShapeDraw(pos.x, pos.y, worldX, worldY));
+          else if (activeTool === 'section') setSectionDraw(initShapeDraw(pos.x, pos.y, worldX, worldY));
+          else if (activeTool === 'table')   setTableDraw(initShapeDraw(pos.x, pos.y, worldX, worldY));
+          else if (activeTool === 'text')    setTextDraw({ startScreenX: pos.x, startScreenY: pos.y, startWorldX: worldX, startWorldY: worldY, currentScreenX: pos.x, currentWorldX: worldX });
         }
       } else if (touches.length === 2) {
         e.evt.preventDefault();
@@ -901,29 +792,13 @@ export function useCanvasInteraction({
           const { camera: cam } = useBoardStore.getState();
           const worldX = (screenX - cam.x) / cam.scale;
           const worldY = (screenY - cam.y) / cam.scale;
-
-          if (activeTool === 'sticky') {
-            addNode({ id: generateId(), type: 'sticky', x: worldX - 100, y: worldY - 80, text: '', color: randomStickyColor(), width: 200, height: 160, fontSizeMode: 'dynamic' } satisfies StickyNoteNode);
-            setActiveTool('select');
-          } else if (activeTool === 'sticker') {
-            const rotation = Math.round((Math.random() * 30 - 15) * 10) / 10;
-            addNode({ id: generateId(), type: 'sticker', src: activeSticker, x: worldX, y: worldY, width: 100, height: 100, rotation } satisfies StickerNode);
-          } else if (activeTool === 'code') {
-            addNode({ id: generateId(), type: 'codeblock', x: worldX - 250, y: worldY - 40, width: 500, height: 220, code: `SELECT\n  user_id,\n  COUNT(*) AS event_count\nFROM user_events\nGROUP BY 1\nLIMIT 100`, language: 'sql', title: 'Query', showLineNumbers: true } satisfies CodeBlockNode);
-            setActiveTool('select');
-          } else if (activeTool === 'link') {
-            addNode({ id: generateId(), type: 'link', x: worldX - 160, y: worldY - 30, width: 320, height: 90, url: 'https://', displayMode: 'compact' } satisfies LinkNode);
-            setActiveTool('select');
-          } else if (activeTool === 'task') {
-            addNode({ id: generateId(), type: 'taskcard', x: worldX - 140, y: worldY - 40, width: 280, title: 'New Task Card', tasks: [], color: resolveCssColor('--c-line-default') } satisfies TaskCardNode);
-            setActiveTool('select');
-          }
+          placeNodeForTool(activeTool, worldX, worldY);
         }
       }
     } else if (e.evt.touches.length === 1) {
       lastTouchPos.current = { x: e.evt.touches[0].clientX, y: e.evt.touches[0].clientY };
     }
-  }, [activeTool, activeSticker, addNode, setActiveTool, shapeDraw, sectionDraw, tableDraw, textDraw, handleMouseUp]);
+  }, [activeTool, shapeDraw, sectionDraw, tableDraw, textDraw, handleMouseUp, placeNodeForTool]);
 
   // ── Anchor callbacks ──────────────────────────────────────────────────────
   const handleAnchorDown = useCallback(
@@ -942,7 +817,6 @@ export function useCanvasInteraction({
   }, []);
 
   return {
-    // draw state
     drawingLine,
     snapTarget,
     textCursorPos,
@@ -956,10 +830,11 @@ export function useCanvasInteraction({
     setStickerCursorPos,
     taskCursorPos,
     setTaskCursorPos,
+    documentCursorPos,
+    setDocumentCursorPos,
     snapGuides,
     contextMenu,
     setContextMenu,
-    // handlers
     handleMouseDown,
     handleMouseMove,
     handleMouseUp,
@@ -969,7 +844,6 @@ export function useCanvasInteraction({
     handleAnchorDown,
     handleAnchorEnter,
     handleAnchorLeave,
-    // drag helpers
     computeSnap,
     clearSnap,
     handleAltDragStart,
@@ -980,7 +854,6 @@ export function useCanvasInteraction({
     getShouldSaveHistory,
     handleNodeContextMenu,
     handleDragSettled,
-    // for keyboard hook
     isPanning,
     cancelAll,
   };

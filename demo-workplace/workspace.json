@@ -1,0 +1,53 @@
+{
+  "title": "DevBoard Demo",
+  "pages": [
+    {
+      "id": "page-1",
+      "name": "Roadmap"
+    }
+  ],
+  "activePageId": "page-1",
+  "documents": [
+    {
+      "id": "doc-overview",
+      "title": "Project Overview",
+      "content": "<h1>Project Overview</h1><p>DevBoard is a thinking canvas for solo devs — a place to capture ideas, connect them, and ship faster.</p><h2>Goals</h2><p>See [[Tech Stack]] for the full technology breakdown. The main design decisions are captured in canvas nodes on the Roadmap page.</p><p>The feature sticky @node:sticky-shipping covers our export and sharing strategy.</p><h2>Status</h2><p>MVP is in progress. Next milestone: launch on itch.io. Sprint details are in [[Sprint Notes]].</p>",
+      "pageId": "page-1",
+      "orderIndex": 0,
+      "createdAt": 1745580000000,
+      "updatedAt": 1777124445805,
+      "tags": [
+        "planning",
+        "overview"
+      ],
+      "linkedFile": "documents/project_overview.md"
+    },
+    {
+      "id": "doc-techstack",
+      "title": "Tech Stack",
+      "content": "<h1>Tech Stack</h1><p>This document covers all technologies used in DevBoard.</p><h2>Frontend</h2><ul><li><b>React 18</b> + TypeScript — UI layer</li><li><b>react-konva</b> — canvas rendering</li><li><b>Zustand</b> — state management (localStorage persistence)</li><li><b>Tailwind CSS v3</b> — UI chrome</li></ul><h2>Build</h2><ul><li><b>Vite</b> + vite-plugin-singlefile — produces a single <code>dist/index.html</code></li></ul><h2>Related</h2><p>See [[Project Overview]] for context. The canvas node @node:sticky-tech has more architecture notes.</p>",
+      "pageId": "page-1",
+      "orderIndex": 1,
+      "createdAt": 1745580100000,
+      "updatedAt": 1777124445814,
+      "tags": [
+        "tech",
+        "architecture"
+      ],
+      "linkedFile": "documents/tech_stack.md"
+    },
+    {
+      "id": "doc-sprint",
+      "title": "Sprint Notes",
+      "content": "<h1>Sprint Notes — Week 17</h1><p>This week's focus: document system + workspace support.</p><h2>Done</h2><ul><li>Document mode with rich text editing</li><li>Wikilinks [[Project Overview]] working in editor</li><li>Node pills @node:sticky-shipping showing canvas context</li><li>Workspace save/load round-trips documents correctly</li></ul><h2>Up Next</h2><p>See [[Tech Stack]] for components that still need attention. The @node:sticky-tech canvas note has the architecture decisions.</p>",
+      "pageId": "page-1",
+      "orderIndex": 2,
+      "createdAt": 1745580200000,
+      "updatedAt": 1777124445819,
+      "tags": [
+        "sprint"
+      ],
+      "linkedFile": "documents/sprint_notes.md"
+    }
+  ]
+}

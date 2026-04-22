@@ -147,19 +147,32 @@ function IconTask() {
     </svg>
   );
 }
+function IconDocument() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <rect x="2" y="1.5" width="12" height="13" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
+      <line x1="2" y1="4.5" x2="14" y2="4.5" stroke="currentColor" strokeWidth="1.2" />
+      <line x1="4" y1="7" x2="12" y2="7" stroke="currentColor" strokeWidth="1" />
+      <line x1="4" y1="9.5" x2="12" y2="9.5" stroke="currentColor" strokeWidth="1" />
+      <line x1="4" y1="12" x2="10" y2="12" stroke="currentColor" strokeWidth="1" />
+    </svg>
+  );
+}
 
 // Main toolbar tools (no code/image/task — those live in the + menu)
+// NOTE: line tool hidden from toolbar — anchor connectors already provide this functionality
+// TODO: Upgrade to intentional diagramming mode (flexible, powerful, grid-agnostic)
 const TOOLS: ToolDef[] = [
-  { id: 'select',  label: 'Select',  shortcut: 'V', icon: <IconSelect /> },
-  { id: 'pan',     label: 'Pan',     shortcut: 'H', icon: <IconPan /> },
-  { id: 'sticky',  label: 'Sticky',  shortcut: 'S', icon: <IconSticky /> },
-  { id: 'shape',   label: 'Shape',   shortcut: 'R', icon: <IconShape /> },
-  { id: 'text',    label: 'Text',    shortcut: 'T', icon: <IconText /> },
-  { id: 'line',    label: 'Line',    shortcut: 'L', icon: <IconLine /> },
-  { id: 'section', label: 'Section', shortcut: 'F', icon: <IconSection />, mobileHidden: true },
-  { id: 'image',   label: 'Image',   shortcut: 'I', icon: <IconImage />,   mobileHidden: true },
-  { id: 'table',   label: 'Table',   shortcut: 'G', icon: <IconTable />,   mobileHidden: true },
-  { id: 'link',    label: 'Link',    shortcut: 'U', icon: <IconLink />,    mobileHidden: true },
+  { id: 'select',   label: 'Select',   shortcut: 'V', icon: <IconSelect /> },
+  { id: 'pan',      label: 'Pan',      shortcut: 'H', icon: <IconPan /> },
+  { id: 'sticky',   label: 'Sticky',   shortcut: 'S', icon: <IconSticky /> },
+  { id: 'shape',    label: 'Shape',    shortcut: 'R', icon: <IconShape /> },
+  { id: 'text',     label: 'Text',     shortcut: 'T', icon: <IconText /> },
+  { id: 'document', label: 'Note', shortcut: 'D', icon: <IconDocument />, mobileHidden: true },
+  { id: 'section',  label: 'Section',  shortcut: 'F', icon: <IconSection />, mobileHidden: true },
+  { id: 'image',    label: 'Image',    shortcut: 'I', icon: <IconImage />,   mobileHidden: true },
+  { id: 'table',    label: 'Table',    shortcut: 'G', icon: <IconTable />,   mobileHidden: true },
+  { id: 'link',     label: 'Link',     shortcut: 'U', icon: <IconLink />,    mobileHidden: true },
 ];
 
 // Items in the + insert menu
@@ -238,7 +251,7 @@ const SHAPE_KINDS: ShapeKindDef[] = [
 ];
 
 export default function Toolbar() {
-  const { activeTool, setActiveTool, activeShapeKind, setActiveShapeKind } = useBoardStore();
+  const { activeTool, setActiveTool, activeShapeKind, setActiveShapeKind, focusDocumentId, appMode } = useBoardStore();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showGradient, setShowGradient] = useState(false);
   const [insertOpen, setInsertOpen] = useState(false);
@@ -282,7 +295,13 @@ export default function Toolbar() {
   const insertActive = INSERT_ITEMS.some((i) => i.id === activeTool);
 
   return (
-    <div className="absolute bottom-5 left-0 right-0 z-[500] flex flex-col items-center gap-2 pointer-events-none">
+    <div
+      className="absolute bottom-5 left-0 right-0 z-[500] flex flex-col items-center gap-2 pointer-events-none"
+      style={{
+        transform: focusDocumentId || appMode === 'document' ? 'translateY(120%)' : 'translateY(0)',
+        transition: 'transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+      }}
+    >
       {/* Shape kind sub-picker */}
       {activeTool === 'shape' && (
         <div className="pointer-events-auto flex items-center gap-0.5 px-2 py-1.5 rounded-xl border border-[var(--c-border)] bg-[var(--c-panel)] shadow-lg">

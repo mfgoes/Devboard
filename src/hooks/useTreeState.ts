@@ -16,8 +16,7 @@ export function useTreeState(imageAssetFolder: string) {
   const visibleEntriesRef = useRef<TreeEntry[]>([]);
   const assetsAutoExpandedRef = useRef(false);
 
-  // Load root directory on mount
-  useEffect(() => {
+  const reloadRoot = useCallback(() => {
     setRootLoading(true);
     setRootError(null);
     listDirectory([])
@@ -31,10 +30,12 @@ export function useTreeState(imageAssetFolder: string) {
         setRootLoading(false);
       })
       .catch(() => {
-        // No workspace open — show the empty state (rootError stays null, tree stays [])
         setRootLoading(false);
       });
   }, []);
+
+  // Load root directory on mount
+  useEffect(() => { reloadRoot(); }, []);
 
   // Auto-expand the assets/images folder once when the workspace first loads
   useEffect(() => {
@@ -149,6 +150,7 @@ export function useTreeState(imageAssetFolder: string) {
     setRootLoading,
     rootError,
     setRootError,
+    reloadRoot,
     newFolderParent,
     setNewFolderParent,
     newFolderName,

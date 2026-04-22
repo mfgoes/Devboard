@@ -9,7 +9,7 @@
  *     assets/
  *       <uniqueName>.png   ← actual image files (no base64 in JSON)
  */
-import { BoardData, CanvasNode } from '../types';
+import { BoardData, CanvasNode, Document } from '../types';
 import { toast } from './toast';
 
 type FSAWindow = Window & typeof globalThis & {
@@ -17,6 +17,15 @@ type FSAWindow = Window & typeof globalThis & {
 };
 
 let workspaceHandle: FileSystemDirectoryHandle | null = null;
+let onSavedCallback: (() => void) | null = null;
+
+/** Register a callback that fires after every successful saveWorkspace call. */
+export function setOnWorkspaceSavedCallback(fn: () => void): void {
+  onSavedCallback = fn;
+}
+const WORKSPACE_DB = 'devboard-workspace';
+const WORKSPACE_STORE = 'handles';
+const WORKSPACE_KEY = 'last-workspace';
 
 /** True when running inside a cross-origin iframe (e.g. embedded on itch.io). */
 export const IN_IFRAME =
@@ -43,11 +52,136 @@ export function getWorkspaceName(): string | null {
 export function clearWorkspaceHandle(): void {
   workspaceHandle = null;
   tauriWorkspacePath = null;
+  if (!IS_TAURI) void clearStoredWorkspaceHandle();
 }
 
 export function hasWorkspaceHandle(): boolean {
   if (IS_TAURI) return tauriWorkspacePath !== null;
   return workspaceHandle !== null;
+}
+
+async function openWorkspaceDb(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(WORKSPACE_DB, 1);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(WORKSPACE_STORE)) db.createObjectStore(WORKSPACE_STORE);
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function persistWorkspaceHandle(handle: FileSystemDirectoryHandle): Promise<void> {
+  if (typeof indexedDB === 'undefined') return;
+  const db = await openWorkspaceDb();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(WORKSPACE_STORE, 'readwrite');
+    tx.objectStore(WORKSPACE_STORE).put(handle, WORKSPACE_KEY);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error);
+  }).finally(() => db.close());
+}
+
+async function getStoredWorkspaceHandle(): Promise<FileSystemDirectoryHandle | null> {
+  if (typeof indexedDB === 'undefined') return null;
+  const db = await openWorkspaceDb();
+  return new Promise<FileSystemDirectoryHandle | null>((resolve, reject) => {
+    const tx = db.transaction(WORKSPACE_STORE, 'readonly');
+    const req = tx.objectStore(WORKSPACE_STORE).get(WORKSPACE_KEY);
+    req.onsuccess = () => resolve((req.result as FileSystemDirectoryHandle | undefined) ?? null);
+    req.onerror = () => reject(req.error);
+    tx.onabort = () => reject(tx.error);
+    tx.oncomplete = () => db.close();
+  });
+}
+
+async function clearStoredWorkspaceHandle(): Promise<void> {
+  if (typeof indexedDB === 'undefined') return;
+  const db = await openWorkspaceDb();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(WORKSPACE_STORE, 'readwrite');
+    tx.objectStore(WORKSPACE_STORE).delete(WORKSPACE_KEY);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error);
+  }).finally(() => db.close());
+}
+
+async function getBrowserWorkspaceData(dirHandle: FileSystemDirectoryHandle): Promise<{ data: BoardData | null; name: string }> {
+  const name = dirHandle.name;
+
+  try {
+    const manifestHandle = await dirHandle.getFileHandle('workspace.json');
+    const manifest = JSON.parse(await (await manifestHandle.getFile()).text()) as WorkspaceManifest;
+
+    const pagesDir = await dirHandle.getDirectoryHandle('pages');
+
+    // Load all pages
+    const pages: Array<{ id: string; name: string; nodes: CanvasNode[]; camera: Camera }> = [];
+    for (const pageMeta of manifest.pages) {
+      try {
+        const pageHandle = await pagesDir.getFileHandle(`${pageMeta.id}.json`);
+        const pageData = JSON.parse(await (await pageHandle.getFile()).text());
+        pages.push({
+          ...pageMeta,
+          nodes: pageData.nodes ?? [],
+          camera: pageData.camera ?? { x: 0, y: 0, scale: 1 },
+        });
+      } catch {
+        pages.push({ ...pageMeta, nodes: [], camera: { x: 0, y: 0, scale: 1 } });
+      }
+    }
+
+    for (const page of pages) {
+      for (const node of page.nodes) {
+        if (node.type === 'image' && node.assetName && !node.src) {
+          const imgNode = node as import('../types').ImageNode;
+          let url: string | null = null;
+          if (imgNode.assetFolder !== undefined) {
+            url = await loadImageAsset(imgNode.assetName!, imgNode.assetFolder);
+          }
+          if (!url) {
+            const found = await findImageInWorkspace(imgNode.assetName!);
+            if (found) {
+              url = found.url;
+              imgNode.assetFolder = found.folder;
+            }
+          }
+          if (url) (imgNode as unknown as { src: string }).src = url;
+        }
+      }
+    }
+
+    const data: BoardData = {
+      boardTitle: manifest.title,
+      pages,
+      activePageId: manifest.activePageId,
+      nodes: [],
+      documents: manifest.documents ?? [],
+    };
+    return { data, name };
+  } catch {
+    return { data: null, name };
+  }
+}
+
+export async function restoreWorkspace(): Promise<{ data: BoardData | null; name: string } | null> {
+  if (IS_TAURI || IN_IFRAME || typeof window === 'undefined' || !('showDirectoryPicker' in window)) return null;
+  try {
+    const stored = await getStoredWorkspaceHandle();
+    if (!stored) return null;
+    const permissionApi = stored as FileSystemDirectoryHandle & {
+      queryPermission?: (descriptor?: { mode?: 'read' | 'readwrite' }) => Promise<PermissionState>;
+    };
+    const permission = await permissionApi.queryPermission?.({ mode: 'readwrite' });
+    if (permission !== 'granted') return null;
+    workspaceHandle = stored;
+    return await getBrowserWorkspaceData(stored);
+  } catch {
+    return null;
+  }
 }
 
 // ── Tauri helpers ──────────────────────────────────────────────────────────────
@@ -118,6 +252,7 @@ interface WorkspaceManifest {
   title: string;
   pages: Array<{ id: string; name: string }>;
   activePageId: string;
+  documents?: Document[];
 }
 
 async function writeTextFile(
@@ -432,7 +567,7 @@ export async function openWorkspace(): Promise<{ data: BoardData | null; name: s
       }
 
       toast(`Opened workspace · ${name}`);
-      return { data: { boardTitle: manifest.title, pages, activePageId: manifest.activePageId, nodes: [] }, name };
+      return { data: { boardTitle: manifest.title, pages, activePageId: manifest.activePageId, nodes: [], documents: manifest.documents ?? [] }, name };
     } catch {
       toast(`New workspace · ${name} (no board found yet)`);
       return { data: null, name };
@@ -445,68 +580,44 @@ export async function openWorkspace(): Promise<{ data: BoardData | null; name: s
   } catch {
     return null; // user cancelled
   }
+  try { await persistWorkspaceHandle(workspaceHandle); } catch (err) { console.warn('Failed to persist workspace handle', err); }
+  const result = await getBrowserWorkspaceData(workspaceHandle);
+  if (result.data) {
+    toast(`Opened workspace · ${result.name}`);
+  } else {
+    toast(`New workspace · ${result.name} (no board found yet)`);
+  }
+  return result;
+}
 
-  const name = workspaceHandle.name;
-
+/** Saves a text file (e.g. Markdown) to a subfolder in the workspace.
+ *  Returns true on success. Creates the folder if it doesn't exist. */
+export async function saveTextFileToWorkspace(
+  folder: string,
+  filename: string,
+  content: string,
+): Promise<boolean> {
   try {
-    const manifestHandle = await workspaceHandle.getFileHandle('workspace.json');
-    const manifest = JSON.parse(await (await manifestHandle.getFile()).text()) as WorkspaceManifest;
-
-    const pagesDir = await workspaceHandle.getDirectoryHandle('pages');
-
-    // Load all pages
-    const pages: Array<{ id: string; name: string; nodes: CanvasNode[]; camera: Camera }> = [];
-    for (const pageMeta of manifest.pages) {
-      try {
-        const pageHandle = await pagesDir.getFileHandle(`${pageMeta.id}.json`);
-        const pageData = JSON.parse(await (await pageHandle.getFile()).text());
-        pages.push({
-          ...pageMeta,
-          nodes: pageData.nodes ?? [],
-          camera: pageData.camera ?? { x: 0, y: 0, scale: 1 },
-        });
-      } catch {
-        pages.push({ ...pageMeta, nodes: [], camera: { x: 0, y: 0, scale: 1 } });
-      }
+    if (IS_TAURI) {
+      if (!tauriWorkspacePath) return false;
+      const dir = joinPath(tauriWorkspacePath, folder);
+      await tauriFsMkdir(dir);
+      await tauriFsWriteText(joinPath(dir, filename), content);
+      return true;
     }
-
-    // Populate src for image nodes from their stored subfolder, with workspace-wide search fallback
-    for (const page of pages) {
-      for (const node of page.nodes) {
-        if (node.type === 'image' && node.assetName && !node.src) {
-          const imgNode = node as import('../types').ImageNode;
-          let url: string | null = null;
-
-          // Try stored folder first
-          if (imgNode.assetFolder !== undefined) {
-            url = await loadImageAsset(imgNode.assetName!, imgNode.assetFolder);
-          }
-
-          // Fallback: scan the workspace for a file with this name
-          if (!url) {
-            const found = await findImageInWorkspace(imgNode.assetName!);
-            if (found) {
-              url = found.url;
-              imgNode.assetFolder = found.folder; // correct for future saves
-            }
-          }
-
-          if (url) (imgNode as unknown as { src: string }).src = url;
-        }
-      }
+    if (!workspaceHandle) return false;
+    let dir: FileSystemDirectoryHandle = workspaceHandle;
+    for (const part of folder.split('/').filter(Boolean)) {
+      dir = await dir.getDirectoryHandle(part, { create: true });
     }
-
-    toast(`Opened workspace · ${name}`);
-    const data: BoardData = {
-      boardTitle: manifest.title,
-      pages,
-      activePageId: manifest.activePageId,
-      nodes: [],
-    };
-    return { data, name };
-  } catch {
-    toast(`New workspace · ${name} (no board found yet)`);
-    return { data: null, name };
+    const fileHandle = await dir.getFileHandle(filename, { create: true });
+    const writable = await fileHandle.createWritable();
+    await writable.write(content);
+    await writable.close();
+    return true;
+  } catch (err) {
+    console.warn('saveTextFileToWorkspace failed', err);
+    return false;
   }
 }
 
@@ -518,6 +629,7 @@ export async function saveWorkspace(data: BoardData): Promise<void> {
       title: data.boardTitle,
       pages: (data.pages ?? []).map((p) => ({ id: p.id, name: p.name })),
       activePageId: data.activePageId ?? '',
+      documents: data.documents ?? [],
     };
     await tauriFsWriteText(joinPath(tauriWorkspacePath, 'workspace.json'), JSON.stringify(manifest, null, 2));
     const pagesDir = joinPath(tauriWorkspacePath, 'pages');
@@ -528,6 +640,7 @@ export async function saveWorkspace(data: BoardData): Promise<void> {
     }
     const name = tauriWorkspacePath.replace(/\\/g, '/').split('/').pop() ?? 'workspace';
     toast(`Saved workspace · ${name}`);
+    onSavedCallback?.();
     return;
   }
 
@@ -537,6 +650,7 @@ export async function saveWorkspace(data: BoardData): Promise<void> {
     title: data.boardTitle,
     pages: (data.pages ?? []).map((p) => ({ id: p.id, name: p.name })),
     activePageId: data.activePageId ?? '',
+    documents: data.documents ?? [],
   };
   await writeTextFile(workspaceHandle, 'workspace.json', JSON.stringify(manifest, null, 2));
 
@@ -550,6 +664,7 @@ export async function saveWorkspace(data: BoardData): Promise<void> {
   }
 
   toast(`Saved workspace · ${workspaceHandle.name}`);
+  onSavedCallback?.();
 }
 
 /**
@@ -617,6 +732,28 @@ export async function readWorkspaceFile(relativePath: string): Promise<string | 
   } catch {
     return null;
   }
+}
+
+/**
+ * Deletes a file or directory (recursive) at pathParts relative to the workspace root.
+ * Throws if the workspace isn't open or deletion fails.
+ */
+export async function deleteEntry(pathParts: string[]): Promise<void> {
+  if (IS_TAURI) {
+    if (!tauriWorkspacePath) throw new Error('No workspace open');
+    if (pathParts.length === 0) throw new Error('Cannot delete workspace root');
+    const path = joinPath(tauriWorkspacePath, ...pathParts);
+    const { remove } = await import('@tauri-apps/plugin-fs');
+    await remove(path, { recursive: true });
+    return;
+  }
+  if (!workspaceHandle) throw new Error('No workspace open');
+  if (pathParts.length === 0) throw new Error('Cannot delete workspace root');
+  let parentDir: FileSystemDirectoryHandle = workspaceHandle;
+  for (const part of pathParts.slice(0, -1)) {
+    parentDir = await parentDir.getDirectoryHandle(part);
+  }
+  await parentDir.removeEntry(pathParts[pathParts.length - 1], { recursive: true });
 }
 
 /**

@@ -6,7 +6,9 @@ import ConfirmDialog from './ConfirmDialog';
 import { saveBoard, saveBoardAs, clearFileHandle } from '../utils/fileSave';
 import { openWorkspace, saveWorkspace, loadImageAsset, findImageInWorkspace, hasWorkspaceHandle, clearWorkspaceHandle, FSA_DIR_SUPPORTED, IN_IFRAME } from '../utils/workspaceManager';
 import { toast } from '../utils/toast';
+import { exportDocumentsAsMarkdown, generateMarkdownFilename } from '../utils/exportMarkdown';
 import exportSound from '../assets/get1.mp3';
+import { IconSaveFile } from './icons';
 
 const playExportSound = () => new Audio(exportSound).play().catch(() => {});
 
@@ -134,7 +136,8 @@ function DefaultFolderRow({ folder, onChange }: { folder: string; onChange: (f: 
 }
 
 export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pagesOpen, onTogglePages, explorerOpen, onToggleExplorer, onWorkspaceOpened, jiraOpen, onToggleJira, onToggleSearch }: TopBarProps) {
-  const { boardTitle, setBoardTitle, exportData, loadBoard, setActiveTool, setActiveShapeKind, toggleTheme, theme, addNode, pages, activePageId, workspaceName, setWorkspaceName, nodes, updateNode, imageAssetFolder, setImageAssetFolder } = useBoardStore();
+  const { boardTitle, setBoardTitle, exportData, loadBoard, setActiveTool, setActiveShapeKind, toggleTheme, theme, addNode, pages, activePageId, setPageLayoutMode, workspaceName, setWorkspaceName, nodes, updateNode, imageAssetFolder, setImageAssetFolder, appMode } = useBoardStore();
+  const activePage = pages.find((p) => p.id === activePageId);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const csvInputRef = useRef<HTMLInputElement>(null);
   const [editingTitle, setEditingTitle] = useState(false);
@@ -236,8 +239,10 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
     setWorkspaceName(result.name);
     if (result.data) {
       loadBoard(result.data);
-      clearFileHandle();
+    } else {
+      loadBoard({ boardTitle: result.name, nodes: [] });
     }
+    clearFileHandle();
     onWorkspaceOpened(); // auto-open the file explorer
   };
 
@@ -354,6 +359,18 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
     const csv = parts.join('\n\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     saveAs(blob, `${boardTitle.replace(/\s+/g, '_')}_tables.csv`);
+    playExportSound();
+  };
+
+  const handleExportDocumentsMarkdown = () => {
+    const { nodes, boardTitle } = useBoardStore.getState();
+    const md = exportDocumentsAsMarkdown(nodes);
+    if (md.trim() === '') {
+      toast('No notes found on this board.');
+      return;
+    }
+    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8;' });
+    saveAs(blob, generateMarkdownFilename(boardTitle, true));
     playExportSound();
   };
 
@@ -548,7 +565,7 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
                 : 'text-[var(--c-line)] hover:opacity-80 hover:bg-[var(--c-hover)]',
             ].join(' ')}
           >
-            <span className="font-sans text-[11px] font-semibold tracking-widest uppercase">DevBoard</span>
+            <span className="font-sans text-[10px] font-semibold tracking-wider uppercase">DevBoard</span>
             <IconChevronDown />
           </button>
 
@@ -638,6 +655,13 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
                 <MenuItem onClick={() => menuAction(handleExportPNG)} icon={<IconImg />}>Export PNG</MenuItem>
                 <MenuItem onClick={() => menuAction(handleExportZip)} icon={<IconZip />}>Export as ZIP</MenuItem>
                 <MenuItem onClick={() => menuAction(handleExportTablesCSV)} icon={<IconCsv />}>Export tables as CSV</MenuItem>
+                <MenuItem
+                  onClick={() => menuAction(handleExportDocumentsMarkdown)}
+                  icon={<IconCsv />}
+                  disabled={!nodes.some(n => n.type === 'document')}
+                >
+                  Export notes as Markdown
+                </MenuItem>
                 {pages.length > 1 && (
                   <MenuItem onClick={() => menuAction(handleExportAllPages)} icon={<IconJson />}>Export all pages</MenuItem>
                 )}
@@ -694,12 +718,43 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
                 </span>
               </span>
               {/* Active page name — hidden on mobile */}
-              <span className="hidden sm:inline font-sans text-[11px] tracking-wide max-w-[100px] truncate">
+              <span className="hidden sm:inline font-sans text-[9px] tracking-wide max-w-[100px] truncate">
                 {activePage?.name ?? 'Page 1'}
               </span>
             </button>
           );
         })()}
+
+        {/* Layout mode switcher — hidden when a document/note is open */}
+        <div className={`${appMode === 'document' ? 'hidden' : 'hidden sm:flex'} items-center shrink-0`} style={{ padding: 2, background: 'var(--c-hover)', border: '1px solid var(--c-border)', borderRadius: 7, height: 28 }}>
+          {(['freeform', 'stack'] as const).map((mode) => {
+            const active = (activePage?.layoutMode ?? 'freeform') === mode;
+            return (
+              <button
+                key={mode}
+                onClick={() => setPageLayoutMode(activePageId, mode)}
+                title={mode === 'freeform' ? 'Freeform canvas' : 'Stack — writing list'}
+                className="font-sans"
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 4,
+                  padding: '3px 9px', height: 22, borderRadius: 5, border: 'none',
+                  cursor: 'pointer', fontSize: 11, fontWeight: 500,
+                  background: active ? 'var(--c-panel)' : 'transparent',
+                  color: active ? 'var(--c-text-hi)' : 'var(--c-text-lo)',
+                  boxShadow: active ? '0 1px 2px rgba(40,32,26,.08)' : 'none',
+                  transition: 'background 120ms, color 120ms',
+                }}
+              >
+                {mode === 'freeform' ? (
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><rect x="1" y="1" width="8" height="8" rx="1" stroke="currentColor" strokeWidth="1.2"/></svg>
+                ) : (
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1 3h8M1 5.5h8M1 8h8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
+                )}
+                {mode === 'freeform' ? 'Canvas' : 'Stack'}
+              </button>
+            );
+          })}
+        </div>
 
         {/* Separator + board title — hidden on mobile */}
         <span className="hidden sm:block text-[var(--c-border)]">/</span>
@@ -731,10 +786,10 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
               onClick={() => setWorkspaceMenuOpen((v) => !v)}
               title={`Workspace: ${workspaceName}`}
               className={[
-                'flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-sans border transition-colors max-w-[160px]',
+                'flex items-center gap-1 px-2 h-7 rounded text-[11px] font-sans transition-colors max-w-[160px]',
                 workspaceMenuOpen
-                  ? 'text-[var(--c-line)] border-[var(--c-line)]/50 bg-[var(--c-line)]/15'
-                  : 'text-[var(--c-line)] border-[var(--c-line)]/30 bg-[var(--c-line)]/10 hover:bg-[var(--c-line)]/20',
+                  ? 'bg-[var(--c-hover)] text-[var(--c-text-hi)]'
+                  : 'text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
               ].join(' ')}
             >
               <IconFolder />
@@ -757,7 +812,7 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
                   ? 'Requires Chrome, Edge, or the desktop app'
                   : 'Open a folder workspace to save images as files and keep JSON small'
               }
-              className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-sans border border-dashed border-[var(--c-border)] text-[var(--c-text-md)] hover:text-[var(--c-line)] hover:border-[var(--c-line)]/40 hover:bg-[var(--c-line)]/8 transition-colors"
+              className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-sans border border-dashed border-[var(--c-border)] text-[var(--c-text-md)] hover:text-[var(--c-line)] hover:border-[var(--c-line)]/40 hover:bg-[var(--c-line)]/8 transition-colors"
             >
               <IconFolder />
               {IN_IFRAME ? 'Workspace unavailable' : 'Open workspace…'}
@@ -768,20 +823,20 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
               {/* Header */}
               <div className="px-3 py-2 border-b border-[var(--c-border)]">
                 <p className="font-sans text-[9px] text-[var(--c-text-lo)] uppercase tracking-wider">Active workspace</p>
-                <p className="font-sans text-[11px] text-[var(--c-line)] font-semibold truncate mt-0.5" title={workspaceName}>{workspaceName}</p>
+                <p className="font-sans text-[9px] text-[var(--c-line)] font-semibold truncate mt-0.5" title={workspaceName}>{workspaceName}</p>
               </div>
               {/* Actions */}
               <div className="py-1">
                 <button
                   onClick={() => { setWorkspaceMenuOpen(false); handleOpenFolder(); }}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-left font-sans text-[11px] text-[var(--c-text-md)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
+                  className="w-full flex items-center gap-2 px-3 py-2 text-left font-sans text-[12px] text-[var(--c-text-md)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
                 >
                   <IconFolder />
                   Switch workspace…
                 </button>
                 <button
                   onClick={() => { setWorkspaceMenuOpen(false); onToggleExplorer(); }}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-left font-sans text-[11px] text-[var(--c-text-md)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
+                  className="w-full flex items-center gap-2 px-3 py-2 text-left font-sans text-[12px] text-[var(--c-text-md)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
                 >
                   <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
                     <rect x="1" y="1" width="4" height="4" rx="0.8" stroke="currentColor" strokeWidth="1.1"/>
@@ -1044,14 +1099,8 @@ function IconImg() {
     </svg>
   );
 }
-function IconJson() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-      <rect x="1.5" y="1" width="10" height="11" rx="1" stroke="currentColor" strokeWidth="1.3" />
-      <path d="M4 4.5h5M4 6.5h5M4 8.5h3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-    </svg>
-  );
-}
+const IconJson = IconSaveFile;
+
 function IconLoad() {
   return (
     <svg width="13" height="13" viewBox="0 0 13 13" fill="none">

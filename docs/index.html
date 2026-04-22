@@ -26,8 +26,8 @@
     </a>
     <ul class="nav-links">
       <li class="hide-mobile"><a href="#features">Features</a></li>
-      <li class="hide-mobile"><a href="#shortcuts">Shortcuts</a></li>
       <li class="hide-mobile"><a href="https://github.com/mfgoes/Devboard" target="_blank" rel="noopener">GitHub ↗</a></li>
+      <li class="hide-mobile"><a class="nav-kofi" href="https://ko-fi.com/devboardapp" target="_blank" rel="noopener">♥ Support</a></li>
       <li><a class="nav-cta" href="./download.html">Download free →</a></li>
     </ul>
   </nav>
@@ -297,36 +297,6 @@
     </div>
   </section>
 
-  <hr class="divider" />
-
-  <!-- keyboard shortcuts -->
-  <section class="shortcuts-section" id="shortcuts">
-    <div class="section-header">
-      <div class="section-eyebrow">Keyboard shortcuts</div>
-      <h2>Keyboard-first workflow</h2>
-      <p>Switch tools, navigate, and edit without touching the toolbar.</p>
-    </div>
-
-    <div class="kbd-grid">
-      <div class="kbd-row"><span>Select tool</span>      <div class="kkeys"><kbd>V</kbd></div></div>
-      <div class="kbd-row"><span>Pan tool</span>         <div class="kkeys"><kbd>H</kbd></div></div>
-      <div class="kbd-row"><span>Sticky note</span>      <div class="kkeys"><kbd>S</kbd></div></div>
-      <div class="kbd-row"><span>Shape</span>            <div class="kkeys"><kbd>R</kbd></div></div>
-      <div class="kbd-row"><span>Text block</span>       <div class="kkeys"><kbd>T</kbd></div></div>
-      <div class="kbd-row"><span>Connector line</span>   <div class="kkeys"><kbd>L</kbd></div></div>
-      <div class="kbd-row"><span>Delete</span>           <div class="kkeys"><kbd>⌫</kbd></div></div>
-      <div class="kbd-row"><span>Copy</span>             <div class="kkeys"><kbd>⌘</kbd><kbd>C</kbd></div></div>
-      <div class="kbd-row"><span>Paste</span>            <div class="kkeys"><kbd>⌘</kbd><kbd>V</kbd></div></div>
-      <div class="kbd-row"><span>Duplicate</span>        <div class="kkeys"><kbd>⌘</kbd><kbd>D</kbd></div></div>
-      <div class="kbd-row"><span>Alt+drag copy</span>   <div class="kkeys"><kbd>⌥</kbd> <kbd>drag</kbd></div></div>
-      <div class="kbd-row"><span>Undo</span>             <div class="kkeys"><kbd>⌘</kbd><kbd>Z</kbd></div></div>
-      <div class="kbd-row"><span>Redo</span>             <div class="kkeys"><kbd>⌘</kbd><kbd>⇧</kbd><kbd>Z</kbd></div></div>
-      <div class="kbd-row"><span>Group / ungroup</span> <div class="kkeys"><kbd>⌘</kbd><kbd>G</kbd></div></div>
-      <div class="kbd-row"><span>Nudge</span>            <div class="kkeys"><kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd></div></div>
-      <div class="kbd-row"><span>Nudge ×10</span>        <div class="kkeys"><kbd>⇧</kbd><kbd>↑↓←→</kbd></div></div>
-    </div>
-  </section>
-
   <!-- cta -->
   <div class="end-cta">
     <h2>Start creating on a blank canvas</h2>
@@ -337,11 +307,48 @@
     </div>
   </div>
 
+  <div class="bottom-pair">
+    <!-- email capture -->
+    <section class="email-capture">
+      <div class="email-capture-text">
+        <h3>Stay in the loop</h3>
+        <p>Get notified when new features ship. No spam, unsubscribe anytime.</p>
+      </div>
+      <form class="email-form" id="emailCaptureForm">
+        <input
+          type="email"
+          name="email"
+          placeholder="your@email.com"
+          required
+          class="email-input"
+          aria-label="Email address"
+        />
+        <button type="submit" class="btn btn-primary email-submit">Notify me</button>
+      </form>
+      <p class="email-success" id="emailSuccess" style="display:none">
+        ✓ You're on the list — thanks!
+      </p>
+    </section>
+
+    <!-- support / ko-fi -->
+    <aside class="support-callout">
+      <div class="support-text">
+        <h3>Enjoying DevBoard?</h3>
+        <p>It's free and made by one person. A small tip on Ko-fi keeps me motivated to ship new features.</p>
+      </div>
+      <a class="btn btn-kofi" href="https://ko-fi.com/devboardapp" target="_blank" rel="noopener">
+        <span aria-hidden="true">☕</span>
+        Support on Ko-fi
+      </a>
+    </aside>
+  </div>
+
   <!-- footer -->
   <footer>
     <p>Created by <a href="https://mfgoes.github.io/portfolio-2026/" target="_blank" rel="noopener">Mischa</a></p>
     <div class="footer-links">
       <a href="https://github.com/mfgoes/Devboard" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://ko-fi.com/devboardapp" target="_blank" rel="noopener">♥ Ko-fi</a>
       <a href="design-system.html" target="_blank" rel="noopener">Design System</a>
       <a href="https://x.com/MishoWave" target="_blank" rel="noopener">X / Twitter</a>
       <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" aria-label="Toggle dark mode">
@@ -362,6 +369,33 @@
       ? '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>'
       : '<path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>';
     document.getElementById('themeLabel').textContent = dark ? 'Light mode' : 'Dark mode';
+  }
+
+  // Email capture — Supabase REST insert
+  const SUPA_URL = 'https://gtlhwapaeytlialzfrao.supabase.co/rest/v1/email_signups';
+  const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd0bGh3YXBhZXl0bGlhbHpmcmFvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk2ODk3MjcsImV4cCI6MjA4NTI2NTcyN30.PQ6ZWcW7VyVfs43oGBnLGi8eCiwH3LT2Kw-k3EstEwE';
+  const emailForm = document.getElementById('emailCaptureForm');
+  if (emailForm) {
+    emailForm.addEventListener('submit', async function(e) {
+      e.preventDefault();
+      const email = emailForm.querySelector('input[type="email"]').value.trim();
+      try {
+        const res = await fetch(SUPA_URL, {
+          method: 'POST',
+          headers: {
+            'apikey': SUPA_KEY,
+            'Authorization': 'Bearer ' + SUPA_KEY,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=minimal'
+          },
+          body: JSON.stringify({ email })
+        });
+        if (res.ok || res.status === 201) {
+          emailForm.style.display = 'none';
+          document.getElementById('emailSuccess').style.display = 'block';
+        }
+      } catch (_) {}
+    });
   }
 
   document.querySelectorAll('.tab-btn').forEach(btn => {

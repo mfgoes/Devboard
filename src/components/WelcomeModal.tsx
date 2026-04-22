@@ -2,31 +2,6 @@ interface Props {
   onClose: () => void;
 }
 
-const TOOLS = [
-  { key: 'V', label: 'Select' },
-  { key: 'H', label: 'Pan' },
-  { key: 'S', label: 'Sticky' },
-  { key: 'R', label: 'Shape' },
-  { key: 'T', label: 'Text' },
-  { key: 'L', label: 'Connector' },
-  { key: 'K', label: 'Code block' },
-  { key: 'G', label: 'Table' },
-  { key: 'F', label: 'Section' },
-  { key: 'I', label: 'Image' },
-  { key: 'U', label: 'Link' },
-];
-
-const ACTIONS = [
-  { key: '⌘Z', label: 'Undo' },
-  { key: '⌘⇧Z', label: 'Redo' },
-  { key: '⌘C / ⌘V', label: 'Copy / Paste' },
-  { key: '⌘D', label: 'Duplicate' },
-  { key: '⌫', label: 'Delete selected' },
-  { key: '⌘S', label: 'Save JSON' },
-  { key: '⌘F', label: 'Search' },
-  { key: 'Esc', label: 'Cancel / Deselect' },
-];
-
 export default function WelcomeModal({ onClose }: Props) {
   return (
     <div
@@ -56,66 +31,63 @@ export default function WelcomeModal({ onClose }: Props) {
         </div>
 
         {/* Title */}
-        <p className="text-[var(--c-text-lo)] text-[12px] leading-relaxed mb-4">
+        <p className="text-[var(--c-text-lo)] text-[12px] leading-relaxed mb-3">
           Infinite canvas for developer thinking — stickies, connectors, shapes, code blocks, tables, and more.
         </p>
 
-        {/* Shortcuts */}
-        <div className="grid grid-cols-2 gap-x-6 gap-y-0 mb-5">
-          <div>
-            <p className="text-[10px] text-[var(--c-text-lo)] uppercase tracking-widest mb-2">Tools</p>
-            {TOOLS.map(({ key, label }) => (
-              <div key={key} className="flex items-center justify-between py-[3px]">
-                <span className="text-[11px] text-[var(--c-text-md)]">{label}</span>
-                <kbd className="text-[10px] text-[var(--c-text-lo)] bg-[var(--c-hover)] border border-[var(--c-border)] rounded px-1.5 py-0.5 ml-3">{key}</kbd>
-              </div>
-            ))}
-          </div>
-          <div>
-            <p className="text-[10px] text-[var(--c-text-lo)] uppercase tracking-widest mb-2">Actions</p>
-            {ACTIONS.map(({ key, label }) => (
-              <div key={key} className="flex items-center justify-between py-[3px]">
-                <span className="text-[11px] text-[var(--c-text-md)]">{label}</span>
-                <kbd className="text-[10px] text-[var(--c-text-lo)] bg-[var(--c-hover)] border border-[var(--c-border)] rounded px-1.5 py-0.5 ml-3 whitespace-nowrap">{key}</kbd>
-              </div>
-            ))}
-          </div>
-        </div>
+        {/* Manual hint */}
+        <p className="text-[11px] text-[var(--c-text-lo)] mb-4">
+          See the{' '}
+          <a
+            href="https://mfgoes.github.io/Devboard/manual.html"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[var(--c-line)] hover:underline"
+          >
+            manual
+          </a>{' '}
+          for keyboard shortcuts and tips.
+        </p>
 
         {/* Footer */}
         <div className="pt-4 border-t border-[var(--c-border)] flex flex-col gap-3">
-          {/* Link row */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <a
-              href="https://mfgoes.github.io/Devboard/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--c-border)] bg-[var(--c-hover)] text-[11px] text-[var(--c-text-md)] hover:border-[var(--c-line)] hover:text-[var(--c-line)] transition-colors"
-            >
-              <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M2 2h5v2H4v8h8v-3h2v5H2V2zm7 0h5v5h-2V4.414L6.707 9.707 5.293 8.293 10.586 3H8V1h1z"/></svg>
-              DevBoard site
-            </a>
-            <a
-              href="https://mischa.itch.io/kosmograd"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--c-border)] bg-[var(--c-hover)] text-[11px] text-[var(--c-text-md)] hover:border-[#4ade80] hover:text-[#4ade80] transition-colors"
-            >
-              <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="8" r="3"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.22 3.22l1.42 1.42M11.36 11.36l1.42 1.42M3.22 12.78l1.42-1.42M11.36 4.64l1.42-1.42"/></svg>
-              Kosmograd — lunar colony sim
-            </a>
-            <a
-              href="https://x.com/MishoWave"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--c-border)] bg-[var(--c-hover)] text-[11px] text-[var(--c-text-md)] hover:border-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] transition-colors"
-            >
-              <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M12.6 0h2.454l-5.36 6.778L16 16h-4.937l-3.867-5.594L2.771 16H.316l5.733-7.25L0 0h5.063l3.495 5.114L12.6 0zm-.86 14.376h1.36L4.323 1.39H2.865l8.875 12.986z"/></svg>
-              @MishoWave
-            </a>
-          </div>
-          {/* Actions row */}
-          <div className="flex justify-end">
+          {/* Ko-fi banner — prominent support CTA */}
+          <a
+            href="https://ko-fi.com/devboardapp"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="kofi-banner group flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg border"
+          >
+            <div className="flex items-center gap-2.5">
+              <span className="text-base leading-none" aria-hidden="true">☕</span>
+              <div className="flex flex-col">
+                <span className="text-[11px] font-semibold text-[var(--c-line-pre)]">Enjoying DevBoard? Support on Ko-fi</span>
+                <span className="text-[10px] text-[var(--c-text-lo)]">It's free — a small tip keeps updates coming.</span>
+              </div>
+            </div>
+            <span className="text-[var(--c-line-pre)] text-[11px] font-semibold group-hover:translate-x-0.5 transition-transform">→</span>
+          </a>
+          {/* Secondary links + start CTA */}
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-3 text-[11px] text-[var(--c-text-lo)]">
+              <a
+                href="https://mfgoes.github.io/Devboard/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-[var(--c-text-hi)] transition-colors"
+              >
+                Site
+              </a>
+              <span className="text-[var(--c-border)]">·</span>
+              <a
+                href="https://x.com/MishoWave"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-[var(--c-text-hi)] transition-colors"
+              >
+                @MishoWave
+              </a>
+            </div>
             <button
               onClick={onClose}
               className="px-4 py-1.5 bg-[var(--c-line)] hover:opacity-80 text-white text-xs rounded-lg transition-colors font-semibold"

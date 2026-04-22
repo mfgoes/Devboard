@@ -54,7 +54,10 @@
       "Bash(killall vite:*)",
       "Bash(grep -l \"draggable\" /Users/mischavandergoes/Documents/GitHub/CollaboCanvas/src/components/nodes/*.tsx)",
       "Bash(git checkout:*)",
-      "Bash(grep -v \"^--$\")"
+      "Bash(grep -v \"^--$\")",
+      "Bash(sed -n '85,100p' \"/Users/mischavandergoes/Documents/GitHub/CollaboCanvas/ClaudeDesign - Devboard improvements/styles.css\")",
+      "Bash(sed -n '894,935p' \"/Users/mischavandergoes/Documents/GitHub/CollaboCanvas/ClaudeDesign - Devboard improvements/styles.css\")",
+      "Bash(grep -n \"color\\\\|--c-\\\\|#[0-9a-fA-F]\\\\{3,6\\\\}\" /Users/mischavandergoes/Documents/GitHub/CollaboCanvas/docs/design-system.html)"
     ]
   }
 }

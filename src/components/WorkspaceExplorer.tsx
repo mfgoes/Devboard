@@ -5,16 +5,16 @@
  */
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useBoardStore } from '../store/boardStore';
-import { listDirectory, readWorkspaceFile, readWorkspaceFileAsUrl, readWorkspaceFileInfo, getWorkspaceName, openWorkspace, renameEntry, createDirectory, FSA_DIR_SUPPORTED, IN_IFRAME } from '../utils/workspaceManager';
+import { listDirectory, readWorkspaceFile, readWorkspaceFileAsUrl, readWorkspaceFileInfo, getWorkspaceName, openWorkspace, renameEntry, createDirectory, deleteEntry, FSA_DIR_SUPPORTED, IN_IFRAME } from '../utils/workspaceManager';
 import { FONTS } from '../utils/fonts';
-import { placeCodeFile, placeImageFile } from '../utils/canvasPlacement';
-import { usePanelGeometry } from '../hooks/usePanelGeometry';
+import { placeCodeFile, placeImageFile, placeDocumentFile } from '../utils/canvasPlacement';
 import { useFilePreview } from '../hooks/useFilePreview';
 import { useTreeState } from '../hooks/useTreeState';
 import {
   SKIP_DIRS,
   IMAGE_EXTS,
   CODE_EXTS,
+  DOC_EXTS,
   ext,
   generateId,
   formatSize,
@@ -63,7 +63,8 @@ function TreeRow({
 }) {
   const isDir = entry.kind === 'directory';
   const isImage = !isDir && IMAGE_EXTS.has(ext(entry.name));
-  const canOpen = !isDir && (CODE_EXTS[ext(entry.name)] !== undefined || isImage);
+  const isDoc = !isDir && DOC_EXTS.has(ext(entry.name));
+  const canOpen = !isDir && (CODE_EXTS[ext(entry.name)] !== undefined || isImage || isDoc);
   const isFocused = focusedPath === entry.path.join('/');
   const isRenaming = renamingPath === entry.path.join('/');
   const tooltip = canOpen
@@ -126,12 +127,12 @@ function TreeRow({
           outlineOffset: -1,
         }}
         data-focused={isFocused ? 'true' : undefined}
-        draggable={isImage && !isRenaming}
+        draggable={(isImage || isDoc) && !isRenaming}
         onClick={(e) => handleClick(e.clientY)}
-        onDragStart={(e) => { if (isImage && !isRenaming) onFileDragStart(entry, e); else e.preventDefault(); }}
+        onDragStart={(e) => { if ((isImage || isDoc) && !isRenaming) onFileDragStart(entry, e); else e.preventDefault(); }}
         onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onContextMenu(entry, e.clientX, e.clientY); }}
         onMouseEnter={(e) => {
-          if (!isImage || isRenaming) return;
+          if ((!isImage && !isDoc) || isRenaming) return;
           const y = e.clientY;
           if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
           hoverTimerRef.current = setTimeout(() => { onFileHover(entry, y); }, 380);
@@ -279,9 +280,7 @@ function NoWorkspaceState({ onOpen }: { onOpen: () => void }) {
   );
 }
 
-// ── Persistent state (survives open/close cycles) ─────────────────────────────
-let _savedPos: { x: number; y: number } | null = null;
-let _savedWidth = 260;
+export const WORKSPACE_EXPLORER_WIDTH = 340;
 
 // ── Main component ────────────────────────────────────────────────────────────
 interface Props {
@@ -293,14 +292,14 @@ export default function WorkspaceExplorer({ onClose }: Props) {
   const imageAssetFolder = useBoardStore((s) => s.imageAssetFolder);
   const setImageAssetFolder = useBoardStore((s) => s.setImageAssetFolder);
   const pages = useBoardStore((s) => s.pages);
+  const addPage = useBoardStore((s) => s.addPage);
   const activePageId = useBoardStore((s) => s.activePageId);
   const switchPage = useBoardStore((s) => s.switchPage);
+  const documents = useBoardStore((s) => s.documents);
   const storeNodes = useBoardStore((s) => s.nodes);
   const pageSnapshots = useBoardStore((s) => s.pageSnapshots);
   const isDark = useBoardStore((s) => s.theme) === 'dark';
 
-  // Hooks for panel geometry, file preview, and tree state
-  const { pos, width, onMouseDownHeader, onMouseDownResizer } = usePanelGeometry();
   const panelRef = useRef<HTMLDivElement>(null);
   const { filePreview, showFilePreview, handleFileHover, clearPreview } = useFilePreview(panelRef);
   const {
@@ -310,6 +309,7 @@ export default function WorkspaceExplorer({ onClose }: Props) {
     setRootLoading,
     rootError,
     setRootError,
+    reloadRoot,
     newFolderParent,
     setNewFolderParent,
     newFolderName,
@@ -321,6 +321,22 @@ export default function WorkspaceExplorer({ onClose }: Props) {
     startNewFolder,
     commitNewFolder,
   } = useTreeState(imageAssetFolder);
+
+  // Reload tree when workspace is opened externally (e.g. via TopBar)
+  const storeWorkspaceName = useBoardStore((s) => s.workspaceName);
+  const workspaceSavedAt = useBoardStore((s) => s.workspaceSavedAt);
+  const prevStoreWorkspaceRef = useRef(storeWorkspaceName);
+  const prevWorkspaceSavedAtRef = useRef(workspaceSavedAt);
+  useEffect(() => {
+    if (storeWorkspaceName === prevStoreWorkspaceRef.current) return;
+    prevStoreWorkspaceRef.current = storeWorkspaceName;
+    if (storeWorkspaceName) reloadRoot();
+  }, [storeWorkspaceName, reloadRoot]);
+  useEffect(() => {
+    if (workspaceSavedAt === prevWorkspaceSavedAtRef.current) return;
+    prevWorkspaceSavedAtRef.current = workspaceSavedAt;
+    if (workspaceSavedAt) reloadRoot();
+  }, [workspaceSavedAt, reloadRoot]);
 
   // Local state
   const [pagesSectionOpen, setPagesSectionOpen] = useState(true);
@@ -334,6 +350,8 @@ export default function WorkspaceExplorer({ onClose }: Props) {
   const [renamingPath, setRenamingPath] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState('');
   const renamingEntryRef = useRef<TreeEntry | null>(null);
+  // Delete confirm state
+  const [deleteConfirm, setDeleteConfirm] = useState<TreeEntry | null>(null);
   // Explorer context menu (right-click)
   type ExplorerMenu = { entry: TreeEntry; x: number; y: number };
   const [explorerMenu, setExplorerMenu] = useState<ExplorerMenu | null>(null);
@@ -351,6 +369,8 @@ export default function WorkspaceExplorer({ onClose }: Props) {
     const e = ext(entry.name);
     if (IMAGE_EXTS.has(e)) {
       await placeImageFile(entry.path);
+    } else if (DOC_EXTS.has(e)) {
+      await placeDocumentFile(entry.path);
     } else if (CODE_EXTS[e] !== undefined) {
       await placeCodeFile(entry.path);
     }
@@ -462,6 +482,34 @@ export default function WorkspaceExplorer({ onClose }: Props) {
     doRename(entry, newName);
   }, [renameDraft, doRename]);
 
+  // ── Delete ───────────────────────────────────────────────────────────────
+  const removeFromTree = useCallback((pathParts: string[]) => {
+    const remove = (entries: TreeEntry[], path: string[]): TreeEntry[] => {
+      if (path.length === 1) return entries.filter((e) => e.name !== path[0]);
+      return entries.map((e) =>
+        e.name === path[0] && e.children
+          ? { ...e, children: remove(e.children, path.slice(1)) }
+          : e
+      );
+    };
+    setTree((prev) => remove(prev, pathParts));
+  }, [setTree]);
+
+  const doDelete = useCallback(async (entry: TreeEntry) => {
+    try {
+      await deleteEntry(entry.path);
+      removeFromTree(entry.path);
+      setFocusedIdx(null);
+    } catch (err) {
+      console.warn('Delete failed:', err);
+    }
+  }, [removeFromTree]);
+
+  const startDelete = useCallback((entry: TreeEntry) => {
+    setDeleteConfirm(entry);
+    setExplorerMenu(null);
+  }, []);
+
   // Cancel rename when clicking outside the inline input
   useEffect(() => {
     if (!renamingPath) return;
@@ -539,9 +587,23 @@ export default function WorkspaceExplorer({ onClose }: Props) {
         const cb = n as import('../types').CodeBlockNode;
         if (cb.linkedFile) paths.add(cb.linkedFile);
       }
+      if (n.type === 'document') {
+        const doc = n as import('../types').DocumentNode;
+        if (doc.linkedFile) paths.add(doc.linkedFile);
+      }
     }
     return paths;
   }, [storeNodes, pageSnapshots]);
+
+  const pageDocCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const doc of documents) {
+      const pageId = doc.pageId;
+      if (!pageId) continue;
+      counts.set(pageId, (counts.get(pageId) ?? 0) + 1);
+    }
+    return counts;
+  }, [documents]);
 
   visibleEntriesRef.current = visibleEntries;
   const focusedPath = focusedIdx !== null ? (visibleEntries[focusedIdx]?.path.join('/') ?? null) : null;
@@ -561,7 +623,8 @@ export default function WorkspaceExplorer({ onClose }: Props) {
     if (focusedIdx === null) { clearPreview(); return; }
     const entry = visibleEntries[focusedIdx];
     if (!entry || entry.kind === 'directory') { clearPreview(); return; }
-    const panelMidY = pos.y + Math.min(520, window.innerHeight - pos.y - 16) / 2;
+    const rect = panelRef.current?.getBoundingClientRect();
+    const panelMidY = rect ? rect.top + rect.height / 2 : window.innerHeight / 2;
     showFilePreview(entry, panelMidY);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusedIdx]);
@@ -589,30 +652,26 @@ export default function WorkspaceExplorer({ onClose }: Props) {
       if (focusedIdx === null) return;
       const entry = visibleEntries[focusedIdx];
       if (entry) { e.preventDefault(); startRename(entry); }
+    } else if (e.key === 'Delete' || e.key === 'Backspace') {
+      if (focusedIdx === null) return;
+      const entry = visibleEntries[focusedIdx];
+      if (entry) { e.preventDefault(); startDelete(entry); }
     } else if (e.key === 'Escape') {
       setExplorerMenu(null);
       setFocusedIdx(null);
       clearPreview();
     }
-  }, [visibleEntries, focusedIdx, handleToggle, placeFile, startRename]);
-
-  const panelHeight = Math.min(520, window.innerHeight - pos.y - 16);
+  }, [visibleEntries, focusedIdx, handleToggle, placeFile, startRename, startDelete]);
 
   return (
     <div
       ref={panelRef}
       className="flex flex-col select-none"
       style={{
-        position: 'fixed',
-        top: pos.y,
-        left: pos.x,
-        width,
-        height: panelHeight,
-        zIndex: 180,
-        borderRadius: 12,
-        border: '1px solid var(--c-border)',
+        position: 'relative',
+        width: '100%',
+        height: '100%',
         background: 'var(--c-panel)',
-        boxShadow: '0 8px 32px rgba(0,0,0,0.28)',
       }}
       onMouseDown={(e) => e.stopPropagation()}
       tabIndex={0}
@@ -622,16 +681,12 @@ export default function WorkspaceExplorer({ onClose }: Props) {
       <div
         style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '10px 12px 8px',
+          padding: '14px 14px 12px',
           borderBottom: '1px solid var(--c-border)',
           flexShrink: 0,
-          borderRadius: '12px 12px 0 0',
-          cursor: 'grab',
         }}
-        onMouseDown={onMouseDownHeader}
-        className="active:cursor-grabbing"
       >
-        <span style={{ fontFamily: FONTS.ui, fontSize: 12, fontWeight: 600, color: 'var(--c-text-hi)', letterSpacing: '0.04em' }}>
+        <span style={{ fontFamily: FONTS.ui, fontSize: 13, fontWeight: 700, color: 'var(--c-text-hi)', letterSpacing: '-0.01em' }}>
           Explorer
         </span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -692,7 +747,7 @@ export default function WorkspaceExplorer({ onClose }: Props) {
       </div>
 
       {/* Workspace root label */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderBottom: '1px solid var(--c-border)', flexShrink: 0, overflow: 'hidden' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 14px', borderBottom: '1px solid var(--c-border)', flexShrink: 0, overflow: 'hidden' }}>
         <svg width="10" height="10" viewBox="0 0 10 10" fill="none" style={{ flexShrink: 0 }}>
           <path d="M1 2.5a1 1 0 0 1 1-1h1.8L5 3H8.5a1 1 0 0 1 1 1v3.5a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V2.5z" fill="rgba(212, 131, 90, 0.2)" stroke="#d4835a" strokeWidth="1" strokeLinejoin="round" />
         </svg>
@@ -712,7 +767,7 @@ export default function WorkspaceExplorer({ onClose }: Props) {
             onClick={() => setPagesSectionOpen((v) => !v)}
             style={{
               width: '100%', display: 'flex', alignItems: 'center', gap: 4,
-              padding: '5px 12px', background: 'none', border: 'none',
+              padding: '10px 14px 6px', background: 'none', border: 'none',
               cursor: 'pointer', userSelect: 'none',
             }}
           >
@@ -727,36 +782,43 @@ export default function WorkspaceExplorer({ onClose }: Props) {
               fontWeight: 700, letterSpacing: '0.08em',
               textTransform: 'uppercase', color: 'var(--c-text-off)',
             }}>Pages</span>
-            <span style={{
-              marginLeft: 'auto', fontFamily: FONTS.ui, fontSize: 9,
-              color: 'var(--c-text-off)', opacity: 0.6,
-            }}>{pages.length}</span>
+            <span style={{ marginLeft: 'auto', fontFamily: FONTS.ui, fontSize: 10, color: 'var(--c-text-lo)' }}>{pages.length}</span>
           </button>
 
           {pagesSectionOpen && (
-            <div style={{ paddingBottom: 3 }}>
+            <div style={{ padding: '0 8px 8px' }}>
               {pages.map((page) => {
                 const isActive = page.id === activePageId;
+                const pageDocCount = pageDocCounts.get(page.id) ?? 0;
                 return (
                   <button
                     key={page.id}
                     onClick={() => switchPage(page.id)}
                     style={{
                       width: '100%', display: 'flex', alignItems: 'center',
-                      gap: 7, padding: '3px 12px 3px 18px',
-                      background: isActive ? 'rgba(99,102,241,0.13)' : 'none',
+                      gap: 7, padding: '8px 10px',
+                      background: isActive ? 'rgba(184,119,80,0.12)' : 'none',
                       border: 'none', cursor: 'pointer', textAlign: 'left',
-                      outline: isActive ? '1px solid rgba(99,102,241,0.28)' : 'none',
+                      outline: isActive ? '1px solid rgba(184,119,80,0.24)' : 'none',
                       outlineOffset: -1, borderRadius: 4,
                     }}
                     className="hover:bg-[var(--c-hover)]"
                     title={`Switch to "${page.name}"`}
                   >
-                    <span style={{
-                      width: 5, height: 5, borderRadius: '50%', flexShrink: 0,
-                      background: isActive ? 'var(--c-line)' : 'var(--c-border)',
-                      transition: 'background 0.12s',
-                    }} />
+                    <span style={{ width: 16, display: 'flex', justifyContent: 'center', flexShrink: 0, color: isActive ? 'var(--c-line)' : 'var(--c-text-lo)' }}>
+                      {page.layoutMode === 'stack' ? (
+                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                          <path d="M3 3h6M3 6h6M3 9h6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+                        </svg>
+                      ) : (
+                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                          <rect x="1.5" y="1.5" width="3" height="3" rx="0.7" stroke="currentColor" strokeWidth="1.1" />
+                          <rect x="7.5" y="1.5" width="3" height="3" rx="0.7" stroke="currentColor" strokeWidth="1.1" />
+                          <rect x="1.5" y="7.5" width="3" height="3" rx="0.7" stroke="currentColor" strokeWidth="1.1" />
+                          <rect x="7.5" y="7.5" width="3" height="3" rx="0.7" stroke="currentColor" strokeWidth="1.1" />
+                        </svg>
+                      )}
+                    </span>
                     <span style={{
                       fontFamily: FONTS.ui, fontSize: 11,
                       color: isActive ? 'var(--c-text-hi)' : 'var(--c-text-lo)',
@@ -765,9 +827,50 @@ export default function WorkspaceExplorer({ onClose }: Props) {
                     }}>
                       {page.name}
                     </span>
+                    <span style={{
+                      fontFamily: FONTS.ui,
+                      fontSize: 10,
+                      color: isActive ? 'var(--c-text-md)' : 'var(--c-text-lo)',
+                      flexShrink: 0,
+                    }}>
+                      {pageDocCount}
+                    </span>
                   </button>
                 );
               })}
+              <button
+                onClick={() => addPage()}
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 7,
+                  marginTop: 8,
+                  padding: '10px 12px',
+                  background: 'transparent',
+                  border: '1px dashed var(--c-border)',
+                  borderRadius: 8,
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  color: 'var(--c-text-md)',
+                  fontFamily: FONTS.ui,
+                  fontSize: 11,
+                  transition: 'background 0.12s, border-color 0.12s, color 0.12s',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'var(--c-hover)';
+                  e.currentTarget.style.borderColor = 'rgba(184,119,80,0.26)';
+                  e.currentTarget.style.color = 'var(--c-text-hi)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'transparent';
+                  e.currentTarget.style.borderColor = 'var(--c-border)';
+                  e.currentTarget.style.color = 'var(--c-text-md)';
+                }}
+              >
+                <span style={{ fontSize: 18, lineHeight: 1, width: 14, textAlign: 'center', flexShrink: 0 }}>+</span>
+                <span>New page...</span>
+              </button>
             </div>
           )}
         </div>
@@ -775,7 +878,7 @@ export default function WorkspaceExplorer({ onClose }: Props) {
 
       {/* Search bar */}
       {getWorkspaceName() && (
-        <div style={{ padding: '6px 10px', borderBottom: '1px solid var(--c-border)', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--c-border)', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
           <svg width="11" height="11" viewBox="0 0 11 11" fill="none" style={{ flexShrink: 0, opacity: 0.45 }}>
             <circle cx="4.5" cy="4.5" r="3.5" stroke="var(--c-text-hi)" strokeWidth="1.3" />
             <line x1="7.5" y1="7.5" x2="10" y2="10" stroke="var(--c-text-hi)" strokeWidth="1.3" strokeLinecap="round" />
@@ -839,6 +942,8 @@ export default function WorkspaceExplorer({ onClose }: Props) {
         )}
         {rootLoading ? (
           <div style={{ padding: '10px 16px', fontSize: 10, color: 'var(--c-text-lo)', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Loading…</div>
+        ) : rootError ? (
+          <div style={{ padding: '10px 16px', fontSize: 10.5, color: '#c96a6a', fontFamily: FONTS.ui, lineHeight: 1.5 }}>{rootError}</div>
         ) : !getWorkspaceName() ? (
           <NoWorkspaceState onOpen={handleOpenFolder} />
         ) : searchResults !== null ? (
@@ -860,7 +965,7 @@ export default function WorkspaceExplorer({ onClose }: Props) {
 
       {/* Default save folder — only shown when a workspace is open */}
       {getWorkspaceName() && (
-        <div style={{ padding: '6px 12px', borderTop: '1px solid var(--c-border)', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div style={{ padding: '10px 14px', borderTop: '1px solid var(--c-border)', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
           <svg width="10" height="10" viewBox="0 0 10 10" fill="none" style={{ flexShrink: 0, opacity: 0.5 }}>
             <path d="M1 2.5a1 1 0 0 1 1-1h1.8L5 3H8.5a1 1 0 0 1 1 1v3.5a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V2.5z" stroke="var(--c-text-off)" strokeWidth="1" strokeLinejoin="round" />
           </svg>
@@ -909,19 +1014,68 @@ export default function WorkspaceExplorer({ onClose }: Props) {
         </div>
       )}
 
-      {/* Footer hint */}
-      <div style={{ padding: '8px 12px', borderTop: '1px solid var(--c-border)', flexShrink: 0, borderRadius: '0 0 12px 12px' }}>
-        <p style={{ fontSize: 9, color: 'var(--c-text-lo)', fontFamily: FONTS.ui, lineHeight: 1.4, margin: 0 }}>
+      {/* Footer hint + trash */}
+      <div style={{ padding: '8px 12px 10px 14px', borderTop: '1px solid var(--c-border)', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+        <p style={{ fontSize: 9, color: 'var(--c-text-lo)', fontFamily: FONTS.ui, lineHeight: 1.4, margin: 0, flex: 1 }}>
           Single-click to preview · drag or double-click (↵) to place · ↑↓ navigate
         </p>
+        {focusedIdx !== null && visibleEntries[focusedIdx] && (
+          <button
+            onClick={() => startDelete(visibleEntries[focusedIdx]!)}
+            title={`Delete ${visibleEntries[focusedIdx]!.name}`}
+            style={{
+              flexShrink: 0,
+              width: 24, height: 24,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: 'none', border: '1px solid rgba(239,68,68,0.3)',
+              borderRadius: 6, cursor: 'pointer',
+              color: '#f87171', opacity: 0.75,
+              transition: 'opacity 0.15s, background 0.15s',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.background = 'rgba(239,68,68,0.12)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.75'; e.currentTarget.style.background = 'none'; }}
+          >
+            <svg width="11" height="12" viewBox="0 0 11 12" fill="none">
+              <path d="M1 3h9M4 3V2h3v1M2 3l.7 7.5a1 1 0 0 0 1 .5h3.6a1 1 0 0 0 1-.5L9 3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+              <line x1="4.5" y1="5.5" x2="4.5" y2="8.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
+              <line x1="6.5" y1="5.5" x2="6.5" y2="8.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
+            </svg>
+          </button>
+        )}
       </div>
 
-      {/* Right-edge resize handle */}
-      <div
-        onMouseDown={onMouseDownResizer}
-        style={{ position: 'absolute', top: 12, right: -3, bottom: 12, width: 6, cursor: 'ew-resize', borderRadius: 3 }}
-        title="Drag to resize"
-      />
+      {/* Delete confirmation */}
+      {deleteConfirm && (
+        <div
+          style={{ position: 'fixed', inset: 0, zIndex: 9200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.45)' }}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <div style={{ background: 'var(--c-panel)', border: '1px solid var(--c-border)', borderRadius: 14, padding: '20px 24px', maxWidth: 340, boxShadow: '0 16px 48px rgba(0,0,0,0.4)' }}>
+            <p style={{ fontFamily: FONTS.ui, fontSize: 12, fontWeight: 700, color: 'var(--c-text-hi)', margin: '0 0 8px' }}>
+              Delete {deleteConfirm.kind === 'directory' ? 'folder' : 'file'}?
+            </p>
+            <p style={{ fontFamily: FONTS.ui, fontSize: 11, color: 'var(--c-text-lo)', margin: '0 0 16px', lineHeight: 1.5 }}>
+              <span style={{ color: '#f87171' }}>{deleteConfirm.name}</span>
+              {deleteConfirm.kind === 'directory' ? ' and all its contents will be permanently deleted.' : ' will be permanently deleted.'}
+              {' '}This cannot be undone.
+            </p>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                onClick={() => { doDelete(deleteConfirm); setDeleteConfirm(null); }}
+                style={{ flex: 1, padding: '7px 0', background: '#ef4444', border: 'none', borderRadius: 8, fontFamily: FONTS.ui, fontSize: 11, fontWeight: 700, color: '#fff', cursor: 'pointer' }}
+              >
+                Delete
+              </button>
+              <button
+                onClick={() => setDeleteConfirm(null)}
+                style={{ flex: 1, padding: '7px 0', background: 'var(--c-hover)', border: 'none', borderRadius: 8, fontFamily: FONTS.ui, fontSize: 11, color: 'var(--c-text-hi)', cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Extension-change warning */}
       {renameExtWarning && (
@@ -974,6 +1128,15 @@ export default function WorkspaceExplorer({ onClose }: Props) {
               <span>Rename</span>
               <span className="text-[10px] text-[var(--c-text-off)] ml-3">F2</span>
             </button>
+            <div style={{ height: 1, background: 'var(--c-border)', margin: '3px 0' }} />
+            <button
+              className="w-full flex items-center justify-between px-3 py-1.5 text-[12px] rounded transition-colors text-left hover:bg-[rgba(239,68,68,0.12)]"
+              style={{ fontFamily: FONTS.ui, color: '#f87171' }}
+              onClick={() => startDelete(explorerMenu.entry)}
+            >
+              <span>Delete</span>
+              <span className="text-[10px] ml-3" style={{ color: '#f87171', opacity: 0.6 }}>⌫</span>
+            </button>
           </div>
         );
       })()}
@@ -981,8 +1144,11 @@ export default function WorkspaceExplorer({ onClose }: Props) {
       {/* File preview panel */}
       {filePreview && (() => {
         const previewW = 240;
-        const spaceRight = window.innerWidth - (pos.x + width + 8);
-        const left = spaceRight >= previewW ? pos.x + width + 8 : pos.x - previewW - 8;
+        const rect = panelRef.current?.getBoundingClientRect();
+        const panelLeft = rect?.left ?? 0;
+        const panelRight = rect?.right ?? WORKSPACE_EXPLORER_WIDTH;
+        const spaceRight = window.innerWidth - (panelRight + 8);
+        const left = spaceRight >= previewW ? panelRight + 8 : Math.max(8, panelLeft - previewW - 8);
         const top = Math.max(8, Math.min(filePreview.anchorY - 80, window.innerHeight - 260));
         return (
           <div

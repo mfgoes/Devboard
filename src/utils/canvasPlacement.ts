@@ -4,7 +4,8 @@
 import { useBoardStore } from '../store/boardStore';
 import { CODE_EXTS, CODE_EXTS as codeExts, ext, generateId } from '../components/explorer/fileTreeUtils';
 import { readWorkspaceFile, readWorkspaceFileAsUrl, saveWorkspace } from './workspaceManager';
-import { CodeBlockNode, ImageNode } from '../types';
+import { markdownToHtml } from './exportMarkdown';
+import { CodeBlockNode, DocumentNode, ImageNode } from '../types';
 
 export function canvasCenter() {
   const { camera } = useBoardStore.getState();
@@ -37,6 +38,32 @@ export async function placeCodeFile(pathParts: string[]) {
     showLineNumbers: true,
     linkedFile: relativePath,
   } satisfies CodeBlockNode);
+}
+
+export async function placeDocumentFile(pathParts: string[]) {
+  const { x, y } = canvasCenter();
+  await placeDocumentFileAt(pathParts, x, y);
+}
+
+export async function placeDocumentFileAt(pathParts: string[], worldX: number, worldY: number) {
+  const relativePath = pathParts.join('/');
+  const content = await readWorkspaceFile(relativePath);
+  if (content === null) return;
+  const { addDocument, addNode } = useBoardStore.getState();
+  const htmlContent = markdownToHtml(content);
+  const titleMatch = content.match(/^#\s+(.+)/m);
+  const stem = pathParts[pathParts.length - 1].replace(/\.md$/i, '');
+  const title = titleMatch ? titleMatch[1].trim() : stem;
+  const docId = addDocument({ title, content: htmlContent, linkedFile: relativePath });
+  addNode({
+    id: generateId(),
+    type: 'document',
+    x: worldX - 140,
+    y: worldY - 88,
+    width: 280,
+    height: 176,
+    docId,
+  } as DocumentNode);
 }
 
 export async function placeImageFile(pathParts: string[]) {

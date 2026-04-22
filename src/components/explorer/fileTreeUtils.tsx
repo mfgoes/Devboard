@@ -11,6 +11,8 @@ export const SKIP_DIRS = new Set([
 
 export const IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'avif', 'ico']);
 
+export const DOC_EXTS = new Set(['md']);
+
 export const CODE_EXTS: Record<string, CodeLanguage> = {
   ts: 'typescript', tsx: 'typescript',
   js: 'javascript', jsx: 'javascript',
@@ -20,7 +22,7 @@ export const CODE_EXTS: Record<string, CodeLanguage> = {
   sh: 'bash', bash: 'bash', zsh: 'bash',
   cs: 'csharp',
   gd: 'gdscript',
-  md: 'text', txt: 'text', toml: 'text', yaml: 'text', yml: 'text',
+  txt: 'text', toml: 'text', yaml: 'text', yml: 'text',
   html: 'text', css: 'text',
 };
 

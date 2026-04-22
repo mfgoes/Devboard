@@ -12,7 +12,8 @@ export type Tool =
   | 'code'
   | 'image'
   | 'link'
-  | 'task';
+  | 'task'
+  | 'document';
 
 export type AnchorSide = 'top' | 'right' | 'bottom' | 'left';
 
@@ -230,7 +231,42 @@ export interface TaskCardNode {
   groupId?: string;
 }
 
-export type CanvasNode = StickyNoteNode | ConnectorNode | TextBlockNode | ShapeNode | SectionNode | StickerNode | TableNode | CodeBlockNode | ImageNode | LinkNode | TaskCardNode;
+// ── First-class Document entity (Phase 2 data model) ─────────────────────────
+export interface Document {
+  id: string;
+  title: string;
+  content: string;        // HTML rich text
+  emoji?: string;         // optional icon emoji shown above the heading
+  pageId?: string;        // which page this document belongs to
+  linkedFile?: string;    // workspace-relative path, e.g. "documents/notes.md"
+  orderIndex?: number;
+  createdAt: number;      // epoch ms
+  updatedAt: number;      // epoch ms
+  tags?: string[];
+}
+
+// Canvas card that references a Document. After migration, title/content are
+// read from documents[] via docId. Pre-migration nodes keep inline fields for
+// backward compat and are migrated on first load (schemaVersion 2 → 3).
+export interface DocumentNode {
+  id: string;
+  type: 'document';
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  // Post-migration: reference to Document entity
+  docId?: string;
+  // Pre-migration / legacy inline fields (kept for backward compat)
+  title?: string;
+  content?: string;
+  orderIndex?: number;
+  linkedFile?: string;
+  locked?: boolean;
+  groupId?: string;
+}
+
+export type CanvasNode = StickyNoteNode | ConnectorNode | TextBlockNode | ShapeNode | SectionNode | StickerNode | TableNode | CodeBlockNode | ImageNode | LinkNode | TaskCardNode | DocumentNode;
 
 export interface Camera {
   x: number;
@@ -241,12 +277,16 @@ export interface Camera {
 export interface PageMeta {
   id: string;
   name: string;
+  layoutMode?: 'freeform' | 'stack';
 }
 
 export interface BoardData {
   boardTitle: string;
   nodes: CanvasNode[];
   // Multi-page (v2) — absent in legacy saves
-  pages?: Array<{ id: string; name: string; nodes: CanvasNode[]; camera: Camera }>;
+  pages?: Array<{ id: string; name: string; layoutMode?: 'freeform' | 'stack'; nodes: CanvasNode[]; camera: Camera }>;
   activePageId?: string;
+  // Phase 2 document entities — absent in legacy saves
+  documents?: Document[];
+  schemaVersion?: number;
 }

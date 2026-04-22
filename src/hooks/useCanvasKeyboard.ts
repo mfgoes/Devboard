@@ -19,8 +19,10 @@ export function useCanvasKeyboard({
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
-      if (tag === 'input' || tag === 'textarea') return;
+      const el = (e.target as HTMLElement);
+      const tag = el?.tagName?.toLowerCase();
+      // Skip shortcuts when typing in inputs, textareas, or contentEditable elements
+      if (tag === 'input' || tag === 'textarea' || el?.isContentEditable) return;
 
       if (e.code === 'Space') {
         e.preventDefault();
@@ -63,6 +65,7 @@ export function useCanvasKeyboard({
           KeyK: 'code',
           KeyI: 'image',
           KeyU: 'link',
+          KeyD: 'document',
         };
         if (shortcuts[e.code]) setActiveTool(shortcuts[e.code]);
       }
