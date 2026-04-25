@@ -363,8 +363,8 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
   };
 
   const handleExportDocumentsMarkdown = () => {
-    const { nodes, boardTitle } = useBoardStore.getState();
-    const md = exportDocumentsAsMarkdown(nodes);
+    const { nodes, boardTitle, documents } = useBoardStore.getState();
+    const md = exportDocumentsAsMarkdown(nodes, documents);
     if (md.trim() === '') {
       toast('No notes found on this board.');
       return;
@@ -933,18 +933,6 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
 
       {/* Right: Actions */}
       <div className="flex items-center gap-1">
-
-        {/* Templates button — hidden on mobile (available in DevBoard menu) */}
-        <Tooltip label="Load a starter template">
-          <button
-            onClick={() => setTemplatesModalOpen(true)}
-            title="Templates"
-            className="hidden sm:flex items-center gap-1 px-2 h-7 rounded font-sans text-[11px] tracking-wide transition-colors text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]"
-          >
-            <IconTemplate />
-            <span>Templates</span>
-          </button>
-        </Tooltip>
 
         {/* Export dropdown */}
         <div className="relative" ref={exportRef}>

@@ -35,45 +35,52 @@ function IconBtn({
 }
 
 export default function DocumentToolbar({ nodeId }: { nodeId: string }) {
-  const { nodes, camera, updateNode } = useBoardStore();
+  const { nodes, camera, updateNode, updateDocument, documents } = useBoardStore();
   const node = nodes.find((n) => n.id === nodeId) as DocumentNode | undefined;
+  const doc = node?.docId ? documents.find((d) => d.id === node.docId) : undefined;
   const [nameHovered, setNameHovered] = useState(false);
 
-  const CANVAS_TOP = 44;
   const sx = node ? node.x * camera.scale + camera.x : 0;
   const sy = node ? node.y * camera.scale + camera.y : 0;
   const sw = node ? node.width  * camera.scale : 0;
   const sh = node ? node.height * camera.scale : 0;
   const anchorDotY = sy - 20 * camera.scale;
-  const toolbarTop = anchorDotY - 40 - 8 - CANVAS_TOP;
+  const toolbarTop = anchorDotY - 40 - 8;
 
   const { ref: tbRef, style: tbStyle } = useToolbarPosition({
     centerX: sx + sw / 2,
     preferredTop: toolbarTop,
-    nodeScreenBottom: sy + sh - CANVAS_TOP,
+    nodeScreenBottom: sy + sh,
+    position: 'fixed',
   });
 
   if (!node) return null;
 
-  const fileName = node.linkedFile
-    ? node.linkedFile.split('/').pop() ?? generateMarkdownFilename(node.title)
-    : generateMarkdownFilename(node.title);
-  const folder = node.linkedFile
-    ? node.linkedFile.split('/').slice(0, -1).join('/') || '.'
-    : 'documents';
+  const linkedFile = doc?.linkedFile ?? node.linkedFile;
+  const title = doc?.title ?? node.title;
+  const fileName = linkedFile
+    ? linkedFile.split('/').pop() ?? generateMarkdownFilename(title)
+    : generateMarkdownFilename(title);
+  const folder = linkedFile
+    ? linkedFile.split('/').slice(0, -1).join('/') || '.'
+    : 'notes';
   const inWorkspace = hasWorkspaceHandle();
 
   const handleDownload = async () => {
-    const md = documentToMarkdown(node);
-    if (inWorkspace && node.linkedFile) {
+    const md = documentToMarkdown(node, documents);
+    if (inWorkspace && linkedFile) {
       await saveTextFileToWorkspace(folder === '.' ? '' : folder, fileName, md);
-      toast(`Saved · ${node.linkedFile}`);
-    } else if (inWorkspace && !node.linkedFile) {
-      const linkedFile = `documents/${fileName}`;
-      const ok = await saveTextFileToWorkspace('documents', fileName, md);
+      toast(`Saved · ${linkedFile}`);
+    } else if (inWorkspace && !linkedFile) {
+      const nextLinkedFile = `notes/${fileName}`;
+      const ok = await saveTextFileToWorkspace('notes', fileName, md);
       if (ok) {
-        updateNode(node.id, { linkedFile } as Partial<DocumentNode>);
-        toast(`Linked · ${linkedFile}`);
+        if (doc) {
+          updateDocument(doc.id, { linkedFile: nextLinkedFile });
+        } else {
+          updateNode(node.id, { linkedFile: nextLinkedFile } as Partial<DocumentNode>);
+        }
+        toast(`Linked · ${nextLinkedFile}`);
       }
     } else {
       saveAs(new Blob([md], { type: 'text/markdown;charset=utf-8' }), fileName);
@@ -105,7 +112,7 @@ export default function DocumentToolbar({ nodeId }: { nodeId: string }) {
           <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2.5 py-1.5 rounded-lg bg-[var(--c-panel)] border border-[var(--c-border)] shadow-xl pointer-events-none z-50 flex flex-col gap-0.5" style={{ minWidth: 'max-content' }}>
             <span className="font-sans text-[9px] text-[var(--c-text-off)] uppercase tracking-widest">path</span>
             <span className="font-sans text-[11px] text-[var(--c-text-hi)]">
-              {node.linkedFile
+              {linkedFile
                 ? <><span className="text-[var(--c-text-off)]">{folder}/</span>{fileName}</>
                 : <span className="text-[var(--c-text-off)] italic">not linked to file</span>
               }
@@ -119,7 +126,7 @@ export default function DocumentToolbar({ nodeId }: { nodeId: string }) {
       {/* ── Download / Save ─────────────────────────────────────────── */}
       <IconBtn
         onClick={handleDownload}
-        label={inWorkspace && node.linkedFile ? `Save to ${node.linkedFile}` : inWorkspace ? `Save to documents/${fileName}` : 'Download as .md'}
+        label={inWorkspace && linkedFile ? `Save to ${linkedFile}` : inWorkspace ? `Save to notes/${fileName}` : 'Download as .md'}
       >
         <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
           <path d="M6.5 1v7M4 6l2.5 2.5L9 6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />

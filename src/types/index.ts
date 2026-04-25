@@ -238,7 +238,7 @@ export interface Document {
   content: string;        // HTML rich text
   emoji?: string;         // optional icon emoji shown above the heading
   pageId?: string;        // which page this document belongs to
-  linkedFile?: string;    // workspace-relative path, e.g. "documents/notes.md"
+  linkedFile?: string;    // workspace-relative path, e.g. "notes/ideas.md"
   orderIndex?: number;
   createdAt: number;      // epoch ms
   updatedAt: number;      // epoch ms

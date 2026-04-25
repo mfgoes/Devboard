@@ -5,7 +5,7 @@ import {
   GripVertical, Maximize2, FileText, Save,
   List, ListOrdered,
   AlignLeft, AlignCenter, AlignRight,
-  Code, Eye,
+  Code, Eye, CircleDot, Copy, TextWrap,
 } from 'lucide-react';
 
 export function IconGrip()         { return <GripVertical  size={12} />; }
@@ -19,3 +19,6 @@ export function IconAlignCenter()  { return <AlignCenter   size={13} />; }
 export function IconAlignRight()   { return <AlignRight    size={13} />; }
 export function IconCode()         { return <Code          size={13} />; }
 export function IconEye()          { return <Eye           size={13} />; }
+export function IconNodeLink()     { return <CircleDot     size={13} />; }
+export function IconCopy()         { return <Copy          size={13} />; }
+export function IconTextWrap()     { return <TextWrap      size={13} />; }

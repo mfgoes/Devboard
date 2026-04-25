@@ -27,7 +27,7 @@ export function useDocumentAutoSave(node: DocumentNode) {
     timerRef.current = setTimeout(async () => {
       const md = htmlToMarkdown(content);
       const fileName = generateMarkdownFilename(title);
-      const resolvedLinkedFile = linkedFile ?? `documents/${fileName}`;
+      const resolvedLinkedFile = linkedFile ?? `notes/${fileName}`;
       const parts = resolvedLinkedFile.split('/').filter(Boolean);
       const file = parts.pop()!;
       const folder = parts.join('/');

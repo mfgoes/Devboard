@@ -15,6 +15,8 @@ interface Options {
    * Useful when controls like rotation handles occupy the top of the selection.
    */
   preferBelow?: boolean;
+  /** Positioning mode for the returned toolbar style. */
+  position?: 'absolute' | 'fixed';
 }
 
 /**
@@ -25,10 +27,10 @@ interface Options {
  * (visibility:hidden) while the measurement runs; it becomes visible after
  * the layout effect fires — no perceptible flicker at normal frame rates.
  */
-export function useToolbarPosition({ centerX, preferredTop, nodeScreenBottom, preferBelow = false }: Options) {
+export function useToolbarPosition({ centerX, preferredTop, nodeScreenBottom, preferBelow = false, position = 'absolute' }: Options) {
   const ref = useRef<HTMLDivElement>(null);
   const [style, setStyle] = useState<React.CSSProperties>({
-    position: 'absolute',
+    position,
     left: centerX,
     top: preferredTop,
     transform: 'translateX(-50%)',
@@ -68,14 +70,14 @@ export function useToolbarPosition({ centerX, preferredTop, nodeScreenBottom, pr
     top = Math.min(top, vh - MARGIN - toolbarH);
 
     setStyle({
-      position: 'absolute',
+      position,
       left,
       top,
       transform: 'translateX(-50%)',
       zIndex: 200,
       visibility: 'visible',
     });
-  }, [centerX, preferredTop, nodeScreenBottom]);
+  }, [centerX, preferredTop, nodeScreenBottom, preferBelow, position]);
 
   return { ref, style };
 }

@@ -49,12 +49,13 @@ export async function placeDocumentFileAt(pathParts: string[], worldX: number, w
   const relativePath = pathParts.join('/');
   const content = await readWorkspaceFile(relativePath);
   if (content === null) return;
-  const { addDocument, addNode } = useBoardStore.getState();
+  const { addDocument, addNode, documents } = useBoardStore.getState();
   const htmlContent = markdownToHtml(content);
   const titleMatch = content.match(/^#\s+(.+)/m);
   const stem = pathParts[pathParts.length - 1].replace(/\.md$/i, '');
   const title = titleMatch ? titleMatch[1].trim() : stem;
-  const docId = addDocument({ title, content: htmlContent, linkedFile: relativePath });
+  const docId = documents.find((d) => d.linkedFile === relativePath)?.id
+    ?? addDocument({ title, content: htmlContent, linkedFile: relativePath });
   addNode({
     id: generateId(),
     type: 'document',
@@ -64,6 +65,24 @@ export async function placeDocumentFileAt(pathParts: string[], worldX: number, w
     height: 176,
     docId,
   } as DocumentNode);
+}
+
+export async function openDocumentFile(pathParts: string[]) {
+  const relativePath = pathParts.join('/');
+  const existing = useBoardStore.getState().documents.find((d) => d.linkedFile === relativePath);
+  if (existing) {
+    useBoardStore.getState().openDocumentWithMorph(existing.id);
+    return;
+  }
+
+  const content = await readWorkspaceFile(relativePath);
+  if (content === null) return;
+  const htmlContent = markdownToHtml(content);
+  const titleMatch = content.match(/^#\s+(.+)/m);
+  const stem = pathParts[pathParts.length - 1].replace(/\.md$/i, '');
+  const title = titleMatch ? titleMatch[1].trim() : stem;
+  const docId = useBoardStore.getState().addDocument({ title, content: htmlContent, linkedFile: relativePath });
+  useBoardStore.getState().openDocumentWithMorph(docId);
 }
 
 export async function placeImageFile(pathParts: string[]) {

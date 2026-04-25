@@ -6,7 +6,7 @@ import { saveAs } from 'file-saver';
 import { hasWorkspaceHandle, saveTextFileToWorkspace } from '../utils/workspaceManager';
 import { toast } from '../utils/toast';
 import { focusNode } from '../utils/focusNode';
-import { IconCode, IconEye, IconSaveFile } from './icons';
+import { IconAlignCenter, IconAlignLeft, IconAlignRight, IconCode, IconCopy, IconDoc, IconEye, IconNodeLink, IconSaveFile, IconTextWrap } from './icons';
 
 // ── Inline chip utilities ─────────────────────────────────────────────────────
 
@@ -163,10 +163,16 @@ interface FmtBarProps {
   onSave: () => void;
   onWikilinkClick: (rect: DOMRect) => void;
   onNodeLinkClick: (rect: DOMRect) => void;
+  onSourceInsert: (syntax: string) => void;
+  sourceWrap: boolean;
+  setSourceWrap: React.Dispatch<React.SetStateAction<boolean>>;
+  onCopySource: () => void;
+  saveStatusText: string | null;
 }
 
-function FormattingBar({ viewMode, onToggleSource, onToggleEdit, onSave, onWikilinkClick, onNodeLinkClick }: FmtBarProps) {
+function FormattingBar({ viewMode, onToggleSource, onToggleEdit, onSave, onWikilinkClick, onNodeLinkClick, onSourceInsert, sourceWrap, setSourceWrap, onCopySource, saveStatusText }: FmtBarProps) {
   const [showBlock, setShowBlock] = useState(false);
+  const [hoveredControl, setHoveredControl] = useState<string | null>(null);
   const savedRangeRef = useRef<Range | null>(null);
   const [, tick] = useState(0);
   const wikilinkBtnRef = useRef<HTMLButtonElement>(null);
@@ -196,14 +202,18 @@ function FormattingBar({ viewMode, onToggleSource, onToggleEdit, onSave, onWikil
 
   const currentBlock = getBlockType(showBlock ? savedRangeRef.current : null);
 
-  const btnStyle = (active: boolean): React.CSSProperties => ({
+  const btnStyle = (active: boolean, hovered = false): React.CSSProperties => ({
     height: 26,
     minWidth: 26,
     padding: '0 7px',
-    background: active ? 'rgba(184,119,80,0.25)' : 'rgba(255,255,255,0.06)',
-    border: active ? '1px solid rgba(184,119,80,0.5)' : '1px solid rgba(255,255,255,0.1)',
+    background: active
+      ? (hovered ? 'rgba(184,119,80,0.33)' : 'rgba(184,119,80,0.25)')
+      : (hovered ? 'var(--c-hover)' : 'transparent'),
+    border: active
+      ? `1px solid ${hovered ? 'rgba(184,119,80,0.72)' : 'rgba(184,119,80,0.5)'}`
+      : `1px solid ${hovered ? 'var(--c-border)' : 'transparent'}`,
     borderRadius: 5,
-    color: active ? 'var(--c-line)' : 'var(--c-text-lo)',
+    color: active ? 'var(--c-line)' : (hovered ? 'var(--c-text-hi)' : 'var(--c-text-lo)'),
     cursor: 'pointer',
     fontSize: 12,
     fontFamily: 'inherit',
@@ -212,20 +222,97 @@ function FormattingBar({ viewMode, onToggleSource, onToggleEdit, onSave, onWikil
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    transition: 'background 0.12s',
+    boxShadow: hovered && !active ? '0 1px 2px rgba(0,0,0,0.06)' : 'none',
+    transition: 'background 0.12s, border-color 0.12s, color 0.12s, box-shadow 0.12s',
   });
+
+  const hoverHandlers = (id: string) => ({
+    onMouseEnter: () => setHoveredControl(id),
+    onMouseLeave: () => setHoveredControl((current) => (current === id ? null : current)),
+  });
+
+  const modeButtonStyle = (active: boolean, side: 'left' | 'right'): React.CSSProperties => ({
+    position: 'relative',
+    zIndex: 1,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    width: 86,
+    height: 34,
+    padding: '0 12px',
+    borderRadius: side === 'left' ? '7px 5px 5px 7px' : '5px 7px 7px 5px',
+    border: 'none',
+    cursor: 'pointer',
+    fontSize: 12,
+    fontFamily: 'inherit',
+    fontWeight: active ? 700 : 600,
+    background: 'transparent',
+    color: active ? 'var(--c-text-hi)' : 'var(--c-text-lo)',
+    transform: active ? 'translateY(-0.5px)' : 'translateY(0)',
+    transition: 'color 0.16s ease, transform 0.16s ease',
+  });
+
+  const sourceShortcutStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+    minHeight: 26,
+    padding: '0 8px',
+    borderRadius: 6,
+    border: '1px solid var(--c-border)',
+    background: 'rgba(255,255,255,0.025)',
+    color: 'var(--c-text-lo)',
+    fontSize: 11,
+    fontFamily: 'inherit',
+    whiteSpace: 'nowrap',
+  };
+
+  const sourceActionButtonStyle: React.CSSProperties = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+    minHeight: 26,
+    padding: '0 10px',
+    borderRadius: 6,
+    border: '1px solid var(--c-border)',
+    background: 'rgba(255,255,255,0.025)',
+    color: 'var(--c-text-lo)',
+    fontSize: 11,
+    fontFamily: 'inherit',
+    cursor: 'pointer',
+    transition: 'background 0.12s, border-color 0.12s, color 0.12s',
+  };
+
+  const sourceShortcuts = [
+    ['### ', 'Heading'],
+    ['*text*', 'Italic'],
+    ['**bold**', 'Bold'],
+    ['- ', 'List'],
+    ['1. ', 'Ordered'],
+    ['> ', 'Quote'],
+    ['`code`', 'Inline code'],
+    ['```\ncode\n```', 'Code block'],
+    ['[](url)', 'Link'],
+    ['![](url)', 'Image'],
+    ['---', 'Rule'],
+    ['~~text~~', 'Strike'],
+    ['[[Note]]', 'Note'],
+    ['@node:', 'Node'],
+  ];
 
   return (
     <div
       style={{
-        padding: '4px 8px 4px 16px',
-        borderBottom: '1px solid rgba(255,255,255,0.07)',
+        padding: '8px 24px 8px 24px',
+        borderBottom: '1px solid var(--c-border)',
         background: 'rgba(255,255,255,0.02)',
         display: 'flex',
         alignItems: 'center',
-        gap: 4,
+        gap: 6,
         flexShrink: 0,
         flexWrap: 'wrap',
+        boxShadow: '0 1px 0 rgba(0,0,0,0.04)',
       }}
       onMouseDown={(e) => e.stopPropagation()}
     >
@@ -234,13 +321,14 @@ function FormattingBar({ viewMode, onToggleSource, onToggleEdit, onSave, onWikil
           {/* Block format dropdown */}
           <div style={{ position: 'relative', flexShrink: 0 }}>
             <button
-              style={{ ...btnStyle(false), width: 98, justifyContent: 'space-between', paddingRight: 6 }}
+              style={{ ...btnStyle(false, hoveredControl === 'block-style'), width: 98, justifyContent: 'space-between', paddingRight: 6 }}
               onMouseDown={(e) => {
                 e.preventDefault();
                 saveSelection();
                 setShowBlock((v) => !v);
                 tick((n) => n + 1);
               }}
+              {...hoverHandlers('block-style')}
             >
               <span>{BLOCK_LABELS[currentBlock] ?? 'Paragraph'}</span>
               <span style={{ fontSize: 9, opacity: 0.6 }}>▼</span>
@@ -282,81 +370,249 @@ function FormattingBar({ viewMode, onToggleSource, onToggleEdit, onSave, onWikil
           <div style={{ width: 1, height: 18, background: 'rgba(255,255,255,0.12)', margin: '0 2px', flexShrink: 0 }} />
 
           {/* Bold / Italic / Underline / Strike */}
-          <button style={btnStyle(isActive('bold'))} onMouseDown={(e) => { e.preventDefault(); saveSelection(); fmt('bold'); tick(n=>n+1); }} title="Bold (⌘B)"><b>B</b></button>
-          <button style={{ ...btnStyle(isActive('italic')), fontStyle: 'italic' }} onMouseDown={(e) => { e.preventDefault(); saveSelection(); fmt('italic'); tick(n=>n+1); }} title="Italic (⌘I)"><i>I</i></button>
-          <button style={{ ...btnStyle(isActive('underline')), textDecoration: 'underline' }} onMouseDown={(e) => { e.preventDefault(); saveSelection(); fmt('underline'); tick(n=>n+1); }} title="Underline (⌘U)">U</button>
-          <button style={btnStyle(isActive('strikeThrough'))} onMouseDown={(e) => { e.preventDefault(); saveSelection(); fmt('strikeThrough'); tick(n=>n+1); }} title="Strikethrough"><s>S</s></button>
+          <button style={btnStyle(isActive('bold'), hoveredControl === 'bold')} onMouseDown={(e) => { e.preventDefault(); saveSelection(); fmt('bold'); tick(n=>n+1); }} title="Bold (⌘B)" {...hoverHandlers('bold')}><b>B</b></button>
+          <button style={{ ...btnStyle(isActive('italic'), hoveredControl === 'italic'), fontStyle: 'italic' }} onMouseDown={(e) => { e.preventDefault(); saveSelection(); fmt('italic'); tick(n=>n+1); }} title="Italic (⌘I)" {...hoverHandlers('italic')}><i>I</i></button>
+          <button style={{ ...btnStyle(isActive('underline'), hoveredControl === 'underline'), textDecoration: 'underline' }} onMouseDown={(e) => { e.preventDefault(); saveSelection(); fmt('underline'); tick(n=>n+1); }} title="Underline (⌘U)" {...hoverHandlers('underline')}>U</button>
+          <button style={btnStyle(isActive('strikeThrough'), hoveredControl === 'strike')} onMouseDown={(e) => { e.preventDefault(); saveSelection(); fmt('strikeThrough'); tick(n=>n+1); }} title="Strikethrough" {...hoverHandlers('strike')}><s>S</s></button>
 
           <div style={{ width: 1, height: 18, background: 'rgba(255,255,255,0.12)', margin: '0 2px', flexShrink: 0 }} />
 
           {/* Lists */}
-          <button style={btnStyle(isActive('insertUnorderedList'))} onMouseDown={(e) => { e.preventDefault(); saveSelection(); fmt('insertUnorderedList'); tick(n=>n+1); }} title="Bullet list">• List</button>
-          <button style={btnStyle(isActive('insertOrderedList'))} onMouseDown={(e) => { e.preventDefault(); saveSelection(); fmt('insertOrderedList'); tick(n=>n+1); }} title="Numbered list">1. List</button>
+          <button style={btnStyle(isActive('insertUnorderedList'), hoveredControl === 'bullet-list')} onMouseDown={(e) => { e.preventDefault(); saveSelection(); fmt('insertUnorderedList'); tick(n=>n+1); }} title="Bullet list" {...hoverHandlers('bullet-list')}>• List</button>
+          <button style={btnStyle(isActive('insertOrderedList'), hoveredControl === 'numbered-list')} onMouseDown={(e) => { e.preventDefault(); saveSelection(); fmt('insertOrderedList'); tick(n=>n+1); }} title="Numbered list" {...hoverHandlers('numbered-list')}>1. List</button>
 
           <div style={{ width: 1, height: 18, background: 'rgba(255,255,255,0.12)', margin: '0 2px', flexShrink: 0 }} />
 
-          {/* Save */}
-          <button style={btnStyle(false)} title="Save as Markdown" onMouseDown={(e) => { e.preventDefault(); onSave(); }}>
-            <IconSaveFile />
+          {/* Alignment */}
+          <button style={btnStyle(isActive('justifyLeft'), hoveredControl === 'align-left')} onMouseDown={(e) => { e.preventDefault(); saveSelection(); fmt('justifyLeft'); tick(n=>n+1); }} title="Align left" {...hoverHandlers('align-left')}>
+            <IconAlignLeft />
           </button>
-
-          <div style={{ width: 1, height: 18, background: 'rgba(255,255,255,0.12)', margin: '0 2px', flexShrink: 0 }} />
+          <button style={btnStyle(isActive('justifyCenter'), hoveredControl === 'align-center')} onMouseDown={(e) => { e.preventDefault(); saveSelection(); fmt('justifyCenter'); tick(n=>n+1); }} title="Align center" {...hoverHandlers('align-center')}>
+            <IconAlignCenter />
+          </button>
+          <button style={btnStyle(isActive('justifyRight'), hoveredControl === 'align-right')} onMouseDown={(e) => { e.preventDefault(); saveSelection(); fmt('justifyRight'); tick(n=>n+1); }} title="Align right" {...hoverHandlers('align-right')}>
+            <IconAlignRight />
+          </button>
 
           {/* Wikilink picker button */}
           <button
             ref={wikilinkBtnRef}
-            style={{ ...btnStyle(false), gap: 3, fontFamily: 'monospace', fontSize: 11 }}
+            style={{ ...btnStyle(false, hoveredControl === 'wikilink'), gap: 5, fontSize: 11 }}
             title="Link to a note"
             onMouseDown={(e) => {
               e.preventDefault();
               saveSelection();
               if (wikilinkBtnRef.current) onWikilinkClick(wikilinkBtnRef.current.getBoundingClientRect());
             }}
-          >[[]]</button>
+            {...hoverHandlers('wikilink')}
+          >
+            <IconDoc />
+            Note
+          </button>
 
           {/* Node pill picker button */}
           <button
             ref={nodeBtnRef}
-            style={{ ...btnStyle(false), color: 'rgba(52,211,153,0.85)', fontSize: 11, fontFamily: 'monospace' }}
+            style={{
+              ...btnStyle(false, hoveredControl === 'node-link'),
+              gap: 5,
+              fontSize: 11,
+            }}
             title="Link to a canvas node"
             onMouseDown={(e) => {
               e.preventDefault();
               saveSelection();
               if (nodeBtnRef.current) onNodeLinkClick(nodeBtnRef.current.getBoundingClientRect());
             }}
-          >@node</button>
+            {...hoverHandlers('node-link')}
+          >
+            <IconNodeLink />
+            Node
+          </button>
         </>
+      )}
+
+      {viewMode === 'source' && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            flexWrap: 'wrap',
+            minHeight: 34,
+          }}
+        >
+          <span style={{ fontSize: 11, color: 'var(--c-text-off)', marginRight: 2, whiteSpace: 'nowrap' }}>
+            Markdown
+          </span>
+          {sourceShortcuts.map(([syntax, label]) => (
+            <button
+              key={syntax}
+              type="button"
+              title={`Insert ${label.toLowerCase()} syntax`}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                onSourceInsert(syntax);
+              }}
+              style={{
+                ...sourceShortcutStyle,
+                cursor: 'pointer',
+                transition: 'background 0.12s, border-color 0.12s, color 0.12s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'var(--c-hover)';
+                e.currentTarget.style.borderColor = 'rgba(184,119,80,0.28)';
+                e.currentTarget.style.color = 'var(--c-text-hi)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.025)';
+                e.currentTarget.style.borderColor = 'var(--c-border)';
+                e.currentTarget.style.color = 'var(--c-text-lo)';
+              }}
+            >
+              <code
+                style={{
+                  color: 'var(--c-text-hi)',
+                  fontFamily: 'JetBrains Mono, monospace',
+                  fontSize: 11,
+                  background: 'rgba(0,0,0,0.08)',
+                  borderRadius: 4,
+                  padding: '1px 5px',
+                }}
+              >
+                {syntax}
+              </code>
+              <span>{label}</span>
+            </button>
+          ))}
+          <button
+            type="button"
+            title={sourceWrap ? 'Disable line wrap' : 'Enable line wrap'}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              setSourceWrap((v) => !v);
+            }}
+            style={{
+              ...sourceActionButtonStyle,
+              background: sourceWrap ? 'rgba(184,119,80,0.12)' : 'rgba(255,255,255,0.025)',
+              borderColor: sourceWrap ? 'rgba(184,119,80,0.28)' : 'var(--c-border)',
+              color: sourceWrap ? 'var(--c-text-hi)' : 'var(--c-text-lo)',
+            }}
+            onMouseEnter={(e) => {
+              if (sourceWrap) {
+                e.currentTarget.style.background = 'rgba(184,119,80,0.16)';
+                e.currentTarget.style.borderColor = 'rgba(184,119,80,0.36)';
+              } else {
+                e.currentTarget.style.background = 'var(--c-hover)';
+                e.currentTarget.style.borderColor = 'rgba(184,119,80,0.28)';
+                e.currentTarget.style.color = 'var(--c-text-hi)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = sourceWrap ? 'rgba(184,119,80,0.12)' : 'rgba(255,255,255,0.025)';
+              e.currentTarget.style.borderColor = sourceWrap ? 'rgba(184,119,80,0.28)' : 'var(--c-border)';
+              e.currentTarget.style.color = sourceWrap ? 'var(--c-text-hi)' : 'var(--c-text-lo)';
+            }}
+          >
+            <IconTextWrap />
+            Wrap
+          </button>
+          <button
+            type="button"
+            title="Copy raw markdown"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              onCopySource();
+            }}
+            style={sourceActionButtonStyle}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'var(--c-hover)';
+              e.currentTarget.style.borderColor = 'rgba(184,119,80,0.28)';
+              e.currentTarget.style.color = 'var(--c-text-hi)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'rgba(255,255,255,0.025)';
+              e.currentTarget.style.borderColor = 'var(--c-border)';
+              e.currentTarget.style.color = 'var(--c-text-lo)';
+            }}
+          >
+            <IconCopy />
+            Copy
+          </button>
+        </div>
       )}
 
       <div style={{ flex: 1 }} />
 
-      {/* Edit / Source toggle */}
-      <div style={{ display: 'flex', gap: 2, background: 'rgba(255,255,255,0.06)', borderRadius: 7, padding: 2, flexShrink: 0 }}>
+      {viewMode === 'edit' && (
+        <>
+          {saveStatusText && (
+            <span
+              style={{
+                fontSize: 11,
+                color: 'var(--c-text-lo)',
+                userSelect: 'none',
+                whiteSpace: 'nowrap',
+                marginRight: 4,
+              }}
+            >
+              {saveStatusText}
+            </span>
+          )}
+          <button
+            style={btnStyle(false, hoveredControl === 'save')}
+            title="Save as Markdown"
+            onMouseDown={(e) => { e.preventDefault(); onSave(); }}
+            {...hoverHandlers('save')}
+          >
+            <IconSaveFile />
+          </button>
+          <div style={{ width: 1, height: 18, background: 'rgba(255,255,255,0.12)', margin: '0 4px 0 6px', flexShrink: 0 }} />
+        </>
+      )}
+
+      {/* Preview / Source toggle */}
+      <div
+        style={{
+          position: 'relative',
+          display: 'flex',
+          gap: 2,
+          background: 'rgba(255,255,255,0.06)',
+          border: '1px solid var(--c-border)',
+          borderRadius: 10,
+          padding: 3,
+          flexShrink: 0,
+          boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.04)',
+        }}
+      >
+        <div
+          style={{
+            position: 'absolute',
+            top: 3,
+            bottom: 3,
+            left: 3,
+            width: 86,
+            borderRadius: 7,
+            background: 'var(--c-panel)',
+            boxShadow: '0 1px 5px rgba(0,0,0,0.2)',
+            transform: viewMode === 'source' ? 'translateX(88px)' : 'translateX(0)',
+            transition: 'transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1)',
+            pointerEvents: 'none',
+          }}
+        />
         <button
           title="Rich text editor"
           onMouseDown={(e) => { e.preventDefault(); if (viewMode === 'source') onToggleEdit(); }}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 5,
-            padding: '4px 10px', borderRadius: 5, border: 'none', cursor: 'pointer',
-            fontSize: 11, fontFamily: 'inherit', fontWeight: 500,
-            background: viewMode === 'edit' ? 'var(--c-panel)' : 'transparent',
-            color: viewMode === 'edit' ? 'var(--c-text-hi)' : 'var(--c-text-lo)',
-            boxShadow: viewMode === 'edit' ? '0 1px 3px rgba(0,0,0,0.2)' : 'none',
-            transition: 'all 0.15s',
-          }}
+          style={modeButtonStyle(viewMode === 'edit', 'left')}
+          onMouseEnter={(e) => { if (viewMode !== 'edit') e.currentTarget.style.color = 'var(--c-text-md)'; }}
+          onMouseLeave={(e) => { if (viewMode !== 'edit') e.currentTarget.style.color = 'var(--c-text-lo)'; }}
         ><IconEye /> Preview</button>
         <button
           title="Markdown source"
           onMouseDown={(e) => { e.preventDefault(); if (viewMode === 'edit') onToggleSource(); }}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 5,
-            padding: '4px 10px', borderRadius: 5, border: 'none', cursor: 'pointer',
-            fontSize: 11, fontFamily: 'inherit', fontWeight: 500,
-            background: viewMode === 'source' ? 'var(--c-panel)' : 'transparent',
-            color: viewMode === 'source' ? 'var(--c-text-hi)' : 'var(--c-text-lo)',
-            boxShadow: viewMode === 'source' ? '0 1px 3px rgba(0,0,0,0.2)' : 'none',
-            transition: 'all 0.15s',
-          }}
+          style={modeButtonStyle(viewMode === 'source', 'right')}
+          onMouseEnter={(e) => { if (viewMode !== 'source') e.currentTarget.style.color = 'var(--c-text-md)'; }}
+          onMouseLeave={(e) => { if (viewMode !== 'source') e.currentTarget.style.color = 'var(--c-text-lo)'; }}
         ><IconCode /> Source</button>
       </div>
     </div>
@@ -623,8 +879,10 @@ interface DocumentModeProps {
 export default function DocumentMode({ onClose }: DocumentModeProps) {
   const { documents, activeDocId, updateDocument, addDocument, closeDocument, openDocumentWithMorph, nodes, pages, activePageId, boardTitle } = useBoardStore();
   const contentRef = useRef<HTMLDivElement>(null);
+  const sourceRef = useRef<HTMLTextAreaElement>(null);
   const [viewMode, setViewMode] = useState<'edit' | 'source'>('edit');
   const [sourceText, setSourceText] = useState('');
+  const [sourceWrap, setSourceWrap] = useState(true);
   const [, forceUpdate] = useState(0);
   const [docHistory, setDocHistory] = useState<string[]>([]);
   const [wikiPreview, setWikiPreview] = useState<{ x: number; y: number; doc: Document } | null>(null);
@@ -633,6 +891,10 @@ export default function DocumentMode({ onClose }: DocumentModeProps) {
   const [nodePicker, setNodePicker] = useState<{ x: number; y: number } | null>(null);
   const [emojiPicker, setEmojiPicker] = useState<{ x: number; y: number } | null>(null);
   const [isHoveringDoc, setIsHoveringDoc] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
+  const [hasEditedSinceOpen, setHasEditedSinceOpen] = useState(false);
+  const [dirtySinceSave, setDirtySinceSave] = useState(false);
+  const [, forceSaveStatusTick] = useState(0);
   const savedSelectionRef = useRef<Range | null>(null);
 
   const doc = documents.find((d) => d.id === activeDocId) as Document | undefined;
@@ -665,6 +927,15 @@ export default function DocumentMode({ onClose }: DocumentModeProps) {
     while ((m = re.exec(text)) !== null) ids.add(m[1]);
     return nodes.filter((n) => ids.has(n.id));
   }, [doc?.id, doc?.content, nodes]);
+
+  const getSourceCursorOffset = useCallback((syntax: string) => {
+    const placeholders = ['text', 'bold', 'code', 'url', 'alt', 'Note'];
+    for (const placeholder of placeholders) {
+      const idx = syntax.indexOf(placeholder);
+      if (idx >= 0) return idx;
+    }
+    return syntax.length;
+  }, []);
 
   // Sync content to DOM when switching documents; auto-bootstrap H1 for new docs
   useEffect(() => {
@@ -699,6 +970,23 @@ export default function DocumentMode({ onClose }: DocumentModeProps) {
     return () => document.removeEventListener('selectionchange', onSel);
   }, []);
 
+  useEffect(() => {
+    setLastSavedAt(null);
+    setHasEditedSinceOpen(false);
+    setDirtySinceSave(false);
+  }, [doc?.id]);
+
+  useEffect(() => {
+    if (!lastSavedAt) return;
+    const interval = window.setInterval(() => forceSaveStatusTick((n) => n + 1), 30_000);
+    return () => window.clearInterval(interval);
+  }, [lastSavedAt]);
+
+  const markDirty = useCallback(() => {
+    setHasEditedSinceOpen(true);
+    setDirtySinceSave(true);
+  }, []);
+
   // When H1 in editor changes, sync to doc.title
   const handleInput = useCallback(() => {
     if (!contentRef.current || !doc) return;
@@ -708,8 +996,9 @@ export default function DocumentMode({ onClose }: DocumentModeProps) {
       const h1Text = firstBlock.textContent ?? '';
       if (h1Text && h1Text !== doc.title) updates.title = h1Text;
     }
+    markDirty();
     updateDocument(doc.id, updates);
-  }, [doc?.id, doc?.title, updateDocument]);
+  }, [doc?.id, doc?.title, markDirty, updateDocument]);
 
   const switchToSource = () => {
     if (!doc) return;
@@ -720,6 +1009,7 @@ export default function DocumentMode({ onClose }: DocumentModeProps) {
   const switchToEdit = () => {
     if (!doc) return;
     const html = markdownToHtml(sourceText);
+    markDirty();
     updateDocument(doc.id, { content: html });
     setViewMode('edit');
     requestAnimationFrame(() => {
@@ -730,23 +1020,79 @@ export default function DocumentMode({ onClose }: DocumentModeProps) {
     });
   };
 
+  const insertSourceSyntax = useCallback((syntax: string) => {
+    const textarea = sourceRef.current;
+    const start = textarea?.selectionStart ?? sourceText.length;
+    const end = textarea?.selectionEnd ?? sourceText.length;
+    const selected = sourceText.slice(start, end);
+    const nextText = sourceText.slice(0, start) + syntax + sourceText.slice(end);
+    const cursorOffset = selected ? syntax.length : getSourceCursorOffset(syntax);
+    setSourceText(nextText);
+    markDirty();
+    requestAnimationFrame(() => {
+      sourceRef.current?.focus();
+      const cursor = start + cursorOffset;
+      sourceRef.current?.setSelectionRange(cursor, selected ? cursor + selected.length : cursor);
+    });
+  }, [markDirty, sourceText]);
+
+  const copySourceText = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(sourceText);
+      toast('Copied source');
+    } catch (err) {
+      try {
+        const temp = document.createElement('textarea');
+        temp.value = sourceText;
+        temp.readOnly = true;
+        temp.style.position = 'fixed';
+        temp.style.left = '-9999px';
+        temp.style.top = '0';
+        document.body.appendChild(temp);
+        temp.select();
+        const ok = document.execCommand('copy');
+        document.body.removeChild(temp);
+        toast(ok ? 'Copied source' : 'Copy failed');
+      } catch (copyErr) {
+        console.error(err, copyErr);
+        toast('Copy failed');
+      }
+    }
+  }, [sourceText]);
+
   const handleSave = async () => {
     if (!doc) return;
     const md = htmlToMarkdown(doc.content ?? '');
     const filename = generateMarkdownFilename(doc.title);
     if (hasWorkspaceHandle()) {
       try {
-        await saveTextFileToWorkspace('documents', filename, md);
-        if (!doc.linkedFile) updateDocument(doc.id, { linkedFile: `documents/${filename}` });
-        toast(`Saved: documents/${filename}`);
+        const linkedFile = doc.linkedFile ?? `notes/${filename}`;
+        const parts = linkedFile.split('/').filter(Boolean);
+        const file = parts.pop() ?? filename;
+        const folder = parts.join('/');
+        await saveTextFileToWorkspace(folder, file, md);
+        if (!doc.linkedFile) updateDocument(doc.id, { linkedFile });
+        setLastSavedAt(Date.now());
+        setHasEditedSinceOpen(true);
+        setDirtySinceSave(false);
+        toast(`Saved: ${linkedFile}`);
       } catch (err) {
         console.error(err);
         toast('Save failed');
       }
     } else {
       saveAs(new Blob([md], { type: 'text/markdown;charset=utf-8' }), filename);
+      setLastSavedAt(Date.now());
+      setHasEditedSinceOpen(true);
+      setDirtySinceSave(false);
     }
   };
+
+  const saveStatusText = !hasEditedSinceOpen
+    ? null
+    : dirtySinceSave
+      ? (lastSavedAt ? `Unsaved changes, saved ${relativeTime(lastSavedAt)}` : 'Unsaved changes')
+      : (lastSavedAt ? `Last saved ${relativeTime(lastSavedAt)}` : null);
 
   // ── Chip insertion ────────────────────────────────────────────────────────
 
@@ -907,6 +1253,7 @@ export default function DocumentMode({ onClose }: DocumentModeProps) {
           value={doc.title}
           onChange={(e) => {
             const newTitle = e.target.value;
+            markDirty();
             updateDocument(doc.id, { title: newTitle });
             if (contentRef.current) {
               const firstBlock = contentRef.current.firstElementChild;
@@ -938,6 +1285,11 @@ export default function DocumentMode({ onClose }: DocumentModeProps) {
             onSave={handleSave}
             onWikilinkClick={handleWikilinkClick}
             onNodeLinkClick={handleNodeLinkClick}
+            onSourceInsert={insertSourceSyntax}
+            sourceWrap={sourceWrap}
+            setSourceWrap={setSourceWrap}
+            onCopySource={copySourceText}
+            saveStatusText={saveStatusText}
           />
 
           {viewMode === 'edit' && (
@@ -1099,8 +1451,13 @@ export default function DocumentMode({ onClose }: DocumentModeProps) {
 
           {viewMode === 'source' && (
             <textarea
+              ref={sourceRef}
               value={sourceText}
-              onChange={(e) => setSourceText(e.target.value)}
+              wrap={sourceWrap ? 'soft' : 'off'}
+              onChange={(e) => {
+                markDirty();
+                setSourceText(e.target.value);
+              }}
               spellCheck={false}
               style={{
                 flex: 1,
@@ -1114,6 +1471,7 @@ export default function DocumentMode({ onClose }: DocumentModeProps) {
                 lineHeight: 1.7,
                 fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
                 overflowY: 'auto',
+                overflowX: sourceWrap ? 'hidden' : 'auto',
                 opacity: 0.85,
               }}
             />

@@ -1,4 +1,4 @@
-import { CanvasNode, DocumentNode } from '../types';
+import { CanvasNode, Document, DocumentNode } from '../types';
 
 // ── HTML → Markdown ───────────────────────────────────────────────────────────
 
@@ -131,10 +131,13 @@ export function markdownToHtml(md: string): string {
 /**
  * Convert a single DocumentNode to Markdown
  */
-export function documentToMarkdown(node: DocumentNode): string {
+export function documentToMarkdown(node: DocumentNode, documents: Document[] = []): string {
+  const doc = node.docId ? documents.find((d) => d.id === node.docId) : undefined;
+  const title = doc?.title ?? node.title;
+  const content = doc?.content ?? node.content;
   const parts: string[] = [];
-  if (node.title) { parts.push(`# ${node.title}`); parts.push(''); }
-  if (node.content) parts.push(htmlToMarkdown(node.content));
+  if (title) { parts.push(`# ${title}`); parts.push(''); }
+  if (content) parts.push(htmlToMarkdown(content));
   return parts.join('\n');
 }
 
@@ -142,7 +145,7 @@ export function documentToMarkdown(node: DocumentNode): string {
  * Export multiple documents as a single Markdown file
  * Sorts by orderIndex if present, otherwise uses array order
  */
-export function exportDocumentsAsMarkdown(nodes: CanvasNode[]): string {
+export function exportDocumentsAsMarkdown(nodes: CanvasNode[], documents: Document[] = []): string {
   const docs = nodes.filter(n => n.type === 'document') as DocumentNode[];
 
   // Sort by orderIndex, with fallback to array order
@@ -155,13 +158,13 @@ export function exportDocumentsAsMarkdown(nodes: CanvasNode[]): string {
     return 0; // stable: maintain array order for nodes without orderIndex
   });
 
-  return docs.map(documentToMarkdown).join('\n\n---\n\n');
+  return docs.map((node) => documentToMarkdown(node, documents)).join('\n\n---\n\n');
 }
 
 /**
  * Generate a filename for Markdown export
  */
 export function generateMarkdownFilename(title?: string, isMultiple = false): string {
-  const base = (title || 'untitled document').replace(/\s+/g, '_').toLowerCase();
-  return isMultiple ? `${base}-documents.md` : `${base}.md`;
+  const base = (title || 'untitled note').replace(/\s+/g, '_').toLowerCase();
+  return isMultiple ? `${base}-notes.md` : `${base}.md`;
 }

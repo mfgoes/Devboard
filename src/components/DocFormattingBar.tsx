@@ -34,8 +34,9 @@ interface Props {
 }
 
 export default function DocFormattingBar({ nodeId }: Props) {
-  const { nodes, workspaceName } = useBoardStore();
+  const { nodes, workspaceName, documents } = useBoardStore();
   const node = nodes.find((n) => n.id === nodeId) as DocumentNode | undefined;
+  const doc = node?.docId ? documents.find((d) => d.id === node.docId) : undefined;
 
   const [showHeadings, setShowHeadings] = useState(false);
   const [showColors, setShowColors] = useState(false);
@@ -81,6 +82,14 @@ export default function DocFormattingBar({ nodeId }: Props) {
   const isItalic    = document.queryCommandState('italic');
   const isUnderline = document.queryCommandState('underline');
   const blockType   = getCurrentBlockType();
+
+  const styleToolButtonClass = (active: boolean, extra = '') => [
+    'w-9 h-9 flex items-center justify-center rounded-lg transition-colors text-[14px]',
+    active
+      ? 'bg-[var(--c-line)] text-white hover:bg-[var(--c-line-pre)]'
+      : 'text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
+    extra,
+  ].join(' ');
 
   // ── Format actions ───────────────────────────────────────────────────────
   const applyBlockFormat = (format: 'p' | 'h1' | 'h2' | 'h3') => {
@@ -139,18 +148,22 @@ export default function DocFormattingBar({ nodeId }: Props) {
 
   // ── Save ─────────────────────────────────────────────────────────────────
   const handleSave = async () => {
-    const md       = documentToMarkdown(node);
-    const filename = generateMarkdownFilename(node.title);
+    const md       = documentToMarkdown(node, documents);
+    const filename = generateMarkdownFilename(doc?.title ?? node.title);
     if (hasWorkspaceHandle()) {
-      const ok = await saveTextFileToWorkspace('documents', filename, md);
-      toast(ok ? `Saved to documents/${filename}` : 'Failed to save to workspace');
+      const linkedFile = doc?.linkedFile ?? node.linkedFile ?? `notes/${filename}`;
+      const parts = linkedFile.split('/').filter(Boolean);
+      const file = parts.pop() ?? filename;
+      const folder = parts.join('/');
+      const ok = await saveTextFileToWorkspace(folder, file, md);
+      toast(ok ? `Saved to ${linkedFile}` : 'Failed to save to workspace');
     } else {
       saveAs(new Blob([md], { type: 'text/markdown;charset=utf-8' }), filename);
     }
   };
 
   const saveTitle = hasWorkspaceHandle()
-    ? `Save to workspace/documents/${generateMarkdownFilename(node.title)}`
+    ? `Save to workspace/${doc?.linkedFile ?? node.linkedFile ?? `notes/${generateMarkdownFilename(doc?.title ?? node.title)}`}`
     : 'Download as Markdown';
 
   return (
@@ -198,10 +211,7 @@ export default function DocFormattingBar({ nodeId }: Props) {
           title="Bold"
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => document.execCommand('bold')}
-          className={[
-            'w-9 h-9 flex items-center justify-center rounded-lg transition-colors font-bold text-[14px]',
-            isBold ? 'bg-[var(--c-line)] text-white' : 'text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
-          ].join(' ')}
+          className={styleToolButtonClass(isBold, 'font-bold')}
           style={{ fontFamily: 'serif' }}
         >B</button>
       </div>
@@ -212,10 +222,7 @@ export default function DocFormattingBar({ nodeId }: Props) {
           title="Italic"
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => document.execCommand('italic')}
-          className={[
-            'w-9 h-9 flex items-center justify-center rounded-lg transition-colors text-[14px] italic',
-            isItalic ? 'bg-[var(--c-line)] text-white' : 'text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
-          ].join(' ')}
+          className={styleToolButtonClass(isItalic, 'italic')}
           style={{ fontFamily: 'serif' }}
         >I</button>
       </div>
@@ -226,10 +233,7 @@ export default function DocFormattingBar({ nodeId }: Props) {
           title="Underline"
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => document.execCommand('underline')}
-          className={[
-            'w-9 h-9 flex items-center justify-center rounded-lg transition-colors text-[14px] underline',
-            isUnderline ? 'bg-[var(--c-line)] text-white' : 'text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
-          ].join(' ')}
+          className={styleToolButtonClass(isUnderline, 'underline')}
           style={{ fontFamily: 'serif' }}
         >U</button>
       </div>

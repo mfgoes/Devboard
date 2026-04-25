@@ -3,8 +3,8 @@
     {
       "id": "sticky-shipping",
       "type": "sticky",
-      "x": 80,
-      "y": 80,
+      "x": -5,
+      "y": -2,
       "text": "Ship to itch.io\n\nSingle HTML file, offline, no account needed.",
       "color": "#fde68a",
       "width": 200,
@@ -72,8 +72,8 @@
     {
       "id": "doc-card-overview",
       "type": "document",
-      "x": 80,
-      "y": 260,
+      "x": -53,
+      "y": 284,
       "width": 200,
       "height": 80,
       "docId": "doc-overview"
@@ -90,16 +90,54 @@
     {
       "id": "doc-card-sprint",
       "type": "document",
-      "x": 560,
-      "y": 260,
+      "x": 694,
+      "y": 271,
       "width": 200,
       "height": 80,
       "docId": "doc-sprint"
+    },
+    {
+      "id": "rfx8o7xpw",
+      "type": "document",
+      "x": 0,
+      "y": -139.3717578438382,
+      "width": 280,
+      "height": 176,
+      "docId": "doc_ci1yhqkqc"
+    },
+    {
+      "id": "zp10ckdm7",
+      "type": "document",
+      "x": 355.3474897319404,
+      "y": -186.3180341701837,
+      "width": 280,
+      "height": 176,
+      "docId": "doc_23axpqjdy"
+    },
+    {
+      "id": "pb8dvoyjo",
+      "type": "document",
+      "x": 804.5875321165718,
+      "y": -120.29983308626034,
+      "width": 280,
+      "height": 176,
+      "docId": "doc_twnq0s3g1"
+    },
+    {
+      "id": "zg9af4zc3",
+      "type": "image",
+      "x": 155,
+      "y": 31,
+      "width": 600,
+      "height": 894,
+      "src": "",
+      "assetName": "e21uv73kg.jpg",
+      "assetFolder": "assets"
     }
   ],
   "camera": {
-    "x": 293,
-    "y": 361,
-    "scale": 1
+    "x": 446.66215195231655,
+    "y": 239.83757895395576,
+    "scale": 0.6816302059305631
   }
 }
