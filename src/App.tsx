@@ -131,7 +131,9 @@ export default function App() {
 
   // Cmd+N on stack pages → new note
   const handleNewStackNote = useCallback(() => {
-    const id = addDocument({ title: '', content: '' });
+    const pageId = useBoardStore.getState().activePageId;
+    const id = addDocument({ title: '', content: '', pageId });
+    useBoardStore.getState().ensureDocumentNode(id, pageId);
     openDocumentWithMorph(id);
   }, [addDocument, openDocumentWithMorph]);
 
@@ -140,6 +142,12 @@ export default function App() {
     closeDocument();
     setMorphPhase('idle');
   }, [closeDocument]);
+
+  useEffect(() => {
+    const handleSnapClose = () => snapCloseDoc();
+    window.addEventListener('devboard:snap-close-document', handleSnapClose);
+    return () => window.removeEventListener('devboard:snap-close-document', handleSnapClose);
+  }, [snapCloseDoc]);
 
   // Pan canvas to center on a node and select it
   const focusNode = useCallback((nodeId: string) => {
@@ -156,6 +164,12 @@ export default function App() {
       y: topH + (window.innerHeight - topH) / 2 - (n.y + h / 2) * scale,
     });
     state.selectIds([nodeId]);
+  }, []);
+
+  const requestActiveDocumentSave = useCallback(() => {
+    if (useBoardStore.getState().appMode !== 'document') return false;
+    window.dispatchEvent(new CustomEvent('devboard:save-active-document'));
+    return true;
   }, []);
 
   // Cmd+K quick switcher
@@ -338,10 +352,24 @@ export default function App() {
         const currentPage = useBoardStore.getState().pages.find((p) => p.id === useBoardStore.getState().activePageId);
         if (currentPage?.layoutMode === 'stack') {
           e.preventDefault();
-          const id = useBoardStore.getState().addDocument({ title: '', content: '' });
+          const pageId = useBoardStore.getState().activePageId;
+          const id = useBoardStore.getState().addDocument({ title: '', content: '', pageId });
+          useBoardStore.getState().ensureDocumentNode(id, pageId);
           useBoardStore.getState().openDocumentWithMorph(id);
           return;
         }
+      }
+
+      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+        e.preventDefault();
+        if (requestActiveDocumentSave()) return;
+        const data = useBoardStore.getState().exportData();
+        if (getWorkspaceName()) {
+          saveWorkspace(data);
+        } else {
+          saveBoard(data);
+        }
+        return;
       }
 
       const el = (e.target as HTMLElement);
@@ -433,14 +461,6 @@ export default function App() {
       } else if (e.key === 'z' && e.shiftKey) {
         e.preventDefault();
         useBoardStore.getState().redo();
-      } else if (e.key === 's') {
-        e.preventDefault();
-        const data = useBoardStore.getState().exportData();
-        if (getWorkspaceName()) {
-          saveWorkspace(data);
-        } else {
-          saveBoard(data);
-        }
       } else if (e.key === 'b') {
         e.preventDefault();
         const { selectedIds, nodes, updateNode } = useBoardStore.getState();
@@ -486,7 +506,10 @@ export default function App() {
     let cleanup = () => {};
     listenTauriMenus({
       'menu:new_board':    () => useBoardStore.getState().loadBoard({ boardTitle: 'Untitled Board', nodes: [] }),
-      'menu:save':         () => saveBoard(useBoardStore.getState().exportData()),
+      'menu:save':         () => {
+        if (requestActiveDocumentSave()) return;
+        saveBoard(useBoardStore.getState().exportData());
+      },
       'menu:save_as':      () => import('./utils/fileSave').then(m => m.saveBoardAs(useBoardStore.getState().exportData())),
       'menu:export_png':   () => {
         const c = document.querySelector<HTMLCanvasElement>('.konvajs-content canvas');
@@ -501,7 +524,7 @@ export default function App() {
       'menu:toggle_theme': () => useBoardStore.getState().toggleTheme(),
     }).then(fn => { cleanup = fn; });
     return () => cleanup();
-  }, []);
+  }, [requestActiveDocumentSave]);
 
   const handleCloseWelcome = () => setShowWelcome(false);
 

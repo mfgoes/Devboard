@@ -60,6 +60,20 @@ export function hasWorkspaceHandle(): boolean {
   return workspaceHandle !== null;
 }
 
+export async function revealInFinder(relativePath: string): Promise<boolean> {
+  if (!IS_TAURI || !tauriWorkspacePath) return false;
+  try {
+    const { invoke } = await import('@tauri-apps/api/core');
+    const normalized = relativePath.replace(/\\/g, '/').replace(/^\/+/, '');
+    await invoke('reveal_in_finder', { path: joinPath(tauriWorkspacePath, normalized) });
+    return true;
+  } catch (err) {
+    console.warn('revealInFinder failed', err);
+    toast('Could not show item in folder');
+    return false;
+  }
+}
+
 async function openWorkspaceDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(WORKSPACE_DB, 1);

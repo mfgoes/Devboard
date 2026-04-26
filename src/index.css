@@ -125,6 +125,48 @@ canvas:focus {
 .doc-content ul { list-style: disc;    padding-left: 1.5em; margin: 0.25em 0; }
 .doc-content ol { list-style: decimal; padding-left: 1.5em; margin: 0.25em 0; }
 .doc-content li { margin: 0.1em 0; }
+.doc-content blockquote {
+  margin: 0.5em 0;
+  padding: 0.4em 0.9em;
+  border-left: 3px solid var(--c-line);
+  background: rgba(184,119,80,0.08);
+  color: var(--c-text-md);
+  font-style: italic;
+  border-radius: 0 6px 6px 0;
+}
+.light .doc-content blockquote { background: rgba(184,119,80,0.06); }
+.doc-content hr {
+  margin: 1em 0;
+  border: 0;
+  border-top: 1px solid var(--c-border);
+}
+.doc-content code {
+  font-family: var(--font-code);
+  font-size: 0.92em;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid var(--c-border);
+}
+.light .doc-content code { background: rgba(0,0,0,0.05); }
+.doc-content pre {
+  margin: 0.6em 0;
+  padding: 0.7em 0.9em;
+  border-radius: 8px;
+  background: rgba(0,0,0,0.25);
+  border: 1px solid var(--c-border);
+  overflow-x: auto;
+}
+.light .doc-content pre { background: rgba(0,0,0,0.05); }
+.doc-content pre code {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font-size: 0.88em;
+  white-space: pre;
+}
+.doc-content img { max-width: 100%; border-radius: 6px; margin: 0.4em 0; }
+.doc-content s, .doc-content del { text-decoration: line-through; opacity: 0.75; }
 
 /* ── Inline doc chips (wikilinks, node links, hashtags) ────────────────────── */
 .chip-wiki {

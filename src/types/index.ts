@@ -278,13 +278,14 @@ export interface PageMeta {
   id: string;
   name: string;
   layoutMode?: 'freeform' | 'stack';
+  noteSort?: 'updated' | 'custom';
 }
 
 export interface BoardData {
   boardTitle: string;
   nodes: CanvasNode[];
   // Multi-page (v2) — absent in legacy saves
-  pages?: Array<{ id: string; name: string; layoutMode?: 'freeform' | 'stack'; nodes: CanvasNode[]; camera: Camera }>;
+  pages?: Array<{ id: string; name: string; layoutMode?: 'freeform' | 'stack'; noteSort?: 'updated' | 'custom'; nodes: CanvasNode[]; camera: Camera }>;
   activePageId?: string;
   // Phase 2 document entities — absent in legacy saves
   documents?: Document[];

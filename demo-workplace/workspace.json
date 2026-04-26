@@ -10,16 +10,16 @@
       "name": "Page 2"
     }
   ],
-  "activePageId": "lw9twvlr4",
+  "activePageId": "page-1",
   "documents": [
     {
       "id": "doc-overview",
       "title": "Project Overview",
       "content": "<h1>Project Overview</h1><p>DevBoard is a thinking canvas for solo devs — a place to capture ideas, connect them, and ship faster.</p><h2>Goals</h2><p>See [[Tech Stack]] for the full technology breakdown. The main design decisions are captured in canvas nodes on the Roadmap page.</p><p>The feature sticky @node:sticky-shipping covers our export and sharing strategy.</p><h2>Status</h2><p>MVP is in progress. Next milestone: launch on itch.io. Sprint details are in [[Sprint Notes]].</p>",
       "pageId": "page-1",
-      "orderIndex": 0,
+      "orderIndex": 2,
       "createdAt": 1745580000000,
-      "updatedAt": 1777147221937,
+      "updatedAt": 1777194809808,
       "tags": [
         "planning",
         "overview"
@@ -31,9 +31,9 @@
       "title": "Tech Stack",
       "content": "<h1>Tech Stack</h1><div>This document covers all technologies used in DevBoard.</div><h2>Frontend</h2><ul><li><b>React 18</b> + TypeScript — UI layer</li><li><b>react-konva</b> — canvas rendering</li><li><b>Zustand</b> — state management (localStorage persistence)</li><li><b>Tailwind CSS v3</b> — UI chrome</li></ul><h2>Build</h2><ul><li><b>Vite</b> + vite-plugin-singlefile — produces a single dist/index.html</li></ul><h2>Related</h2><div>See [[Project Overview]] for context. The canvas node @node:sticky-tech has more architecture notes.</div>",
       "pageId": "page-1",
-      "orderIndex": 1,
+      "orderIndex": 6,
       "createdAt": 1745580100000,
-      "updatedAt": 1777148629902,
+      "updatedAt": 1777194809809,
       "tags": [
         "tech",
         "architecture"
@@ -45,9 +45,9 @@
       "title": "Sprint Notes",
       "content": "<h1>Sprint Notes — Week 17</h1><p>This week's focus: document system + workspace support.</p><h2>Done</h2><ul><li>Document mode with rich text editing</li><li>Wikilinks [[Project Overview]] working in editor</li><li>Node pills @node:sticky-shipping showing canvas context</li><li>Workspace save/load round-trips documents correctly</li></ul><h2>Up Next</h2><p>See [[Tech Stack]] for components that still need attention. The @node:sticky-tech canvas note has the architecture decisions.</p>",
       "pageId": "page-1",
-      "orderIndex": 2,
+      "orderIndex": 0,
       "createdAt": 1745580200000,
-      "updatedAt": 1777124445819,
+      "updatedAt": 1777194809808,
       "tags": [
         "sprint"
       ],
@@ -60,16 +60,19 @@
       "pageId": "page-1",
       "linkedFile": "notes/project_overview.md",
       "createdAt": 1777147364523,
-      "updatedAt": 1777147750725
+      "updatedAt": 1777194809808,
+      "orderIndex": 3
     },
     {
       "id": "doc_23axpqjdy",
-      "title": "Project Overview",
-      "content": "<h1>Project Overview</h1><div>DevBoard is a thinking canvas for solo devs — a place to capture ideas, connect them, and ship faster.</div><h2>Goals</h2><div>See [[Tech Stack]] for the full technology breakdown. The main design decisions are captured in canvas nodes on the Roadmap page.</div><div>The feature sticky @node:sticky-shipping covers our export and sharing strategy.</div><h2>Status</h2><div>MVP is in progress. Next milestone: launch on itch.io. Sprint details are in [[Sprint Notes]].</div>",
+      "title": "Project Overvjkjkjiew",
+      "content": "<h1>Project Overvjkjkjiew</h1><div>DevBoard is a thinking canvas for solo devs — a place to capture ideas, connect them, and ship faster.</div><h2>Goalsdf</h2><div>See [[Tech Stack]] for the full technology breakdown. The main design decisions are captured in canvas nodes on the Roadmap page.</div><div>The feature sticky @node:sticky-shipping covers our export and sharing strategy.</div><h2>Status</h2><div>MVP is in progress. Next milestone: launch on itch.io. Sprint details are in [[Sprint Notes]].</div><div><br></div><hr>",
       "pageId": "page-1",
       "linkedFile": "notes/project_overview-2.md",
       "createdAt": 1777147934005,
-      "updatedAt": 1777147934005
+      "updatedAt": 1777195961368,
+      "orderIndex": 1,
+      "emoji": "🔦"
     },
     {
       "id": "doc_twnq0s3g1",
@@ -78,7 +81,8 @@
       "pageId": "page-1",
       "linkedFile": "notes/project_overview-3.md",
       "createdAt": 1777147947589,
-      "updatedAt": 1777148159124
+      "updatedAt": 1777194809808,
+      "orderIndex": 4
     },
     {
       "id": "doc_cb95srkvm",
@@ -87,7 +91,8 @@
       "pageId": "page-1",
       "linkedFile": "notes/untitled_note.md",
       "createdAt": 1777149546092,
-      "updatedAt": 1777149560509
+      "updatedAt": 1777194809809,
+      "orderIndex": 5
     },
     {
       "id": "doc_k1hve1aiz",

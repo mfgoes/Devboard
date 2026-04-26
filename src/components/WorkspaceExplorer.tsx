@@ -5,13 +5,15 @@
  */
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useBoardStore } from '../store/boardStore';
-import { listDirectory, readWorkspaceFile, readWorkspaceFileAsUrl, readWorkspaceFileInfo, getWorkspaceName, openWorkspace, renameEntry, createDirectory, deleteEntry, FSA_DIR_SUPPORTED, IN_IFRAME, saveTextFileToWorkspace, saveWorkspace } from '../utils/workspaceManager';
+import type { Document, PageMeta } from '../types';
+import { listDirectory, readWorkspaceFile, readWorkspaceFileAsUrl, readWorkspaceFileInfo, getWorkspaceName, openWorkspace, renameEntry, createDirectory, deleteEntry, FSA_DIR_SUPPORTED, IN_IFRAME, revealInFinder, saveTextFileToWorkspace, saveWorkspace } from '../utils/workspaceManager';
 import { FONTS } from '../utils/fonts';
 import { placeCodeFile, placeImageFile, placeDocumentFile, openDocumentFile } from '../utils/canvasPlacement';
 import { markdownToHtml } from '../utils/exportMarkdown';
 import { toast } from '../utils/toast';
 import { useFilePreview } from '../hooks/useFilePreview';
 import { useTreeState } from '../hooks/useTreeState';
+import { IconFreeformPage, IconStackPage } from './icons';
 import {
   SKIP_DIRS,
   IMAGE_EXTS,
@@ -44,6 +46,20 @@ const explorerSectionHeaderStyle: React.CSSProperties = {
   textTransform: 'uppercase',
   color: 'var(--c-text-hi)',
 };
+
+function sortDocumentsForExplorer(docs: Document[], sortMode: PageMeta['noteSort'] = 'updated'): Document[] {
+  if (sortMode === 'custom') {
+    return [...docs].sort((a, b) => {
+      if (a.orderIndex != null && b.orderIndex != null) return a.orderIndex - b.orderIndex;
+      if (a.orderIndex != null) return -1;
+      if (b.orderIndex != null) return 1;
+      return b.updatedAt - a.updatedAt;
+    });
+  }
+  return [...docs].sort((a, b) => {
+    return b.updatedAt - a.updatedAt;
+  });
+}
 
 // ── TreeRow ───────────────────────────────────────────────────────────────────
 function TreeRow({
@@ -337,6 +353,625 @@ function NoWorkspaceState({ onOpen }: { onOpen: () => void }) {
   );
 }
 
+function PageGroup({
+  page,
+  docs,
+  isActive,
+  isCollapsed,
+  activeDocId,
+  onRenameDocument,
+  onReorderDocuments,
+  onDeleteDocument,
+  onRevealDocument,
+  onRenamePage,
+  onDeletePage,
+  onRevealPage,
+  onChangeSortMode,
+  onEnsureCustomSort,
+  onToggleCollapsed,
+  onOpenPageOverview,
+  onCreateNote,
+  onOpenDocument,
+}: {
+  page: PageMeta;
+  docs: Document[];
+  isActive: boolean;
+  isCollapsed: boolean;
+  activeDocId: string | null;
+  onRenameDocument: (docId: string, title: string) => void;
+  onReorderDocuments: (docIds: string[]) => void;
+  onDeleteDocument: (doc: Document) => void;
+  onRevealDocument: (doc: Document) => void;
+  onRenamePage: (pageId: string, name: string) => void;
+  onDeletePage: (page: PageMeta) => void;
+  onRevealPage: (page: PageMeta) => void;
+  onChangeSortMode: (page: PageMeta, sort: 'updated' | 'custom') => void;
+  onEnsureCustomSort: (page: PageMeta) => void;
+  onToggleCollapsed: () => void;
+  onOpenPageOverview: () => void;
+  onCreateNote: () => void;
+  onOpenDocument: (docId: string) => void;
+}) {
+  const [renamingPage, setRenamingPage] = useState(false);
+  const [pageRenameDraft, setPageRenameDraft] = useState(page.name);
+  const [renamingDocId, setRenamingDocId] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState('');
+  const [draggedDocId, setDraggedDocId] = useState<string | null>(null);
+  const [dropTargetDocId, setDropTargetDocId] = useState<string | null>(null);
+  const [noteMenu, setNoteMenu] = useState<{ doc: Document; x: number; y: number } | null>(null);
+  const [pageMenu, setPageMenu] = useState<{ x: number; y: number } | null>(null);
+
+  const beginRename = useCallback((doc: Document) => {
+    setRenamingDocId(doc.id);
+    setRenameDraft(doc.title || 'Untitled note');
+  }, []);
+
+  const commitRename = useCallback(() => {
+    if (!renamingDocId) return;
+    const nextTitle = renameDraft.trim() || 'Untitled note';
+    onRenameDocument(renamingDocId, nextTitle);
+    setRenamingDocId(null);
+  }, [onRenameDocument, renameDraft, renamingDocId]);
+
+  const cancelRename = useCallback(() => {
+    setRenamingDocId(null);
+    setRenameDraft('');
+  }, []);
+
+  const handleDropOnDoc = useCallback((targetDocId: string) => {
+    if (!draggedDocId || draggedDocId === targetDocId) return;
+    const ids = docs.map((doc) => doc.id);
+    const from = ids.indexOf(draggedDocId);
+    const to = ids.indexOf(targetDocId);
+    if (from === -1 || to === -1) return;
+    const next = [...ids];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    onReorderDocuments(next);
+    setDraggedDocId(null);
+    setDropTargetDocId(null);
+  }, [docs, draggedDocId, onReorderDocuments]);
+
+  useEffect(() => {
+    if (!noteMenu) return;
+    const handleWindowClick = () => setNoteMenu(null);
+    window.addEventListener('click', handleWindowClick);
+    return () => window.removeEventListener('click', handleWindowClick);
+  }, [noteMenu]);
+
+  useEffect(() => {
+    setPageRenameDraft(page.name);
+  }, [page.name]);
+
+  useEffect(() => {
+    if (!pageMenu) return;
+    const handleWindowClick = () => setPageMenu(null);
+    window.addEventListener('click', handleWindowClick);
+    return () => window.removeEventListener('click', handleWindowClick);
+  }, [pageMenu]);
+
+  return (
+    <div style={{ marginBottom: 4 }}>
+      <div
+        style={{
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          padding: '7px 9px',
+          background: isActive ? 'rgba(184,119,80,0.12)' : 'none',
+          outline: isActive ? '1px solid rgba(184,119,80,0.24)' : 'none',
+          outlineOffset: -1,
+          borderRadius: 6,
+        }}
+        className="hover:bg-[var(--c-hover)]"
+      >
+        <button
+          onClick={onToggleCollapsed}
+          title={isCollapsed ? `Expand "${page.name}"` : `Collapse "${page.name}"`}
+          style={{
+            width: 14,
+            height: 14,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 0,
+            background: 'transparent',
+            border: 'none',
+            color: isActive ? 'var(--c-text-md)' : 'var(--c-text-lo)',
+            flexShrink: 0,
+            cursor: 'pointer',
+          }}
+        >
+          <span
+            style={{
+              fontSize: 9,
+              lineHeight: 1,
+              transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
+              transition: 'transform 0.16s cubic-bezier(0.22, 1, 0.36, 1)',
+              display: 'inline-block',
+            }}
+          >
+            ▾
+          </span>
+        </button>
+
+        <button
+          onClick={onOpenPageOverview}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setPageMenu({ x: e.clientX, y: e.clientY });
+          }}
+          title={`Open "${page.name}" page overview`}
+          style={{
+            flex: 1,
+            minWidth: 0,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 7,
+            padding: 0,
+            background: 'transparent',
+            border: 'none',
+            cursor: 'pointer',
+            textAlign: 'left',
+          }}
+        >
+          <span style={{ width: 16, display: 'flex', justifyContent: 'center', flexShrink: 0, color: isActive ? 'var(--c-line)' : 'var(--c-text-lo)' }}>
+            {page.layoutMode === 'stack' ? (
+              <IconStackPage />
+            ) : (
+              <IconFreeformPage />
+            )}
+          </span>
+          {renamingPage ? (
+            <input
+              autoFocus
+              value={pageRenameDraft}
+              onChange={(e) => setPageRenameDraft(e.target.value)}
+              onClick={(e) => e.stopPropagation()}
+              onBlur={() => {
+                const nextName = pageRenameDraft.trim() || page.name;
+                onRenamePage(page.id, nextName);
+                setRenamingPage(false);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  const nextName = pageRenameDraft.trim() || page.name;
+                  onRenamePage(page.id, nextName);
+                  setRenamingPage(false);
+                }
+                if (e.key === 'Escape') {
+                  e.preventDefault();
+                  setRenamingPage(false);
+                  setPageRenameDraft(page.name);
+                }
+                e.stopPropagation();
+              }}
+              style={{
+                flex: 1,
+                minWidth: 0,
+                height: 22,
+                padding: '0 6px',
+                background: 'var(--c-canvas)',
+                border: '1px solid rgba(184,119,80,0.28)',
+                borderRadius: 5,
+                outline: 'none',
+                fontFamily: FONTS.ui,
+                fontSize: 10.5,
+                color: 'var(--c-text-hi)',
+              }}
+            />
+          ) : (
+            <span style={{
+              fontFamily: FONTS.ui, fontSize: 10.5, fontWeight: isActive ? 600 : 500,
+              color: isActive ? 'var(--c-text-hi)' : 'var(--c-text-lo)',
+              overflow: 'hidden', textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap', flex: 1,
+            }}>
+              {page.name}
+            </span>
+          )}
+          <span style={{
+            fontFamily: FONTS.ui,
+            fontSize: 9.5,
+            color: isActive ? 'var(--c-text-md)' : 'var(--c-text-lo)',
+            flexShrink: 0,
+          }}>
+            {docs.length}
+          </span>
+        </button>
+        <div style={{ position: 'relative', flexShrink: 0 }}>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              const rect = e.currentTarget.getBoundingClientRect();
+              setPageMenu((current) => current ? null : { x: rect.right - 180, y: rect.bottom + 4 });
+            }}
+            title={`${page.name} menu`}
+            style={{
+              width: 18,
+              height: 18,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 0,
+              border: 'none',
+              background: 'transparent',
+              color: 'var(--c-text-off)',
+              borderRadius: 4,
+              cursor: 'pointer',
+            }}
+          >
+            <span style={{ fontSize: 14, lineHeight: 1 }}>⋯</span>
+          </button>
+          {pageMenu && (() => {
+            const MENU_W = 180;
+            const left = Math.min(pageMenu.x, window.innerWidth - MENU_W - 8);
+            const top = Math.min(pageMenu.y, window.innerHeight - 110);
+            return (
+            <div
+              style={{ position: 'fixed', left, top, zIndex: 9100, minWidth: MENU_W }}
+              className="py-1.5 rounded-xl border border-[var(--c-border)] bg-[var(--c-panel)] shadow-2xl"
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <div style={{ padding: '2px 10px 4px', fontFamily: FONTS.ui, fontSize: 10, color: 'var(--c-text-off)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                Sort notes
+              </div>
+              <button
+                className="w-full flex items-center justify-between px-3 py-1.5 text-[12px] rounded transition-colors text-left hover:bg-[var(--c-hover)]"
+                style={{ fontFamily: FONTS.ui, color: page.noteSort !== 'custom' ? 'var(--c-text-hi)' : 'var(--c-text-md)' }}
+                onClick={() => {
+                  onChangeSortMode(page, 'updated');
+                  setPageMenu(null);
+                }}
+              >
+                <span>By updated date</span>
+                {page.noteSort !== 'custom' && <span className="text-[10px] ml-3">✓</span>}
+              </button>
+              <button
+                className="w-full flex items-center justify-between px-3 py-1.5 text-[12px] rounded transition-colors text-left hover:bg-[var(--c-hover)]"
+                style={{ fontFamily: FONTS.ui, color: page.noteSort === 'custom' ? 'var(--c-text-hi)' : 'var(--c-text-md)' }}
+                onClick={() => {
+                  onChangeSortMode(page, 'custom');
+                  setPageMenu(null);
+                }}
+              >
+                <span>Custom order</span>
+                {page.noteSort === 'custom' && <span className="text-[10px] ml-3">✓</span>}
+              </button>
+              <div style={{ height: 1, background: 'var(--c-border)', margin: '4px 0' }} />
+              <button
+                className="w-full flex items-center justify-between px-3 py-1.5 text-[12px] rounded transition-colors text-left text-[var(--c-text-md)] hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]"
+                style={{ fontFamily: FONTS.ui }}
+                onClick={() => {
+                  onRevealPage(page);
+                  setPageMenu(null);
+                }}
+              >
+                <span>Show in Folder</span>
+              </button>
+              <button
+                className="w-full flex items-center justify-between px-3 py-1.5 text-[12px] rounded transition-colors text-left text-[var(--c-text-md)] hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]"
+                style={{ fontFamily: FONTS.ui }}
+                onClick={() => {
+                  setRenamingPage(true);
+                  setPageMenu(null);
+                }}
+              >
+                <span>Rename page</span>
+              </button>
+              <button
+                className="w-full flex items-center justify-between px-3 py-1.5 text-[12px] rounded transition-colors text-left hover:bg-[rgba(239,68,68,0.12)]"
+                style={{ fontFamily: FONTS.ui, color: '#f87171' }}
+                onClick={() => {
+                  onDeletePage(page);
+                  setPageMenu(null);
+                }}
+              >
+                <span>Delete page</span>
+              </button>
+            </div>
+            );
+          })()}
+        </div>
+      </div>
+
+      {!isCollapsed && (
+        <div
+          style={{
+            marginTop: 4,
+            marginLeft: 22,
+            paddingLeft: 10,
+            borderLeft: '1px solid rgba(184,119,80,0.18)',
+            maxHeight: 520,
+            opacity: 1,
+            overflow: 'hidden',
+            transform: 'translateY(0)',
+            transition: 'max-height 0.18s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.14s ease, transform 0.18s cubic-bezier(0.22, 1, 0.36, 1), margin-top 0.18s ease',
+          }}
+        >
+          <button
+            onClick={onCreateNote}
+            style={{
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 7,
+              padding: '6px 8px',
+              background: 'transparent',
+              border: '1px dashed rgba(184,119,80,0.22)',
+              borderRadius: 7,
+              cursor: 'pointer',
+              textAlign: 'left',
+              color: 'var(--c-text-md)',
+              fontFamily: FONTS.ui,
+              fontSize: 10,
+              transition: 'background 0.12s, border-color 0.12s, color 0.12s',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'var(--c-hover)';
+              e.currentTarget.style.borderColor = 'rgba(184,119,80,0.34)';
+              e.currentTarget.style.color = 'var(--c-text-hi)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.borderColor = 'rgba(184,119,80,0.22)';
+              e.currentTarget.style.color = 'var(--c-text-md)';
+            }}
+          >
+            <span style={{ fontSize: 15, lineHeight: 1, width: 12, textAlign: 'center', flexShrink: 0 }}>+</span>
+            <span>{`New note in ${page.name}`}</span>
+          </button>
+
+          {docs.length === 0 ? (
+            <div style={{ padding: '8px 8px 2px', fontSize: 9.5, color: 'var(--c-text-lo)', fontFamily: FONTS.ui, fontStyle: 'italic' }}>
+              No notes on this page
+            </div>
+          ) : (
+            docs.map((doc) => {
+              const isSelected = doc.id === activeDocId;
+              const isRenaming = doc.id === renamingDocId;
+              const isDragged = doc.id === draggedDocId;
+              const isDropTarget = doc.id === dropTargetDocId && draggedDocId !== doc.id;
+              return (
+                <button
+                  key={doc.id}
+                  onClick={() => {
+                    if (isRenaming) return;
+                    onOpenDocument(doc.id);
+                  }}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setNoteMenu({ doc, x: e.clientX, y: e.clientY });
+                  }}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 7,
+                    marginTop: 2,
+                    padding: '6px 8px',
+                    background: isDragged ? 'rgba(184,119,80,0.08)' : isSelected ? 'rgba(184,119,80,0.14)' : 'none',
+                    border: 'none',
+                    outline: isDropTarget
+                      ? '1px solid rgba(184,119,80,0.42)'
+                      : isSelected
+                        ? '1px solid rgba(184,119,80,0.26)'
+                        : 'none',
+                    outlineOffset: -1,
+                    borderRadius: 6,
+                    cursor: isRenaming ? 'text' : 'grab',
+                    textAlign: 'left',
+                    boxShadow: isDropTarget ? 'inset 0 2px 0 rgba(184,119,80,0.55)' : 'none',
+                    opacity: isDragged ? 0.72 : 1,
+                  }}
+                  className="hover:bg-[var(--c-hover)]"
+                  title={doc.title || 'Untitled note'}
+                  draggable={!isRenaming}
+                  onDragStart={(e) => {
+                    if (isRenaming) {
+                      e.preventDefault();
+                      return;
+                    }
+                    onEnsureCustomSort(page);
+                    setDraggedDocId(doc.id);
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.setData('text/plain', doc.id);
+
+                    const ghost = document.createElement('div');
+                    ghost.style.cssText = [
+                      'position:fixed',
+                      'top:-999px',
+                      'left:-999px',
+                      'display:flex',
+                      'align-items:center',
+                      'gap:8px',
+                      'min-width:180px',
+                      'max-width:280px',
+                      'padding:8px 10px',
+                      'background:#f5ede3',
+                      'border:1px solid rgba(184,119,80,0.35)',
+                      'border-radius:10px',
+                      'box-shadow:0 10px 28px rgba(74,53,37,0.18)',
+                      'color:#2c241f',
+                      `font:600 12px/1.2 ${FONTS.ui}`,
+                      'pointer-events:none',
+                      'white-space:nowrap',
+                    ].join(';');
+
+                    const grip = document.createElement('span');
+                    grip.textContent = '⋮⋮';
+                    grip.style.cssText = 'font-size:10px;color:#8a755f;flex-shrink:0;';
+                    ghost.appendChild(grip);
+
+                    const textWrap = document.createElement('div');
+                    textWrap.style.cssText = 'display:flex;flex-direction:column;min-width:0;';
+
+                    const title = document.createElement('span');
+                    title.textContent = doc.title || 'Untitled note';
+                    title.style.cssText = 'overflow:hidden;text-overflow:ellipsis;';
+                    textWrap.appendChild(title);
+
+                    const subtitle = document.createElement('span');
+                    subtitle.textContent = page.name;
+                    subtitle.style.cssText = 'font-size:10px;font-weight:500;color:#8a755f;margin-top:2px;';
+                    textWrap.appendChild(subtitle);
+
+                    ghost.appendChild(textWrap);
+                    document.body.appendChild(ghost);
+                    e.dataTransfer.setDragImage(ghost, 18, 14);
+                    requestAnimationFrame(() => ghost.remove());
+                  }}
+                  onDragEnd={() => {
+                    setDraggedDocId(null);
+                    setDropTargetDocId(null);
+                  }}
+                  onDragOver={(e) => {
+                    if (!draggedDocId || draggedDocId === doc.id) return;
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    if (dropTargetDocId !== doc.id) setDropTargetDocId(doc.id);
+                  }}
+                  onDragLeave={(e) => {
+                    const related = e.relatedTarget as Node | null;
+                    if (related && e.currentTarget.contains(related)) return;
+                    if (dropTargetDocId === doc.id) setDropTargetDocId(null);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    handleDropOnDoc(doc.id);
+                  }}
+                >
+                  <span
+                    title="Drag note to reorder"
+                    style={{
+                      width: 12,
+                      display: 'flex',
+                      justifyContent: 'center',
+                      color: isDropTarget || isDragged ? 'var(--c-line)' : 'var(--c-text-off)',
+                      cursor: isRenaming ? 'text' : 'grab',
+                      flexShrink: 0,
+                      fontSize: 10,
+                      lineHeight: 1,
+                      opacity: isDragged ? 1 : 0.72,
+                      transition: 'color 0.12s ease, opacity 0.12s ease',
+                    }}
+                  >
+                    ⋮⋮
+                  </span>
+                  <span style={{ width: 14, display: 'flex', justifyContent: 'center', flexShrink: 0, color: isSelected ? 'var(--c-line)' : 'var(--c-text-lo)' }}>
+                    {doc.emoji ? (
+                      <span style={{ fontSize: 12, lineHeight: 1 }}>{doc.emoji}</span>
+                    ) : (
+                      <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                        <rect x="1.5" y="1.5" width="9" height="9" rx="1.4" stroke="currentColor" strokeWidth="1.1" />
+                        <path d="M3.5 4h5M3.5 6h5M3.5 8h3" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
+                      </svg>
+                    )}
+                  </span>
+                  {isRenaming ? (
+                    <input
+                      autoFocus
+                      value={renameDraft}
+                      onChange={(e) => setRenameDraft(e.target.value)}
+                      onBlur={commitRename}
+                      onClick={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          commitRename();
+                        }
+                        if (e.key === 'Escape') {
+                          e.preventDefault();
+                          cancelRename();
+                        }
+                        e.stopPropagation();
+                      }}
+                      style={{
+                        flex: 1,
+                        minWidth: 0,
+                        height: 22,
+                        padding: '0 6px',
+                        background: 'var(--c-canvas)',
+                        border: '1px solid rgba(184,119,80,0.28)',
+                        borderRadius: 5,
+                        outline: 'none',
+                        fontFamily: FONTS.ui,
+                        fontSize: 10,
+                        color: 'var(--c-text-hi)',
+                      }}
+                    />
+                  ) : (
+                    <span style={{
+                      fontFamily: FONTS.ui, fontSize: 10, fontWeight: isSelected ? 600 : 500,
+                      color: 'var(--c-text-hi)',
+                      overflow: 'hidden', textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap', flex: 1,
+                    }}>
+                      {doc.title || 'Untitled note'}
+                    </span>
+                  )}
+                  <span style={{ fontFamily: FONTS.ui, fontSize: 9.5, color: isSelected ? 'var(--c-text-md)' : 'var(--c-text-lo)', flexShrink: 0 }}>
+                    {relativeTime(doc.updatedAt)}
+                  </span>
+                </button>
+              );
+            })
+          )}
+        </div>
+      )}
+      {noteMenu && (() => {
+        const MENU_W = 160;
+        const left = Math.min(noteMenu.x, window.innerWidth - MENU_W - 8);
+        const top = Math.min(noteMenu.y, window.innerHeight - 64);
+        return (
+          <div
+            style={{ position: 'fixed', left, top, zIndex: 9100, minWidth: MENU_W }}
+            className="py-1.5 rounded-xl border border-[var(--c-border)] bg-[var(--c-panel)] shadow-2xl"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <button
+              className="w-full flex items-center justify-between px-3 py-1.5 text-[12px] rounded transition-colors text-left text-[var(--c-text-md)] hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]"
+              style={{ fontFamily: FONTS.ui }}
+              onClick={() => {
+                onRevealDocument(noteMenu.doc);
+                setNoteMenu(null);
+              }}
+            >
+              <span>Show in Folder</span>
+            </button>
+            <button
+              className="w-full flex items-center justify-between px-3 py-1.5 text-[12px] rounded transition-colors text-left text-[var(--c-text-md)] hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]"
+              style={{ fontFamily: FONTS.ui }}
+              onClick={() => {
+                beginRename(noteMenu.doc);
+                setNoteMenu(null);
+              }}
+            >
+              <span>Rename</span>
+            </button>
+            <div style={{ height: 1, background: 'var(--c-border)', margin: '3px 0' }} />
+            <button
+              className="w-full flex items-center justify-between px-3 py-1.5 text-[12px] rounded transition-colors text-left hover:bg-[rgba(239,68,68,0.12)]"
+              style={{ fontFamily: FONTS.ui, color: '#f87171' }}
+              onClick={() => {
+                onDeleteDocument(noteMenu.doc);
+                setNoteMenu(null);
+              }}
+            >
+              <span>Delete</span>
+              <span className="text-[10px] ml-3" style={{ color: '#f87171', opacity: 0.6 }}>⌫</span>
+            </button>
+          </div>
+        );
+      })()}
+    </div>
+  );
+}
+
 export const WORKSPACE_EXPLORER_WIDTH = 340;
 
 // ── Main component ────────────────────────────────────────────────────────────
@@ -351,11 +986,15 @@ export default function WorkspaceExplorer({ onClose }: Props) {
   const pages = useBoardStore((s) => s.pages);
   const addPage = useBoardStore((s) => s.addPage);
   const deletePage = useBoardStore((s) => s.deletePage);
+  const renamePage = useBoardStore((s) => s.renamePage);
+  const setPageNoteSort = useBoardStore((s) => s.setPageNoteSort);
   const activePageId = useBoardStore((s) => s.activePageId);
   const activeDocId = useBoardStore((s) => s.activeDocId);
   const switchPage = useBoardStore((s) => s.switchPage);
   const documents = useBoardStore((s) => s.documents);
   const addDocument = useBoardStore((s) => s.addDocument);
+  const updateDocument = useBoardStore((s) => s.updateDocument);
+  const deleteDocument = useBoardStore((s) => s.deleteDocument);
   const openDocumentWithMorph = useBoardStore((s) => s.openDocumentWithMorph);
   const storeNodes = useBoardStore((s) => s.nodes);
   const pageSnapshots = useBoardStore((s) => s.pageSnapshots);
@@ -403,6 +1042,7 @@ export default function WorkspaceExplorer({ onClose }: Props) {
   const [pagesSectionOpen, setPagesSectionOpen] = useState(true);
   const [assetsSectionOpen, setAssetsSectionOpen] = useState(true);
   const [collapsedPageIds, setCollapsedPageIds] = useState<Record<string, boolean>>({});
+  const [pageSectionHeight, setPageSectionHeight] = useState(320);
   const [confirmingClose, setConfirmingClose] = useState(false);
   const confirmCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [folderEditing, setFolderEditing] = useState(false);
@@ -416,15 +1056,42 @@ export default function WorkspaceExplorer({ onClose }: Props) {
   // Delete confirm state
   const [deleteConfirm, setDeleteConfirm] = useState<TreeEntry | null>(null);
   const [deletePageConfirm, setDeletePageConfirm] = useState<{ id: string; name: string } | null>(null);
+  const [deleteNoteConfirm, setDeleteNoteConfirm] = useState<Document | null>(null);
   // Explorer context menu (right-click)
   type ExplorerMenu = { entry: TreeEntry; x: number; y: number };
   const [explorerMenu, setExplorerMenu] = useState<ExplorerMenu | null>(null);
   const explorerMenuRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const resizeStateRef = useRef<{ startY: number; startHeight: number } | null>(null);
 
   // Cleanup on unmount
   useEffect(() => () => {
     if (confirmCloseTimerRef.current) clearTimeout(confirmCloseTimerRef.current);
+  }, []);
+
+  useEffect(() => {
+    const onPointerMove = (e: PointerEvent) => {
+      const resizeState = resizeStateRef.current;
+      if (!resizeState) return;
+      const panelHeight = panelRef.current?.getBoundingClientRect().height ?? window.innerHeight;
+      const minHeight = 120;
+      const maxHeight = Math.max(minHeight, Math.min(520, panelHeight * 0.62));
+      const nextHeight = resizeState.startHeight + (e.clientY - resizeState.startY);
+      setPageSectionHeight(Math.max(minHeight, Math.min(maxHeight, nextHeight)));
+    };
+
+    const onPointerUp = () => {
+      resizeStateRef.current = null;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+    return () => {
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+    };
   }, []);
 
 
@@ -745,16 +1412,6 @@ export default function WorkspaceExplorer({ onClose }: Props) {
     return paths;
   }, [storeNodes, pageSnapshots]);
 
-  const pageDocCounts = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const doc of documents) {
-      const pageId = doc.pageId;
-      if (!pageId) continue;
-      counts.set(pageId, (counts.get(pageId) ?? 0) + 1);
-    }
-    return counts;
-  }, [documents]);
-
   const pageDocs = useMemo(() => {
     const docsByPage = new Map<string, typeof documents>();
     for (const page of pages) docsByPage.set(page.id, []);
@@ -763,22 +1420,82 @@ export default function WorkspaceExplorer({ onClose }: Props) {
       const list = docsByPage.get(doc.pageId);
       if (list) list.push(doc);
     }
-    for (const list of docsByPage.values()) {
-      list.sort((a, b) => b.updatedAt - a.updatedAt);
+    for (const [pageId, list] of docsByPage.entries()) {
+      const page = pages.find((entry) => entry.id === pageId);
+      const sorted = sortDocumentsForExplorer(list, page?.noteSort ?? 'updated');
+      list.splice(0, list.length, ...sorted);
     }
     return docsByPage;
   }, [documents, pages]);
-  const createNoteForActivePage = useCallback(() => {
+  const createNoteForPage = useCallback((pageId: string) => {
+    if (pageId !== activePageId) switchPage(pageId);
+    const page = pages.find((entry) => entry.id === pageId);
+    const pageDocList = sortDocumentsForExplorer(
+      documents.filter((doc) => doc.pageId === pageId),
+      page?.noteSort ?? 'updated'
+    );
     const docId = addDocument({
       title: 'Untitled note',
-      pageId: activePageId,
+      pageId,
+      orderIndex: (page?.noteSort ?? 'updated') === 'custom' ? pageDocList.length : undefined,
     });
+    useBoardStore.getState().ensureDocumentNode(docId, pageId);
     openDocumentWithMorph(docId);
-  }, [activePageId, addDocument, openDocumentWithMorph]);
+  }, [activePageId, addDocument, documents, openDocumentWithMorph, pages, switchPage]);
+
+  const renameDocumentFromExplorer = useCallback((docId: string, title: string) => {
+    updateDocument(docId, { title });
+  }, [updateDocument]);
+
+  const reorderDocumentsForPage = useCallback((pageId: string, docIds: string[]) => {
+    docIds.forEach((docId, index) => {
+      updateDocument(docId, { orderIndex: index });
+    });
+  }, [updateDocument]);
+
+  const changePageNoteSort = useCallback((page: PageMeta, sort: 'updated' | 'custom') => {
+    if (sort === 'custom') {
+      const orderedDocs = sortDocumentsForExplorer(
+        documents.filter((doc) => doc.pageId === page.id),
+        page.noteSort ?? 'updated'
+      );
+      orderedDocs.forEach((doc, index) => {
+        if (doc.orderIndex !== index) updateDocument(doc.id, { orderIndex: index });
+      });
+    }
+    setPageNoteSort(page.id, sort);
+  }, [documents, setPageNoteSort, updateDocument]);
+
+  const ensureCustomSortForPage = useCallback((page: PageMeta) => {
+    if (page.noteSort === 'custom') return;
+    changePageNoteSort(page, 'custom');
+  }, [changePageNoteSort]);
+
+  const deleteDocumentFromExplorer = useCallback((doc: Document) => {
+    setDeleteNoteConfirm(doc);
+  }, []);
+
+  const revealPageInFinder = useCallback((page: PageMeta) => {
+    void revealInFinder(`pages/${page.id}.json`);
+  }, []);
+
+  const revealDocumentInFinder = useCallback((doc: Document) => {
+    if (!doc.linkedFile) {
+      toast('Save this note to the workspace first');
+      return;
+    }
+    void revealInFinder(doc.linkedFile);
+  }, []);
 
   const togglePageCollapsed = useCallback((pageId: string) => {
     setCollapsedPageIds((prev) => ({ ...prev, [pageId]: !prev[pageId] }));
   }, []);
+
+  const startPageSectionResize = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    resizeStateRef.current = { startY: e.clientY, startHeight: pageSectionHeight };
+    document.body.style.cursor = 'ns-resize';
+    document.body.style.userSelect = 'none';
+  }, [pageSectionHeight]);
 
   const assetTree = useMemo(
     () => tree.filter((entry) => entry.path.join('/') !== 'notes'),
@@ -1058,192 +1775,76 @@ export default function WorkspaceExplorer({ onClose }: Props) {
           </button>
 
           {pagesSectionOpen && (
-            <div style={{ padding: '0 8px 8px' }}>
+            <div
+              style={{
+                padding: '0 8px 0',
+                height: pageSectionHeight,
+                overflowY: 'auto',
+                scrollbarWidth: 'thin',
+              }}
+            >
               {pages.map((page) => {
                 const isActive = page.id === activePageId;
                 const docsForPage = pageDocs.get(page.id) ?? [];
-                const pageDocCount = pageDocCounts.get(page.id) ?? 0;
                 const isCollapsed = collapsedPageIds[page.id] ?? !isActive;
                 return (
-                  <div key={page.id} style={{ marginBottom: 4 }}>
-                    <button
-                      onClick={() => {
-                        if (!isActive) switchPage(page.id);
-                        togglePageCollapsed(page.id);
-                      }}
-                      title={isCollapsed ? `Expand "${page.name}"` : `Collapse "${page.name}"`}
-                      style={{
-                        width: '100%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 6,
-                        padding: '7px 9px',
-                        background: isActive ? 'rgba(184,119,80,0.12)' : 'none',
-                        border: 'none',
-                        outline: isActive ? '1px solid rgba(184,119,80,0.24)' : 'none',
-                        outlineOffset: -1,
-                        borderRadius: 6,
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                      }}
-                      className="hover:bg-[var(--c-hover)]"
-                    >
-                      <span style={{ width: 14, height: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', color: isActive ? 'var(--c-text-md)' : 'var(--c-text-lo)', flexShrink: 0 }}>
-                        <span
-                          style={{
-                            fontSize: 9,
-                            lineHeight: 1,
-                            transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
-                            transition: 'transform 0.16s cubic-bezier(0.22, 1, 0.36, 1)',
-                            display: 'inline-block',
-                          }}
-                        >
-                          ▾
-                        </span>
-                      </span>
-
-                      <span style={{ width: 16, display: 'flex', justifyContent: 'center', flexShrink: 0, color: isActive ? 'var(--c-line)' : 'var(--c-text-lo)' }}>
-                        {page.layoutMode === 'stack' ? (
-                          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                            <path d="M3 3h6M3 6h6M3 9h6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-                          </svg>
-                        ) : (
-                          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                            <rect x="1.5" y="1.5" width="3" height="3" rx="0.7" stroke="currentColor" strokeWidth="1.1" />
-                            <rect x="7.5" y="1.5" width="3" height="3" rx="0.7" stroke="currentColor" strokeWidth="1.1" />
-                            <rect x="1.5" y="7.5" width="3" height="3" rx="0.7" stroke="currentColor" strokeWidth="1.1" />
-                            <rect x="7.5" y="7.5" width="3" height="3" rx="0.7" stroke="currentColor" strokeWidth="1.1" />
-                          </svg>
-                        )}
-                      </span>
-                      <span style={{
-                        fontFamily: FONTS.ui, fontSize: 10.5, fontWeight: isActive ? 600 : 500,
-                        color: isActive ? 'var(--c-text-hi)' : 'var(--c-text-lo)',
-                        overflow: 'hidden', textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap', flex: 1,
-                      }}>
-                        {page.name}
-                      </span>
-                      <span style={{
-                        fontFamily: FONTS.ui,
-                        fontSize: 9.5,
-                        color: isActive ? 'var(--c-text-md)' : 'var(--c-text-lo)',
-                        flexShrink: 0,
-                      }}>
-                        {pageDocCount}
-                      </span>
-                    </button>
-
-                    {isActive && (
-                      <div
-                        style={{
-                          marginTop: isCollapsed ? 0 : 4,
-                          marginLeft: 22,
-                          paddingLeft: 10,
-                          borderLeft: '1px solid rgba(184,119,80,0.18)',
-                          maxHeight: isCollapsed ? 0 : 520,
-                          opacity: isCollapsed ? 0 : 1,
-                          overflow: 'hidden',
-                          transform: isCollapsed ? 'translateY(-4px)' : 'translateY(0)',
-                          transition: 'max-height 0.18s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.14s ease, transform 0.18s cubic-bezier(0.22, 1, 0.36, 1), margin-top 0.18s ease',
-                        }}
-                      >
-                        <button
-                          onClick={createNoteForActivePage}
-                          style={{
-                            width: '100%',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 7,
-                            padding: '6px 8px',
-                            background: 'transparent',
-                            border: '1px dashed rgba(184,119,80,0.22)',
-                            borderRadius: 7,
-                            cursor: 'pointer',
-                            textAlign: 'left',
-                            color: 'var(--c-text-md)',
-                            fontFamily: FONTS.ui,
-                            fontSize: 10,
-                            transition: 'background 0.12s, border-color 0.12s, color 0.12s',
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.background = 'var(--c-hover)';
-                            e.currentTarget.style.borderColor = 'rgba(184,119,80,0.34)';
-                            e.currentTarget.style.color = 'var(--c-text-hi)';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.background = 'transparent';
-                            e.currentTarget.style.borderColor = 'rgba(184,119,80,0.22)';
-                            e.currentTarget.style.color = 'var(--c-text-md)';
-                          }}
-                        >
-                          <span style={{ fontSize: 15, lineHeight: 1, width: 12, textAlign: 'center', flexShrink: 0 }}>+</span>
-                          <span>{`New note in ${page.name}`}</span>
-                        </button>
-
-                        {docsForPage.length === 0 ? (
-                          <div style={{ padding: '8px 8px 2px', fontSize: 9.5, color: 'var(--c-text-lo)', fontFamily: FONTS.ui, fontStyle: 'italic' }}>
-                            No notes on this page
-                          </div>
-                        ) : (
-                          docsForPage.map((doc) => (
-                            (() => {
-                              const isSelected = doc.id === activeDocId;
-                              return (
-                                <button
-                                  key={doc.id}
-                                  onClick={() => openDocumentWithMorph(doc.id)}
-                                  style={{
-                                    width: '100%',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 7,
-                                    marginTop: 2,
-                                    padding: '6px 8px',
-                                    background: isSelected ? 'rgba(184,119,80,0.14)' : 'none',
-                                    border: 'none',
-                                    outline: isSelected ? '1px solid rgba(184,119,80,0.26)' : 'none',
-                                    outlineOffset: -1,
-                                    borderRadius: 6,
-                                    cursor: 'pointer',
-                                    textAlign: 'left',
-                                  }}
-                                  className="hover:bg-[var(--c-hover)]"
-                                  title={doc.title || 'Untitled note'}
-                                >
-                                  <span style={{ width: 14, display: 'flex', justifyContent: 'center', flexShrink: 0, color: isSelected ? 'var(--c-line)' : 'var(--c-text-lo)' }}>
-                                    {doc.emoji ? (
-                                      <span style={{ fontSize: 12, lineHeight: 1 }}>{doc.emoji}</span>
-                                    ) : (
-                                      <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
-                                        <rect x="1.5" y="1.5" width="9" height="9" rx="1.4" stroke="currentColor" strokeWidth="1.1" />
-                                        <path d="M3.5 4h5M3.5 6h5M3.5 8h3" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
-                                      </svg>
-                                    )}
-                                  </span>
-                                  <span style={{
-                                    fontFamily: FONTS.ui, fontSize: 10, fontWeight: isSelected ? 600 : 500,
-                                    color: isSelected ? 'var(--c-text-hi)' : 'var(--c-text-hi)',
-                                    overflow: 'hidden', textOverflow: 'ellipsis',
-                                    whiteSpace: 'nowrap', flex: 1,
-                                  }}>
-                                    {doc.title || 'Untitled note'}
-                                  </span>
-                                  <span style={{ fontFamily: FONTS.ui, fontSize: 9.5, color: isSelected ? 'var(--c-text-md)' : 'var(--c-text-lo)', flexShrink: 0 }}>
-                                    {relativeTime(doc.updatedAt)}
-                                  </span>
-                                </button>
-                              );
-                            })()
-                          ))
-                        )}
-                      </div>
-                    )}
-                  </div>
+                  <PageGroup
+                    key={page.id}
+                    page={page}
+                    docs={docsForPage}
+                    isActive={isActive}
+                    isCollapsed={isCollapsed}
+                    activeDocId={activeDocId}
+                    onRenameDocument={renameDocumentFromExplorer}
+                    onReorderDocuments={(docIds) => reorderDocumentsForPage(page.id, docIds)}
+                    onDeleteDocument={deleteDocumentFromExplorer}
+                    onRevealDocument={revealDocumentInFinder}
+                    onRenamePage={renamePage}
+                    onDeletePage={(targetPage) => setDeletePageConfirm({ id: targetPage.id, name: targetPage.name })}
+                    onRevealPage={revealPageInFinder}
+                    onChangeSortMode={changePageNoteSort}
+                    onEnsureCustomSort={ensureCustomSortForPage}
+                    onToggleCollapsed={() => togglePageCollapsed(page.id)}
+                    onOpenPageOverview={() => {
+                      if (!isActive) switchPage(page.id);
+                      window.dispatchEvent(new CustomEvent('devboard:snap-close-document'));
+                    }}
+                    onCreateNote={() => createNoteForPage(page.id)}
+                    onOpenDocument={(docId) => {
+                      if (!isActive) switchPage(page.id);
+                      openDocumentWithMorph(docId);
+                    }}
+                  />
                 );
               })}
             </div>
           )}
+        </div>
+      )}
+
+      {getWorkspaceName() && pages.length > 0 && pagesSectionOpen && (
+        <div
+          onPointerDown={startPageSectionResize}
+          title="Resize pages section"
+          style={{
+            height: 12,
+            flexShrink: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'ns-resize',
+            borderBottom: '1px solid var(--c-border)',
+            background: 'var(--c-panel)',
+          }}
+        >
+          <div
+            style={{
+              width: 40,
+              height: 4,
+              borderRadius: 999,
+              background: 'rgba(138, 117, 95, 0.26)',
+            }}
+          />
         </div>
       )}
 
@@ -1474,6 +2075,41 @@ export default function WorkspaceExplorer({ onClose }: Props) {
               </button>
               <button
                 onClick={() => setDeletePageConfirm(null)}
+                style={{ flex: 1, padding: '7px 0', background: 'var(--c-hover)', border: 'none', borderRadius: 8, fontFamily: FONTS.ui, fontSize: 11, color: 'var(--c-text-hi)', cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Note delete confirmation */}
+      {deleteNoteConfirm && (
+        <div
+          style={{ position: 'fixed', inset: 0, zIndex: 9200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.45)' }}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <div style={{ background: 'var(--c-panel)', border: '1px solid var(--c-border)', borderRadius: 14, padding: '20px 24px', maxWidth: 340, boxShadow: '0 16px 48px rgba(0,0,0,0.4)' }}>
+            <p style={{ fontFamily: FONTS.ui, fontSize: 12, fontWeight: 700, color: 'var(--c-text-hi)', margin: '0 0 8px' }}>
+              Delete note?
+            </p>
+            <p style={{ fontFamily: FONTS.ui, fontSize: 11, color: 'var(--c-text-lo)', margin: '0 0 16px', lineHeight: 1.5 }}>
+              <span style={{ color: '#f87171' }}>{deleteNoteConfirm.title || 'Untitled note'}</span>
+              {' '}will be permanently deleted. This cannot be undone.
+            </p>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                onClick={() => {
+                  deleteDocument(deleteNoteConfirm.id);
+                  setDeleteNoteConfirm(null);
+                }}
+                style={{ flex: 1, padding: '7px 0', background: '#ef4444', border: 'none', borderRadius: 8, fontFamily: FONTS.ui, fontSize: 11, fontWeight: 700, color: '#fff', cursor: 'pointer' }}
+              >
+                Delete
+              </button>
+              <button
+                onClick={() => setDeleteNoteConfirm(null)}
                 style={{ flex: 1, padding: '7px 0', background: 'var(--c-hover)', border: 'none', borderRadius: 8, fontFamily: FONTS.ui, fontSize: 11, color: 'var(--c-text-hi)', cursor: 'pointer' }}
               >
                 Cancel

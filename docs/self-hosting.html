@@ -257,12 +257,23 @@ a:hover {
 <div class="wrap">
 
   <!-- Navigation -->
-  <nav>
+  <nav class="site-nav" data-mobile-nav-open="false">
     <a class="logo" href="index.html">
       <img src="assets_landing/devboard_icon.png" alt="DevBoard" class="logo-mark" />
       DEVBOARD
     </a>
-    <ul class="nav-links">
+    <button
+      class="nav-toggle"
+      type="button"
+      aria-expanded="false"
+      aria-controls="site-nav-links"
+      aria-label="Open navigation menu"
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <path d="M4 7h16M4 12h16M4 17h16"></path>
+      </svg>
+    </button>
+    <ul class="nav-links" id="site-nav-links">
       <li><a href="./index.html">← Back</a></li>
       <li class="hide-mobile"><a href="https://github.com/mfgoes/Devboard" target="_blank" rel="noopener">GitHub ↗</a></li>
       <li class="hide-mobile"><a class="nav-kofi" href="https://ko-fi.com/devboardapp" target="_blank" rel="noopener">♥ Support</a></li>
@@ -558,6 +569,31 @@ npm run dev</div>
 </div>
 
 <script>
+const nav = document.querySelector('.site-nav');
+const navToggle = nav && nav.querySelector('.nav-toggle');
+if (nav && navToggle) {
+  const closeMenu = function() {
+    nav.dataset.mobileNavOpen = 'false';
+    navToggle.setAttribute('aria-expanded', 'false');
+    navToggle.setAttribute('aria-label', 'Open navigation menu');
+  };
+
+  navToggle.addEventListener('click', function() {
+    const isOpen = nav.dataset.mobileNavOpen === 'true';
+    nav.dataset.mobileNavOpen = isOpen ? 'false' : 'true';
+    navToggle.setAttribute('aria-expanded', String(!isOpen));
+    navToggle.setAttribute('aria-label', isOpen ? 'Open navigation menu' : 'Close navigation menu');
+  });
+
+  nav.querySelectorAll('.nav-links a').forEach(function(link) {
+    link.addEventListener('click', closeMenu);
+  });
+
+  window.addEventListener('resize', function() {
+    if (window.innerWidth > 720) closeMenu();
+  });
+}
+
 // Highlight active nav link
 document.querySelectorAll('.nav-links a').forEach(link => {
   if (window.location.pathname.includes('self-hosting')) {

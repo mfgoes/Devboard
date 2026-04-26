@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
 import { useBoardStore } from '../store/boardStore';
+import { IconFreeformPage, IconStackPage } from './icons';
 
 type ResultKind = 'page' | 'doc' | 'node';
 
@@ -46,7 +47,7 @@ export default function QuickSwitcher({ open, onClose, onPickPage, onPickDoc, on
       kind: 'page',
       id: p.id,
       label: p.name,
-      sub: p.layoutMode === 'stack' ? 'Stack' : 'Canvas',
+      sub: p.layoutMode === 'stack' ? 'Stack' : 'Freeform',
       layoutMode: p.layoutMode ?? 'freeform',
     }));
 
@@ -129,7 +130,7 @@ export default function QuickSwitcher({ open, onClose, onPickPage, onPickDoc, on
             <>
               <SectionLabel>Pages</SectionLabel>
               {groups.page.map((r) => (
-                <QSItem key={r.id} active={r.i === activeIdx} icon={r.layoutMode === 'stack' ? <StackIcon /> : <FreeformIcon />} label={r.label} sub={r.sub} onClick={() => pick(r)} onHover={() => setActiveIdx(r.i)} />
+                <QSItem key={r.id} active={r.i === activeIdx} icon={r.layoutMode === 'stack' ? <IconStackPage /> : <IconFreeformPage />} label={r.label} sub={r.sub} onClick={() => pick(r)} onHover={() => setActiveIdx(r.i)} />
               ))}
             </>
           )}
@@ -201,7 +202,5 @@ function Kbd({ children }: { children: React.ReactNode }) {
   );
 }
 
-function FreeformIcon() { return <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="1" y="1" width="11" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.3"/></svg>; }
-function StackIcon() { return <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M1.5 4.5h10M1.5 6.5h10M1.5 8.5h10" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg>; }
 function DocIcon() { return <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="1.5" y="1" width="10" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.3"/><path d="M4 5h5M4 7h5M4 9h3" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round"/></svg>; }
 function StickyIcon() { return <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="1.5" y="1.5" width="10" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.3"/><path d="M4 5h5M4 7h4" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round"/></svg>; }

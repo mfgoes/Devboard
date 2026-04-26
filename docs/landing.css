@@ -38,6 +38,8 @@ nav {
   justify-content: space-between;
   padding: 18px 0;
   border-bottom: 1px solid var(--c-border);
+  gap: 16px;
+  flex-wrap: wrap;
 }
 
 .logo {
@@ -65,6 +67,30 @@ nav {
   align-items: center;
   gap: 4px;
   list-style: none;
+}
+
+.nav-toggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  border: 1px solid var(--c-border);
+  background: var(--c-panel);
+  color: var(--c-text-hi);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.nav-toggle:hover {
+  background: var(--c-hover);
+  border-color: var(--c-accent);
+}
+
+.nav-toggle svg {
+  width: 20px;
+  height: 20px;
 }
 
 .nav-links a {
@@ -210,6 +236,55 @@ h1 em {
 .platform-sep {
   color: var(--c-border);
   padding: 0 2px;
+}
+
+@media (max-width: 720px) {
+  nav {
+    align-items: flex-start;
+  }
+
+  .nav-toggle {
+    display: inline-flex;
+    margin-left: auto;
+  }
+
+  .nav-links {
+    display: flex;
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    padding-top: 8px;
+    max-height: 0;
+    opacity: 0;
+    overflow: hidden;
+    pointer-events: none;
+    transform: translateY(-8px);
+    transition: max-height 0.22s ease, opacity 0.18s ease, transform 0.18s ease;
+  }
+
+  nav[data-mobile-nav-open="true"] .nav-links {
+    max-height: 320px;
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
+  }
+
+  .nav-links li,
+  .nav-links a {
+    width: 100%;
+  }
+
+  .nav-links a {
+    display: block;
+    padding: 10px 12px;
+    background: var(--c-panel);
+    border: 1px solid var(--c-border);
+  }
+
+  .hide-mobile {
+    display: list-item;
+  }
 }
 
 /* ── buttons ── */
@@ -651,7 +726,7 @@ footer a:hover { color: var(--c-text-hi); }
 .cmp-row,
 .cmp-cta {
   display: grid;
-  grid-template-columns: 1fr 160px 120px 120px;
+  grid-template-columns: 1fr 160px;
   align-items: center;
 }
 
@@ -857,9 +932,8 @@ footer a:hover { color: var(--c-text-hi); }
     gap: 28px;
   }
   .feature-strip.flip { direction: ltr; }
-  nav .nav-links .hide-mobile { display: none; }
   h1 { font-size: 1.9rem; }
-  .cmp-head, .cmp-row, .cmp-cta { grid-template-columns: 1fr 100px 80px 80px; }
+  .cmp-head, .cmp-row, .cmp-cta { grid-template-columns: 1fr 100px; }
   .cmp-label { padding: 12px 12px; font-size: 0.75rem; }
   .cmp-col { font-size: 0.75rem; }
   .bottom-pair { grid-template-columns: 1fr; }

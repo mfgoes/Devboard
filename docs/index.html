@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>DevBoard — by Mischa</title>
   <link rel="icon" type="image/x-icon" href="favicon.ico">
-  <meta name="description" content="A lightweight FigJam-style whiteboard for creators, game developers, writers, and makers. Plan games, map worlds, design systems. No accounts, no backend." />
-  <meta property="og:title" content="DevBoard — Infinite canvas for creative thinking" />
-  <meta property="og:description" content="Sticky notes, smart connectors, shapes, code blocks. Everything lives in your browser." />
+  <meta name="description" content="An offline workspace for writers, worldbuilders, and solo makers. Linked Markdown notes with [[wikilinks]] and a real infinite canvas — in one app. No account, no cloud." />
+  <meta property="og:title" content="DevBoard — The note app that thinks visually" />
+  <meta property="og:description" content="Linked Markdown notes with wikilinks and backlinks, plus an infinite canvas. Fully offline. Your folder, your files." />
   <meta property="og:image" content="assets_landing/main_board.png" />
 
   <link rel="stylesheet" href="site.css" />
@@ -19,12 +19,23 @@
 <div class="wrap">
 
   <!-- nav -->
-  <nav>
+  <nav class="site-nav" data-mobile-nav-open="false">
     <a class="logo" href="#">
       <img src="assets_landing/devboard_icon.png" alt="DevBoard" class="logo-mark" />
       DEVBOARD
     </a>
-    <ul class="nav-links">
+    <button
+      class="nav-toggle"
+      type="button"
+      aria-expanded="false"
+      aria-controls="site-nav-links"
+      aria-label="Open navigation menu"
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <path d="M4 7h16M4 12h16M4 17h16"></path>
+      </svg>
+    </button>
+    <ul class="nav-links" id="site-nav-links">
       <li class="hide-mobile"><a href="#features">Features</a></li>
       <li class="hide-mobile"><a href="https://github.com/mfgoes/Devboard" target="_blank" rel="noopener">GitHub ↗</a></li>
       <li class="hide-mobile"><a class="nav-kofi" href="https://ko-fi.com/devboardapp" target="_blank" rel="noopener">♥ Support</a></li>
@@ -34,14 +45,14 @@
 
   <!-- hero -->
   <div class="hero">
-    <h1>Start mapping your ideas instantly<br><em>local-first, no sign up</em></h1>
+    <h1>Clear your head.<br><em>Map your ideas.</em></h1>
 
-    <p class="hero-sub">An infinite canvas for games, worlds, and complex systems.</p>
+    <p class="hero-sub">A private workspace where your notes aren't just lists.</p>
 
     <ul class="hero-checks">
-      <li>FigJam-style — built for makers</li>
-      <li>Local-first, no account needed</li>
-      <li>Multi-page canvases with a file browser</li>
+      <li>Wikilinks, backlinks, and focus mode for writing</li>
+      <li>Infinite canvas for visual thinking</li>
+      <li>Your folder on disk — no cloud, no account</li>
     </ul>
 
     <div class="cta-row">
@@ -50,10 +61,6 @@
       </a>
       <a class="btn btn-ghost" href="./app.html" target="_blank" rel="noopener">
         Try in browser
-      </a>
-      <a class="btn btn-ghost" href="https://github.com/mfgoes/Devboard" target="_blank" rel="noopener">
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
-        GitHub
       </a>
     </div>
 
@@ -86,27 +93,26 @@
   <!-- tabbed feature section -->
   <div class="tabs-section" id="features">
     <div class="tab-bar">
-      <button class="tab-btn active" data-tab="flows">Connected thinking</button>
-      <button class="tab-btn" data-tab="files">Local files</button>
-      <button class="tab-btn" data-tab="shapes">Shapes &amp; sections</button>
+      <button class="tab-btn active" data-tab="flows">Linked notes</button>
+      <button class="tab-btn" data-tab="files">Your workspace</button>
+      <button class="tab-btn" data-tab="shapes">Visual canvas</button>
     </div>
 
     <div class="tab-panel active" id="tab-flows">
       <div class="feature-strip">
         <div class="feature-text">
-          <div class="feature-eyebrow">Connected thinking</div>
-          <h2>Turn ideas into clear systems</h2>
-          <p>Map how everything connects — story beats, mechanics, or workflows. 
-            Draw flexible connectors that stay attached and adjust as you move things around. Straight, curved, or structured — shape it your way.</p>
+          <div class="feature-eyebrow">Linked notes</div>
+          <h2>Notes that know about each other</h2>
+          <p>Write in Markdown. Type <code>[[</code> to link to another note. Drop <code>@node:</code> to reference a node on the canvas. A backlinks panel shows everywhere a note is mentioned — your characters, locations, decisions, and diagrams stay connected.</p>
           <div class="feature-pills">
-            <span class="pill">Post-its</span>
-            <span class="pill">Word documents</span>
-            <span class="pill">Tables</span>
-            <span class="pill">Task cards</span>
+            <span class="pill">[[Wikilinks]]</span>
+            <span class="pill">@node mentions</span>
+            <span class="pill">Backlinks panel</span>
+            <span class="pill">Focus mode</span>
           </div>
         </div>
         <div class="feature-img">
-          <img src="assets_landing/steps.png" alt="Flow diagram with connected sticky notes in DevBoard" />
+          <img src="assets_landing/steps.png" alt="Linked notes with wikilinks and a backlinks panel in DevBoard" />
         </div>
       </div>
     </div>
@@ -114,19 +120,18 @@
     <div class="tab-panel" id="tab-files">
       <div class="feature-strip flip">
         <div class="feature-text">
-          <div class="feature-eyebrow">Local files</div>
-          <h2>Keep everything in one place</h2>
-          <p>Drop in screenshots, concept art, or references right onto your canvas. 
-            Browse your project files, preview instantly, and place what you need without breaking your flow.</p>
+          <div class="feature-eyebrow">Your workspace</div>
+          <h2>A folder on your disk</h2>
+          <p>Open any local folder as your workspace. Notes are real Markdown files — open them in any editor, version them with git, sync them with anything. The file explorer sidebar lets you browse pages, notes, and assets without breaking your flow.</p>
           <div class="feature-pills">
-            <span class="pill">Folder explorer</span>
-            <span class="pill">Drag-drop images</span>
-            <span class="pill">PNG / JPG</span>
+            <span class="pill">Markdown files on disk</span>
+            <span class="pill">File explorer sidebar</span>
             <span class="pill">Multi-page workspace</span>
+            <span class="pill">Quick switcher (⌘K)</span>
           </div>
         </div>
         <div class="feature-img">
-          <img src="assets_landing/img feature.png" alt="File explorer sidebar and moodboard in DevBoard" />
+          <img src="assets_landing/img feature.png" alt="Workspace folder and file explorer sidebar in DevBoard" />
         </div>
       </div>
     </div>
@@ -134,18 +139,18 @@
     <div class="tab-panel" id="tab-shapes">
       <div class="feature-strip">
         <div class="feature-text">
-          <div class="feature-eyebrow">Shapes &amp; sections</div>
-          <h2>Organize ideas without<br>losing flexibility</h2>
-          <p>Group areas, label sections, and build diagrams with simple shapes. Create structure when you need it, and stay free-form when you don’t.</p>
+          <div class="feature-eyebrow">Visual canvas</div>
+          <h2>For when notes need to become a system</h2>
+          <p>Switch to canvas mode for sticky notes, shapes, sections, and connector arrows that stay attached as you move things around. Plot a story structure, sketch an architecture, or run a retro — without leaving your workspace.</p>
           <div class="feature-pills">
-            <span class="pill">Sections</span>
-            <span class="pill">Rect / Ellipse / Diamond</span>
-            <span class="pill">Light &amp; dark mode</span>
-            <span class="pill">Grouping</span>
+            <span class="pill">Sticky notes &amp; shapes</span>
+            <span class="pill">Smart connectors</span>
+            <span class="pill">Sections &amp; grouping</span>
+            <span class="pill">Code blocks</span>
           </div>
         </div>
         <div class="feature-img">
-          <img src="assets_landing/timeline.png" alt="Timeline / Gantt board in light mode in DevBoard" />
+          <img src="assets_landing/timeline.png" alt="Visual canvas with shapes, sections, and connectors in DevBoard" />
         </div>
       </div>
     </div>
@@ -153,71 +158,61 @@
 
   <hr class="divider" />
 
-  <!-- comparison -->
+  <!-- what you get -->
   <div class="comparison">
     <div class="section-header section-header--center">
       <div class="section-eyebrow">Why DevBoard</div>
-      <h2>For people who think in systems</h2>
-      <p>Whether you're a game developer laying out a design doc, a writer mapping a story world, or a solo maker planning your next project — DevBoard stays out of your way.</p>
+      <h2>Built for people who think on the page<br>and on the canvas</h2>
+      <p>A worldbuilder mapping a story. A second-brain user linking notes. A solo maker sketching architecture. DevBoard is one workspace for all three — without an account, without a cloud, without getting in your way.</p>
     </div>
 
     <div class="cmp-table">
       <div class="cmp-head">
-        <div class="cmp-label"></div>
+        <div class="cmp-label">What you get</div>
         <div class="cmp-col cmp-col--devboard">
           <span class="cmp-product-name">DevBoard</span>
         </div>
-        <div class="cmp-col">Miro</div>
-        <div class="cmp-col">FigJam</div>
       </div>
 
       <div class="cmp-row">
+        <div class="cmp-label">Linked Markdown notes with <code>[[wikilinks]]</code></div>
+        <div class="cmp-col cmp-col--devboard"><span class="cmp-yes">✓</span></div>
+      </div>
+      <div class="cmp-row">
+        <div class="cmp-label">Backlinks panel</div>
+        <div class="cmp-col cmp-col--devboard"><span class="cmp-yes">✓</span></div>
+      </div>
+      <div class="cmp-row">
+        <div class="cmp-label">Focus mode for distraction-free writing</div>
+        <div class="cmp-col cmp-col--devboard"><span class="cmp-yes">✓</span></div>
+      </div>
+      <div class="cmp-row">
+        <div class="cmp-label">Infinite canvas with sticky notes &amp; connectors</div>
+        <div class="cmp-col cmp-col--devboard"><span class="cmp-yes">✓</span></div>
+      </div>
+      <div class="cmp-row">
+        <div class="cmp-label"><code>@node:</code> mentions — link docs to canvas nodes</div>
+        <div class="cmp-col cmp-col--devboard"><span class="cmp-yes">✓</span></div>
+      </div>
+      <div class="cmp-row">
+        <div class="cmp-label">Workspace = a folder on your disk</div>
+        <div class="cmp-col cmp-col--devboard"><span class="cmp-yes">✓</span></div>
+      </div>
+      <div class="cmp-row">
+        <div class="cmp-label">Multi-page workspaces, free</div>
+        <div class="cmp-col cmp-col--devboard"><span class="cmp-yes">✓</span></div>
+      </div>
+      <div class="cmp-row">
+        <div class="cmp-label">Code blocks with syntax highlighting</div>
+        <div class="cmp-col cmp-col--devboard"><span class="cmp-yes">✓</span></div>
+      </div>
+      <div class="cmp-row">
+        <div class="cmp-label">Works fully offline — no account, no cloud</div>
+        <div class="cmp-col cmp-col--devboard"><span class="cmp-yes">✓</span></div>
+      </div>
+      <div class="cmp-row">
         <div class="cmp-label">Free &amp; open source</div>
         <div class="cmp-col cmp-col--devboard"><span class="cmp-yes">✓</span></div>
-        <div class="cmp-col"><span class="cmp-ltd">limited</span></div>
-        <div class="cmp-col"><span class="cmp-ltd">limited</span></div>
-      </div>
-      <div class="cmp-row">
-        <div class="cmp-label">No account needed</div>
-        <div class="cmp-col cmp-col--devboard"><span class="cmp-yes">✓</span></div>
-        <div class="cmp-col"><span class="cmp-no">✗</span></div>
-        <div class="cmp-col"><span class="cmp-no">✗</span></div>
-      </div>
-      <div class="cmp-row">
-        <div class="cmp-label">Works offline</div>
-        <div class="cmp-col cmp-col--devboard"><span class="cmp-yes">✓</span></div>
-        <div class="cmp-col"><span class="cmp-no">✗</span></div>
-        <div class="cmp-col"><span class="cmp-no">✗</span></div>
-      </div>
-      <div class="cmp-row">
-        <div class="cmp-label">GDPR / data never leaves device</div>
-        <div class="cmp-col cmp-col--devboard"><span class="cmp-yes">✓</span></div>
-        <div class="cmp-col"><span class="cmp-ltd">cloud</span></div>
-        <div class="cmp-col"><span class="cmp-ltd">cloud</span></div>
-      </div>
-      <div class="cmp-row">
-        <div class="cmp-label">Code blocks</div>
-        <div class="cmp-col cmp-col--devboard"><span class="cmp-yes">✓</span></div>
-        <div class="cmp-col"><span class="cmp-no">✗</span></div>
-        <div class="cmp-col"><span class="cmp-no">✗</span></div>
-      </div>
-      <div class="cmp-row">
-        <div class="cmp-label">Local file storage</div>
-        <div class="cmp-col cmp-col--devboard"><span class="cmp-yes">✓</span></div>
-        <div class="cmp-col"><span class="cmp-no">✗</span></div>
-        <div class="cmp-col"><span class="cmp-no">✗</span></div>
-      </div>
-      <div class="cmp-row">
-        <div class="cmp-label">Multi-page canvases</div>
-        <div class="cmp-col cmp-col--devboard"><span class="cmp-yes">✓</span></div>
-        <div class="cmp-col"><span class="cmp-ltd">paid</span></div>
-        <div class="cmp-col"><span class="cmp-ltd">paid</span></div>
-      </div>
-      <div class="cmp-row">
-        <div class="cmp-label">Sticky notes &amp; connectors</div>
-        <div class="cmp-col cmp-col--devboard"><span class="cmp-yes">✓</span></div>
-        <div class="cmp-col"><span class="cmp-yes">✓</span></div>
-        <div class="cmp-col"><span class="cmp-yes">✓</span></div>
       </div>
 
     </div>
@@ -229,11 +224,26 @@
   <section class="features-section">
     <div class="section-header">
       <div class="section-eyebrow">All features</div>
-      <h2>Everything on one canvas</h2>
-      <p>Built for the way creative people actually think — not for slideware or stakeholder decks.</p>
+      <h2>One workspace, two modes, your folder</h2>
+      <p>Everything that ships in DevBoard today — the writing tools, the canvas tools, and the shared workspace underneath.</p>
     </div>
 
     <div class="grid-3">
+      <div class="card">
+        <div class="card-icon ic-teal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></div>
+        <h3>Linked notes</h3>
+        <p>Type <code>[[</code> to link to another note. A backlinks panel shows everywhere a note is referenced. Use <code>@node:</code> mentions to point at a node on the canvas from inside a doc.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon ic-violet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/></svg></div>
+        <h3>Focus mode</h3>
+        <p>Full-screen, distraction-free writing. Toolbar fades away, leaving only your document. Stack view lets you browse all notes as a vertical list when you need the bird's-eye view.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon ic-orange"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></div>
+        <h3>Your workspace</h3>
+        <p>Open any local folder as a workspace. Notes are real Markdown files on disk. Multiple canvas pages live alongside them. Quick switcher (⌘K) jumps between everything.</p>
+      </div>
       <div class="card">
         <div class="card-icon ic-indigo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></div>
         <h3>Infinite canvas</h3>
@@ -277,7 +287,7 @@
       <div class="card">
         <div class="card-icon ic-pink"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
         <h3>Export &amp; share</h3>
-        <p>Export PNG. Save/load JSON. Generate a shareable link with the full board encoded in the URL hash — no server.</p>
+        <p>Export documents to Markdown, boards to PNG or JSON. Generate a shareable link with the full board encoded in the URL hash — no server.</p>
       </div>
       <div class="card">
         <div class="card-icon ic-slate"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg></div>
@@ -299,7 +309,7 @@
 
   <!-- cta -->
   <div class="end-cta">
-    <h2>Start creating on a blank canvas</h2>
+    <h2>Open a folder and start writing</h2>
     <p>Free forever. No account. Works in your browser or as a native app on macOS, Windows &amp; Linux.</p>
     <div class="cta-row">
       <a class="btn btn-primary" href="./download.html">Download free →</a>
@@ -361,6 +371,31 @@
 </div>
 
 <script>
+  (function() {
+    const nav = document.querySelector('.site-nav');
+    const toggle = nav && nav.querySelector('.nav-toggle');
+    if (nav && toggle) {
+      const closeMenu = function() {
+        nav.dataset.mobileNavOpen = 'false';
+        toggle.setAttribute('aria-expanded', 'false');
+        toggle.setAttribute('aria-label', 'Open navigation menu');
+      };
+      const toggleMenu = function() {
+        const isOpen = nav.dataset.mobileNavOpen === 'true';
+        nav.dataset.mobileNavOpen = isOpen ? 'false' : 'true';
+        toggle.setAttribute('aria-expanded', String(!isOpen));
+        toggle.setAttribute('aria-label', isOpen ? 'Open navigation menu' : 'Close navigation menu');
+      };
+      toggle.addEventListener('click', toggleMenu);
+      nav.querySelectorAll('.nav-links a').forEach(function(link) {
+        link.addEventListener('click', closeMenu);
+      });
+      window.addEventListener('resize', function() {
+        if (window.innerWidth > 720) closeMenu();
+      });
+    }
+  })();
+
   function toggleTheme() {
     const isLight = document.documentElement.dataset.theme === 'light';
     document.documentElement.dataset.theme = isLight ? '' : 'light';

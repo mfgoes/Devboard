@@ -24,6 +24,14 @@
       transition: background-color 0.18s, color 0.18s;
     }
 
+    .ds-mobile-bar {
+      display: none;
+    }
+
+    .ds-menu-toggle {
+      display: none;
+    }
+
     /* ── light mode overrides for hardcoded rgba values ── */
     [data-theme="light"] .badge {
       background: rgba(160,96,56,0.1);
@@ -510,14 +518,101 @@
       gap: 10px;
       align-items: center;
     }
+
+    @media (max-width: 768px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
+      .ds-mobile-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        position: sticky;
+        top: 0;
+        z-index: 30;
+        padding: 14px 20px;
+        background: rgba(36, 32, 25, 0.95);
+        border-bottom: 1px solid var(--c-border);
+        backdrop-filter: blur(12px);
+      }
+
+      .ds-mobile-home {
+        color: var(--c-text-hi);
+        text-decoration: none;
+        font-size: 0.78rem;
+        font-weight: 700;
+      }
+
+      .ds-menu-toggle {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 42px;
+        height: 42px;
+        border-radius: 10px;
+        border: 1px solid var(--c-border);
+        background: var(--c-panel);
+        color: var(--c-text-hi);
+        cursor: pointer;
+      }
+
+      .ds-menu-toggle svg {
+        width: 20px;
+        height: 20px;
+      }
+
+      aside {
+        position: fixed;
+        top: 73px;
+        left: 20px;
+        right: 20px;
+        height: auto;
+        max-height: calc(100vh - 93px);
+        padding: 24px 20px;
+        border: 1px solid var(--c-border);
+        border-radius: 12px;
+        box-shadow: 0 24px 64px rgba(0,0,0,0.35);
+        opacity: 0;
+        pointer-events: none;
+        transform: translateY(-10px);
+        transition: opacity 0.18s ease, transform 0.18s ease;
+        z-index: 40;
+      }
+
+      body[data-mobile-nav-open="true"] aside {
+        opacity: 1;
+        pointer-events: auto;
+        transform: translateY(0);
+      }
+
+      main {
+        padding: 32px 20px 48px;
+      }
+    }
   </style>
 </head>
 <body>
+<div class="ds-mobile-bar">
+  <a class="ds-mobile-home" href="index.html">DevBoard Design System</a>
+  <button
+    class="ds-menu-toggle"
+    type="button"
+    aria-expanded="false"
+    aria-controls="design-system-nav"
+    aria-label="Open navigation menu"
+  >
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+      <path d="M4 7h16M4 12h16M4 17h16"></path>
+    </svg>
+  </button>
+</div>
 
 <div class="layout">
 
   <!-- sidebar nav -->
-  <aside>
+  <aside id="design-system-nav">
     <a href="index.html" class="sidebar-logo" style="text-decoration: none; color: inherit;">
   <img src="assets_landing/devboard_icon.png" alt="DevBoard" />
   DevBoard
@@ -1104,6 +1199,32 @@
 <script>
   const DARK_ICON  = `<path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>`;
   const LIGHT_ICON = `<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>`;
+
+  const dsMenuToggle = document.querySelector('.ds-menu-toggle');
+  const closeDesignSystemMenu = function() {
+    document.body.dataset.mobileNavOpen = 'false';
+    if (dsMenuToggle) {
+      dsMenuToggle.setAttribute('aria-expanded', 'false');
+      dsMenuToggle.setAttribute('aria-label', 'Open navigation menu');
+    }
+  };
+
+  if (dsMenuToggle) {
+    dsMenuToggle.addEventListener('click', function() {
+      const isOpen = document.body.dataset.mobileNavOpen === 'true';
+      document.body.dataset.mobileNavOpen = isOpen ? 'false' : 'true';
+      dsMenuToggle.setAttribute('aria-expanded', String(!isOpen));
+      dsMenuToggle.setAttribute('aria-label', isOpen ? 'Open navigation menu' : 'Close navigation menu');
+    });
+
+    document.querySelectorAll('aside a[href^="#"], aside .sidebar-logo').forEach(function(link) {
+      link.addEventListener('click', closeDesignSystemMenu);
+    });
+
+    window.addEventListener('resize', function() {
+      if (window.innerWidth > 768) closeDesignSystemMenu();
+    });
+  }
 
   function toggleMode() {
     const isLight = document.documentElement.dataset.theme === 'light';

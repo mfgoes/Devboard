@@ -149,7 +149,7 @@ export default function DocumentNodeComponent({ node, isSelected, isDrawingLine,
         ref={cardRef}
         onMouseDown={handleCardMouseDown}
         style={{
-          position: 'fixed',
+          position: 'absolute',
           left: screenX,
           top: screenY,
           width: CARD_WIDTH,
@@ -301,7 +301,7 @@ export default function DocumentNodeComponent({ node, isSelected, isDrawingLine,
             onMouseEnter={() => { setHoveredAnchor(side); onAnchorEnter?.(node.id, side); }}
             onMouseLeave={() => { setHoveredAnchor(null); onAnchorLeave?.(); }}
             style={{
-              position: 'fixed',
+              position: 'absolute',
               left: ax - 4,
               top: ay - 4,
               width: 8,

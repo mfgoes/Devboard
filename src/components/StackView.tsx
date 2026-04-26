@@ -15,6 +15,18 @@ function formatDate(ms: number): string {
   return new Date(ms).toLocaleDateString();
 }
 
+function sortDocumentsForPage(docs: Document[], sortMode: 'updated' | 'custom' = 'updated'): Document[] {
+  if (sortMode === 'custom') {
+    return [...docs].sort((a, b) => {
+      if (a.orderIndex != null && b.orderIndex != null) return a.orderIndex - b.orderIndex;
+      if (a.orderIndex != null) return -1;
+      if (b.orderIndex != null) return 1;
+      return b.updatedAt - a.updatedAt;
+    });
+  }
+  return [...docs].sort((a, b) => b.updatedAt - a.updatedAt);
+}
+
 interface StackCardProps {
   doc: Document;
   onOpen: (rect: DOMRect) => void;
@@ -115,24 +127,37 @@ interface Props {
 
 export default function StackView({ pageId, pageName }: Props) {
   const documents = useBoardStore((s) => s.documents);
+  const pages = useBoardStore((s) => s.pages);
   const addDocument = useBoardStore((s) => s.addDocument);
+  const ensureDocumentNode = useBoardStore((s) => s.ensureDocumentNode);
   const openDocumentWithMorph = useBoardStore((s) => s.openDocumentWithMorph);
-  const [sort, setSort] = useState<'recent' | 'az' | 'tag'>('recent');
+  const page = pages.find((entry) => entry.id === pageId);
+  const [sort, setSort] = useState<'page' | 'az' | 'tag'>('page');
   const newBtnRef = useRef<HTMLDivElement>(null);
 
   const pageDocs = useMemo(() => {
     const filtered = documents.filter((d) => d.pageId === pageId);
     if (sort === 'az') return [...filtered].sort((a, b) => a.title.localeCompare(b.title));
     if (sort === 'tag') return [...filtered].sort((a, b) => ((a.tags?.[0] ?? 'z').localeCompare(b.tags?.[0] ?? 'z')));
-    return [...filtered].sort((a, b) => b.updatedAt - a.updatedAt);
-  }, [documents, pageId, sort]);
+    return sortDocumentsForPage(filtered, page?.noteSort ?? 'updated');
+  }, [documents, page?.noteSort, pageId, sort]);
 
   const handleOpen = (docId: string, rect: DOMRect) => {
     openDocumentWithMorph(docId, { left: rect.left, top: rect.top, width: rect.width, height: rect.height });
   };
 
   const handleNewDoc = () => {
-    const id = addDocument({ title: '', content: '', pageId });
+    const existingPageDocs = sortDocumentsForPage(
+      documents.filter((doc) => doc.pageId === pageId),
+      page?.noteSort ?? 'updated'
+    );
+    const id = addDocument({
+      title: '',
+      content: '',
+      pageId,
+      orderIndex: page?.noteSort === 'custom' ? existingPageDocs.length : undefined,
+    });
+    ensureDocumentNode(id, pageId);
     const rect = newBtnRef.current?.getBoundingClientRect();
     openDocumentWithMorph(id, rect ? { left: rect.left, top: rect.top, width: rect.width, height: rect.height } : undefined);
   };
@@ -161,7 +186,7 @@ export default function StackView({ pageId, pageName }: Props) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, fontSize: 11, color: 'var(--c-text-md)' }}>
           <span>Sort</span>
           <div style={{ display: 'inline-flex', padding: 2, background: 'var(--c-panel)', border: '1px solid var(--c-border)', borderRadius: 6 }}>
-            {(['recent', 'az', 'tag'] as const).map((s) => (
+            {(['page', 'az', 'tag'] as const).map((s) => (
               <button
                 key={s}
                 onClick={() => setSort(s)}
@@ -178,7 +203,7 @@ export default function StackView({ pageId, pageName }: Props) {
                   transition: 'background 100ms',
                 }}
               >
-                {s === 'recent' ? 'Recent' : s === 'az' ? 'A–Z' : 'Tag'}
+                {s === 'page' ? 'Page order' : s === 'az' ? 'A–Z' : 'Tag'}
               </button>
             ))}
           </div>

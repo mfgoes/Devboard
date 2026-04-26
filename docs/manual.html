@@ -28,6 +28,14 @@ body {
   font-size: 13px;
 }
 
+.manual-mobile-bar {
+  display: none;
+}
+
+.manual-menu-toggle {
+  display: none;
+}
+
 /* ── Layout ──────────────────────────────────────────────────────────── */
 .layout {
   display: grid;
@@ -206,17 +214,93 @@ nav::-webkit-scrollbar-thumb { background: var(--c-border); border-radius: 4px; 
 
 /* ── Active link tracking ────────────────────────────────────────────── */
 @media (max-width: 768px) {
+  .manual-mobile-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    padding: 14px 20px;
+    background: rgba(22, 19, 16, 0.95);
+    border-bottom: 1px solid var(--c-border);
+    backdrop-filter: blur(12px);
+  }
+
+  .manual-mobile-home {
+    color: var(--c-text-hi);
+    text-decoration: none;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .04em;
+  }
+
+  .manual-menu-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 42px;
+    border-radius: 10px;
+    border: 1px solid var(--c-border);
+    background: var(--c-card);
+    color: var(--c-text-hi);
+    cursor: pointer;
+  }
+
+  .manual-menu-toggle svg {
+    width: 20px;
+    height: 20px;
+  }
+
   .layout { grid-template-columns: 1fr; }
-  nav { display: none; }
+  nav {
+    display: block;
+    position: fixed;
+    top: 73px;
+    left: 20px;
+    right: 20px;
+    height: auto;
+    max-height: calc(100vh - 93px);
+    padding: 18px 0;
+    border: 1px solid var(--c-border);
+    border-radius: 12px;
+    box-shadow: 0 24px 64px rgba(0,0,0,.35);
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-10px);
+    transition: opacity .18s ease, transform .18s ease;
+    z-index: 40;
+  }
+  body[data-mobile-nav-open="true"] nav {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
+  }
   main { padding: 32px 20px 64px; }
 }
 </style>
 </head>
 <body>
+<div class="manual-mobile-bar">
+  <a class="manual-mobile-home" href="./index.html">DEVBOARD MANUAL</a>
+  <button
+    class="manual-menu-toggle"
+    type="button"
+    aria-expanded="false"
+    aria-controls="manual-nav"
+    aria-label="Open navigation menu"
+  >
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+      <path d="M4 7h16M4 12h16M4 17h16"></path>
+    </svg>
+  </button>
+</div>
 <div class="layout">
 
 <!-- ── Sidebar ─────────────────────────────────────────────────────── -->
-<nav>
+<nav id="manual-nav">
   <div class="brand">
     <a href="../docs/index.html">
       <div class="brand-mark">
@@ -662,6 +746,32 @@ nav::-webkit-scrollbar-thumb { background: var(--c-border); border-radius: 4px; 
 <!-- ── Active link tracking ────────────────────────────────────────── -->
 <script>
 (function() {
+  const menuToggle = document.querySelector('.manual-menu-toggle');
+  const closeMenu = function() {
+    document.body.dataset.mobileNavOpen = 'false';
+    if (menuToggle) {
+      menuToggle.setAttribute('aria-expanded', 'false');
+      menuToggle.setAttribute('aria-label', 'Open navigation menu');
+    }
+  };
+
+  if (menuToggle) {
+    menuToggle.addEventListener('click', function() {
+      const isOpen = document.body.dataset.mobileNavOpen === 'true';
+      document.body.dataset.mobileNavOpen = isOpen ? 'false' : 'true';
+      menuToggle.setAttribute('aria-expanded', String(!isOpen));
+      menuToggle.setAttribute('aria-label', isOpen ? 'Open navigation menu' : 'Close navigation menu');
+    });
+
+    document.querySelectorAll('nav a.nav-link').forEach(function(link) {
+      link.addEventListener('click', closeMenu);
+    });
+
+    window.addEventListener('resize', function() {
+      if (window.innerWidth > 768) closeMenu();
+    });
+  }
+
   const links = document.querySelectorAll('nav a.nav-link');
   const sections = [];
 

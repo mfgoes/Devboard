@@ -58,6 +58,8 @@
       justify-content: space-between;
       padding: 18px 0;
       border-bottom: 1px solid var(--c-border);
+      gap: 16px;
+      flex-wrap: wrap;
     }
 
     .logo {
@@ -104,6 +106,30 @@
 
     .nav-kofi { color: var(--c-accent2) !important; }
     .nav-kofi:hover { color: var(--c-accent2) !important; background: var(--c-hover) !important; }
+
+    .nav-toggle {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      width: 42px;
+      height: 42px;
+      border-radius: 10px;
+      border: 1px solid var(--c-border);
+      background: var(--c-panel);
+      color: var(--c-text-hi);
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+
+    .nav-toggle:hover {
+      background: var(--c-hover);
+      border-color: var(--c-accent);
+    }
+
+    .nav-toggle svg {
+      width: 20px;
+      height: 20px;
+    }
 
     /* ── hero ── */
     .dl-hero {
@@ -300,6 +326,49 @@
 
     /* ── responsive ── */
     @media (max-width: 640px) {
+      nav {
+        align-items: flex-start;
+      }
+
+      .nav-toggle {
+        display: inline-flex;
+        margin-left: auto;
+      }
+
+      .nav-links {
+        display: flex;
+        width: 100%;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+        padding-top: 8px;
+        max-height: 0;
+        opacity: 0;
+        overflow: hidden;
+        pointer-events: none;
+        transform: translateY(-8px);
+        transition: max-height 0.22s ease, opacity 0.18s ease, transform 0.18s ease;
+      }
+
+      nav[data-mobile-nav-open="true"] .nav-links {
+        max-height: 320px;
+        opacity: 1;
+        pointer-events: auto;
+        transform: translateY(0);
+      }
+
+      .nav-links li,
+      .nav-links a {
+        width: 100%;
+      }
+
+      .nav-links a {
+        display: block;
+        padding: 10px 12px;
+        background: var(--c-panel);
+        border: 1px solid var(--c-border);
+      }
+
       .dl-grid {
         grid-template-columns: 1fr;
       }
@@ -311,14 +380,25 @@
 <div class="wrap">
 
   <!-- nav -->
-  <nav>
+  <nav class="site-nav" data-mobile-nav-open="false">
     <a class="logo" href="./index.html">
       <div class="logo-mark">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
       </div>
       DEVBOARD
     </a>
-    <ul class="nav-links">
+    <button
+      class="nav-toggle"
+      type="button"
+      aria-expanded="false"
+      aria-controls="site-nav-links"
+      aria-label="Open navigation menu"
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <path d="M4 7h16M4 12h16M4 17h16"></path>
+      </svg>
+    </button>
+    <ul class="nav-links" id="site-nav-links">
       <li><a href="./index.html">← Back</a></li>
       <li><a href="./app.html" target="_blank" rel="noopener">Try in browser</a></li>
       <li><a href="https://github.com/mfgoes/Devboard" target="_blank" rel="noopener">GitHub ↗</a></li>
@@ -419,5 +499,34 @@
   </footer>
 
 </div>
+
+<script>
+  (function() {
+    const nav = document.querySelector('.site-nav');
+    const toggle = nav && nav.querySelector('.nav-toggle');
+    if (!nav || !toggle) return;
+
+    const closeMenu = function() {
+      nav.dataset.mobileNavOpen = 'false';
+      toggle.setAttribute('aria-expanded', 'false');
+      toggle.setAttribute('aria-label', 'Open navigation menu');
+    };
+
+    toggle.addEventListener('click', function() {
+      const isOpen = nav.dataset.mobileNavOpen === 'true';
+      nav.dataset.mobileNavOpen = isOpen ? 'false' : 'true';
+      toggle.setAttribute('aria-expanded', String(!isOpen));
+      toggle.setAttribute('aria-label', isOpen ? 'Open navigation menu' : 'Close navigation menu');
+    });
+
+    nav.querySelectorAll('.nav-links a').forEach(function(link) {
+      link.addEventListener('click', closeMenu);
+    });
+
+    window.addEventListener('resize', function() {
+      if (window.innerWidth > 640) closeMenu();
+    });
+  })();
+</script>
 </body>
 </html>

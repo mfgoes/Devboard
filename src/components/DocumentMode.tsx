@@ -6,7 +6,7 @@ import { saveAs } from 'file-saver';
 import { hasWorkspaceHandle, saveTextFileToWorkspace } from '../utils/workspaceManager';
 import { toast } from '../utils/toast';
 import { focusNode } from '../utils/focusNode';
-import { IconAlignCenter, IconAlignLeft, IconAlignRight, IconCode, IconCopy, IconDoc, IconEye, IconNodeLink, IconSaveFile, IconTextWrap } from './icons';
+import { IconAlignCenter, IconAlignLeft, IconAlignRight, IconCode, IconCodeBlock, IconCopy, IconDoc, IconEye, IconHorizontalRule, IconNodeLink, IconQuote, IconSaveFile, IconTextWrap } from './icons';
 
 // ── Inline chip utilities ─────────────────────────────────────────────────────
 
@@ -156,6 +156,132 @@ function applyBlock(format: string, savedRange: Range | null) {
   newEl.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
+// Find the contentEditable root from a range
+function rangeRoot(range: Range): HTMLElement | null {
+  let n: Node | null = range.startContainer;
+  while (n && (n as HTMLElement).contentEditable !== 'true') n = n.parentElement;
+  return n as HTMLElement | null;
+}
+
+// Find the closest ancestor block that is a direct child of the editable root
+function rangeBlock(range: Range, root: HTMLElement): HTMLElement | null {
+  let block: HTMLElement | null = range.startContainer as HTMLElement;
+  if (block.nodeType === Node.TEXT_NODE) block = block.parentElement;
+  while (block && block.parentElement !== root) block = block.parentElement;
+  return block && block !== root ? block : null;
+}
+
+// Toggle blockquote wrap on the current block
+function toggleBlockquote(savedRange: Range | null) {
+  const range = savedRange;
+  if (!range) return;
+  const sel = window.getSelection();
+  if (sel) { sel.removeAllRanges(); sel.addRange(range); }
+  const root = rangeRoot(range);
+  if (!root) return;
+  const block = rangeBlock(range, root);
+  if (!block) return;
+  if (block.tagName.toLowerCase() === 'blockquote') {
+    // Unwrap — replace blockquote with a div containing its inner content
+    const div = document.createElement('div');
+    while (block.firstChild) div.appendChild(block.firstChild);
+    block.replaceWith(div);
+    div.dispatchEvent(new Event('input', { bubbles: true }));
+  } else {
+    const bq = document.createElement('blockquote');
+    block.replaceWith(bq);
+    bq.appendChild(block);
+    bq.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+}
+
+// Toggle <pre><code> code block on the current block
+function toggleCodeBlock(savedRange: Range | null) {
+  const range = savedRange;
+  if (!range) return;
+  const sel = window.getSelection();
+  if (sel) { sel.removeAllRanges(); sel.addRange(range); }
+  const root = rangeRoot(range);
+  if (!root) return;
+  const block = rangeBlock(range, root);
+  if (!block) return;
+  if (block.tagName.toLowerCase() === 'pre') {
+    const div = document.createElement('div');
+    div.textContent = block.textContent ?? '';
+    block.replaceWith(div);
+    div.dispatchEvent(new Event('input', { bubbles: true }));
+  } else {
+    const pre = document.createElement('pre');
+    const code = document.createElement('code');
+    code.textContent = block.textContent ?? '';
+    pre.appendChild(code);
+    block.replaceWith(pre);
+    pre.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+}
+
+// Wrap or unwrap the current selection in <code>
+function toggleInlineCode(savedRange: Range | null) {
+  const range = savedRange;
+  if (!range) return;
+  const sel = window.getSelection();
+  if (sel) { sel.removeAllRanges(); sel.addRange(range); }
+
+  // If the selection is collapsed inside an existing <code>, unwrap it
+  let parent: Node | null = range.startContainer;
+  while (parent && (parent as HTMLElement).tagName?.toLowerCase() !== 'code') parent = parent.parentElement;
+  if (parent) {
+    const code = parent as HTMLElement;
+    const frag = document.createDocumentFragment();
+    while (code.firstChild) frag.appendChild(code.firstChild);
+    code.replaceWith(frag);
+    code.dispatchEvent(new Event('input', { bubbles: true }));
+    return;
+  }
+  if (range.collapsed) return;
+  const code = document.createElement('code');
+  try { range.surroundContents(code); }
+  catch {
+    const text = range.toString();
+    range.deleteContents();
+    code.textContent = text;
+    range.insertNode(code);
+  }
+  code.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+// Insert <hr> after the current block
+function insertHorizontalRule(savedRange: Range | null) {
+  const range = savedRange;
+  if (!range) return;
+  const sel = window.getSelection();
+  if (sel) { sel.removeAllRanges(); sel.addRange(range); }
+  const root = rangeRoot(range);
+  if (!root) return;
+  const block = rangeBlock(range, root);
+  const hr = document.createElement('hr');
+  if (block) {
+    block.after(hr);
+    const next = document.createElement('div');
+    next.innerHTML = '<br>';
+    hr.after(next);
+  } else {
+    root.appendChild(hr);
+  }
+  hr.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+function isInBlock(savedRange: Range | null, tagName: string): boolean {
+  const range = savedRange ?? (window.getSelection()?.rangeCount ? window.getSelection()!.getRangeAt(0) : null);
+  if (!range) return false;
+  let n: Node | null = range.startContainer;
+  while (n && (n as HTMLElement).contentEditable !== 'true') {
+    if ((n as HTMLElement).tagName?.toLowerCase() === tagName) return true;
+    n = n.parentElement;
+  }
+  return false;
+}
+
 interface FmtBarProps {
   viewMode: 'edit' | 'source';
   onToggleSource: () => void;
@@ -172,11 +298,15 @@ interface FmtBarProps {
 
 function FormattingBar({ viewMode, onToggleSource, onToggleEdit, onSave, onWikilinkClick, onNodeLinkClick, onSourceInsert, sourceWrap, setSourceWrap, onCopySource, saveStatusText }: FmtBarProps) {
   const [showBlock, setShowBlock] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [hoveredControl, setHoveredControl] = useState<string | null>(null);
+  const [toolbarWidth, setToolbarWidth] = useState(() => (typeof window !== 'undefined' ? window.innerWidth : 1440));
   const savedRangeRef = useRef<Range | null>(null);
   const [, tick] = useState(0);
+  const toolbarRef = useRef<HTMLDivElement>(null);
   const wikilinkBtnRef = useRef<HTMLButtonElement>(null);
   const nodeBtnRef = useRef<HTMLButtonElement>(null);
+  const moreBtnRef = useRef<HTMLButtonElement>(null);
 
   const saveSelection = () => {
     const sel = window.getSelection();
@@ -284,6 +414,23 @@ function FormattingBar({ viewMode, onToggleSource, onToggleEdit, onSave, onWikil
     transition: 'background 0.12s, border-color 0.12s, color 0.12s',
   };
 
+  const overflowMenuButtonStyle: React.CSSProperties = {
+    width: '100%',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    padding: '7px 10px',
+    border: 'none',
+    background: 'transparent',
+    color: 'var(--c-text-md)',
+    cursor: 'pointer',
+    fontSize: 12,
+    fontFamily: 'inherit',
+    textAlign: 'left',
+    borderRadius: 8,
+    transition: 'background 0.12s, color 0.12s',
+  };
+
   const sourceShortcuts = [
     ['### ', 'Heading'],
     ['*text*', 'Italic'],
@@ -300,22 +447,70 @@ function FormattingBar({ viewMode, onToggleSource, onToggleEdit, onSave, onWikil
     ['[[Note]]', 'Note'],
     ['@node:', 'Node'],
   ];
+  const moreMenuRect = showMoreMenu && moreBtnRef.current ? moreBtnRef.current.getBoundingClientRect() : null;
+  const collapseSecondaryFormatting = toolbarWidth < 1320;
+  const collapseTertiaryFormatting = toolbarWidth < 1160;
+  const collapseLinkActions = toolbarWidth < 960;
+  const hideSaveStatus = toolbarWidth < 1180;
+
+  useEffect(() => {
+    if (!showMoreMenu) return;
+    const handleWindowPointer = () => setShowMoreMenu(false);
+    window.addEventListener('mousedown', handleWindowPointer);
+    return () => window.removeEventListener('mousedown', handleWindowPointer);
+  }, [showMoreMenu]);
+
+  useEffect(() => {
+    const el = toolbarRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const update = () => setToolbarWidth(el.getBoundingClientRect().width);
+    update();
+    const ro = new ResizeObserver(() => update());
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const openWikilinkPicker = () => {
+    if (wikilinkBtnRef.current) onWikilinkClick(wikilinkBtnRef.current.getBoundingClientRect());
+    else if (moreBtnRef.current) onWikilinkClick(moreBtnRef.current.getBoundingClientRect());
+  };
+
+  const openNodePicker = () => {
+    if (nodeBtnRef.current) onNodeLinkClick(nodeBtnRef.current.getBoundingClientRect());
+    else if (moreBtnRef.current) onNodeLinkClick(moreBtnRef.current.getBoundingClientRect());
+  };
 
   return (
     <div
+      ref={toolbarRef}
       style={{
         padding: '8px 24px 8px 24px',
         borderBottom: '1px solid var(--c-border)',
         background: 'rgba(255,255,255,0.02)',
         display: 'flex',
         alignItems: 'center',
-        gap: 6,
+        justifyContent: 'space-between',
+        gap: 12,
         flexShrink: 0,
-        flexWrap: 'wrap',
         boxShadow: '0 1px 0 rgba(0,0,0,0.04)',
       }}
       onMouseDown={(e) => e.stopPropagation()}
     >
+      <div
+        style={{
+          flex: 1,
+          minWidth: 0,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          overflowX: 'auto',
+          overflowY: 'hidden',
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none',
+          paddingBottom: 2,
+          whiteSpace: 'nowrap',
+        }}
+      >
       {viewMode === 'edit' && (
         <>
           {/* Block format dropdown */}
@@ -383,52 +578,82 @@ function FormattingBar({ viewMode, onToggleSource, onToggleEdit, onSave, onWikil
 
           <div style={{ width: 1, height: 18, background: 'rgba(255,255,255,0.12)', margin: '0 2px', flexShrink: 0 }} />
 
-          {/* Alignment */}
-          <button style={btnStyle(isActive('justifyLeft'), hoveredControl === 'align-left')} onMouseDown={(e) => { e.preventDefault(); saveSelection(); fmt('justifyLeft'); tick(n=>n+1); }} title="Align left" {...hoverHandlers('align-left')}>
-            <IconAlignLeft />
-          </button>
-          <button style={btnStyle(isActive('justifyCenter'), hoveredControl === 'align-center')} onMouseDown={(e) => { e.preventDefault(); saveSelection(); fmt('justifyCenter'); tick(n=>n+1); }} title="Align center" {...hoverHandlers('align-center')}>
-            <IconAlignCenter />
-          </button>
-          <button style={btnStyle(isActive('justifyRight'), hoveredControl === 'align-right')} onMouseDown={(e) => { e.preventDefault(); saveSelection(); fmt('justifyRight'); tick(n=>n+1); }} title="Align right" {...hoverHandlers('align-right')}>
-            <IconAlignRight />
-          </button>
+          {!collapseSecondaryFormatting && (
+            <>
+              <button style={btnStyle(isInBlock(savedRangeRef.current, 'pre'), hoveredControl === 'code-block')} onMouseDown={(e) => { e.preventDefault(); saveSelection(); toggleCodeBlock(savedRangeRef.current); tick(n=>n+1); }} title="Code block" {...hoverHandlers('code-block')}><IconCodeBlock /></button>
+              <button style={btnStyle(false, hoveredControl === 'hr')} onMouseDown={(e) => { e.preventDefault(); saveSelection(); insertHorizontalRule(savedRangeRef.current); tick(n=>n+1); }} title="Horizontal rule" {...hoverHandlers('hr')}><IconHorizontalRule /></button>
+            </>
+          )}
 
-          {/* Wikilink picker button */}
-          <button
-            ref={wikilinkBtnRef}
-            style={{ ...btnStyle(false, hoveredControl === 'wikilink'), gap: 5, fontSize: 11 }}
-            title="Link to a note"
-            onMouseDown={(e) => {
-              e.preventDefault();
-              saveSelection();
-              if (wikilinkBtnRef.current) onWikilinkClick(wikilinkBtnRef.current.getBoundingClientRect());
-            }}
-            {...hoverHandlers('wikilink')}
-          >
-            <IconDoc />
-            Note
-          </button>
+          {!collapseTertiaryFormatting && (
+            <>
+              <div style={{ width: 1, height: 18, background: 'rgba(255,255,255,0.12)', margin: '0 2px', flexShrink: 0 }} />
+              <button style={btnStyle(isActive('justifyLeft'), hoveredControl === 'align-left')} onMouseDown={(e) => { e.preventDefault(); saveSelection(); fmt('justifyLeft'); tick(n=>n+1); }} title="Align left" {...hoverHandlers('align-left')}>
+                <IconAlignLeft />
+              </button>
+              <button style={btnStyle(isActive('justifyCenter'), hoveredControl === 'align-center')} onMouseDown={(e) => { e.preventDefault(); saveSelection(); fmt('justifyCenter'); tick(n=>n+1); }} title="Align center" {...hoverHandlers('align-center')}>
+                <IconAlignCenter />
+              </button>
+              <button style={btnStyle(isActive('justifyRight'), hoveredControl === 'align-right')} onMouseDown={(e) => { e.preventDefault(); saveSelection(); fmt('justifyRight'); tick(n=>n+1); }} title="Align right" {...hoverHandlers('align-right')}>
+                <IconAlignRight />
+              </button>
+            </>
+          )}
 
-          {/* Node pill picker button */}
-          <button
-            ref={nodeBtnRef}
-            style={{
-              ...btnStyle(false, hoveredControl === 'node-link'),
-              gap: 5,
-              fontSize: 11,
-            }}
-            title="Link to a canvas node"
-            onMouseDown={(e) => {
-              e.preventDefault();
-              saveSelection();
-              if (nodeBtnRef.current) onNodeLinkClick(nodeBtnRef.current.getBoundingClientRect());
-            }}
-            {...hoverHandlers('node-link')}
-          >
-            <IconNodeLink />
-            Node
-          </button>
+          {!collapseLinkActions && (
+            <>
+              <button
+                ref={wikilinkBtnRef}
+                style={{ ...btnStyle(false, hoveredControl === 'wikilink'), gap: 5, fontSize: 11 }}
+                title="Link to a note"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  saveSelection();
+                  openWikilinkPicker();
+                }}
+                {...hoverHandlers('wikilink')}
+              >
+                <IconDoc />
+                Note
+              </button>
+
+              <button
+                ref={nodeBtnRef}
+                style={{
+                  ...btnStyle(false, hoveredControl === 'node-link'),
+                  gap: 5,
+                  fontSize: 11,
+                }}
+                title="Link to a canvas node"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  saveSelection();
+                  openNodePicker();
+                }}
+                {...hoverHandlers('node-link')}
+              >
+                <IconNodeLink />
+                Node
+              </button>
+            </>
+          )}
+
+          <div style={{ position: 'relative', flexShrink: 0 }}>
+            <button
+              ref={moreBtnRef}
+              style={{ ...btnStyle(showMoreMenu, hoveredControl === 'more'), gap: 5, fontSize: 11, padding: '0 9px' }}
+              title="More note actions"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                saveSelection();
+                setShowMoreMenu((v) => !v);
+              }}
+              {...hoverHandlers('more')}
+            >
+              More
+              <span style={{ fontSize: 12, lineHeight: 1 }}>⋯</span>
+            </button>
+          </div>
         </>
       )}
 
@@ -438,8 +663,8 @@ function FormattingBar({ viewMode, onToggleSource, onToggleEdit, onSave, onWikil
             display: 'flex',
             alignItems: 'center',
             gap: 6,
-            flexWrap: 'wrap',
             minHeight: 34,
+            flexShrink: 0,
           }}
         >
           <span style={{ fontSize: 11, color: 'var(--c-text-off)', marginRight: 2, whiteSpace: 'nowrap' }}>
@@ -541,33 +766,47 @@ function FormattingBar({ viewMode, onToggleSource, onToggleEdit, onSave, onWikil
           </button>
         </div>
       )}
+      </div>
 
-      <div style={{ flex: 1 }} />
-
+      <div
+        style={{
+          flexShrink: 0,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          marginLeft: 'auto',
+          paddingLeft: 8,
+          background: 'linear-gradient(90deg, rgba(246,241,234,0) 0%, var(--c-canvas) 18px)',
+        }}
+      >
       {viewMode === 'edit' && (
         <>
-          {saveStatusText && (
+          {saveStatusText && !hideSaveStatus && (
             <span
               style={{
                 fontSize: 11,
                 color: 'var(--c-text-lo)',
                 userSelect: 'none',
                 whiteSpace: 'nowrap',
-                marginRight: 4,
+                maxWidth: 180,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
               }}
+              title={saveStatusText}
             >
               {saveStatusText}
             </span>
           )}
           <button
             style={btnStyle(false, hoveredControl === 'save')}
-            title="Save as Markdown"
+            title="Save Note (⌘S)"
+            aria-label="Save Note (Command+S)"
             onMouseDown={(e) => { e.preventDefault(); onSave(); }}
             {...hoverHandlers('save')}
           >
             <IconSaveFile />
           </button>
-          <div style={{ width: 1, height: 18, background: 'rgba(255,255,255,0.12)', margin: '0 4px 0 6px', flexShrink: 0 }} />
+          <div style={{ width: 1, height: 18, background: 'rgba(255,255,255,0.12)', margin: '0 2px 0 2px', flexShrink: 0 }} />
         </>
       )}
 
@@ -615,6 +854,225 @@ function FormattingBar({ viewMode, onToggleSource, onToggleEdit, onSave, onWikil
           onMouseLeave={(e) => { if (viewMode !== 'source') e.currentTarget.style.color = 'var(--c-text-lo)'; }}
         ><IconCode /> Source</button>
       </div>
+      </div>
+
+      {showMoreMenu && moreMenuRect && (
+        <div
+          style={{
+            position: 'fixed',
+            top: Math.min(moreMenuRect.bottom + 6, window.innerHeight - 110),
+            left: Math.min(moreMenuRect.right - 170, window.innerWidth - 178),
+            zIndex: 520,
+            minWidth: 170,
+            padding: 6,
+            background: 'var(--c-panel)',
+            border: '1px solid rgba(255,255,255,0.12)',
+            borderRadius: 10,
+            boxShadow: '0 10px 30px rgba(0,0,0,0.28)',
+          }}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <button
+            style={overflowMenuButtonStyle}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              saveSelection();
+              setShowMoreMenu(false);
+              toggleBlockquote(savedRangeRef.current);
+              tick(n=>n+1);
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'var(--c-hover)';
+              e.currentTarget.style.color = 'var(--c-text-hi)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.color = 'var(--c-text-md)';
+            }}
+          >
+            <IconQuote />
+            <span>Blockquote</span>
+          </button>
+          <button
+            style={overflowMenuButtonStyle}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              saveSelection();
+              setShowMoreMenu(false);
+              toggleInlineCode(savedRangeRef.current);
+              tick(n=>n+1);
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'var(--c-hover)';
+              e.currentTarget.style.color = 'var(--c-text-hi)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.color = 'var(--c-text-md)';
+            }}
+          >
+            <IconCode />
+            <span>Inline Code</span>
+          </button>
+          {collapseSecondaryFormatting && (
+            <>
+              <button
+                style={overflowMenuButtonStyle}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  saveSelection();
+                  setShowMoreMenu(false);
+                  toggleCodeBlock(savedRangeRef.current);
+                  tick(n=>n+1);
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'var(--c-hover)';
+                  e.currentTarget.style.color = 'var(--c-text-hi)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'transparent';
+                  e.currentTarget.style.color = 'var(--c-text-md)';
+                }}
+              >
+                <IconCodeBlock />
+                <span>Code Block</span>
+              </button>
+              <button
+                style={overflowMenuButtonStyle}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  saveSelection();
+                  setShowMoreMenu(false);
+                  insertHorizontalRule(savedRangeRef.current);
+                  tick(n=>n+1);
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'var(--c-hover)';
+                  e.currentTarget.style.color = 'var(--c-text-hi)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'transparent';
+                  e.currentTarget.style.color = 'var(--c-text-md)';
+                }}
+              >
+                <IconHorizontalRule />
+                <span>Horizontal Rule</span>
+              </button>
+            </>
+          )}
+          {collapseTertiaryFormatting && (
+            <>
+              <button
+                style={overflowMenuButtonStyle}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  saveSelection();
+                  setShowMoreMenu(false);
+                  fmt('justifyLeft');
+                  tick(n=>n+1);
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'var(--c-hover)';
+                  e.currentTarget.style.color = 'var(--c-text-hi)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'transparent';
+                  e.currentTarget.style.color = 'var(--c-text-md)';
+                }}
+              >
+                <IconAlignLeft />
+                <span>Align Left</span>
+              </button>
+              <button
+                style={overflowMenuButtonStyle}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  saveSelection();
+                  setShowMoreMenu(false);
+                  fmt('justifyCenter');
+                  tick(n=>n+1);
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'var(--c-hover)';
+                  e.currentTarget.style.color = 'var(--c-text-hi)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'transparent';
+                  e.currentTarget.style.color = 'var(--c-text-md)';
+                }}
+              >
+                <IconAlignCenter />
+                <span>Align Center</span>
+              </button>
+              <button
+                style={overflowMenuButtonStyle}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  saveSelection();
+                  setShowMoreMenu(false);
+                  fmt('justifyRight');
+                  tick(n=>n+1);
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'var(--c-hover)';
+                  e.currentTarget.style.color = 'var(--c-text-hi)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'transparent';
+                  e.currentTarget.style.color = 'var(--c-text-md)';
+                }}
+              >
+                <IconAlignRight />
+                <span>Align Right</span>
+              </button>
+            </>
+          )}
+          {collapseLinkActions && (
+            <>
+              <button
+                style={overflowMenuButtonStyle}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  saveSelection();
+                  setShowMoreMenu(false);
+                  openWikilinkPicker();
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'var(--c-hover)';
+                  e.currentTarget.style.color = 'var(--c-text-hi)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'transparent';
+                  e.currentTarget.style.color = 'var(--c-text-md)';
+                }}
+              >
+                <IconDoc />
+                <span>Insert Note Link</span>
+              </button>
+              <button
+                style={overflowMenuButtonStyle}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  saveSelection();
+                  setShowMoreMenu(false);
+                  openNodePicker();
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'var(--c-hover)';
+                  e.currentTarget.style.color = 'var(--c-text-hi)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'transparent';
+                  e.currentTarget.style.color = 'var(--c-text-md)';
+                }}
+              >
+                <IconNodeLink />
+                <span>Insert Node Link</span>
+              </button>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -899,6 +1357,10 @@ export default function DocumentMode({ onClose }: DocumentModeProps) {
 
   const doc = documents.find((d) => d.id === activeDocId) as Document | undefined;
   const activePage = pages.find((p) => p.id === activePageId);
+  const pageBackLabel = activePage?.layoutMode === 'freeform' ? 'Back to canvas' : 'Back to page';
+  const pageBackTitle = activePage?.layoutMode === 'freeform'
+    ? `Return to ${activePage?.name ?? boardTitle} canvas`
+    : `Return to ${activePage?.name ?? boardTitle} page`;
   const handleClose = onClose ?? closeDocument;
 
   // Backlinks: other docs that reference [[this doc's title]]
@@ -1088,6 +1550,12 @@ export default function DocumentMode({ onClose }: DocumentModeProps) {
     }
   };
 
+  useEffect(() => {
+    const onSaveActiveDocument = () => { void handleSave(); };
+    window.addEventListener('devboard:save-active-document', onSaveActiveDocument);
+    return () => window.removeEventListener('devboard:save-active-document', onSaveActiveDocument);
+  }, [handleSave]);
+
   const saveStatusText = !hasEditedSinceOpen
     ? null
     : dirtySinceSave
@@ -1193,25 +1661,6 @@ export default function DocumentMode({ onClose }: DocumentModeProps) {
           flexShrink: 0,
         }}
       >
-        {/* Zoom out (back to canvas) */}
-        <button
-          onClick={handleClose}
-          title="Zoom out (Esc)"
-          style={{
-            display: 'flex', alignItems: 'center', gap: 5, padding: '0 8px', height: 28,
-            background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
-            borderRadius: 6, color: 'var(--c-text-lo)', cursor: 'pointer', fontSize: 11,
-            fontFamily: 'inherit', flexShrink: 0, transition: 'background 0.12s',
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.12)'; e.currentTarget.style.color = 'var(--c-text-hi)'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; e.currentTarget.style.color = 'var(--c-text-lo)'; }}
-        >
-          <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
-            <path d="M7 2L4 5.5L7 9" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-          Zoom out
-        </button>
-
         {/* Back through wikilink history */}
         {docHistory.length > 0 && (() => {
           const prevDoc = documents.find((d) => d.id === docHistory[docHistory.length - 1]);
@@ -1244,9 +1693,25 @@ export default function DocumentMode({ onClose }: DocumentModeProps) {
         })()}
 
         {/* Breadcrumb */}
-        <span style={{ fontSize: 12, color: 'var(--c-text-lo)', userSelect: 'none', flexShrink: 0 }}>
+        <button
+          onClick={handleClose}
+          title={pageBackTitle}
+          style={{
+            padding: 0,
+            background: 'transparent',
+            border: 'none',
+            fontSize: 12,
+            color: 'var(--c-text-lo)',
+            cursor: 'pointer',
+            userSelect: 'none',
+            flexShrink: 0,
+            transition: 'color 0.12s',
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--c-text-hi)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--c-text-lo)'; }}
+        >
           {activePage?.name ?? boardTitle}
-        </span>
+        </button>
         <span style={{ fontSize: 12, color: 'var(--c-text-lo)', opacity: 0.4, flexShrink: 0 }}>›</span>
         <input
           type="text"

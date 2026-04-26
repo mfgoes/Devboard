@@ -217,14 +217,14 @@ export default function CanvasToolPreviews({
 
       {/* Document placement ghost */}
       {activeTool === 'document' && documentCursorPos && (() => {
-        const W = 480 * camera.scale;
-        const H = 360 * camera.scale;
+        const W = 280 * camera.scale;
+        const H = 176 * camera.scale;
         const left = documentCursorPos.x - W / 2;
         const top  = documentCursorPos.y - H / 2;
         return (
           <div
             style={{
-              position: 'fixed', left, top, width: W, height: H,
+              position: 'absolute', left, top, width: W, height: H,
               pointerEvents: 'none', opacity: 0.4, borderRadius: 10,
               border: `2px solid var(--c-line)`, background: 'var(--c-panel)',
               boxShadow: '0 4px 20px rgba(0,0,0,0.18)',

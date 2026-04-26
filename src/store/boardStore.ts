@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { CanvasNode, ConnectorNode, StickyNoteNode, Camera, Tool, BoardData, ShapeKind, TableNode, PageMeta, Document, DocumentNode } from '../types';
+import { findDocumentPlacement } from '../utils/documentPlacement';
 
 export interface TableCellRef { nodeId: string; row: number; col: number; }
 
@@ -150,6 +151,7 @@ interface BoardState {
   addPage: (name?: string) => void;
   deletePage: (id: string) => void;
   renamePage: (id: string, name: string) => void;
+  setPageNoteSort: (id: string, sort: 'updated' | 'custom') => void;
   switchPage: (id: string) => void;
   duplicatePage: (id: string) => void;
   loadBoard: (data: BoardData) => void;
@@ -173,6 +175,7 @@ interface BoardState {
   openDocument: (id: string) => void;
   openDocumentWithMorph: (id: string, rect?: { left: number; top: number; width: number; height: number }) => void;
   closeDocument: () => void;
+  ensureDocumentNode: (docId: string, pageId?: string) => string | null;
   setPageLayoutMode: (id: string, mode: 'freeform' | 'stack') => void;
 }
 
@@ -184,7 +187,7 @@ export const useBoardStore = create<BoardState>()(
       camera: { x: 0, y: 0, scale: 1 },
       documents: [],
       schemaVersion: 3,
-      pages: [{ id: 'page-1', name: 'Page 1' }],
+      pages: [{ id: 'page-1', name: 'Page 1', noteSort: 'updated' }],
       activePageId: 'page-1',
       pageSnapshots: {},
       activeTool: 'select',
@@ -309,7 +312,7 @@ export const useBoardStore = create<BoardState>()(
         const newName = name ?? `Page ${pages.length + 1}`;
         set({
           pageSnapshots: { ...pageSnapshots, [activePageId]: { nodes, camera } },
-          pages: [...pages, { id: newId, name: newName, layoutMode: 'freeform' as const }],
+          pages: [...pages, { id: newId, name: newName, layoutMode: 'freeform' as const, noteSort: 'updated' as const }],
           activePageId: newId,
           nodes: [],
           camera: { x: 0, y: 0, scale: 1 },
@@ -355,6 +358,11 @@ export const useBoardStore = create<BoardState>()(
           pages: state.pages.map((p) => (p.id === id ? { ...p, name } : p)),
         })),
 
+      setPageNoteSort: (id, sort) =>
+        set((state) => ({
+          pages: state.pages.map((p) => (p.id === id ? { ...p, noteSort: sort } : p)),
+        })),
+
       switchPage: (id) => {
         const { nodes, camera, activePageId, pageSnapshots } = get();
         if (id === activePageId) return;
@@ -388,7 +396,7 @@ export const useBoardStore = create<BoardState>()(
             [activePageId]: { nodes, camera },
             [newId]: { nodes: newNodes, camera: { ...srcData.camera } },
           },
-          pages: [...pages, { id: newId, name: newName, layoutMode: srcMeta?.layoutMode ?? 'freeform' }],
+          pages: [...pages, { id: newId, name: newName, layoutMode: srcMeta?.layoutMode ?? 'freeform', noteSort: srcMeta?.noteSort ?? 'updated' }],
         });
       },
 
@@ -409,7 +417,7 @@ export const useBoardStore = create<BoardState>()(
             : { nodes: activePg.nodes, pageSnapshots: snapshots, documents: normalizeDocumentPageIds(incomingDocs, activePg.id, activePg.nodes, snapshots) };
           set({
             boardTitle: data.boardTitle,
-            pages: data.pages.map((p) => ({ id: p.id, name: p.name, layoutMode: p.layoutMode })),
+            pages: data.pages.map((p) => ({ id: p.id, name: p.name, layoutMode: p.layoutMode, noteSort: p.noteSort ?? 'updated' })),
             activePageId: activePg.id,
             pageSnapshots: migratedSnaps,
             nodes: migratedNodes,
@@ -431,7 +439,7 @@ export const useBoardStore = create<BoardState>()(
           set({
             boardTitle: data.boardTitle,
             nodes: migratedNodes,
-            pages: [{ id: 'page-1', name: 'Page 1' }],
+            pages: [{ id: 'page-1', name: 'Page 1', noteSort: 'updated' }],
             activePageId: 'page-1',
             pageSnapshots: {},
             documents,
@@ -672,13 +680,63 @@ export const useBoardStore = create<BoardState>()(
       closeDocument: () =>
         set({ appMode: 'canvas', focusDocumentId: null, activeDocId: null, morphSourceRect: null }),
 
+      ensureDocumentNode: (docId, pageId) => {
+        const targetPageId = pageId ?? get().activePageId;
+        const CARD_W = 280;
+        const CARD_H = 176;
+        const state = get();
+        const targetNodes = targetPageId === state.activePageId
+          ? state.nodes
+          : (state.pageSnapshots[targetPageId]?.nodes ?? []);
+
+        const existingNode = targetNodes.find(
+          (node) => node.type === 'document' && (node as DocumentNode).docId === docId
+        ) as DocumentNode | undefined;
+        if (existingNode) return existingNode.id;
+
+        const targetCamera = targetPageId === state.activePageId
+          ? state.camera
+          : (state.pageSnapshots[targetPageId]?.camera ?? { x: 0, y: 0, scale: 1 });
+        const { x, y } = findDocumentPlacement(targetNodes, targetCamera, CARD_W, CARD_H);
+        const newNode: DocumentNode = {
+          id: generateId(),
+          type: 'document',
+          x,
+          y,
+          width: CARD_W,
+          height: CARD_H,
+          docId,
+        };
+
+        if (targetPageId === state.activePageId) {
+          set((current) => ({
+            past: [...current.past, current.nodes],
+            future: [],
+            nodes: [...current.nodes, newNode],
+            selectedIds: [newNode.id],
+          }));
+        } else {
+          set((current) => ({
+            pageSnapshots: {
+              ...current.pageSnapshots,
+              [targetPageId]: {
+                nodes: [...(current.pageSnapshots[targetPageId]?.nodes ?? []), newNode],
+                camera: current.pageSnapshots[targetPageId]?.camera ?? { x: 0, y: 0, scale: 1 },
+              },
+            },
+          }));
+        }
+
+        return newNode.id;
+      },
+
       setPageLayoutMode: (id, mode) =>
         set((state) => {
           const updatedPages = state.pages.map((p) => (p.id === id ? { ...p, layoutMode: mode } : p));
           if (mode !== 'freeform') return { pages: updatedPages };
 
           // When switching to freeform, materialize any documents that have no canvas node yet.
-          const CARD_W = 280, CARD_H = 176, GAP = 24, COLS = 3;
+          const CARD_W = 280, CARD_H = 176;
           const existingDocIds = new Set(
             state.nodes
               .filter((n) => n.type === 'document')
@@ -690,23 +748,20 @@ export const useBoardStore = create<BoardState>()(
           );
           if (orphans.length === 0) return { pages: updatedPages };
 
-          // Find a clear vertical offset below any existing nodes on this page
-          const bottomY = state.nodes.length > 0
-            ? Math.max(...state.nodes.map((n) => (n as { y: number; height?: number }).y + ((n as { height?: number }).height ?? 0))) + GAP * 2
-            : 0;
-
-          const newNodes: DocumentNode[] = orphans.map((doc, i) => {
-            const col = i % COLS;
-            const row = Math.floor(i / COLS);
-            return {
+          const stagedNodes = [...state.nodes];
+          const newNodes: DocumentNode[] = orphans.map((doc) => {
+            const { x, y } = findDocumentPlacement(stagedNodes, state.camera, CARD_W, CARD_H);
+            const newNode: DocumentNode = {
               id: generateId(),
               type: 'document',
-              x: col * (CARD_W + GAP),
-              y: bottomY + row * (CARD_H + GAP),
+              x,
+              y,
               width: CARD_W,
               height: CARD_H,
               docId: doc.id,
-            } as DocumentNode;
+            };
+            stagedNodes.push(newNode);
+            return newNode;
           });
 
           return { pages: updatedPages, nodes: [...state.nodes, ...newNodes] };

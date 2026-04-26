@@ -18,13 +18,20 @@ import { hasSeenImageNotice, markImageNoticeSeen } from './ImageFirstUseModal';
 import ImageFirstUseModal from './ImageFirstUseModal';
 import CanvasToolPreviews from './CanvasToolPreviews';
 import CanvasToolbars from './CanvasToolbars';
-import { AnchorSide, StickyNoteNode, ShapeNode, TaskCardNode, ImageNode } from '../types';
+import { AnchorSide, StickyNoteNode, ShapeNode, TaskCardNode, ImageNode, DocumentNode, LinkNode, CodeBlockNode } from '../types';
 import { getWorkspaceName, openWorkspace } from '../utils/workspaceManager';
 import { useTheme } from '../theme';
 import { resolveCssColor } from '../utils/palette';
 import { useCanvasInteraction } from '../hooks/useCanvasInteraction';
 import { useCanvasKeyboard } from '../hooks/useCanvasKeyboard';
 import { useCanvasImageDrop } from '../hooks/useCanvasImageDrop';
+
+function toAnchorRect(node: StickyNoteNode | ShapeNode | TaskCardNode | ImageNode | DocumentNode | LinkNode | CodeBlockNode) {
+  if (node.type === 'taskcard') {
+    return { x: node.x, y: node.y, width: node.width, height: node.height ?? 120 };
+  }
+  return node;
+}
 
 export default function Canvas() {
   const t = useTheme();
@@ -124,12 +131,20 @@ export default function Canvas() {
     if (!drawingLine) return [];
     const { fromX, fromY, fromAnchor, toX, toY } = drawingLine;
     let tx = toX, ty = toY;
-    if (snapTarget) {
-      const toNode = nodes.find(
-        (n) => n.id === snapTarget.nodeId && (n.type === 'sticky' || n.type === 'shape' || n.type === 'taskcard')
-      ) as (StickyNoteNode | ShapeNode | TaskCardNode) | undefined;
+      if (snapTarget) {
+        const toNode = nodes.find(
+        (n) => n.id === snapTarget.nodeId && (
+          n.type === 'sticky' ||
+          n.type === 'shape' ||
+          n.type === 'taskcard' ||
+          n.type === 'image' ||
+          n.type === 'document' ||
+          n.type === 'link' ||
+          n.type === 'codeblock'
+        )
+      ) as (StickyNoteNode | ShapeNode | TaskCardNode | ImageNode | DocumentNode | LinkNode | CodeBlockNode) | undefined;
       if (toNode) {
-        const c = anchorCoords(toNode as StickyNoteNode | ShapeNode, snapTarget.side);
+        const c = anchorCoords(toAnchorRect(toNode), snapTarget.side);
         tx = c.x; ty = c.y;
       }
     }
@@ -366,6 +381,11 @@ export default function Canvas() {
                   key={n.id}
                   node={n as ImageNode}
                   isSelected={selectedIds.includes(n.id)}
+                  isDrawingLine={drawingLine !== null}
+                  onAnchorDown={handleAnchorDown}
+                  onAnchorEnter={handleAnchorEnter}
+                  onAnchorLeave={handleAnchorLeave}
+                  snapAnchor={snapTarget?.nodeId === n.id ? snapTarget.side : null}
                   onSnapMove={computeSnap}
                   onSnapEnd={clearSnap}
                   onAltDragStart={handleAltDragStart}

@@ -1,7 +1,7 @@
 import { Group, Line, Circle } from 'react-konva';
 import Konva from 'konva';
 import {
-  ConnectorNode, StickyNoteNode, ShapeNode, TableNode, CodeBlockNode, AnchorSide,
+  ConnectorNode, StickyNoteNode, ShapeNode, TableNode, CodeBlockNode, ImageNode, LinkNode, TaskCardNode, DocumentNode, AnchorSide,
   LineStyle, StrokeStyle, ArrowHeadStyle,
 } from '../../types';
 
@@ -215,9 +215,16 @@ interface Props {
 export default function ConnectorLine({ node, isSelected }: Props) {
   const { nodes, selectIds, selectedIds, setActiveTool } = useBoardStore();
 
-  type Connectable = StickyNoteNode | ShapeNode | TableNode | CodeBlockNode;
+  type Connectable = StickyNoteNode | ShapeNode | TableNode | CodeBlockNode | ImageNode | LinkNode | TaskCardNode | DocumentNode;
   const isConnectable = (n: { type: string }) =>
-    n.type === 'sticky' || n.type === 'shape' || n.type === 'table' || n.type === 'codeblock';
+    n.type === 'sticky' ||
+    n.type === 'shape' ||
+    n.type === 'table' ||
+    n.type === 'codeblock' ||
+    n.type === 'image' ||
+    n.type === 'link' ||
+    n.type === 'taskcard' ||
+    n.type === 'document';
   const fromNode = nodes.find(n => n.id === node.fromNodeId && isConnectable(n)) as Connectable | undefined;
   const toNode   = nodes.find(n => n.id === node.toNodeId   && isConnectable(n)) as Connectable | undefined;
 
@@ -225,6 +232,9 @@ export default function ConnectorLine({ node, isSelected }: Props) {
   const toRectLike = (n: Connectable): RectLike => {
     if (n.type === 'table') {
       return { x: n.x, y: n.y, width: n.colWidths.reduce((a, b) => a + b, 0), height: n.rowHeights.reduce((a, b) => a + b, 0) };
+    }
+    if (n.type === 'taskcard') {
+      return { x: n.x, y: n.y, width: n.width, height: n.height ?? 120 };
     }
     return n as RectLike;
   };

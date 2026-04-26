@@ -57,7 +57,11 @@
       "Bash(grep -v \"^--$\")",
       "Bash(sed -n '85,100p' \"/Users/mischavandergoes/Documents/GitHub/CollaboCanvas/ClaudeDesign - Devboard improvements/styles.css\")",
       "Bash(sed -n '894,935p' \"/Users/mischavandergoes/Documents/GitHub/CollaboCanvas/ClaudeDesign - Devboard improvements/styles.css\")",
-      "Bash(grep -n \"color\\\\|--c-\\\\|#[0-9a-fA-F]\\\\{3,6\\\\}\" /Users/mischavandergoes/Documents/GitHub/CollaboCanvas/docs/design-system.html)"
+      "Bash(grep -n \"color\\\\|--c-\\\\|#[0-9a-fA-F]\\\\{3,6\\\\}\" /Users/mischavandergoes/Documents/GitHub/CollaboCanvas/docs/design-system.html)",
+      "Bash(git -C /Users/mischavandergoes/Documents/GitHub/CollaboCanvas log --all --oneline -- feature-ideas.md)",
+      "Bash(git check-ignore *)",
+      "Bash(awk NR>=128 && NR<=145 {print NR\": [\"$0\"]\"} *)",
+      "Bash(awk 'NR>=128 && NR<=140 {print NR\": [\"$0\"] len=\"length\\($0\\)}' /Users/mischavandergoes/Documents/GitHub/CollaboCanvas/src/utils/exportMarkdown.ts)"
     ]
   }
 }

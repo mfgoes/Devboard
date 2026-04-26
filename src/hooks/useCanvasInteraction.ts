@@ -16,6 +16,7 @@ import {
   TaskCardNode,
   CodeBlockNode,
   DocumentNode,
+  ImageNode,
 } from '../types';
 import { STICKY_COLORS } from '../components/StickyColorPicker';
 import { SECTION_TO_STICKY, resolveCssColor } from '../utils/palette';
@@ -79,6 +80,25 @@ export interface SnapGuide {
 }
 
 export const SNAP_THRESHOLD = 8;
+
+function isAnchorConnectableType(type: string) {
+  return (
+    type === 'sticky' ||
+    type === 'shape' ||
+    type === 'taskcard' ||
+    type === 'image' ||
+    type === 'document' ||
+    type === 'link' ||
+    type === 'codeblock'
+  );
+}
+
+function toAnchorRect(node: StickyNoteNode | ShapeNode | TaskCardNode | ImageNode | DocumentNode | LinkNode | CodeBlockNode) {
+  if (node.type === 'taskcard') {
+    return { x: node.x, y: node.y, width: node.width, height: node.height ?? 120 };
+  }
+  return node;
+}
 
 export interface UseCanvasInteractionOptions {
   stageRef: React.RefObject<Konva.Stage | null>;
@@ -539,10 +559,10 @@ export function useCanvasInteraction({
         const toNode = useBoardStore
           .getState()
           .nodes.find(
-            (n) => n.id === snapTarget.nodeId && (n.type === 'sticky' || n.type === 'shape' || n.type === 'taskcard')
-          ) as (StickyNoteNode | ShapeNode | TaskCardNode) | undefined;
+            (n) => n.id === snapTarget.nodeId && isAnchorConnectableType(n.type)
+          ) as (StickyNoteNode | ShapeNode | TaskCardNode | ImageNode | DocumentNode | LinkNode | CodeBlockNode) | undefined;
         const toCoords = toNode
-          ? anchorCoords(toNode as StickyNoteNode | ShapeNode, snapTarget.side)
+          ? anchorCoords(toAnchorRect(toNode), snapTarget.side)
           : { x: drawingLine.toX, y: drawingLine.toY };
 
         addNode({

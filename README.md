@@ -1,182 +1,81 @@
-# DevBoard — Developer Guide
+# DevBoard
 
-## Dev environment
+**The note app that thinks visually.** A focused Markdown editor with `[[wikilinks]]` and a real infinite canvas — in one offline workspace. Your folder, your files, no account.
 
-```bash
-npm install       # first time only
-npm run dev       # starts local server at http://localhost:5173
-```
-
-Hot reload is on. Edit anything in `src/` and the browser updates instantly.
+[Open in browser](https://mfgoes.github.io/Devboard/) · [Download](https://mfgoes.github.io/Devboard/download.html) · [Manual](https://mfgoes.github.io/Devboard/manual.html)
 
 ---
 
-## Building
+## Why DevBoard exists
 
-```bash
-npm run build
-```
+Most workflows end up split across two apps: one for writing and linking notes, another for diagrams and visual thinking. Switching between them loses the connection — your character notes don't know about the relationship map you drew, your architecture doc doesn't know about the diagram next to it.
 
-Outputs a single self-contained `dist/index.html` (~480KB). All JS and CSS are inlined by `vite-plugin-singlefile` — no separate assets, runs fully offline.
+DevBoard puts both modes in one workspace, on one folder on your disk:
 
----
+- **Write** in a clean Markdown editor with `[[wikilinks]]`, backlinks, and focus mode.
+- **Map** on an infinite canvas with sticky notes, shapes, connectors, and code blocks.
+- **Cross-reference** — `@node:` mention any canvas node from inside a document; jump from doc to canvas with one click.
 
-## Uploading to itch.io
-
-### Manual (zip upload)
-
-```bash
-npm run zip
-```
-
-Creates `devboard-itchio.zip` in the project root — contains only `dist/index.html`.
-
-Upload steps:
-1. Go to your itch.io game page → **Edit** → **Uploads**
-2. Drop `devboard-itchio.zip`
-3. Set **Kind**: `HTML`
-4. Check **"This file will be played in the browser"**
-5. Recommended viewport: `960 × 640` (canvas fills the window regardless)
-
-### Automated (Butler CLI)
-
-Butler is itch.io's official CLI for pushing builds directly from the terminal.
-
-**Install Butler:**
-```bash
-# macOS (via itch app — recommended)
-# Download from: https://itch.io/docs/butler/installing.html
-# Or via direct download and add to PATH
-```
-
-**Login once:**
-```bash
-butler login
-```
-
-**Push a build:**
-```bash
-npm run build
-butler push dist/ mischa/devboard:html
-```
-
-The channel name (`html`) can be anything — it just labels the build on itch.io.
-
-**Tip:** Add a `push` script to `package.json` once you have Butler set up:
-```json
-"push": "npm run build && butler push dist/ your-username/devboard:html"
-```
-Then just run `npm run push` to build and deploy in one step.
+No cloud. No account. No sync server. The workspace is just a local folder of Markdown and JSON — open it in VS Code, version it with `git`, back it up however you like.
 
 ---
 
-## Project structure
+## Who it's for
 
-```
-src/
-  types/index.ts          — all TypeScript types (CanvasNode, Tool, Camera, etc.)
-  store/boardStore.ts     — Zustand state (nodes, camera, clipboard, actions)
-  App.tsx                 — root component, keyboard shortcuts, welcome modal
-  main.tsx                — React entry point
-  index.css               — Tailwind directives + canvas overrides
-  components/
-    Canvas.tsx            — Konva Stage, pan/zoom, line drawing, tool dispatch
-    Toolbar.tsx           — bottom-center floating toolbar
-    TopBar.tsx            — board title, export, save/load, share
-    TextEditor.tsx        — HTML textarea overlay for editing sticky text
-    StickyColorPicker.tsx — color swatches shown when a sticky is selected
-    WelcomeModal.tsx      — first-visit / about modal
-    nodes/
-      StickyNote.tsx      — sticky note (Konva Group + Transformer + anchor dots)
-      ConnectorLine.tsx   — bezier connector arrow between nodes
-```
+**Writers and worldbuilders** — link characters, locations, and chapters with `[[wikilinks]]`. Use focus mode for deep work, stack view to browse everything, canvas mode to plot story structure visually.
 
-## Roadmap
+**Second-brain / PKM users** — a real backlinks panel, Markdown files on disk, full keyboard navigation. Not a plugin you have to install — built in.
 
-### Done
-- [x] Canvas with pan, zoom, dot grid
-- [x] Sticky notes — place, drag, resize, edit, color picker
-- [x] Connector lines (bezier arrows between stickies)
-- [x] Copy / paste / duplicate (`⌘C` / `⌘V` / `⌘D`)
-- [x] **Alt+drag to duplicate** — hold Alt while dragging any node to leave a copy at the origin
-- [x] Board title, Export PNG, Save/Load JSON, Share link (base64 URL)
-- [x] Welcome modal with keyboard cheatsheet
-- [x] Single-file build for itch.io
-- [x] Fullscreen button
-- [x] Text blocks (standalone text, no background)
-- [x] Basic shapes — rectangle, ellipse, diamond, triangle
-- [x] Allow moving multiple sections together (left mouse + shift select)
-- [x] Brave browser shield notice
-- [x] Split zoom control to separate toolbar
-- [x] Sections / grouping areas
-- [x] Undo / redo (`⌘Z` / `⌘⇧Z`)
-- [x] Context-sensitive toolbars per node type
-- [x] Align option when multiple objects are selected
-- [x] Re-center button (press zoom number)
-- [x] Themes (dark mode, color schemes)
-- [x] Sticker tool (emoji stickers with picker)
-- [x] **Snap / alignment guides** — subtle guides appear when dragging near other nodes’ edges or centers
-- [x] **Canvas start screen** — first visit seeds the board with a welcome note instead of a modal
-- [x] Shape + text tool stays selected after placing (multi-place)
-- [x] Text alignment (left / center / right) in text block toolbar
-- [x] Code block node with syntax highlighting
-- [x] **Multi-node Alt+drag** — hold Alt while dragging any node; if multiple are selected, all are duplicated together
-- [x] **Group / ungroup** — `⌘G` to group selected nodes, `⌘G` again to ungroup; click a group member to select the whole group
-- [x] **Lock nodes** — right-click any node → Lock to prevent moves/edits; small 🔒 badge appears
-- [x] **Right-click context menu** — duplicate, copy, lock/unlock, bring to front/back, group/ungroup, delete
-
-### Up next
-
-- [x] **Multi-node Alt+drag** — when multiple nodes are selected, Alt+drag duplicates all of them together
-- [x] **Keyboard nudge** — arrow keys move selected node(s) by 1px; Shift+arrow moves by 10px
-- [x] **Group / ungroup** (`⌘G`) — bundle selected nodes so they move together; clicking a group member selects the whole group
-- [x] **Lock nodes** — prevent accidental moves on static layout elements; right-click → Lock or use context menu
-- [x] **Right-click context menu** — duplicate, delete, lock/unlock, bring to front/back, group/ungroup
-- [x] Templates to choose from (dev-focused: planning board, retro, architecture diagram)
-- [ ] Freehand pen / draw tool
-- [ ] Board wide text search (ensure it works with a lot of post-its, load state, etc)
-- [x] Image upload (drop PNG/JPG onto canvas) -> Requires app + workspace
-- [ ] Mini-map / overview panel
-- [x] Allow adding embedded links
-- [ ] Toggle for auto save / manual save mode
-- [ ] Allow export selection as .txt or .md (should work for text sizes, links, stickies as basic text, etc)
-- [x] Load folder/workspace -> Better handling of multiple pages + ability to reference code snippets better
-
-### Later / ideas
-
-- [ ] **Line tool upgrade** — intentional diagramming mode: Flexible, Powerful, Not constrained to grids
-- [ ] More export options (entire board, PDF, with background)
-- [ ] Advertise on Reddit + X
-- [ ] Enable pages (see Figjam / Figma) which makes organising your boards easier
-- [ ] Dropdown menu from the top left (like Figjam) giving even more options (saving, settings, etc)
-  - [ ] Allow inserting code sections and comments (toggle to show in toolbar)
-  - [ ] Open a template (enable different templates, ie planning board or note taking)
-- [ ] Multiple boards / tabs
-- [ ] Real-time collaboration (WebSocket / WebRTC)
-
-### Much later / Post release
-- [ ] Mobile-friendly posting of items on board
+**Solo devs and indie makers** — diagrams, planning boards, and code-block notes in the same workspace as your project README. Single-file build, fully offline.
 
 ---
 
-## Planned Features
+## Key features
 
-### Pages & Frames
-- **A4 / letter-sized frames** — named page containers that snap to standard document dimensions, making it easy to lay out multi-page game design documents, world-building bibles, or creative briefs directly on the canvas.
-- **Page browser sidebar** — flip between named pages (e.g. "Combat System", "Chapter 1 Overview") without losing your place.
-- **Export by page** — export individual frames as PNG or combine into a multi-page PDF.
+### Notes and documents
+- Clean Markdown editor with rich-text formatting toolbar
+- `[[Wikilinks]]` between notes + backlinks panel
+- `@node:` mentions — reference canvas nodes from inside a document
+- Focus mode — full-screen, distraction-free writing
+- Stack view — browse all documents as a vertical list
+- Markdown export
 
-### Creative Templates
-- Game Design Document starter (GDD template with sections for concept, mechanics, art direction, story)
-- Story / world-building map template
-- Blank A4 document template for writers and creative briefs
+### Workspace
+- Open any local folder as a workspace (File System Access API)
+- VS Code-style file explorer sidebar
+- Multiple canvas pages alongside Markdown notes
+- Quick switcher (`⌘K`) to jump between notes and pages
+
+### Canvas
+- Sticky notes, shapes, freeform text, code blocks with syntax highlighting
+- Bezier, straight, and orthogonal connector arrows
+- Sections, snap guides, alignment tools
+- Copy / paste / duplicate, undo / redo, image drop
+- Pin document nodes onto the canvas
+
+### General
+- Fully offline — no server, no account, single-file build
+- Desktop app for macOS, Windows, and Linux (via Tauri)
+- Themes: dark mode + color schemes
+- Share link (base64 URL of board state)
+- Export: PNG, JSON, Markdown
 
 ---
 
-## Adding a new tool
+## Try it
 
-1. Add the tool id to the `Tool` union in `src/types/index.ts`
-2. Add a new node interface and add it to the `CanvasNode` union
-3. Handle the tool in `Canvas.tsx` (`handleMouseDown`, node rendering)
-4. Add the button to `TOOLS` in `Toolbar.tsx` and remove it from `isComingSoon`
-5. Create a new component in `src/components/nodes/`
+[Open in browser →](https://mfgoes.github.io/Devboard/) — no install, no login.
+
+[Download the desktop app →](https://mfgoes.github.io/Devboard/download.html) — macOS, Windows, Linux.
+
+---
+
+## Documentation
+
+| | |
+|---|---|
+| [Manual](https://mfgoes.github.io/Devboard/manual.html) | Full feature guide and keyboard shortcuts |
+| [Download page](https://mfgoes.github.io/Devboard/download.html) | Desktop app downloads |
+| [Self-hosting](https://mfgoes.github.io/Devboard/self-hosting.html) | Run your own instance |
+| [Development guide](DEVELOPMENT.md) | Dev setup, project structure, adding tools, roadmap |
+| [Build & release guide](BUILD.md) | Desktop builds, itch.io deployment, CI |

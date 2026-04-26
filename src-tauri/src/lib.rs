@@ -2,10 +2,60 @@ use tauri::menu::{
     AboutMetadataBuilder, MenuBuilder, MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder,
 };
 use tauri::{Emitter, Manager};
+use std::process::Command;
+
+#[tauri::command]
+fn reveal_in_finder(path: String) -> Result<(), String> {
+    let target = std::path::PathBuf::from(path);
+
+    #[cfg(target_os = "macos")]
+    {
+        let status = Command::new("open")
+            .arg("-R")
+            .arg(&target)
+            .status()
+            .map_err(|err| err.to_string())?;
+        if status.success() {
+            return Ok(());
+        }
+        return Err(format!("open -R exited with status {status}"));
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let arg = format!("/select,{}", target.display());
+        let status = Command::new("explorer")
+            .arg(arg)
+            .status()
+            .map_err(|err| err.to_string())?;
+        if status.success() {
+            return Ok(());
+        }
+        return Err(format!("explorer exited with status {status}"));
+    }
+
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        let dir = if target.is_dir() {
+            target.clone()
+        } else {
+            target.parent().unwrap_or(&target).to_path_buf()
+        };
+        let status = Command::new("xdg-open")
+            .arg(dir)
+            .status()
+            .map_err(|err| err.to_string())?;
+        if status.success() {
+            return Ok(());
+        }
+        return Err(format!("xdg-open exited with status {status}"));
+    }
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .invoke_handler(tauri::generate_handler![reveal_in_finder])
         .setup(|app| {
             let handle = app.handle();
 

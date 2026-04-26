@@ -8,7 +8,7 @@ import { openWorkspace, saveWorkspace, loadImageAsset, findImageInWorkspace, has
 import { toast } from '../utils/toast';
 import { exportDocumentsAsMarkdown, generateMarkdownFilename } from '../utils/exportMarkdown';
 import exportSound from '../assets/get1.mp3';
-import { IconSaveFile } from './icons';
+import { IconFreeformPage, IconSaveFile, IconStackPage } from './icons';
 
 const playExportSound = () => new Audio(exportSound).play().catch(() => {});
 
@@ -577,8 +577,8 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
               <MenuItemSub label="File" icon={<IconJson />}>
                 <MenuItem onClick={() => menuAction(handleNewBoard)} icon={<IconNewBoard />}>New board</MenuItem>
                 <MenuItem onClick={() => menuAction(() => fileInputRef.current?.click())} icon={<IconLoad />}>Load board…</MenuItem>
-                <MenuItem onClick={() => menuAction(handleSaveJSON)} icon={<IconJson />} badge="⌘S">Save board</MenuItem>
-                <MenuItem onClick={() => menuAction(handleSaveAsJSON)} icon={<IconJson />}>Save board as…</MenuItem>
+                <MenuItem onClick={() => menuAction(handleSaveJSON)} icon={<IconJson />} badge="⌘S">Save workspace</MenuItem>
+                <MenuItem onClick={() => menuAction(handleSaveAsJSON)} icon={<IconJson />}>Save workspace as…</MenuItem>
                 <MenuItem onClick={handleOpenFolder} icon={<IconFolder />}>
                   Open folder…
                   {workspaceName && <span className="ml-auto text-[9px] text-[var(--c-line)] font-sans truncate max-w-[80px]">{workspaceName}</span>}
@@ -746,11 +746,11 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
                 }}
               >
                 {mode === 'freeform' ? (
-                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><rect x="1" y="1" width="8" height="8" rx="1" stroke="currentColor" strokeWidth="1.2"/></svg>
+                  <IconFreeformPage />
                 ) : (
-                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1 3h8M1 5.5h8M1 8h8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
+                  <IconStackPage />
                 )}
-                {mode === 'freeform' ? 'Canvas' : 'Stack'}
+                {mode === 'freeform' ? 'Freeform' : 'Stack'}
               </button>
             );
           })}
@@ -936,10 +936,10 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
 
         {/* Export dropdown */}
         <div className="relative" ref={exportRef}>
-          <Tooltip label="Save or export your board">
+          <Tooltip label="Save or export your workspace">
           <button
             onClick={() => setExportOpen((v) => !v)}
-            title="Save / Export"
+            title="Save Workspace / Export"
             className={[
               'flex items-center gap-1 px-2.5 h-7 rounded font-sans text-[11px] tracking-wide transition-colors',
               exportOpen
@@ -947,15 +947,15 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
                 : 'bg-[var(--c-line)] text-white hover:opacity-80',
             ].join(' ')}
           >
-            <span className="hidden sm:inline">Save</span>
+            <span className="hidden sm:inline">Save Workspace</span>
             <IconJson />
             <IconChevronDown />
           </button>
           </Tooltip>
           {exportOpen && (
             <div className="absolute top-full right-0 mt-1.5 w-48 rounded-xl border border-[var(--c-border)] bg-[var(--c-panel)] shadow-2xl py-1.5 z-[220]">
-              <MenuItem onClick={() => { setExportOpen(false); handleSaveJSON(); }} icon={<IconJson />} badge="⌘S">Save</MenuItem>
-              <MenuItem onClick={() => { setExportOpen(false); handleSaveAsJSON(); }} icon={<IconLoad />}>Save as…</MenuItem>
+              <MenuItem onClick={() => { setExportOpen(false); handleSaveJSON(); }} icon={<IconJson />} badge="⌘S">Save workspace</MenuItem>
+              <MenuItem onClick={() => { setExportOpen(false); handleSaveAsJSON(); }} icon={<IconLoad />}>Save workspace as…</MenuItem>
               {pages.length > 1 && (
                 <MenuItem onClick={() => { setExportOpen(false); handleExportAllPages(); }} icon={<IconJson />}>Export all pages</MenuItem>
               )}

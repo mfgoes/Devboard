@@ -3,8 +3,8 @@
     {
       "id": "sticky-shipping",
       "type": "sticky",
-      "x": -5,
-      "y": -2,
+      "x": -502.33711483222254,
+      "y": 55.700166913739665,
       "text": "Ship to itch.io\n\nSingle HTML file, offline, no account needed.",
       "color": "#fde68a",
       "width": 200,
@@ -126,18 +126,65 @@
     {
       "id": "zg9af4zc3",
       "type": "image",
-      "x": 155,
-      "y": 31,
-      "width": 600,
-      "height": 894,
+      "x": 727.2523866901859,
+      "y": 437.35930780518476,
+      "width": 293.6228444566973,
+      "height": 437.4980382404789,
       "src": "",
       "assetName": "e21uv73kg.jpg",
-      "assetFolder": "assets"
+      "assetFolder": "assets",
+      "rotation": -0.587457200970519
+    },
+    {
+      "id": "n7bwzasnb",
+      "type": "shape",
+      "kind": "rect",
+      "x": -302.33711483222254,
+      "y": 604.6715909300984,
+      "width": 288,
+      "height": 160,
+      "fill": "#e2e8f0",
+      "stroke": "transparent",
+      "strokeWidth": 2,
+      "text": "",
+      "fontSize": 14,
+      "bold": false,
+      "italic": false,
+      "textAlign": "center"
+    },
+    {
+      "id": "9bt3oap3t",
+      "type": "connector",
+      "fromNodeId": "n7bwzasnb",
+      "fromAnchor": "right",
+      "fromX": -14.33711483222254,
+      "fromY": 684.6715909300984,
+      "toNodeId": "zg9af4zc3",
+      "toAnchor": "left",
+      "toX": 248.98091933796115,
+      "toY": 744.1325950373223,
+      "color": "#3a2810",
+      "strokeWidth": 2,
+      "lineStyle": "curved",
+      "strokeStyle": "solid",
+      "arrowHeadStart": "none",
+      "arrowHeadEnd": "arrow"
+    },
+    {
+      "id": "v5sranmw1",
+      "type": "sticky",
+      "x": 120,
+      "y": 777.0078261842058,
+      "text": "",
+      "color": "#F8BBD0",
+      "width": 200,
+      "height": 160,
+      "fontSizeMode": "dynamic"
     }
   ],
   "camera": {
-    "x": 446.66215195231655,
-    "y": 239.83757895395576,
+    "x": 550.7002378898165,
+    "y": 100.44097250864326,
     "scale": 0.6816302059305631
   }
 }

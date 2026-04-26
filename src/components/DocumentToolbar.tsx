@@ -51,7 +51,7 @@ export default function DocumentToolbar({ nodeId }: { nodeId: string }) {
     centerX: sx + sw / 2,
     preferredTop: toolbarTop,
     nodeScreenBottom: sy + sh,
-    position: 'fixed',
+    position: 'absolute',
   });
 
   if (!node) return null;
