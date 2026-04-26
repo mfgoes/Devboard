@@ -75,33 +75,18 @@ cssCodeSplit: false        // single CSS bundle
 
 ---
 
-## Desktop (.exe) Migration Plan
+## Desktop App
 
-The app is intentionally built with **no server dependency** and **no Node.js APIs**, making it straightforward to wrap in a desktop shell.
+DevBoard ships as a **Tauri** desktop app for macOS, Windows, and Linux.
 
-### Recommended path: **Electron**
+### Current path: **Tauri**
 
-Electron embeds Chromium + Node.js. The existing Vite build (`dist/index.html`) can be loaded directly as the renderer process with minimal changes.
+- Tauri uses the OS webview, which keeps desktop bundles much smaller than an Electron wrapper.
+- The React/Vite frontend stays the same; the native layer is handled in Rust under `src-tauri/`.
+- Desktop packaging, native menus, and release builds are documented in `BUILD.md`.
 
-**Steps:**
-1. Add `electron` + `electron-builder` as dev dependencies
-2. Create a minimal `main.js` (Electron main process): creates `BrowserWindow`, loads `dist/index.html`
-3. Replace `file-saver` with Node.js `fs` calls for native Save/Load dialogs (`dialog.showSaveDialog`)
-4. Replace `localStorage` persistence with a local JSON file via `fs` (or keep localStorage — Electron supports it)
-5. Configure `electron-builder` to produce `.exe` (Windows), `.dmg` (macOS), `.AppImage` (Linux)
+### What stays shared with the web app
 
-**Key considerations for Electron:**
-- `vite-plugin-singlefile` output still works — Electron can load a single HTML file
-- `contextIsolation: true` + `preload.js` for safe Node↔Renderer bridge (IPC)
-- `file-saver` uses browser download API — swap for `ipcRenderer` → `ipcMain` → `fs.writeFile`
-- PNG export: `stage.toDataURL()` still works in Chromium renderer; save via IPC
-
-### Alternative path: **Tauri** (smaller binary, Rust backend)
-- Tauri uses the OS webview (no bundled Chromium) → ~5–10 MB vs ~150 MB for Electron
-- React/Vite frontend is unchanged; Rust replaces Node for file system access
-- Requires Rust toolchain; more setup but leaner distribution
-
-### What does NOT need to change for either path:
 - All React components and Konva canvas code
 - Zustand store logic
 - TypeScript types

@@ -52,11 +52,81 @@ fn reveal_in_finder(path: String) -> Result<(), String> {
     }
 }
 
+#[tauri::command]
+fn open_external_url(url: String) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        let status = Command::new("open")
+            .arg(&url)
+            .status()
+            .map_err(|err| err.to_string())?;
+        if status.success() {
+            return Ok(());
+        }
+        return Err(format!("open exited with status {status}"));
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let status = Command::new("cmd")
+            .args(["/C", "start", "", &url])
+            .status()
+            .map_err(|err| err.to_string())?;
+        if status.success() {
+            return Ok(());
+        }
+        return Err(format!("start exited with status {status}"));
+    }
+
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        let status = Command::new("xdg-open")
+            .arg(&url)
+            .status()
+            .map_err(|err| err.to_string())?;
+        if status.success() {
+            return Ok(());
+        }
+        return Err(format!("xdg-open exited with status {status}"));
+    }
+}
+
+#[cfg(desktop)]
+fn updater_target() -> &'static str {
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    {
+        return "darwin-aarch64";
+    }
+
+    #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+    {
+        return "windows-x86_64";
+    }
+
+    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+    {
+        return "linux-x86_64";
+    }
+
+    #[allow(unreachable_code)]
+    "unsupported"
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![reveal_in_finder])
+        .invoke_handler(tauri::generate_handler![reveal_in_finder, open_external_url])
         .setup(|app| {
+            #[cfg(desktop)]
+            if let Some(pubkey) = option_env!("TAURI_UPDATER_PUBKEY") {
+                app.handle().plugin(
+                    tauri_plugin_updater::Builder::new()
+                        .pubkey(pubkey)
+                        .target(updater_target())
+                        .build(),
+                )?;
+            }
+
             let handle = app.handle();
 
             // ── App menu (macOS only — the leftmost "DevBoard" menu) ──────────
@@ -67,8 +137,11 @@ pub fn run() {
                 .website(Some("https://mischa.itch.io/devboard"))
                 .build();
 
+            #[cfg(target_os = "macos")]
             let app_menu = SubmenuBuilder::new(handle, "DevBoard")
-                .item(&PredefinedMenuItem::about(handle, None, Some(about_metadata))?)
+                .item(&PredefinedMenuItem::about(handle, None, Some(about_metadata.clone()))?)
+                .separator()
+                .item(&MenuItemBuilder::new("Check for Updates…").id("check_updates").build(handle)?)
                 .separator()
                 .item(&PredefinedMenuItem::services(handle, None)?)
                 .separator()
@@ -79,10 +152,21 @@ pub fn run() {
                 .item(&PredefinedMenuItem::quit(handle, None)?)
                 .build()?;
 
+            #[cfg(not(target_os = "macos"))]
+            let app_menu = SubmenuBuilder::new(handle, "DevBoard")
+                .item(&PredefinedMenuItem::about(handle, None, Some(about_metadata))?)
+                .separator()
+                .item(&PredefinedMenuItem::quit(handle, None)?)
+                .build()?;
+
             // ── File ─────────────────────────────────────────────────────────
             let new_board = MenuItemBuilder::new("New Board")
                 .id("new_board")
                 .accelerator("CmdOrCtrl+Shift+N")
+                .build(handle)?;
+            let new_note = MenuItemBuilder::new("New Note")
+                .id("new_note")
+                .accelerator("CmdOrCtrl+N")
                 .build(handle)?;
             let save = MenuItemBuilder::new("Save")
                 .id("save")
@@ -98,6 +182,7 @@ pub fn run() {
 
             let file_menu = SubmenuBuilder::new(handle, "File")
                 .item(&new_board)
+                .item(&new_note)
                 .separator()
                 .item(&save)
                 .item(&save_as)
@@ -196,8 +281,16 @@ pub fn run() {
             let feedback = MenuItemBuilder::new("Send Feedback (@MishoWave)")
                 .id("help_feedback")
                 .build(handle)?;
-
+            #[cfg(target_os = "macos")]
             let help_menu = SubmenuBuilder::new(handle, "Help")
+                .item(&itch_page)
+                .item(&feedback)
+                .build()?;
+
+            #[cfg(not(target_os = "macos"))]
+            let help_menu = SubmenuBuilder::new(handle, "Help")
+                .item(&MenuItemBuilder::new("Check for Updates…").id("check_updates").build(handle)?)
+                .separator()
                 .item(&itch_page)
                 .item(&feedback)
                 .build()?;
@@ -222,6 +315,7 @@ pub fn run() {
                 };
                 match event.id().as_ref() {
                     "new_board"     => { let _ = window.emit("menu:new_board", ()); }
+                    "new_note"      => { let _ = window.emit("menu:new_note", ()); }
                     "save"          => { let _ = window.emit("menu:save", ()); }
                     "save_as"       => { let _ = window.emit("menu:save_as", ()); }
                     "export_png"    => { let _ = window.emit("menu:export_png", ()); }
@@ -242,6 +336,7 @@ pub fn run() {
                     "tool_code"     => { let _ = window.emit("menu:tool", "code"); }
                     "tool_task"     => { let _ = window.emit("menu:tool", "task"); }
                     "tool_sticker"  => { let _ = window.emit("menu:tool", "sticker"); }
+                    "check_updates" => { let _ = window.emit("menu:check_updates", ()); }
                     "help_itch"     => {
                         let _ = window.emit("menu:open_url", "https://mischa.itch.io/devboard");
                     }
@@ -256,6 +351,7 @@ pub fn run() {
         })
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_process::init())
         .run(tauri::generate_context!())
         .expect("error while running devboard");
 }

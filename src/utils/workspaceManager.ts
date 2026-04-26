@@ -628,6 +628,38 @@ export async function openWorkspace(): Promise<{ data: BoardData | null; name: s
   return result;
 }
 
+/** Creates a new workspace folder in Tauri and optionally seeds it with board data. */
+export async function createWorkspace(
+  initialData?: BoardData,
+  preferredName = 'DevBoard Workspace',
+): Promise<{ data: BoardData | null; name: string } | null> {
+  if (!IS_TAURI) return null;
+
+  try {
+    const { save } = await import('@tauri-apps/plugin-dialog');
+    const selected = await save({
+      title: 'Create Workspace Folder',
+      defaultPath: preferredName,
+    });
+    if (!selected || typeof selected !== 'string') return null;
+
+    tauriWorkspacePath = selected;
+    await tauriFsMkdir(tauriWorkspacePath);
+
+    const name = tauriWorkspacePath.replace(/\\/g, '/').split('/').pop() ?? preferredName;
+    if (initialData) {
+      await saveWorkspace(initialData);
+      return { data: initialData, name };
+    }
+
+    toast(`Created workspace · ${name}`);
+    return { data: null, name };
+  } catch (err) {
+    console.warn('createWorkspace failed', err);
+    return null;
+  }
+}
+
 /** Saves a text file (e.g. Markdown) to a subfolder in the workspace.
  *  Returns true on success. Creates the folder if it doesn't exist. */
 export async function saveTextFileToWorkspace(

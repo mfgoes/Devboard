@@ -2,6 +2,14 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { saveBoard } from './utils/fileSave';
 import { saveWorkspace, getWorkspaceName, restoreWorkspace, setOnWorkspaceSavedCallback, MOBILE_WORKSPACE_WARNING_EVENT } from './utils/workspaceManager';
 import { setToastListener, toast, ToastPayload } from './utils/toast';
+import {
+  checkForUpdates,
+  getLastNotifiedVersion,
+  getUpdateDownloadUrl,
+  markUpdateCheck,
+  markUpdateNotified,
+  shouldAutoCheckForUpdates,
+} from './utils/updates';
 
 // Tauri event listener — only active when running inside a Tauri window
 async function listenTauriMenus(handlers: Record<string, () => void>) {
@@ -45,6 +53,8 @@ import { STICKER_KEYS } from './assets/stickerAssets';
 import { DEMO_COLORS } from './utils/palette';
 
 const EXPLORER_COLLAPSED_WIDTH = 28;
+const DESKTOP_EXPLORER_BREAKPOINT = 1024;
+const IS_WINDOWS = typeof navigator !== 'undefined' && navigator.userAgent.includes('Windows');
 
 function loadFromHash() {
   const hash = window.location.hash;
@@ -81,6 +91,7 @@ export default function App() {
   const [pagesOpen, setPagesOpen] = useState(false);
   const [jiraOpen, setJiraOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [updateBusy, setUpdateBusy] = useState(false);
   const explorerOpen = useBoardStore((s) => s.explorerOpen);
   const setExplorerOpen = useBoardStore((s) => s.setExplorerOpen);
   const appMode = useBoardStore((s) => s.appMode);
@@ -105,7 +116,11 @@ export default function App() {
   const contentTop = 44 + activeNoticeCount * 40;
   const [explorerWidth, setExplorerWidth] = useState(WORKSPACE_EXPLORER_WIDTH);
   const [explorerCollapsed, setExplorerCollapsed] = useState(false);
-  const explorerOffset = explorerOpen ? (explorerCollapsed ? EXPLORER_COLLAPSED_WIDTH : explorerWidth) : 0;
+  const [desktopExplorerPinned, setDesktopExplorerPinned] = useState(() => (
+    typeof window !== 'undefined' ? window.innerWidth >= DESKTOP_EXPLORER_BREAKPOINT : true
+  ));
+  const explorerVisible = desktopExplorerPinned || explorerOpen;
+  const explorerOffset = explorerVisible ? (explorerCollapsed ? EXPLORER_COLLAPSED_WIDTH : explorerWidth) : 0;
   const explorerDragRef = useRef(false);
 
   // ── Zoom-morph state machine ─────────────────────────────────────────────
@@ -142,7 +157,7 @@ export default function App() {
   }, [morphPhase, closeDoc]);
 
   // Cmd+N on stack pages → new note
-  const handleNewStackNote = useCallback(() => {
+  const handleNewNote = useCallback(() => {
     const pageId = useBoardStore.getState().activePageId;
     const id = addDocument({ title: '', content: '', pageId });
     useBoardStore.getState().ensureDocumentNode(id, pageId);
@@ -184,6 +199,88 @@ export default function App() {
     return true;
   }, []);
 
+  const openExternalUrl = useCallback((url: string) => {
+    void import('@tauri-apps/api/core')
+      .then(({ invoke }) => invoke('open_external_url', { url }))
+      .catch(() => window.open(url, '_blank', 'noopener'));
+  }, []);
+
+  const restartApp = useCallback(() => {
+    void import('@tauri-apps/plugin-process')
+      .then(({ relaunch }) => relaunch())
+      .catch(() => window.location.reload());
+  }, []);
+
+  const installUpdate = useCallback(async (update: import('@tauri-apps/plugin-updater').Update) => {
+    if (updateBusy) {
+      toast('Update already in progress.');
+      return;
+    }
+
+    setUpdateBusy(true);
+
+    try {
+      await update.downloadAndInstall((event) => {
+        if (event.event === 'Started') {
+          toast('Downloading update…');
+        } else if (event.event === 'Finished') {
+          toast('Installing update…');
+        }
+      });
+
+      if (!IS_WINDOWS) {
+        toast('Update installed. Restart DevBoard to finish.', {
+          label: 'Restart',
+          onClick: restartApp,
+        });
+      }
+    } catch {
+      toast('Update failed. You can download the latest build manually.', {
+        label: 'Download',
+        onClick: () => openExternalUrl(getUpdateDownloadUrl()),
+      });
+    } finally {
+      setUpdateBusy(false);
+      void update.close().catch(() => {});
+    }
+  }, [openExternalUrl, restartApp, updateBusy]);
+
+  const runUpdateCheck = useCallback(async (interactive: boolean) => {
+    if (updateBusy) {
+      if (interactive) toast('Update already in progress.');
+      return;
+    }
+
+    const result = await checkForUpdates();
+    markUpdateCheck();
+
+    if (result.status === 'update-available') {
+      const alreadyNotified = getLastNotifiedVersion() === result.latestVersion;
+      if (!interactive && alreadyNotified) return;
+
+      markUpdateNotified(result.latestVersion);
+      toast(
+        `DevBoard ${result.latestVersion} is available${interactive ? '' : ' to install'}.`,
+        { label: 'Install', onClick: () => { void installUpdate(result.update); } },
+      );
+      return;
+    }
+
+    if (result.status === 'up-to-date') {
+      if (interactive) toast(`You’re on the latest version (${result.currentVersion}).`);
+      return;
+    }
+
+    if (result.status === 'unsupported') return;
+
+    if (interactive) {
+      toast('Could not check for updates right now.', {
+        label: 'Download',
+        onClick: () => openExternalUrl(getUpdateDownloadUrl()),
+      });
+    }
+  }, [installUpdate, openExternalUrl, updateBusy]);
+
   // Cmd+K quick switcher
   const [qsOpen, setQsOpen] = useState(false);
 
@@ -208,8 +305,14 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!explorerOpen) setExplorerCollapsed(false);
-  }, [explorerOpen]);
+    if (!desktopExplorerPinned && !explorerOpen) setExplorerCollapsed(false);
+  }, [desktopExplorerPinned, explorerOpen]);
+
+  useEffect(() => {
+    const onResize = () => setDesktopExplorerPinned(window.innerWidth >= DESKTOP_EXPLORER_BREAKPOINT);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   const theme = useBoardStore((s) => s.theme);
 
@@ -369,17 +472,11 @@ export default function App() {
         return;
       }
 
-      // Cmd+N on stack page → new note
+      // Cmd+N → new note
       if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
-        const currentPage = useBoardStore.getState().pages.find((p) => p.id === useBoardStore.getState().activePageId);
-        if (currentPage?.layoutMode === 'stack') {
-          e.preventDefault();
-          const pageId = useBoardStore.getState().activePageId;
-          const id = useBoardStore.getState().addDocument({ title: '', content: '', pageId });
-          useBoardStore.getState().ensureDocumentNode(id, pageId);
-          useBoardStore.getState().openDocumentWithMorph(id);
-          return;
-        }
+        e.preventDefault();
+        handleNewNote();
+        return;
       }
 
       if ((e.metaKey || e.ctrlKey) && e.key === 's') {
@@ -528,6 +625,7 @@ export default function App() {
     let cleanup = () => {};
     listenTauriMenus({
       'menu:new_board':    () => useBoardStore.getState().loadBoard({ boardTitle: 'Untitled Board', nodes: [] }),
+      'menu:new_note':     () => handleNewNote(),
       'menu:save':         () => {
         if (requestActiveDocumentSave()) return;
         saveBoard(useBoardStore.getState().exportData());
@@ -544,9 +642,35 @@ export default function App() {
       'menu:zoom_out':     () => { const s = useBoardStore.getState(); s.setCamera({ scale: Math.max(s.camera.scale / 1.2, 0.08) }); },
       'menu:zoom_reset':   () => useBoardStore.getState().setCamera({ scale: 1, x: 0, y: 0 }),
       'menu:toggle_theme': () => useBoardStore.getState().toggleTheme(),
+      'menu:check_updates': () => { void runUpdateCheck(true); },
     }).then(fn => { cleanup = fn; });
     return () => cleanup();
-  }, [requestActiveDocumentSave]);
+  }, [handleNewNote, requestActiveDocumentSave, runUpdateCheck]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const maybeCheckForUpdates = async () => {
+      if (!shouldAutoCheckForUpdates()) return;
+      const result = await checkForUpdates();
+      if (cancelled) return;
+
+      markUpdateCheck();
+      if (result.status !== 'update-available') return;
+      if (getLastNotifiedVersion() === result.latestVersion) return;
+
+      markUpdateNotified(result.latestVersion);
+      toast(`DevBoard ${result.latestVersion} is available to install.`, {
+        label: 'Install',
+        onClick: () => { void installUpdate(result.update); },
+      });
+    };
+
+    maybeCheckForUpdates().catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [installUpdate]);
 
   const handleCloseWelcome = () => setShowWelcome(false);
 
@@ -567,13 +691,16 @@ export default function App() {
       )}
       <TopBar
         onShowAbout={() => setShowWelcome(true)}
+        onNewNote={handleNewNote}
         timerVisible={showTimer}
         onToggleTimer={() => setShowTimer((v) => !v)}
         pagesOpen={pagesOpen}
         onTogglePages={() => setPagesOpen((v) => !v)}
-        explorerOpen={explorerOpen}
+        explorerOpen={explorerVisible}
         onToggleExplorer={() => {
-          if (explorerOpen) {
+          if (desktopExplorerPinned) {
+            setExplorerCollapsed((v) => !v);
+          } else if (explorerOpen) {
             setExplorerOpen(false);
           } else {
             setExplorerCollapsed(false);
@@ -621,7 +748,7 @@ export default function App() {
           </button>
         </div>
       )}
-      {explorerOpen && !explorerCollapsed && (
+      {explorerVisible && !explorerCollapsed && (
         <div
           style={{
             position: 'absolute',
@@ -635,7 +762,7 @@ export default function App() {
             boxShadow: '8px 0 24px rgba(0,0,0,0.08)',
           }}
         >
-          <WorkspaceExplorer onClose={() => setExplorerOpen(false)} onCollapse={() => setExplorerCollapsed(true)} />
+          <WorkspaceExplorer onClose={() => setExplorerOpen(false)} onCollapse={() => setExplorerCollapsed(true)} canClose={!desktopExplorerPinned} />
           {/* Resize handle */}
           <div
             style={{
@@ -668,7 +795,7 @@ export default function App() {
           />
         </div>
       )}
-      {explorerOpen && explorerCollapsed && (
+      {explorerVisible && explorerCollapsed && (
         <div
           style={{
             position: 'absolute',

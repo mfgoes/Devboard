@@ -4,16 +4,17 @@ import { useBoardStore } from '../store/boardStore';
 import { TEMPLATES } from '../templates';
 import ConfirmDialog from './ConfirmDialog';
 import { saveBoard, saveBoardAs, clearFileHandle } from '../utils/fileSave';
-import { openWorkspace, saveWorkspace, loadImageAsset, findImageInWorkspace, hasWorkspaceHandle, clearWorkspaceHandle } from '../utils/workspaceManager';
+import { openWorkspace, createWorkspace, saveWorkspace, loadImageAsset, findImageInWorkspace, hasWorkspaceHandle, clearWorkspaceHandle, IS_TAURI } from '../utils/workspaceManager';
 import { toast } from '../utils/toast';
 import { exportDocumentsAsMarkdown, generateMarkdownFilename } from '../utils/exportMarkdown';
 import exportSound from '../assets/get1.mp3';
-import { IconFreeformPage, IconSaveFile, IconStackPage } from './icons';
+import { IconDoc, IconFreeformPage, IconSaveFile, IconStackPage } from './icons';
 
 const playExportSound = () => new Audio(exportSound).play().catch(() => {});
 
 interface TopBarProps {
   onShowAbout: () => void;
+  onNewNote: () => void;
   timerVisible: boolean;
   onToggleTimer: () => void;
   pagesOpen: boolean;
@@ -135,7 +136,7 @@ function DefaultFolderRow({ folder, onChange }: { folder: string; onChange: (f: 
   );
 }
 
-export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pagesOpen, onTogglePages, explorerOpen, onToggleExplorer, onWorkspaceOpened, jiraOpen, onToggleJira, onToggleSearch }: TopBarProps) {
+export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleTimer, pagesOpen, onTogglePages, explorerOpen, onToggleExplorer, onWorkspaceOpened, jiraOpen, onToggleJira, onToggleSearch }: TopBarProps) {
   const { boardTitle, setBoardTitle, exportData, loadBoard, setActiveTool, setActiveShapeKind, toggleTheme, theme, addNode, pages, activePageId, setPageLayoutMode, workspaceName, setWorkspaceName, nodes, updateNode, imageAssetFolder, setImageAssetFolder, appMode } = useBoardStore();
   const activePage = pages.find((p) => p.id === activePageId);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -233,6 +234,15 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
     }
     clearFileHandle();
     onWorkspaceOpened(); // auto-open the file explorer
+  };
+
+  const handleCreateWorkspace = async () => {
+    setMenuOpen(false);
+    const result = await createWorkspace(exportData(), boardTitle.trim() || 'DevBoard Workspace');
+    if (!result) return;
+    setWorkspaceName(result.name);
+    clearFileHandle();
+    onWorkspaceOpened();
   };
 
   const handleAutoFix = async () => {
@@ -565,9 +575,13 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
 
               <MenuItemSub label="File" icon={<IconJson />}>
                 <MenuItem onClick={() => menuAction(handleNewBoard)} icon={<IconNewBoard />}>New board</MenuItem>
+                <MenuItem onClick={() => menuAction(onNewNote)} icon={<IconDoc />} badge="⌘N">New note</MenuItem>
                 <MenuItem onClick={() => menuAction(() => fileInputRef.current?.click())} icon={<IconLoad />}>Load board…</MenuItem>
                 <MenuItem onClick={() => menuAction(handleSaveJSON)} icon={<IconJson />} badge="⌘S">Save workspace</MenuItem>
                 <MenuItem onClick={() => menuAction(handleSaveAsJSON)} icon={<IconJson />}>Save workspace as…</MenuItem>
+                {IS_TAURI && (
+                  <MenuItem onClick={handleCreateWorkspace} icon={<IconFolder />}>Create workspace…</MenuItem>
+                )}
                 <MenuItem onClick={handleOpenFolder} icon={<IconFolder />}>
                   Open folder…
                   {workspaceName && <span className="ml-auto text-[9px] text-[var(--c-line)] font-sans truncate max-w-[80px]">{workspaceName}</span>}

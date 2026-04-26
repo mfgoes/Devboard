@@ -197,3 +197,13 @@ npx tauri icon path/to/icon-1024.png
 ## Version bumps
 
 Update `version` in `package.json` **and** `src-tauri/tauri.conf.json` before each release.
+
+The desktop app's built-in updater now uses Tauri's signed updater flow and checks `https://github.com/mfgoes/Devboard/releases/latest/download/latest.json`.
+
+Before building release binaries, make sure these environment values are available:
+
+- `TAURI_SIGNING_PRIVATE_KEY`
+- `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` if your key uses one
+- `TAURI_UPDATER_PUBKEY`
+
+Generate the signing keypair once with the Tauri CLI and store the private key safely. The private key must stay stable across future releases or installed apps will stop accepting updates.

@@ -6,7 +6,7 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useBoardStore } from '../store/boardStore';
 import type { CanvasNode, Document, PageMeta } from '../types';
-import { listDirectory, readWorkspaceFile, readWorkspaceFileAsUrl, readWorkspaceFileInfo, getWorkspaceName, openWorkspace, renameEntry, createDirectory, deleteEntry, FSA_DIR_SUPPORTED, IN_IFRAME, IS_TAURI, revealInFinder, saveTextFileToWorkspace, saveWorkspace } from '../utils/workspaceManager';
+import { listDirectory, readWorkspaceFile, readWorkspaceFileAsUrl, readWorkspaceFileInfo, getWorkspaceName, openWorkspace, createWorkspace, renameEntry, createDirectory, deleteEntry, FSA_DIR_SUPPORTED, IN_IFRAME, IS_TAURI, revealInFinder, saveTextFileToWorkspace, saveWorkspace } from '../utils/workspaceManager';
 import { FONTS } from '../utils/fonts';
 import { placeCodeFile, placeImageFile, placeDocumentFile, openDocumentFile } from '../utils/canvasPlacement';
 import { markdownToHtml } from '../utils/exportMarkdown';
@@ -447,7 +447,7 @@ function TreeRow({
 }
 
 // ── Empty / no-workspace state ────────────────────────────────────────────────
-function NoWorkspaceState({ onOpen }: { onOpen: () => void }) {
+function NoWorkspaceState({ onOpen, onCreate }: { onOpen: () => void; onCreate?: () => void }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px 16px', gap: 12, textAlign: 'center' }}>
       <svg width="36" height="36" viewBox="0 0 36 36" fill="none" style={{ opacity: 0.35 }}>
@@ -458,29 +458,51 @@ function NoWorkspaceState({ onOpen }: { onOpen: () => void }) {
       <div>
         <p style={{ fontFamily: FONTS.ui, fontSize: 11, color: 'var(--c-text-hi)', fontWeight: 600, margin: '0 0 4px' }}>No folder open</p>
         <p style={{ fontFamily: FONTS.ui, fontSize: 10, color: 'var(--c-text-lo)', margin: 0, lineHeight: 1.5 }}>
-          Open a folder to browse files, open notes, and place assets on the canvas.
+          A workspace is a normal folder where DevBoard keeps your pages, notes, and assets so everything reopens together later.
         </p>
       </div>
-      <button
-        onClick={onOpen}
-        style={{
-          marginTop: 4,
-          padding: '7px 16px',
-          borderRadius: 8,
-          border: 'none',
-          background: 'var(--c-line)',
-          color: '#fff',
-          fontFamily: FONTS.ui,
-          fontSize: 11,
-          fontWeight: 600,
-          cursor: 'pointer',
-          letterSpacing: '0.02em',
-        }}
-        onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--c-line)')}
-        onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--c-line)')}
-      >
-        Open folder…
-      </button>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%', maxWidth: 220 }}>
+        {onCreate && (
+          <button
+            onClick={onCreate}
+            style={{
+              marginTop: 4,
+              padding: '7px 16px',
+              borderRadius: 8,
+              border: 'none',
+              background: 'var(--c-line)',
+              color: '#fff',
+              fontFamily: FONTS.ui,
+              fontSize: 11,
+              fontWeight: 600,
+              cursor: 'pointer',
+              letterSpacing: '0.02em',
+            }}
+          >
+            Create workspace…
+          </button>
+        )}
+        <button
+          onClick={onOpen}
+          style={{
+            padding: '7px 16px',
+            borderRadius: 8,
+            border: onCreate ? '1px solid var(--c-border)' : 'none',
+            background: onCreate ? 'transparent' : 'var(--c-line)',
+            color: onCreate ? 'var(--c-text-hi)' : '#fff',
+            fontFamily: FONTS.ui,
+            fontSize: 11,
+            fontWeight: 600,
+            cursor: 'pointer',
+            letterSpacing: '0.02em',
+          }}
+        >
+          {onCreate ? 'Open existing folder…' : 'Open folder…'}
+        </button>
+      </div>
+      <p style={{ fontFamily: FONTS.ui, fontSize: 9.5, color: 'var(--c-text-lo)', margin: 0, lineHeight: 1.5, maxWidth: 240 }}>
+        Tip: use a dedicated project folder so `workspace.json`, `pages/`, `notes/`, and `assets/` stay together.
+      </p>
     </div>
   );
 }
@@ -1186,12 +1208,16 @@ export const WORKSPACE_EXPLORER_WIDTH = 340;
 interface Props {
   onClose: () => void;
   onCollapse: () => void;
+  canClose?: boolean;
 }
 
-export default function WorkspaceExplorer({ onClose, onCollapse }: Props) {
+export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true }: Props) {
   const workspaceName = useBoardStore((s) => s.workspaceName) ?? getWorkspaceName() ?? 'No folder open';
   const imageAssetFolder = useBoardStore((s) => s.imageAssetFolder);
   const setImageAssetFolder = useBoardStore((s) => s.setImageAssetFolder);
+  const boardTitle = useBoardStore((s) => s.boardTitle);
+  const exportData = useBoardStore((s) => s.exportData);
+  const setWorkspaceName = useBoardStore((s) => s.setWorkspaceName);
   const pages = useBoardStore((s) => s.pages);
   const addPage = useBoardStore((s) => s.addPage);
   const deletePage = useBoardStore((s) => s.deletePage);
@@ -1768,6 +1794,12 @@ export default function WorkspaceExplorer({ onClose, onCollapse }: Props) {
     document.body.style.userSelect = 'none';
   }, [pageSectionHeight]);
 
+  const handleCreateWorkspace = useCallback(async () => {
+    const result = await createWorkspace(exportData(), boardTitle.trim() || 'DevBoard Workspace');
+    if (!result) return;
+    setWorkspaceName(result.name);
+  }, [boardTitle, exportData, setWorkspaceName]);
+
   const assetTree = useMemo(
     () => advancedFilesVisible ? tree : tree.filter(isVisibleInAssets),
     [advancedFilesVisible, tree]
@@ -1965,20 +1997,22 @@ export default function WorkspaceExplorer({ onClose, onCollapse }: Props) {
                   <path d="M10 2.25 6.25 6 10 9.75" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </button>
-              <button
-                onClick={() => {
-                  setConfirmingClose(true);
-                  if (confirmCloseTimerRef.current) clearTimeout(confirmCloseTimerRef.current);
-                  confirmCloseTimerRef.current = setTimeout(() => setConfirmingClose(false), 3000);
-                }}
-                title="Close explorer"
-                className="w-5 h-5 flex items-center justify-center rounded text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
-                style={{ border: 'none', background: 'transparent', cursor: 'pointer', flexShrink: 0 }}
-              >
-                <svg width="9" height="9" viewBox="0 0 9 9" fill="none">
-                  <path d="M1 1l7 7M8 1L1 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                </svg>
-              </button>
+              {canClose && (
+                <button
+                  onClick={() => {
+                    setConfirmingClose(true);
+                    if (confirmCloseTimerRef.current) clearTimeout(confirmCloseTimerRef.current);
+                    confirmCloseTimerRef.current = setTimeout(() => setConfirmingClose(false), 3000);
+                  }}
+                  title="Close explorer"
+                  className="w-5 h-5 flex items-center justify-center rounded text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
+                  style={{ border: 'none', background: 'transparent', cursor: 'pointer', flexShrink: 0 }}
+                >
+                  <svg width="9" height="9" viewBox="0 0 9 9" fill="none">
+                    <path d="M1 1l7 7M8 1L1 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                  </svg>
+                </button>
+              )}
             </>
           )}
         </div>
@@ -2314,7 +2348,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse }: Props) {
         ) : rootError ? (
           <div style={{ padding: '10px 16px', fontSize: 10.5, color: '#c96a6a', fontFamily: FONTS.ui, lineHeight: 1.5 }}>{rootError}</div>
         ) : !getWorkspaceName() ? (
-          <NoWorkspaceState onOpen={handleOpenFolder} />
+          <NoWorkspaceState onOpen={handleOpenFolder} onCreate={IS_TAURI ? handleCreateWorkspace : undefined} />
         ) : assetSearchResults !== null ? (
           assetSearchResults.length === 0 ? (
             <div style={{ padding: '10px 16px', fontSize: 10, color: 'var(--c-text-lo)', fontFamily: FONTS.ui, fontStyle: 'italic' }}>No matches</div>
@@ -2573,6 +2607,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse }: Props) {
         const menuExt = ext(explorerMenu.entry.name);
         const canActOnFile = explorerMenu.entry.kind === 'file' && (IMAGE_EXTS.has(menuExt) || DOC_EXTS.has(menuExt) || CODE_EXTS[menuExt] !== undefined);
         const isDocFile = explorerMenu.entry.kind === 'file' && DOC_EXTS.has(menuExt);
+        const entryRelativePath = explorerMenu.entry.path.join('/');
         return (
           <div
             ref={explorerMenuRef}
@@ -2600,6 +2635,21 @@ export default function WorkspaceExplorer({ onClose, onCollapse }: Props) {
                     <span className="text-[10px] text-[var(--c-text-off)] ml-3">drag</span>
                   </button>
                 )}
+                <div style={{ height: 1, background: 'var(--c-border)', margin: '3px 0' }} />
+              </>
+            )}
+            {IS_TAURI && (
+              <>
+                <button
+                  className="w-full flex items-center justify-between px-3 py-1.5 text-[12px] rounded transition-colors text-left text-[var(--c-text-md)] hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]"
+                  style={{ fontFamily: FONTS.ui }}
+                  onClick={() => {
+                    setExplorerMenu(null);
+                    void revealInFinder(entryRelativePath);
+                  }}
+                >
+                  <span>Show in Folder</span>
+                </button>
                 <div style={{ height: 1, background: 'var(--c-border)', margin: '3px 0' }} />
               </>
             )}
