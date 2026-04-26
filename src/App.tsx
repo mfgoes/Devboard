@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { saveBoard } from './utils/fileSave';
-import { saveWorkspace, getWorkspaceName, restoreWorkspace, setOnWorkspaceSavedCallback } from './utils/workspaceManager';
+import { saveWorkspace, getWorkspaceName, restoreWorkspace, setOnWorkspaceSavedCallback, MOBILE_WORKSPACE_WARNING_EVENT } from './utils/workspaceManager';
 import { setToastListener, toast, ToastPayload } from './utils/toast';
 
 // Tauri event listener — only active when running inside a Tauri window
@@ -44,6 +44,7 @@ import { useBoardStore } from './store/boardStore';
 import { STICKER_KEYS } from './assets/stickerAssets';
 import { DEMO_COLORS } from './utils/palette';
 
+const EXPLORER_COLLAPSED_WIDTH = 28;
 
 function loadFromHash() {
   const hash = window.location.hash;
@@ -73,6 +74,7 @@ export default function App() {
   const [showWelcome, setShowWelcome] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showBraveNotice, setShowBraveNotice] = useState(false);
+  const [showMobileWorkspaceNotice, setShowMobileWorkspaceNotice] = useState(false);
   const [toastData, setToastData] = useState<ToastPayload | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout>>();
   const [showTimer, setShowTimer] = useState(false);
@@ -89,11 +91,21 @@ export default function App() {
   const addDocument = useBoardStore((s) => s.addDocument);
   const openDocumentWithMorph = useBoardStore((s) => s.openDocumentWithMorph);
 
+  const boardTitle = useBoardStore((s) => s.boardTitle);
+  const workspaceName = useBoardStore((s) => s.workspaceName);
+
   const activePage = pages.find((p) => p.id === activePageId);
   const isStackPage = activePage?.layoutMode === 'stack';
-  const contentTop = showBraveNotice ? 84 : 44;
+
+  useEffect(() => {
+    const label = workspaceName ?? boardTitle;
+    document.title = label ? `${label} — DevBoard` : 'DevBoard';
+  }, [boardTitle, workspaceName]);
+  const activeNoticeCount = Number(showBraveNotice) + Number(showMobileWorkspaceNotice);
+  const contentTop = 44 + activeNoticeCount * 40;
   const [explorerWidth, setExplorerWidth] = useState(WORKSPACE_EXPLORER_WIDTH);
-  const explorerOffset = explorerOpen ? explorerWidth : 0;
+  const [explorerCollapsed, setExplorerCollapsed] = useState(false);
+  const explorerOffset = explorerOpen ? (explorerCollapsed ? EXPLORER_COLLAPSED_WIDTH : explorerWidth) : 0;
   const explorerDragRef = useRef(false);
 
   // ── Zoom-morph state machine ─────────────────────────────────────────────
@@ -188,6 +200,16 @@ export default function App() {
       if (brave) setShowBraveNotice(true);
     });
   }, []);
+
+  useEffect(() => {
+    const handleMobileWorkspaceWarning = () => setShowMobileWorkspaceNotice(true);
+    window.addEventListener(MOBILE_WORKSPACE_WARNING_EVENT, handleMobileWorkspaceWarning);
+    return () => window.removeEventListener(MOBILE_WORKSPACE_WARNING_EVENT, handleMobileWorkspaceWarning);
+  }, []);
+
+  useEffect(() => {
+    if (!explorerOpen) setExplorerCollapsed(false);
+  }, [explorerOpen]);
 
   const theme = useBoardStore((s) => s.theme);
 
@@ -550,8 +572,18 @@ export default function App() {
         pagesOpen={pagesOpen}
         onTogglePages={() => setPagesOpen((v) => !v)}
         explorerOpen={explorerOpen}
-        onToggleExplorer={() => setExplorerOpen(!explorerOpen)}
-        onWorkspaceOpened={() => setExplorerOpen(true)}
+        onToggleExplorer={() => {
+          if (explorerOpen) {
+            setExplorerOpen(false);
+          } else {
+            setExplorerCollapsed(false);
+            setExplorerOpen(true);
+          }
+        }}
+        onWorkspaceOpened={() => {
+          setExplorerCollapsed(false);
+          setExplorerOpen(true);
+        }}
         jiraOpen={jiraOpen}
         onToggleJira={() => setJiraOpen((v) => !v)}
         onToggleSearch={() => setSearchOpen((v) => !v)}
@@ -573,7 +605,23 @@ export default function App() {
           </button>
         </div>
       )}
-      {explorerOpen && (
+      {showMobileWorkspaceNotice && (
+        <div
+          className="absolute left-0 right-0 z-50 flex items-center justify-between gap-3 bg-amber-600 text-white text-xs px-4 py-2"
+          style={{ top: showBraveNotice ? 84 : 44 }}
+        >
+          <span>
+            <strong>Mobile device detected:</strong> Opening folder workspaces is only supported on desktop browsers and the desktop app right now.
+          </span>
+          <button
+            onClick={() => setShowMobileWorkspaceNotice(false)}
+            className="shrink-0 opacity-75 hover:opacity-100 font-bold"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+      {explorerOpen && !explorerCollapsed && (
         <div
           style={{
             position: 'absolute',
@@ -587,7 +635,7 @@ export default function App() {
             boxShadow: '8px 0 24px rgba(0,0,0,0.08)',
           }}
         >
-          <WorkspaceExplorer onClose={() => setExplorerOpen(false)} />
+          <WorkspaceExplorer onClose={() => setExplorerOpen(false)} onCollapse={() => setExplorerCollapsed(true)} />
           {/* Resize handle */}
           <div
             style={{
@@ -618,6 +666,37 @@ export default function App() {
               window.addEventListener('mouseup', onUp);
             }}
           />
+        </div>
+      )}
+      {explorerOpen && explorerCollapsed && (
+        <div
+          style={{
+            position: 'absolute',
+            top: contentTop,
+            left: 0,
+            bottom: 0,
+            width: EXPLORER_COLLAPSED_WIDTH,
+            zIndex: 180,
+            borderRight: '1px solid var(--c-border)',
+            background: 'var(--c-panel)',
+            boxShadow: '6px 0 18px rgba(0,0,0,0.06)',
+            display: 'flex',
+            alignItems: 'flex-start',
+            justifyContent: 'center',
+            paddingTop: 10,
+          }}
+        >
+          <button
+            onClick={() => setExplorerCollapsed(false)}
+            title="Expand explorer"
+            className="w-7 h-7 flex items-center justify-center rounded-lg text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
+            style={{ border: 'none', background: 'transparent', cursor: 'pointer' }}
+          >
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M4.25 2.25 8 6l-3.75 3.75" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M2 2.25 5.75 6 2 9.75" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
         </div>
       )}
       <div

@@ -157,6 +157,26 @@
       font-weight: 400;
     }
 
+    .build-updated {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 14px;
+      padding: 7px 12px;
+      border: 1px solid var(--c-border);
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--c-panel) 82%, transparent);
+      color: var(--c-text-lo);
+      font-size: 0.74rem;
+      letter-spacing: 0.01em;
+    }
+
+    .build-updated strong {
+      color: var(--c-text-hi);
+      font-weight: 600;
+    }
+
     /* ── platform grid ── */
     .dl-grid {
       display: grid;
@@ -276,6 +296,119 @@
     }
 
     .itch-link:hover { color: var(--c-text-hi); }
+
+    .platform-note {
+      margin-top: 2px;
+      font-size: 0.71rem;
+      line-height: 1.45;
+      color: var(--c-text-lo);
+    }
+
+    .platform-note strong {
+      color: var(--c-text-md);
+      font-weight: 600;
+    }
+
+    /* ── web limitations ── */
+    .web-limits {
+      margin-bottom: 48px;
+      border: 1px solid var(--c-border);
+      border-radius: 12px;
+      background: var(--c-panel);
+      overflow: hidden;
+      animation: fadeUp 0.45s 0.2s both;
+    }
+
+    .web-limits-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--c-border);
+      background: var(--c-hover);
+    }
+
+    .web-limits-header h2 {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--c-text-hi);
+      letter-spacing: -0.01em;
+    }
+
+    .web-limits-header p {
+      font-size: 0.74rem;
+      color: var(--c-text-lo);
+      margin-top: 1px;
+    }
+
+    .limits-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.78rem;
+    }
+
+    .limits-table thead th {
+      padding: 10px 16px;
+      text-align: left;
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--c-text-lo);
+      border-bottom: 1px solid var(--c-border);
+    }
+
+    .limits-table thead th:not(:first-child) {
+      text-align: center;
+      width: 120px;
+    }
+
+    .limits-table tbody tr {
+      border-bottom: 1px solid var(--c-border);
+    }
+
+    .limits-table tbody tr:last-child {
+      border-bottom: none;
+    }
+
+    .limits-table tbody td {
+      padding: 10px 16px;
+      color: var(--c-text-md);
+      vertical-align: top;
+    }
+
+    .limits-table tbody td:not(:first-child) {
+      text-align: center;
+      font-size: 0.9rem;
+    }
+
+    .limits-table .feat-name {
+      font-weight: 600;
+      color: var(--c-text-hi);
+      font-size: 0.78rem;
+    }
+
+    .limits-table .feat-note {
+      font-size: 0.71rem;
+      color: var(--c-text-lo);
+      margin-top: 2px;
+      line-height: 1.4;
+    }
+
+    .icon-yes  { color: #22c55e; }
+    .icon-no   { color: #ef4444; }
+    .icon-part { color: #f59e0b; }
+
+    .browser-note {
+      padding: 12px 20px;
+      font-size: 0.72rem;
+      color: var(--c-text-lo);
+      border-top: 1px solid var(--c-border);
+      line-height: 1.5;
+      background: color-mix(in srgb, var(--c-hover) 50%, transparent);
+    }
+
+    .browser-note strong { color: var(--c-text-md); font-weight: 600; }
 
     /* ── also available row ── */
     .also-row {
@@ -410,6 +543,10 @@
   <div class="dl-hero">
     <h1>Download <em>DevBoard</em></h1>
     <p>Free forever. No account required.</p>
+    <div class="build-updated" aria-label="Latest desktop builds updated on April 26, 2026">
+      <strong>Last updated</strong>
+      <span>April 26, 2026</span>
+    </div>
   </div>
 
   <!-- platform cards -->
@@ -430,6 +567,10 @@
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         Download
       </a>
+      <div class="platform-note">
+        <strong>macOS note:</strong> After downloading, if Gatekeeper blocks launch, open
+        System Settings → Privacy &amp; Security and click <strong>Open Anyway</strong>.
+      </div>
       <a class="itch-link" href="https://mishowave.itch.io/devboard" target="_blank" rel="noopener">Also on itch.io ↗</a>
     </div>
 
@@ -469,6 +610,90 @@
       <a class="itch-link" href="https://mishowave.itch.io/devboard" target="_blank" rel="noopener">Also on itch.io ↗</a>
     </div>
 
+  </div>
+
+  <!-- web version limitations -->
+  <div class="web-limits">
+    <div class="web-limits-header">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;color:var(--c-text-lo)">
+        <circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.4"/>
+        <path d="M8 5v4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        <circle cx="8" cy="11" r="0.7" fill="currentColor"/>
+      </svg>
+      <div>
+        <h2>Web vs. desktop — what's different</h2>
+        <p>Some features require the desktop app and are not available in the browser version.</p>
+      </div>
+    </div>
+    <table class="limits-table">
+      <thead>
+        <tr>
+          <th>Feature</th>
+          <th>Desktop</th>
+          <th>Web (Chrome / Edge)</th>
+          <th>Web (Firefox / Safari)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            <div class="feat-name">Open workspace folder</div>
+            <div class="feat-note">Link a local folder so images and board files load automatically</div>
+          </td>
+          <td><span class="icon-yes" title="Supported">✓</span></td>
+          <td><span class="icon-yes" title="Supported via File System Access API">✓</span></td>
+          <td><span class="icon-no" title="Not supported — File System Access API unavailable">✗</span></td>
+        </tr>
+        <tr>
+          <td>
+            <div class="feat-name">Save workspace in-place</div>
+            <div class="feat-note">Overwrite the .devboard.json file on disk without a download dialog</div>
+          </td>
+          <td><span class="icon-yes" title="Supported">✓</span></td>
+          <td><span class="icon-yes" title="Supported via File System Access API">✓</span></td>
+          <td><span class="icon-no" title="Triggers a file download instead">✗</span></td>
+        </tr>
+        <tr>
+          <td>
+            <div class="feat-name">Show in folder</div>
+            <div class="feat-note">Reveal the saved file in Finder / Explorer from inside the app</div>
+          </td>
+          <td><span class="icon-yes" title="Supported in desktop (Tauri) build">✓</span></td>
+          <td><span class="icon-no" title="Not available in browser — browsers cannot open native file managers">✗</span></td>
+          <td><span class="icon-no" title="Not available in browser">✗</span></td>
+        </tr>
+        <tr>
+          <td>
+            <div class="feat-name">Auto-reload missing images</div>
+            <div class="feat-note">Re-link images from a workspace folder after the board is reopened</div>
+          </td>
+          <td><span class="icon-yes" title="Supported">✓</span></td>
+          <td><span class="icon-part" title="Works only while the folder permission is still active in the tab">~</span></td>
+          <td><span class="icon-no" title="Not supported">✗</span></td>
+        </tr>
+        <tr>
+          <td>
+            <div class="feat-name">Keyboard shortcuts &amp; canvas tools</div>
+            <div class="feat-note">Sticky notes, shapes, text, connectors, zoom, pan</div>
+          </td>
+          <td><span class="icon-yes" title="Supported">✓</span></td>
+          <td><span class="icon-yes" title="Supported">✓</span></td>
+          <td><span class="icon-yes" title="Supported">✓</span></td>
+        </tr>
+        <tr>
+          <td>
+            <div class="feat-name">Export PNG / JSON / ZIP</div>
+            <div class="feat-note">Download a snapshot or archive of your board</div>
+          </td>
+          <td><span class="icon-yes" title="Supported">✓</span></td>
+          <td><span class="icon-yes" title="Supported">✓</span></td>
+          <td><span class="icon-yes" title="Supported">✓</span></td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="browser-note">
+      <strong>Tip:</strong> The web version works best in <strong>Chrome, Edge, Brave, or Arc</strong> — these browsers support the File System Access API required for workspace folders. Firefox and Safari users can still use all canvas tools and export boards, but workspace folder features are not available.
+    </div>
   </div>
 
   <!-- also available -->

@@ -301,9 +301,11 @@ function FormattingBar({ viewMode, onToggleSource, onToggleEdit, onSave, onWikil
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [hoveredControl, setHoveredControl] = useState<string | null>(null);
   const [toolbarWidth, setToolbarWidth] = useState(() => (typeof window !== 'undefined' ? window.innerWidth : 1440));
+  const isMobileNarrow = toolbarWidth < 520;
   const savedRangeRef = useRef<Range | null>(null);
   const [, tick] = useState(0);
   const toolbarRef = useRef<HTMLDivElement>(null);
+  const blockBtnRef = useRef<HTMLButtonElement>(null);
   const wikilinkBtnRef = useRef<HTMLButtonElement>(null);
   const nodeBtnRef = useRef<HTMLButtonElement>(null);
   const moreBtnRef = useRef<HTMLButtonElement>(null);
@@ -333,8 +335,8 @@ function FormattingBar({ viewMode, onToggleSource, onToggleEdit, onSave, onWikil
   const currentBlock = getBlockType(showBlock ? savedRangeRef.current : null);
 
   const btnStyle = (active: boolean, hovered = false): React.CSSProperties => ({
-    height: 26,
-    minWidth: 26,
+    height: isMobileNarrow ? 32 : 26,
+    minWidth: isMobileNarrow ? 32 : 26,
     padding: '0 7px',
     background: active
       ? (hovered ? 'rgba(184,119,80,0.33)' : 'rgba(184,119,80,0.25)')
@@ -447,17 +449,29 @@ function FormattingBar({ viewMode, onToggleSource, onToggleEdit, onSave, onWikil
     ['[[Note]]', 'Note'],
     ['@node:', 'Node'],
   ];
+  const blockMenuRect = showBlock && blockBtnRef.current ? blockBtnRef.current.getBoundingClientRect() : null;
   const moreMenuRect = showMoreMenu && moreBtnRef.current ? moreBtnRef.current.getBoundingClientRect() : null;
-  const collapseSecondaryFormatting = toolbarWidth < 1320;
-  const collapseTertiaryFormatting = toolbarWidth < 1160;
-  const collapseLinkActions = toolbarWidth < 960;
-  const hideSaveStatus = toolbarWidth < 1180;
+  const collapseSecondaryFormatting = isMobileNarrow || toolbarWidth < 1320;
+  const collapseTertiaryFormatting = isMobileNarrow || toolbarWidth < 1160;
+  const collapseLinkActions = isMobileNarrow || toolbarWidth < 960;
+  const hideSaveStatus = isMobileNarrow || toolbarWidth < 1180;
+
+  useEffect(() => {
+    if (!showBlock) return;
+    const handleWindowPointer = () => setShowBlock(false);
+    window.addEventListener('mousedown', handleWindowPointer);
+    return () => window.removeEventListener('mousedown', handleWindowPointer);
+  }, [showBlock]);
 
   useEffect(() => {
     if (!showMoreMenu) return;
     const handleWindowPointer = () => setShowMoreMenu(false);
     window.addEventListener('mousedown', handleWindowPointer);
-    return () => window.removeEventListener('mousedown', handleWindowPointer);
+    window.addEventListener('touchstart', handleWindowPointer);
+    return () => {
+      window.removeEventListener('mousedown', handleWindowPointer);
+      window.removeEventListener('touchstart', handleWindowPointer);
+    };
   }, [showMoreMenu]);
 
   useEffect(() => {
@@ -484,6 +498,7 @@ function FormattingBar({ viewMode, onToggleSource, onToggleEdit, onSave, onWikil
     <div
       ref={toolbarRef}
       style={{
+        position: 'relative',
         padding: '8px 24px 8px 24px',
         borderBottom: '1px solid var(--c-border)',
         background: 'rgba(255,255,255,0.02)',
@@ -504,7 +519,7 @@ function FormattingBar({ viewMode, onToggleSource, onToggleEdit, onSave, onWikil
           alignItems: 'center',
           gap: 6,
           overflowX: 'auto',
-          overflowY: 'hidden',
+          overflowY: 'visible',
           scrollbarWidth: 'none',
           msOverflowStyle: 'none',
           paddingBottom: 2,
@@ -514,11 +529,13 @@ function FormattingBar({ viewMode, onToggleSource, onToggleEdit, onSave, onWikil
       {viewMode === 'edit' && (
         <>
           {/* Block format dropdown */}
-          <div style={{ position: 'relative', flexShrink: 0 }}>
+          <div style={{ flexShrink: 0 }}>
             <button
+              ref={blockBtnRef}
               style={{ ...btnStyle(false, hoveredControl === 'block-style'), width: 98, justifyContent: 'space-between', paddingRight: 6 }}
               onMouseDown={(e) => {
                 e.preventDefault();
+                e.stopPropagation();
                 saveSelection();
                 setShowBlock((v) => !v);
                 tick((n) => n + 1);
@@ -528,53 +545,21 @@ function FormattingBar({ viewMode, onToggleSource, onToggleEdit, onSave, onWikil
               <span>{BLOCK_LABELS[currentBlock] ?? 'Paragraph'}</span>
               <span style={{ fontSize: 9, opacity: 0.6 }}>▼</span>
             </button>
-            {showBlock && (
-              <div style={{
-                position: 'absolute', top: '100%', left: 0, zIndex: 500,
-                background: 'var(--c-panel)', border: '1px solid rgba(255,255,255,0.12)',
-                borderRadius: 7, boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
-                minWidth: 130, overflow: 'hidden', marginTop: 3,
-              }}>
-                {(['p', 'h1', 'h2', 'h3'] as const).map((tag) => (
-                  <div
-                    key={tag}
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      applyBlock(tag, savedRangeRef.current);
-                      setShowBlock(false);
-                    }}
-                    style={{
-                      padding: '7px 12px',
-                      cursor: 'pointer',
-                      background: currentBlock === tag ? 'rgba(184,119,80,0.15)' : 'transparent',
-                      color: currentBlock === tag ? 'var(--c-line)' : 'var(--c-text-hi)',
-                      fontSize: tag === 'h1' ? 16 : tag === 'h2' ? 14 : tag === 'h3' ? 13 : 13,
-                      fontWeight: tag !== 'p' ? 700 : 400,
-                      transition: 'background 0.1s',
-                    }}
-                    onMouseEnter={(e) => { if (currentBlock !== tag) (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)'; }}
-                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = currentBlock === tag ? 'rgba(184,119,80,0.15)' : 'transparent'; }}
-                  >
-                    {BLOCK_LABELS[tag]}
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
 
           <div style={{ width: 1, height: 18, background: 'rgba(255,255,255,0.12)', margin: '0 2px', flexShrink: 0 }} />
 
           {/* Bold / Italic / Underline / Strike */}
-          <button style={btnStyle(isActive('bold'), hoveredControl === 'bold')} onMouseDown={(e) => { e.preventDefault(); saveSelection(); fmt('bold'); tick(n=>n+1); }} title="Bold (⌘B)" {...hoverHandlers('bold')}><b>B</b></button>
-          <button style={{ ...btnStyle(isActive('italic'), hoveredControl === 'italic'), fontStyle: 'italic' }} onMouseDown={(e) => { e.preventDefault(); saveSelection(); fmt('italic'); tick(n=>n+1); }} title="Italic (⌘I)" {...hoverHandlers('italic')}><i>I</i></button>
-          <button style={{ ...btnStyle(isActive('underline'), hoveredControl === 'underline'), textDecoration: 'underline' }} onMouseDown={(e) => { e.preventDefault(); saveSelection(); fmt('underline'); tick(n=>n+1); }} title="Underline (⌘U)" {...hoverHandlers('underline')}>U</button>
-          <button style={btnStyle(isActive('strikeThrough'), hoveredControl === 'strike')} onMouseDown={(e) => { e.preventDefault(); saveSelection(); fmt('strikeThrough'); tick(n=>n+1); }} title="Strikethrough" {...hoverHandlers('strike')}><s>S</s></button>
+          <button style={btnStyle(isActive('bold'), hoveredControl === 'bold')} onMouseDown={(e) => { e.preventDefault(); saveSelection(); fmt('bold'); tick(n=>n+1); }} onTouchStart={(e) => { e.preventDefault(); saveSelection(); fmt('bold'); tick(n=>n+1); }} title="Bold (⌘B)" {...hoverHandlers('bold')}><b>B</b></button>
+          <button style={{ ...btnStyle(isActive('italic'), hoveredControl === 'italic'), fontStyle: 'italic' }} onMouseDown={(e) => { e.preventDefault(); saveSelection(); fmt('italic'); tick(n=>n+1); }} onTouchStart={(e) => { e.preventDefault(); saveSelection(); fmt('italic'); tick(n=>n+1); }} title="Italic (⌘I)" {...hoverHandlers('italic')}><i>I</i></button>
+          <button style={{ ...btnStyle(isActive('underline'), hoveredControl === 'underline'), textDecoration: 'underline' }} onMouseDown={(e) => { e.preventDefault(); saveSelection(); fmt('underline'); tick(n=>n+1); }} onTouchStart={(e) => { e.preventDefault(); saveSelection(); fmt('underline'); tick(n=>n+1); }} title="Underline (⌘U)" {...hoverHandlers('underline')}>U</button>
+          <button style={btnStyle(isActive('strikeThrough'), hoveredControl === 'strike')} onMouseDown={(e) => { e.preventDefault(); saveSelection(); fmt('strikeThrough'); tick(n=>n+1); }} onTouchStart={(e) => { e.preventDefault(); saveSelection(); fmt('strikeThrough'); tick(n=>n+1); }} title="Strikethrough" {...hoverHandlers('strike')}><s>S</s></button>
 
           <div style={{ width: 1, height: 18, background: 'rgba(255,255,255,0.12)', margin: '0 2px', flexShrink: 0 }} />
 
           {/* Lists */}
-          <button style={btnStyle(isActive('insertUnorderedList'), hoveredControl === 'bullet-list')} onMouseDown={(e) => { e.preventDefault(); saveSelection(); fmt('insertUnorderedList'); tick(n=>n+1); }} title="Bullet list" {...hoverHandlers('bullet-list')}>• List</button>
-          <button style={btnStyle(isActive('insertOrderedList'), hoveredControl === 'numbered-list')} onMouseDown={(e) => { e.preventDefault(); saveSelection(); fmt('insertOrderedList'); tick(n=>n+1); }} title="Numbered list" {...hoverHandlers('numbered-list')}>1. List</button>
+          <button style={btnStyle(isActive('insertUnorderedList'), hoveredControl === 'bullet-list')} onMouseDown={(e) => { e.preventDefault(); saveSelection(); fmt('insertUnorderedList'); tick(n=>n+1); }} onTouchStart={(e) => { e.preventDefault(); saveSelection(); fmt('insertUnorderedList'); tick(n=>n+1); }} title="Bullet list" {...hoverHandlers('bullet-list')}>• List</button>
+          <button style={btnStyle(isActive('insertOrderedList'), hoveredControl === 'numbered-list')} onMouseDown={(e) => { e.preventDefault(); saveSelection(); fmt('insertOrderedList'); tick(n=>n+1); }} onTouchStart={(e) => { e.preventDefault(); saveSelection(); fmt('insertOrderedList'); tick(n=>n+1); }} title="Numbered list" {...hoverHandlers('numbered-list')}>1. List</button>
 
           <div style={{ width: 1, height: 18, background: 'rgba(255,255,255,0.12)', margin: '0 2px', flexShrink: 0 }} />
 
@@ -644,6 +629,11 @@ function FormattingBar({ viewMode, onToggleSource, onToggleEdit, onSave, onWikil
               style={{ ...btnStyle(showMoreMenu, hoveredControl === 'more'), gap: 5, fontSize: 11, padding: '0 9px' }}
               title="More note actions"
               onMouseDown={(e) => {
+                e.preventDefault();
+                saveSelection();
+                setShowMoreMenu((v) => !v);
+              }}
+              onTouchStart={(e) => {
                 e.preventDefault();
                 saveSelection();
                 setShowMoreMenu((v) => !v);
@@ -856,21 +846,77 @@ function FormattingBar({ viewMode, onToggleSource, onToggleEdit, onSave, onWikil
       </div>
       </div>
 
-      {showMoreMenu && moreMenuRect && (
+      {blockMenuRect && (
         <div
           style={{
             position: 'fixed',
-            top: Math.min(moreMenuRect.bottom + 6, window.innerHeight - 110),
-            left: Math.min(moreMenuRect.right - 170, window.innerWidth - 178),
+            top: Math.min(blockMenuRect.bottom + 6, window.innerHeight - 170),
+            left: Math.min(blockMenuRect.left, window.innerWidth - 138),
             zIndex: 520,
-            minWidth: 170,
-            padding: 6,
+            minWidth: 130,
+            overflow: 'hidden',
             background: 'var(--c-panel)',
             border: '1px solid rgba(255,255,255,0.12)',
-            borderRadius: 10,
-            boxShadow: '0 10px 30px rgba(0,0,0,0.28)',
+            borderRadius: 7,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
           }}
           onMouseDown={(e) => e.stopPropagation()}
+        >
+          {(['p', 'h1', 'h2', 'h3'] as const).map((tag) => (
+            <div
+              key={tag}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                applyBlock(tag, savedRangeRef.current);
+                setShowBlock(false);
+              }}
+              style={{
+                padding: '7px 12px',
+                cursor: 'pointer',
+                background: currentBlock === tag ? 'rgba(184,119,80,0.15)' : 'transparent',
+                color: currentBlock === tag ? 'var(--c-line)' : 'var(--c-text-hi)',
+                fontSize: tag === 'h1' ? 16 : tag === 'h2' ? 14 : tag === 'h3' ? 13 : 13,
+                fontWeight: tag !== 'p' ? 700 : 400,
+                transition: 'background 0.1s',
+              }}
+              onMouseEnter={(e) => { if (currentBlock !== tag) (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)'; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = currentBlock === tag ? 'rgba(184,119,80,0.15)' : 'transparent'; }}
+            >
+              {BLOCK_LABELS[tag]}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {showMoreMenu && (isMobileNarrow || moreMenuRect) && (
+        <div
+          style={isMobileNarrow
+            ? {
+                position: 'absolute',
+                top: '100%',
+                left: 0,
+                right: 0,
+                zIndex: 520,
+                padding: 6,
+                background: 'var(--c-panel)',
+                border: '1px solid rgba(255,255,255,0.12)',
+                borderRadius: '0 0 10px 10px',
+                boxShadow: '0 10px 30px rgba(0,0,0,0.28)',
+              }
+            : {
+                position: 'fixed',
+                top: Math.min(moreMenuRect!.bottom + 6, window.innerHeight - 110),
+                left: Math.min(moreMenuRect!.right - 170, window.innerWidth - 178),
+                zIndex: 520,
+                minWidth: 170,
+                padding: 6,
+                background: 'var(--c-panel)',
+                border: '1px solid rgba(255,255,255,0.12)',
+                borderRadius: 10,
+                boxShadow: '0 10px 30px rgba(0,0,0,0.28)',
+              }}
+          onMouseDown={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
         >
           <button
             style={overflowMenuButtonStyle}

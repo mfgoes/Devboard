@@ -86,9 +86,12 @@ export default function FocusMode() {
     if (e.target === e.currentTarget) setFocusDocument(null);
   };
 
+  const isMobileViewport = typeof window !== 'undefined' && window.innerWidth < 640;
+
   return (
     <div
       onClick={handleBackdropClick}
+      className={isMobileViewport ? undefined : 'sm:p-5'}
       style={{
         position: 'fixed',
         inset: 0,
@@ -99,7 +102,7 @@ export default function FocusMode() {
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '20px',
+        padding: isMobileViewport ? 0 : '20px',
       }}
     >
       {/* Focus mode card */}
@@ -108,11 +111,11 @@ export default function FocusMode() {
         style={{
           maxWidth: '800px',
           width: '100%',
-          height: '90vh',
-          maxHeight: '900px',
+          height: isMobileViewport ? '100dvh' : '90vh',
+          maxHeight: isMobileViewport ? 'none' : '900px',
           background: 'var(--c-panel)',
-          borderRadius: '16px',
-          border: '1px solid rgba(255,255,255,0.1)',
+          borderRadius: isMobileViewport ? 0 : '16px',
+          border: isMobileViewport ? 'none' : '1px solid rgba(255,255,255,0.1)',
           display: 'flex',
           flexDirection: 'column',
           boxShadow: '0 25px 50px rgba(0,0,0,0.5)',
@@ -122,7 +125,7 @@ export default function FocusMode() {
         {/* Header */}
         <div
           style={{
-            padding: '24px',
+            padding: isMobileViewport ? '12px 16px' : '24px',
             borderBottom: '1px solid rgba(255,255,255,0.1)',
             display: 'flex',
             alignItems: 'center',
@@ -137,7 +140,7 @@ export default function FocusMode() {
             placeholder="Untitled note"
             style={{
               flex: 1,
-              fontSize: '24px',
+              fontSize: isMobileViewport ? '18px' : '24px',
               fontWeight: 600,
               color: 'var(--c-text-hi)',
               background: 'transparent',
@@ -181,7 +184,7 @@ export default function FocusMode() {
         <div
           className="flex items-center"
           style={{
-            overflowX: 'visible',
+            overflowX: 'hidden',
             padding: '4px 8px 4px 16px',
             borderBottom: '1px solid rgba(255,255,255,0.1)',
             background: 'rgba(255,255,255,0.02)',

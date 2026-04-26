@@ -35,6 +35,20 @@ export const IN_IFRAME =
 export const IS_TAURI =
   typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
+/** Event fired when a mobile browser tries to use folder-based workspaces. */
+export const MOBILE_WORKSPACE_WARNING_EVENT = 'devboard:mobile-workspace-warning';
+
+/** True when running in a mobile browser where folder-based workspaces are not supported. */
+export const IS_MOBILE_BROWSER =
+  typeof navigator !== 'undefined' &&
+  !IS_TAURI &&
+  (
+    // `userAgentData.mobile` is the cleanest signal when available.
+    ('userAgentData' in navigator &&
+      !!(navigator as Navigator & { userAgentData?: { mobile?: boolean } }).userAgentData?.mobile) ||
+    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+  );
+
 /** Workspace path used in the Tauri code path (absolute OS path string). */
 let tauriWorkspacePath: string | null = null;
 
@@ -43,6 +57,11 @@ export const FSA_DIR_SUPPORTED =
   typeof window !== 'undefined' &&
   !IN_IFRAME &&
   ('showDirectoryPicker' in window || IS_TAURI);
+
+function notifyMobileWorkspaceUnsupported(): void {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent(MOBILE_WORKSPACE_WARNING_EVENT));
+}
 
 export function getWorkspaceName(): string | null {
   if (IS_TAURI) return tauriWorkspacePath ? tauriWorkspacePath.replace(/\\/g, '/').split('/').pop() ?? null : null;
@@ -529,6 +548,11 @@ export async function findImageInWorkspace(assetName: string): Promise<{ folder:
  * Returns null if cancelled or if a new (empty) workspace was picked.
  */
 export async function openWorkspace(): Promise<{ data: BoardData | null; name: string } | null> {
+  if (IS_MOBILE_BROWSER) {
+    notifyMobileWorkspaceUnsupported();
+    return null;
+  }
+
   if (!FSA_DIR_SUPPORTED) {
     // Silently return null — workspace not supported in this environment
     return null;

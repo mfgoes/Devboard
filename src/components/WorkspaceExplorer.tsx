@@ -5,8 +5,8 @@
  */
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useBoardStore } from '../store/boardStore';
-import type { Document, PageMeta } from '../types';
-import { listDirectory, readWorkspaceFile, readWorkspaceFileAsUrl, readWorkspaceFileInfo, getWorkspaceName, openWorkspace, renameEntry, createDirectory, deleteEntry, FSA_DIR_SUPPORTED, IN_IFRAME, revealInFinder, saveTextFileToWorkspace, saveWorkspace } from '../utils/workspaceManager';
+import type { CanvasNode, Document, PageMeta } from '../types';
+import { listDirectory, readWorkspaceFile, readWorkspaceFileAsUrl, readWorkspaceFileInfo, getWorkspaceName, openWorkspace, renameEntry, createDirectory, deleteEntry, FSA_DIR_SUPPORTED, IN_IFRAME, IS_TAURI, revealInFinder, saveTextFileToWorkspace, saveWorkspace } from '../utils/workspaceManager';
 import { FONTS } from '../utils/fonts';
 import { placeCodeFile, placeImageFile, placeDocumentFile, openDocumentFile } from '../utils/canvasPlacement';
 import { markdownToHtml } from '../utils/exportMarkdown';
@@ -47,6 +47,128 @@ const explorerSectionHeaderStyle: React.CSSProperties = {
   color: 'var(--c-text-hi)',
 };
 
+const explorerFocusedRowStyle: React.CSSProperties = {
+  background: 'rgba(184,119,80,0.12)',
+  outline: '1px solid rgba(184,119,80,0.26)',
+  outlineOffset: -1,
+};
+
+const ADVANCED_FILES_STORAGE_KEY = 'devboard-advanced-files-visible';
+
+const HIDDEN_ASSET_ROOTS = new Set(['notes', 'documents', 'pages']);
+const HIDDEN_ASSET_FILES = new Set(['workspace.json']);
+
+type ExplorerKeyboardItem =
+  | { kind: 'page'; pageId: string }
+  | { kind: 'doc'; pageId: string; docId: string }
+  | { kind: 'asset'; path: string[] };
+
+type PagePreview = {
+  kind: 'page';
+  page: PageMeta;
+  docs: Document[];
+  nodes: CanvasNode[];
+  anchorY: number;
+};
+
+type NotePreview = {
+  kind: 'note';
+  page: PageMeta;
+  doc: Document;
+  anchorY: number;
+};
+
+function stripHtmlPreview(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|li|h[1-6])>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function isVisibleInAssets(entry: TreeEntry): boolean {
+  if (entry.path.length === 0) return true;
+  const root = entry.path[0];
+  if (!root) return true;
+  if (HIDDEN_ASSET_ROOTS.has(root)) return false;
+  if (entry.path.length === 1 && HIDDEN_ASSET_FILES.has(entry.name)) return false;
+  return true;
+}
+
+function nodeBounds(node: CanvasNode): { x: number; y: number; w: number; h: number } | null {
+  if (node.type === 'connector') {
+    const x = Math.min(node.fromX, node.toX);
+    const y = Math.min(node.fromY, node.toY);
+    return { x, y, w: Math.max(8, Math.abs(node.toX - node.fromX)), h: Math.max(8, Math.abs(node.toY - node.fromY)) };
+  }
+  if (node.type === 'sticker') return { x: node.x - node.width / 2, y: node.y - node.height / 2, w: node.width, h: node.height };
+  if (node.type === 'textblock') return { x: node.x, y: node.y, w: node.width, h: Math.max(40, node.fontSize * 3.2) };
+  if (node.type === 'table') return { x: node.x, y: node.y, w: node.colWidths.reduce((a, b) => a + b, 0), h: node.rowHeights.reduce((a, b) => a + b, 0) };
+  if (node.type === 'taskcard') return { x: node.x, y: node.y, w: node.width, h: node.height ?? 160 };
+  if (node.type === 'sticky' || node.type === 'shape' || node.type === 'section' || node.type === 'codeblock' || node.type === 'image' || node.type === 'link' || node.type === 'document') {
+    return { x: node.x, y: node.y, w: node.width, h: node.height };
+  }
+  return null;
+}
+
+function PageMiniMap({ nodes }: { nodes: CanvasNode[] }) {
+  const drawableNodes = nodes.slice(0, 28);
+  const bounds = drawableNodes
+    .map(nodeBounds)
+    .filter(Boolean) as Array<{ x: number; y: number; w: number; h: number }>;
+  const minX = bounds.length ? Math.min(...bounds.map((b) => b.x)) : 0;
+  const minY = bounds.length ? Math.min(...bounds.map((b) => b.y)) : 0;
+  const maxX = bounds.length ? Math.max(...bounds.map((b) => b.x + b.w)) : 320;
+  const maxY = bounds.length ? Math.max(...bounds.map((b) => b.y + b.h)) : 220;
+  const pad = 32;
+  const viewBox = `${minX - pad} ${minY - pad} ${Math.max(220, maxX - minX + pad * 2)} ${Math.max(150, maxY - minY + pad * 2)}`;
+
+  return (
+    <svg viewBox={viewBox} width="100%" height="150" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+      <rect x={minX - pad} y={minY - pad} width={Math.max(220, maxX - minX + pad * 2)} height={Math.max(150, maxY - minY + pad * 2)} rx="20" fill="rgba(212,131,90,0.05)" />
+      {drawableNodes.map((node) => {
+        if (node.type === 'connector') {
+          return (
+            <line
+              key={node.id}
+              x1={node.fromX}
+              y1={node.fromY}
+              x2={node.toX}
+              y2={node.toY}
+              stroke={node.color || '#b87750'}
+              strokeWidth={Math.max(1.5, Math.min(4, node.strokeWidth))}
+              strokeLinecap="round"
+              opacity="0.75"
+            />
+          );
+        }
+        const box = nodeBounds(node);
+        if (!box) return null;
+        const common = {
+          key: node.id,
+          x: box.x,
+          y: box.y,
+          width: box.w,
+          height: box.h,
+          rx: 14,
+          opacity: 0.9,
+        };
+        if (node.type === 'sticky') return <rect {...common} fill={node.color || '#f5e2b8'} stroke="rgba(74,53,37,0.14)" strokeWidth="2" />;
+        if (node.type === 'shape') return <rect {...common} fill={node.fill || 'rgba(212,131,90,0.18)'} stroke={node.stroke || 'rgba(138,117,95,0.45)'} strokeWidth={Math.max(1, node.strokeWidth ?? 1)} />;
+        if (node.type === 'section') return <rect {...common} fill="transparent" stroke={node.color || '#d4835a'} strokeWidth="3" strokeDasharray="8 6" />;
+        if (node.type === 'image' || node.type === 'sticker') return <rect {...common} fill="rgba(212,131,90,0.14)" stroke="rgba(212,131,90,0.3)" strokeWidth="2" />;
+        if (node.type === 'codeblock') return <rect {...common} fill="rgba(44,36,31,0.8)" stroke="rgba(138,117,95,0.35)" strokeWidth="2" />;
+        if (node.type === 'document' || node.type === 'textblock') return <rect {...common} fill="rgba(255,255,255,0.82)" stroke="rgba(138,117,95,0.22)" strokeWidth="2" />;
+        if (node.type === 'link') return <rect {...common} fill="rgba(133,186,156,0.16)" stroke="rgba(133,186,156,0.38)" strokeWidth="2" />;
+        if (node.type === 'table') return <rect {...common} fill="rgba(212,131,90,0.08)" stroke="rgba(138,117,95,0.3)" strokeWidth="2" />;
+        if (node.type === 'taskcard') return <rect {...common} fill="rgba(255,247,237,0.95)" stroke="rgba(212,131,90,0.32)" strokeWidth="2" />;
+        return <rect {...common} fill="rgba(212,131,90,0.12)" stroke="rgba(138,117,95,0.28)" strokeWidth="2" />;
+      })}
+    </svg>
+  );
+}
+
 function sortDocumentsForExplorer(docs: Document[], sortMode: PageMeta['noteSort'] = 'updated'): Document[] {
   if (sortMode === 'custom') {
     return [...docs].sort((a, b) => {
@@ -80,6 +202,7 @@ function TreeRow({
   onFileHover,
   usedOnCanvas,
   isDark,
+  onFocus,
 }: {
   entry: TreeEntry;
   depth: number;
@@ -98,6 +221,7 @@ function TreeRow({
   onFileHover: (entry: TreeEntry, clientY: number) => void;
   usedOnCanvas: Set<string>;
   isDark: boolean;
+  onFocus: (path: string[]) => void;
 }) {
   const isDir = entry.kind === 'directory';
   const isImage = !isDir && IMAGE_EXTS.has(ext(entry.name));
@@ -158,21 +282,24 @@ function TreeRow({
     onFileHover,
     usedOnCanvas,
     isDark,
+    onFocus,
   };
 
   return (
     <>
       <div
-        className="group flex items-center gap-1.5 h-[22px] pr-2 rounded cursor-pointer"
+        className="group mx-1 flex items-center gap-1.5 h-[24px] pr-2 rounded-md cursor-pointer"
         style={{
           paddingLeft: 8 + depth * 14,
-          background: dropActive ? 'rgba(184,119,80,0.16)' : isFocused ? 'rgba(99,102,241,0.15)' : undefined,
-          outline: dropActive ? '1px solid var(--c-line)' : isFocused ? '1px solid rgba(99,102,241,0.35)' : undefined,
-          outlineOffset: -1,
+          ...(dropActive ? { background: 'rgba(184,119,80,0.16)', outline: '1px solid var(--c-line)', outlineOffset: -1 } : {}),
+          ...(isFocused ? explorerFocusedRowStyle : {}),
         }}
         data-focused={isFocused ? 'true' : undefined}
         draggable={(isImage || isDoc) && !isRenaming}
-        onClick={(e) => handleClick(e.clientY)}
+        onClick={(e) => {
+          onFocus(entry.path);
+          handleClick(e.clientY);
+        }}
         onDragStart={(e) => { if ((isImage || isDoc) && !isRenaming) onFileDragStart(entry, e); else e.preventDefault(); }}
         onDragEnter={(e) => {
           if (!isNotesFolder) return;
@@ -203,7 +330,12 @@ function TreeRow({
             toast('Could not import note');
           }
         }}
-        onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onContextMenu(entry, e.clientX, e.clientY); }}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onFocus(entry.path);
+          onContextMenu(entry, e.clientX, e.clientY);
+        }}
         onMouseEnter={(e) => {
           if ((!isImage && !isDoc) || isRenaming) return;
           const y = e.clientY;
@@ -372,6 +504,14 @@ function PageGroup({
   onOpenPageOverview,
   onCreateNote,
   onOpenDocument,
+  pageFocused,
+  focusedDocId,
+  onFocusPage,
+  onFocusDocument,
+  onPageHover,
+  onPageLeave,
+  onNoteHover,
+  onNoteLeave,
 }: {
   page: PageMeta;
   docs: Document[];
@@ -391,6 +531,14 @@ function PageGroup({
   onOpenPageOverview: () => void;
   onCreateNote: () => void;
   onOpenDocument: (docId: string) => void;
+  pageFocused: boolean;
+  focusedDocId: string | null;
+  onFocusPage: (pageId: string) => void;
+  onFocusDocument: (pageId: string, docId: string) => void;
+  onPageHover: (page: PageMeta, clientY: number) => void;
+  onPageLeave: () => void;
+  onNoteHover: (page: PageMeta, doc: Document, clientY: number) => void;
+  onNoteLeave: () => void;
 }) {
   const [renamingPage, setRenamingPage] = useState(false);
   const [pageRenameDraft, setPageRenameDraft] = useState(page.name);
@@ -400,6 +548,11 @@ function PageGroup({
   const [dropTargetDocId, setDropTargetDocId] = useState<string | null>(null);
   const [noteMenu, setNoteMenu] = useState<{ doc: Document; x: number; y: number } | null>(null);
   const [pageMenu, setPageMenu] = useState<{ x: number; y: number } | null>(null);
+  const [pageHovered, setPageHovered] = useState(false);
+  const [hoveredDocId, setHoveredDocId] = useState<string | null>(null);
+  const pageHoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const noteHoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const canHoverPreview = !isActive;
 
   const beginRename = useCallback((doc: Document) => {
     setRenamingDocId(doc.id);
@@ -450,21 +603,47 @@ function PageGroup({
     return () => window.removeEventListener('click', handleWindowClick);
   }, [pageMenu]);
 
+  useEffect(() => () => {
+    if (pageHoverTimerRef.current) clearTimeout(pageHoverTimerRef.current);
+    if (noteHoverTimerRef.current) clearTimeout(noteHoverTimerRef.current);
+  }, []);
+
   return (
     <div style={{ marginBottom: 4 }}>
       <div
+        onMouseEnter={(e) => {
+          setPageHovered(true);
+          if (pageHoverTimerRef.current) clearTimeout(pageHoverTimerRef.current);
+          if (canHoverPreview) {
+            pageHoverTimerRef.current = setTimeout(() => onPageHover(page, e.clientY), 380);
+          }
+        }}
+        onMouseLeave={() => {
+          setPageHovered(false);
+          if (pageHoverTimerRef.current) clearTimeout(pageHoverTimerRef.current);
+          onPageLeave();
+        }}
         style={{
           width: '100%',
           display: 'flex',
           alignItems: 'center',
           gap: 6,
           padding: '7px 9px',
-          background: isActive ? 'rgba(184,119,80,0.12)' : 'none',
-          outline: isActive ? '1px solid rgba(184,119,80,0.24)' : 'none',
-          outlineOffset: -1,
           borderRadius: 6,
+          ...(isActive ? explorerFocusedRowStyle : {}),
+          ...(pageFocused ? {
+            background: 'rgba(184,119,80,0.16)',
+            outline: '1px solid rgba(184,119,80,0.38)',
+            outlineOffset: -1,
+          } : {}),
+          ...(!isActive && !pageFocused && pageHovered ? {
+            background: 'rgba(184,119,80,0.08)',
+            outline: '1px solid rgba(184,119,80,0.16)',
+            outlineOffset: -1,
+          } : {}),
         }}
-        className="hover:bg-[var(--c-hover)]"
+        data-focused={pageFocused ? 'true' : undefined}
+        className="transition-colors"
       >
         <button
           onClick={onToggleCollapsed}
@@ -498,9 +677,11 @@ function PageGroup({
 
         <button
           onClick={onOpenPageOverview}
+          onFocus={() => onFocusPage(page.id)}
           onContextMenu={(e) => {
             e.preventDefault();
             e.stopPropagation();
+            onFocusPage(page.id);
             setPageMenu({ x: e.clientX, y: e.clientY });
           }}
           title={`Open "${page.name}" page overview`}
@@ -642,16 +823,18 @@ function PageGroup({
                 {page.noteSort === 'custom' && <span className="text-[10px] ml-3">✓</span>}
               </button>
               <div style={{ height: 1, background: 'var(--c-border)', margin: '4px 0' }} />
-              <button
-                className="w-full flex items-center justify-between px-3 py-1.5 text-[12px] rounded transition-colors text-left text-[var(--c-text-md)] hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]"
-                style={{ fontFamily: FONTS.ui }}
-                onClick={() => {
-                  onRevealPage(page);
-                  setPageMenu(null);
-                }}
-              >
-                <span>Show in Folder</span>
-              </button>
+              {IS_TAURI && (
+                <button
+                  className="w-full flex items-center justify-between px-3 py-1.5 text-[12px] rounded transition-colors text-left text-[var(--c-text-md)] hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]"
+                  style={{ fontFamily: FONTS.ui }}
+                  onClick={() => {
+                    onRevealPage(page);
+                    setPageMenu(null);
+                  }}
+                >
+                  <span>Show in Folder</span>
+                </button>
+              )}
               <button
                 className="w-full flex items-center justify-between px-3 py-1.5 text-[12px] rounded transition-colors text-left text-[var(--c-text-md)] hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]"
                 style={{ fontFamily: FONTS.ui }}
@@ -730,46 +913,69 @@ function PageGroup({
               No notes on this page
             </div>
           ) : (
-            docs.map((doc) => {
-              const isSelected = doc.id === activeDocId;
-              const isRenaming = doc.id === renamingDocId;
-              const isDragged = doc.id === draggedDocId;
-              const isDropTarget = doc.id === dropTargetDocId && draggedDocId !== doc.id;
+	            docs.map((doc) => {
+	              const isSelected = doc.id === activeDocId;
+	              const isFocused = doc.id === focusedDocId;
+	              const isRenaming = doc.id === renamingDocId;
+	              const isDragged = doc.id === draggedDocId;
+	              const isDropTarget = doc.id === dropTargetDocId && draggedDocId !== doc.id;
+                const isHovered = hoveredDocId === doc.id;
               return (
                 <button
                   key={doc.id}
-                  onClick={() => {
-                    if (isRenaming) return;
-                    onOpenDocument(doc.id);
-                  }}
-                  onContextMenu={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setNoteMenu({ doc, x: e.clientX, y: e.clientY });
-                  }}
-                  style={{
+	                  onClick={() => {
+	                    if (isRenaming) return;
+	                    onFocusDocument(page.id, doc.id);
+	                    onOpenDocument(doc.id);
+	                  }}
+	                  onFocus={() => onFocusDocument(page.id, doc.id)}
+                    onMouseEnter={(e) => {
+                      setHoveredDocId(doc.id);
+                      if (noteHoverTimerRef.current) clearTimeout(noteHoverTimerRef.current);
+                      noteHoverTimerRef.current = setTimeout(() => onNoteHover(page, doc, e.clientY), 380);
+                    }}
+                    onMouseLeave={() => {
+                      setHoveredDocId((current) => (current === doc.id ? null : current));
+                      if (noteHoverTimerRef.current) clearTimeout(noteHoverTimerRef.current);
+                      onNoteLeave();
+                    }}
+	                  onContextMenu={(e) => {
+	                    e.preventDefault();
+	                    e.stopPropagation();
+	                    onFocusDocument(page.id, doc.id);
+	                    setNoteMenu({ doc, x: e.clientX, y: e.clientY });
+	                  }}
+	                  style={{
                     width: '100%',
                     display: 'flex',
                     alignItems: 'center',
                     gap: 7,
                     marginTop: 2,
                     padding: '6px 8px',
-                    background: isDragged ? 'rgba(184,119,80,0.08)' : isSelected ? 'rgba(184,119,80,0.14)' : 'none',
-                    border: 'none',
-                    outline: isDropTarget
-                      ? '1px solid rgba(184,119,80,0.42)'
-                      : isSelected
-                        ? '1px solid rgba(184,119,80,0.26)'
-                        : 'none',
+	                    background: isDragged
+                        ? 'rgba(184,119,80,0.08)'
+                        : (isFocused || isSelected)
+                          ? 'rgba(184,119,80,0.14)'
+                          : isHovered
+                            ? 'rgba(184,119,80,0.08)'
+                            : 'none',
+	                    border: 'none',
+	                    outline: isDropTarget
+	                      ? '1px solid rgba(184,119,80,0.42)'
+	                      : (isFocused || isSelected)
+	                        ? '1px solid rgba(184,119,80,0.26)'
+                          : isHovered
+                            ? '1px solid rgba(184,119,80,0.16)'
+	                        : 'none',
                     outlineOffset: -1,
                     borderRadius: 6,
-                    cursor: isRenaming ? 'text' : 'grab',
+                    cursor: isRenaming ? 'text' : 'pointer',
                     textAlign: 'left',
                     boxShadow: isDropTarget ? 'inset 0 2px 0 rgba(184,119,80,0.55)' : 'none',
-                    opacity: isDragged ? 0.72 : 1,
-                  }}
+	                    opacity: isDragged ? 0.72 : 1,
+	                  }}
+	                  data-focused={isFocused ? 'true' : undefined}
                   className="hover:bg-[var(--c-hover)]"
-                  title={doc.title || 'Untitled note'}
                   draggable={!isRenaming}
                   onDragStart={(e) => {
                     if (isRenaming) {
@@ -933,16 +1139,18 @@ function PageGroup({
             className="py-1.5 rounded-xl border border-[var(--c-border)] bg-[var(--c-panel)] shadow-2xl"
             onMouseDown={(e) => e.stopPropagation()}
           >
-            <button
-              className="w-full flex items-center justify-between px-3 py-1.5 text-[12px] rounded transition-colors text-left text-[var(--c-text-md)] hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]"
-              style={{ fontFamily: FONTS.ui }}
-              onClick={() => {
-                onRevealDocument(noteMenu.doc);
-                setNoteMenu(null);
-              }}
-            >
-              <span>Show in Folder</span>
-            </button>
+            {IS_TAURI && (
+              <button
+                className="w-full flex items-center justify-between px-3 py-1.5 text-[12px] rounded transition-colors text-left text-[var(--c-text-md)] hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]"
+                style={{ fontFamily: FONTS.ui }}
+                onClick={() => {
+                  onRevealDocument(noteMenu.doc);
+                  setNoteMenu(null);
+                }}
+              >
+                <span>Show in Folder</span>
+              </button>
+            )}
             <button
               className="w-full flex items-center justify-between px-3 py-1.5 text-[12px] rounded transition-colors text-left text-[var(--c-text-md)] hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]"
               style={{ fontFamily: FONTS.ui }}
@@ -977,9 +1185,10 @@ export const WORKSPACE_EXPLORER_WIDTH = 340;
 // ── Main component ────────────────────────────────────────────────────────────
 interface Props {
   onClose: () => void;
+  onCollapse: () => void;
 }
 
-export default function WorkspaceExplorer({ onClose }: Props) {
+export default function WorkspaceExplorer({ onClose, onCollapse }: Props) {
   const workspaceName = useBoardStore((s) => s.workspaceName) ?? getWorkspaceName() ?? 'No folder open';
   const imageAssetFolder = useBoardStore((s) => s.imageAssetFolder);
   const setImageAssetFolder = useBoardStore((s) => s.setImageAssetFolder);
@@ -1041,6 +1250,10 @@ export default function WorkspaceExplorer({ onClose }: Props) {
   // Local state
   const [pagesSectionOpen, setPagesSectionOpen] = useState(true);
   const [assetsSectionOpen, setAssetsSectionOpen] = useState(true);
+  const [advancedFilesVisible, setAdvancedFilesVisible] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.localStorage.getItem(ADVANCED_FILES_STORAGE_KEY) === '1';
+  });
   const [collapsedPageIds, setCollapsedPageIds] = useState<Record<string, boolean>>({});
   const [pageSectionHeight, setPageSectionHeight] = useState(320);
   const [confirmingClose, setConfirmingClose] = useState(false);
@@ -1049,6 +1262,14 @@ export default function WorkspaceExplorer({ onClose }: Props) {
   const [folderDraft, setFolderDraft] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [focusedIdx, setFocusedIdx] = useState<number | null>(null);
+  const [pagePreview, setPagePreview] = useState<PagePreview | null>(null);
+  const [notePreview, setNotePreview] = useState<NotePreview | null>(null);
+  const clearPagePreview = useCallback(() => {
+    setPagePreview(null);
+  }, []);
+  const clearNotePreview = useCallback(() => {
+    setNotePreview(null);
+  }, []);
   // Rename state
   const [renamingPath, setRenamingPath] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState('');
@@ -1061,6 +1282,8 @@ export default function WorkspaceExplorer({ onClose }: Props) {
   type ExplorerMenu = { entry: TreeEntry; x: number; y: number };
   const [explorerMenu, setExplorerMenu] = useState<ExplorerMenu | null>(null);
   const explorerMenuRef = useRef<HTMLDivElement>(null);
+  const [filesSectionMenu, setFilesSectionMenu] = useState<{ x: number; y: number } | null>(null);
+  const filesSectionMenuRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const resizeStateRef = useRef<{ startY: number; startHeight: number } | null>(null);
 
@@ -1068,6 +1291,11 @@ export default function WorkspaceExplorer({ onClose }: Props) {
   useEffect(() => () => {
     if (confirmCloseTimerRef.current) clearTimeout(confirmCloseTimerRef.current);
   }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(ADVANCED_FILES_STORAGE_KEY, advancedFilesVisible ? '1' : '0');
+  }, [advancedFilesVisible]);
 
   useEffect(() => {
     const onPointerMove = (e: PointerEvent) => {
@@ -1196,10 +1424,14 @@ export default function WorkspaceExplorer({ onClose }: Props) {
   const handleFileSingleClick = useCallback((entry: TreeEntry, clientY: number) => {
     const idx = visibleEntriesRef.current.findIndex((e) => e.path.join('/') === entry.path.join('/'));
     if (idx !== -1) setFocusedIdx(idx);
+    setPagePreview(null);
+    setNotePreview(null);
     showFilePreview(entry, clientY);
   }, [showFilePreview]);
 
   const handleFileOpen = useCallback((entry: TreeEntry) => {
+    setPagePreview(null);
+    setNotePreview(null);
     clearPreview();
     openFile(entry);
   }, [openFile, clearPreview]);
@@ -1354,6 +1586,17 @@ export default function WorkspaceExplorer({ onClose }: Props) {
     return () => window.removeEventListener('click', handler);
   }, [explorerMenu]);
 
+  useEffect(() => {
+    if (!filesSectionMenu) return;
+    const handler = (e: MouseEvent) => {
+      if (filesSectionMenuRef.current && !filesSectionMenuRef.current.contains(e.target as Node)) {
+        setFilesSectionMenu(null);
+      }
+    };
+    window.addEventListener('click', handler);
+    return () => window.removeEventListener('click', handler);
+  }, [filesSectionMenu]);
+
   const handleEntryContextMenu = useCallback((entry: TreeEntry, x: number, y: number) => {
     setExplorerMenu({ entry, x, y });
     // Also set keyboard focus to this entry
@@ -1427,6 +1670,11 @@ export default function WorkspaceExplorer({ onClose }: Props) {
     }
     return docsByPage;
   }, [documents, pages]);
+
+  const getPageNodes = useCallback((pageId: string) => {
+    if (pageId === activePageId) return storeNodes;
+    return pageSnapshots[pageId]?.nodes ?? [];
+  }, [activePageId, pageSnapshots, storeNodes]);
   const createNoteForPage = useCallback((pageId: string) => {
     if (pageId !== activePageId) switchPage(pageId);
     const page = pages.find((entry) => entry.id === pageId);
@@ -1491,6 +1739,29 @@ export default function WorkspaceExplorer({ onClose }: Props) {
     setCollapsedPageIds((prev) => ({ ...prev, [pageId]: !prev[pageId] }));
   }, []);
 
+  const showPagePreview = useCallback((page: PageMeta, anchorY: number) => {
+    clearPreview();
+    setNotePreview(null);
+    setPagePreview({
+      kind: 'page',
+      page,
+      docs: pageDocs.get(page.id) ?? [],
+      nodes: getPageNodes(page.id),
+      anchorY,
+    });
+  }, [clearPreview, getPageNodes, pageDocs]);
+
+  const showNotePreview = useCallback((page: PageMeta, doc: Document, anchorY: number) => {
+    clearPreview();
+    setPagePreview(null);
+    setNotePreview({
+      kind: 'note',
+      page,
+      doc,
+      anchorY,
+    });
+  }, [clearPreview]);
+
   const startPageSectionResize = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     resizeStateRef.current = { startY: e.clientY, startHeight: pageSectionHeight };
     document.body.style.cursor = 'ns-resize';
@@ -1498,75 +1769,138 @@ export default function WorkspaceExplorer({ onClose }: Props) {
   }, [pageSectionHeight]);
 
   const assetTree = useMemo(
-    () => tree.filter((entry) => entry.path.join('/') !== 'notes'),
-    [tree]
+    () => advancedFilesVisible ? tree : tree.filter(isVisibleInAssets),
+    [advancedFilesVisible, tree]
   );
 
   const assetSearchResults = useMemo(
-    () => searchResults?.filter((entry) => entry.path[0] !== 'notes') ?? null,
-    [searchResults]
+    () => searchResults?.filter((entry) => advancedFilesVisible || isVisibleInAssets(entry)) ?? null,
+    [advancedFilesVisible, searchResults]
   );
 
+  const assetVisibleEntries = useMemo(
+    () => assetSearchResults ?? flatVisible(assetTree),
+    [assetSearchResults, assetTree]
+  );
+
+  const keyboardItems = useMemo<ExplorerKeyboardItem[]>(() => {
+    const items: ExplorerKeyboardItem[] = [];
+    if (getWorkspaceName() && pages.length > 0 && pagesSectionOpen) {
+      for (const page of pages) {
+        items.push({ kind: 'page', pageId: page.id });
+        const isCollapsed = collapsedPageIds[page.id] ?? !(page.id === activePageId);
+        if (isCollapsed) continue;
+        const docsForPage = pageDocs.get(page.id) ?? [];
+        for (const doc of docsForPage) items.push({ kind: 'doc', pageId: page.id, docId: doc.id });
+      }
+    }
+    if (assetsSectionOpen) {
+      for (const entry of assetVisibleEntries) items.push({ kind: 'asset', path: entry.path });
+    }
+    return items;
+  }, [activePageId, assetVisibleEntries, assetsSectionOpen, collapsedPageIds, pageDocs, pages, pagesSectionOpen]);
+
   visibleEntriesRef.current = visibleEntries;
-  const focusedPath = focusedIdx !== null ? (visibleEntries[focusedIdx]?.path.join('/') ?? null) : null;
+  const focusedItem = focusedIdx !== null ? keyboardItems[focusedIdx] ?? null : null;
+  const focusedPath = focusedItem?.kind === 'asset' ? focusedItem.path.join('/') : null;
+  const focusedPageId = focusedItem?.kind === 'page' ? focusedItem.pageId : null;
+  const focusedDocId = focusedItem?.kind === 'doc' ? focusedItem.docId : null;
 
   // Reset focus when search changes
-  useEffect(() => { setFocusedIdx(null); }, [searchQuery]);
+  useEffect(() => {
+    setFocusedIdx(null);
+    clearPagePreview();
+  }, [clearPagePreview, searchQuery]);
+
+  useEffect(() => {
+    if (focusedIdx === null) return;
+    if (keyboardItems[focusedIdx]) return;
+    setFocusedIdx(keyboardItems.length ? Math.min(focusedIdx, keyboardItems.length - 1) : null);
+  }, [focusedIdx, keyboardItems]);
 
   // Auto-scroll focused row into view
   useEffect(() => {
     if (focusedIdx === null) return;
-    const el = scrollContainerRef.current?.querySelector<HTMLElement>('[data-focused="true"]');
+    const el = panelRef.current?.querySelector<HTMLElement>('[data-focused="true"]');
     el?.scrollIntoView({ block: 'nearest' });
   }, [focusedIdx]);
 
   // Auto-preview focused file
   useEffect(() => {
     if (focusedIdx === null) { clearPreview(); return; }
-    const entry = visibleEntries[focusedIdx];
+    if (!focusedItem || focusedItem.kind !== 'asset') { clearPreview(); return; }
+    const entry = assetVisibleEntries.find((item) => item.path.join('/') === focusedItem.path.join('/'));
     if (!entry || entry.kind === 'directory') { clearPreview(); return; }
     const rect = panelRef.current?.getBoundingClientRect();
     const panelMidY = rect ? rect.top + rect.height / 2 : window.innerHeight / 2;
     showFilePreview(entry, panelMidY);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focusedIdx]);
+  }, [assetVisibleEntries, focusedIdx, focusedItem]);
+
+  const focusAssetPath = useCallback((path: string[]) => {
+    const idx = keyboardItems.findIndex((item) => item.kind === 'asset' && item.path.join('/') === path.join('/'));
+    if (idx !== -1) setFocusedIdx(idx);
+  }, [keyboardItems]);
+
+  const focusPage = useCallback((pageId: string) => {
+    const idx = keyboardItems.findIndex((item) => item.kind === 'page' && item.pageId === pageId);
+    if (idx !== -1) setFocusedIdx(idx);
+  }, [keyboardItems]);
+
+  const focusDocument = useCallback((pageId: string, docId: string) => {
+    const idx = keyboardItems.findIndex((item) => item.kind === 'doc' && item.pageId === pageId && item.docId === docId);
+    if (idx !== -1) setFocusedIdx(idx);
+  }, [keyboardItems]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (visibleEntries.length === 0) return;
+    if (keyboardItems.length === 0) return;
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setFocusedIdx((prev) => (prev === null ? 0 : Math.min(prev + 1, visibleEntries.length - 1)));
+      setFocusedIdx((prev) => (prev === null ? 0 : Math.min(prev + 1, keyboardItems.length - 1)));
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      setFocusedIdx((prev) => (prev === null ? visibleEntries.length - 1 : Math.max(prev - 1, 0)));
+      setFocusedIdx((prev) => (prev === null ? keyboardItems.length - 1 : Math.max(prev - 1, 0)));
     } else if (e.key === 'Enter') {
       if (focusedIdx === null) return;
-      const entry = visibleEntries[focusedIdx];
-      if (!entry) return;
+      const item = keyboardItems[focusedIdx];
+      if (!item) return;
       e.preventDefault();
-      if (entry.kind === 'directory') {
-        handleToggle(entry.path);
-      } else if (e.shiftKey) {
-        clearPreview();
-        placeFile(entry);
+      if (item.kind === 'page') {
+        clearPagePreview();
+        if (item.pageId !== activePageId) switchPage(item.pageId);
+        window.dispatchEvent(new CustomEvent('devboard:snap-close-document'));
+      } else if (item.kind === 'doc') {
+        clearPagePreview();
+        if (item.pageId !== activePageId) switchPage(item.pageId);
+        openDocumentWithMorph(item.docId);
       } else {
-        clearPreview();
-        openFile(entry);
+        const entry = assetVisibleEntries.find((candidate) => candidate.path.join('/') === item.path.join('/'));
+        if (!entry) return;
+        if (entry.kind === 'directory') {
+          handleToggle(entry.path);
+        } else if (e.shiftKey) {
+          clearPreview();
+          placeFile(entry);
+        } else {
+          clearPreview();
+          openFile(entry);
+        }
       }
     } else if (e.key === 'F2') {
-      if (focusedIdx === null) return;
-      const entry = visibleEntries[focusedIdx];
+      if (focusedItem?.kind !== 'asset') return;
+      const entry = assetVisibleEntries.find((candidate) => candidate.path.join('/') === focusedItem.path.join('/'));
       if (entry) { e.preventDefault(); startRename(entry); }
     } else if (e.key === 'Delete' || e.key === 'Backspace') {
-      if (focusedIdx === null) return;
-      const entry = visibleEntries[focusedIdx];
+      if (focusedItem?.kind !== 'asset') return;
+      const entry = assetVisibleEntries.find((candidate) => candidate.path.join('/') === focusedItem.path.join('/'));
       if (entry) { e.preventDefault(); startDelete(entry); }
     } else if (e.key === 'Escape') {
       setExplorerMenu(null);
       setFocusedIdx(null);
+      clearPagePreview();
       clearPreview();
     }
-  }, [visibleEntries, focusedIdx, handleToggle, placeFile, openFile, startRename, startDelete]);
+  }, [activePageId, assetVisibleEntries, clearPagePreview, clearPreview, focusedIdx, focusedItem, handleToggle, keyboardItems, openDocumentWithMorph, openFile, placeFile, startDelete, startRename, switchPage]);
 
   return (
     <div
@@ -1595,20 +1929,6 @@ export default function WorkspaceExplorer({ onClose }: Props) {
           Explorer
         </span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          {!confirmingClose && getWorkspaceName() && (
-            <button
-              onClick={() => startNewFolder([])}
-              title="New folder at root"
-              className="w-5 h-5 flex items-center justify-center rounded text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
-              style={{ border: 'none', background: 'transparent', cursor: 'pointer', flexShrink: 0 }}
-            >
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                <path d="M1 3a1 1 0 0 1 1-1h2.5L5.5 3H10a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V3z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" fill="none" />
-                <line x1="6" y1="5.5" x2="6" y2="8.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-                <line x1="4.5" y1="7" x2="7.5" y2="7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-              </svg>
-            </button>
-          )}
           {confirmingClose ? (
             /* Two-step close confirmation */
             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -1633,20 +1953,33 @@ export default function WorkspaceExplorer({ onClose }: Props) {
               </button>
             </div>
           ) : (
-            <button
-              onClick={() => {
-                setConfirmingClose(true);
-                if (confirmCloseTimerRef.current) clearTimeout(confirmCloseTimerRef.current);
-                confirmCloseTimerRef.current = setTimeout(() => setConfirmingClose(false), 3000);
-              }}
-              title="Close explorer"
-              className="w-5 h-5 flex items-center justify-center rounded text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
-              style={{ border: 'none', background: 'transparent', cursor: 'pointer', flexShrink: 0 }}
-            >
-              <svg width="9" height="9" viewBox="0 0 9 9" fill="none">
-                <path d="M1 1l7 7M8 1L1 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-              </svg>
-            </button>
+            <>
+              <button
+                onClick={onCollapse}
+                title="Collapse explorer"
+                className="w-5 h-5 flex items-center justify-center rounded text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
+                style={{ border: 'none', background: 'transparent', cursor: 'pointer', flexShrink: 0 }}
+              >
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                  <path d="M7.75 2.25 4 6l3.75 3.75" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M10 2.25 6.25 6 10 9.75" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+              <button
+                onClick={() => {
+                  setConfirmingClose(true);
+                  if (confirmCloseTimerRef.current) clearTimeout(confirmCloseTimerRef.current);
+                  confirmCloseTimerRef.current = setTimeout(() => setConfirmingClose(false), 3000);
+                }}
+                title="Close explorer"
+                className="w-5 h-5 flex items-center justify-center rounded text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
+                style={{ border: 'none', background: 'transparent', cursor: 'pointer', flexShrink: 0 }}
+              >
+                <svg width="9" height="9" viewBox="0 0 9 9" fill="none">
+                  <path d="M1 1l7 7M8 1L1 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -1722,7 +2055,7 @@ export default function WorkspaceExplorer({ onClose }: Props) {
       {getWorkspaceName() && pages.length > 0 && (
         <div style={{ borderBottom: '1px solid var(--c-border)', flexShrink: 0 }}>
           {/* Section header */}
-          <button
+          <div
             onClick={() => setPagesSectionOpen((v) => !v)}
             style={{
               width: '100%', display: 'flex', alignItems: 'center', gap: 4,
@@ -1772,7 +2105,7 @@ export default function WorkspaceExplorer({ onClose }: Props) {
             >
               +
             </button>
-          </button>
+          </div>
 
           {pagesSectionOpen && (
             <div
@@ -1788,7 +2121,7 @@ export default function WorkspaceExplorer({ onClose }: Props) {
                 const docsForPage = pageDocs.get(page.id) ?? [];
                 const isCollapsed = collapsedPageIds[page.id] ?? !isActive;
                 return (
-                  <PageGroup
+	                  <PageGroup
                     key={page.id}
                     page={page}
                     docs={docsForPage}
@@ -1809,12 +2142,20 @@ export default function WorkspaceExplorer({ onClose }: Props) {
                       if (!isActive) switchPage(page.id);
                       window.dispatchEvent(new CustomEvent('devboard:snap-close-document'));
                     }}
-                    onCreateNote={() => createNoteForPage(page.id)}
-                    onOpenDocument={(docId) => {
-                      if (!isActive) switchPage(page.id);
-                      openDocumentWithMorph(docId);
-                    }}
-                  />
+	                    onCreateNote={() => createNoteForPage(page.id)}
+	                    onOpenDocument={(docId) => {
+	                      if (!isActive) switchPage(page.id);
+	                      openDocumentWithMorph(docId);
+	                    }}
+	                    pageFocused={focusedPageId === page.id}
+	                    focusedDocId={focusedDocId}
+	                    onFocusPage={focusPage}
+	                    onFocusDocument={focusDocument}
+	                    onPageHover={showPagePreview}
+	                    onPageLeave={clearPagePreview}
+                      onNoteHover={showNotePreview}
+                      onNoteLeave={clearNotePreview}
+	                  />
                 );
               })}
             </div>
@@ -1848,10 +2189,15 @@ export default function WorkspaceExplorer({ onClose }: Props) {
         </div>
       )}
 
-      {/* Assets section */}
+      {/* Files section */}
       <div style={{ borderBottom: '1px solid var(--c-border)', flexShrink: 0 }}>
         <button
           onClick={() => setAssetsSectionOpen((v) => !v)}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setFilesSectionMenu({ x: e.clientX, y: e.clientY });
+          }}
           style={{
             width: '100%', display: 'flex', alignItems: 'center', gap: 4,
             padding: '8px 12px 4px', background: 'none', border: 'none',
@@ -1864,10 +2210,79 @@ export default function WorkspaceExplorer({ onClose }: Props) {
             transition: 'transform 0.12s',
             display: 'inline-block',
           }}>▾</span>
-          <span style={explorerSectionHeaderStyle}>Assets</span>
+          <span style={explorerSectionHeaderStyle}>Files</span>
           <span style={{ marginLeft: 'auto', fontFamily: FONTS.ui, fontSize: 9.5, color: 'var(--c-text-lo)' }}>{assetTree.length}</span>
+          {advancedFilesVisible && (
+            <span
+              style={{
+                fontFamily: FONTS.ui,
+                fontSize: 8.5,
+                color: 'var(--c-line)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.06em',
+                marginRight: 6,
+                flexShrink: 0,
+              }}
+            >
+              Advanced
+            </span>
+          )}
+          {getWorkspaceName() && (
+            <span
+              role="button"
+              tabIndex={0}
+              title="New folder at root"
+              className="w-5 h-5 flex items-center justify-center rounded text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
+              style={{ flexShrink: 0 }}
+              onClick={(e) => {
+                e.stopPropagation();
+                setAssetsSectionOpen(true);
+                startNewFolder([]);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setAssetsSectionOpen(true);
+                  startNewFolder([]);
+                }
+              }}
+            >
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                <path d="M1 3a1 1 0 0 1 1-1h2.5L5.5 3H10a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V3z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" fill="none" />
+                <line x1="6" y1="5.5" x2="6" y2="8.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+                <line x1="4.5" y1="7" x2="7.5" y2="7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+              </svg>
+            </span>
+          )}
         </button>
       </div>
+
+      {filesSectionMenu && (() => {
+        const MENU_W = 190;
+        const left = Math.min(filesSectionMenu.x, window.innerWidth - MENU_W - 8);
+        const top = Math.min(filesSectionMenu.y, window.innerHeight - 80);
+        return (
+          <div
+            ref={filesSectionMenuRef}
+            style={{ position: 'fixed', left, top, zIndex: 9100, minWidth: MENU_W }}
+            className="py-1.5 rounded-xl border border-[var(--c-border)] bg-[var(--c-panel)] shadow-2xl"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <button
+              className="w-full flex items-center justify-between px-3 py-1.5 text-[12px] rounded transition-colors text-left text-[var(--c-text-md)] hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]"
+              style={{ fontFamily: FONTS.ui }}
+              onClick={() => {
+                setAdvancedFilesVisible((current) => !current);
+                setFilesSectionMenu(null);
+              }}
+            >
+              <span>{advancedFilesVisible ? 'Hide advanced files' : 'Show advanced files'}</span>
+              <span className="text-[10px] text-[var(--c-text-off)] ml-3">{advancedFilesVisible ? 'on' : 'off'}</span>
+            </button>
+          </div>
+        );
+      })()}
 
       {/* File tree */}
       {assetsSectionOpen && (
@@ -1905,14 +2320,14 @@ export default function WorkspaceExplorer({ onClose }: Props) {
             <div style={{ padding: '10px 16px', fontSize: 10, color: 'var(--c-text-lo)', fontFamily: FONTS.ui, fontStyle: 'italic' }}>No matches</div>
           ) : (
             assetSearchResults.map((entry) => (
-              <TreeRow key={entry.path.join('/')} entry={entry} depth={0} focusedPath={focusedPath} renamingPath={renamingPath} renameDraft={renameDraft} onRenameDraftChange={setRenameDraft} onRenameCommit={commitRename} onRenameCancel={() => setRenamingPath(null)} onToggle={handleToggle} onFileSingleClick={handleFileSingleClick} onFileOpen={handleFileOpen} onMarkdownDrop={importMarkdownToNotes} onContextMenu={handleEntryContextMenu} onFileDragStart={handleFileDragStart} onFileHover={handleFileHover} usedOnCanvas={usedOnCanvas} isDark={isDark} />
+              <TreeRow key={entry.path.join('/')} entry={entry} depth={0} focusedPath={focusedPath} renamingPath={renamingPath} renameDraft={renameDraft} onRenameDraftChange={setRenameDraft} onRenameCommit={commitRename} onRenameCancel={() => setRenamingPath(null)} onToggle={handleToggle} onFileSingleClick={handleFileSingleClick} onFileOpen={handleFileOpen} onMarkdownDrop={importMarkdownToNotes} onContextMenu={handleEntryContextMenu} onFileDragStart={handleFileDragStart} onFileHover={handleFileHover} usedOnCanvas={usedOnCanvas} isDark={isDark} onFocus={focusAssetPath} />
             ))
           )
         ) : assetTree.length === 0 ? (
           <div style={{ padding: '10px 16px', fontSize: 10, color: 'var(--c-text-lo)', fontFamily: FONTS.ui, fontStyle: 'italic' }}>Folder is empty</div>
         ) : (
           assetTree.map((entry) => (
-            <TreeRow key={entry.path.join('/')} entry={entry} depth={0} focusedPath={focusedPath} renamingPath={renamingPath} renameDraft={renameDraft} onRenameDraftChange={setRenameDraft} onRenameCommit={commitRename} onRenameCancel={() => setRenamingPath(null)} onToggle={handleToggle} onFileSingleClick={handleFileSingleClick} onFileOpen={handleFileOpen} onMarkdownDrop={importMarkdownToNotes} onContextMenu={handleEntryContextMenu} onFileDragStart={handleFileDragStart} onFileHover={handleFileHover} usedOnCanvas={usedOnCanvas} isDark={isDark} />
+            <TreeRow key={entry.path.join('/')} entry={entry} depth={0} focusedPath={focusedPath} renamingPath={renamingPath} renameDraft={renameDraft} onRenameDraftChange={setRenameDraft} onRenameCommit={commitRename} onRenameCancel={() => setRenamingPath(null)} onToggle={handleToggle} onFileSingleClick={handleFileSingleClick} onFileOpen={handleFileOpen} onMarkdownDrop={importMarkdownToNotes} onContextMenu={handleEntryContextMenu} onFileDragStart={handleFileDragStart} onFileHover={handleFileHover} usedOnCanvas={usedOnCanvas} isDark={isDark} onFocus={focusAssetPath} />
           ))
         )}
       </div>
@@ -1969,11 +2384,11 @@ export default function WorkspaceExplorer({ onClose }: Props) {
         </div>
       )}
 
-      {/* Assets hint + trash */}
+      {/* Files hint + trash */}
       <div style={{ padding: '7px 12px 9px', borderTop: '1px solid var(--c-border)', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
         <p style={{ fontSize: 8.5, color: 'var(--c-text-lo)', fontFamily: FONTS.ui, lineHeight: 1.4, margin: 0, flex: 1 }}>
           {focusedIdx !== null && visibleEntries[focusedIdx]
-            ? 'Assets: double-click or ↵ to place · drag to canvas · ↑↓ navigate'
+            ? 'Files: double-click or ↵ to place · drag to canvas · ↑↓ navigate'
             : pages.length > 1
               ? 'Active page can be deleted from here'
               : 'Keep at least one page in the workspace'}
@@ -2205,6 +2620,129 @@ export default function WorkspaceExplorer({ onClose }: Props) {
               <span>Delete</span>
               <span className="text-[10px] ml-3" style={{ color: '#f87171', opacity: 0.6 }}>⌫</span>
             </button>
+          </div>
+        );
+      })()}
+
+      {/* Page preview panel */}
+      {pagePreview && (() => {
+        const previewW = 240;
+        const rect = panelRef.current?.getBoundingClientRect();
+        const panelLeft = rect?.left ?? 0;
+        const panelRight = rect?.right ?? WORKSPACE_EXPLORER_WIDTH;
+        const spaceRight = window.innerWidth - (panelRight + 8);
+        const left = spaceRight >= previewW ? panelRight + 8 : Math.max(8, panelLeft - previewW - 8);
+        const top = Math.max(8, Math.min(pagePreview.anchorY - 80, window.innerHeight - 320));
+        const noteCount = pagePreview.docs.length;
+        const canvasNodeCount = pagePreview.nodes.filter((node) => node.type !== 'connector').length;
+        const previewDocs = pagePreview.docs.slice(0, 3);
+        return (
+          <div
+            style={{
+              position: 'fixed',
+              left,
+              top,
+              width: previewW,
+              maxHeight: 360,
+              zIndex: 200,
+              borderRadius: 10,
+              border: '1px solid var(--c-border)',
+              background: 'var(--c-panel)',
+              boxShadow: '0 8px 28px rgba(0,0,0,0.36)',
+              overflow: 'hidden',
+              pointerEvents: 'none',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            <div style={{ padding: '7px 10px', borderBottom: '1px solid var(--c-border)', flexShrink: 0 }}>
+              <span style={{ fontFamily: FONTS.ui, fontSize: 10, fontWeight: 700, color: 'var(--c-text-hi)' }}>
+                {pagePreview.page.name}
+              </span>
+              <span style={{ fontFamily: FONTS.ui, fontSize: 9, color: 'var(--c-text-off)', marginLeft: 6 }}>
+                {pagePreview.page.layoutMode === 'stack' ? 'stack page' : 'canvas page'}
+              </span>
+            </div>
+            <div style={{ padding: 8, borderBottom: '1px solid var(--c-border)', background: 'linear-gradient(180deg, rgba(212,131,90,0.08), rgba(212,131,90,0.02))' }}>
+              <PageMiniMap nodes={pagePreview.nodes} />
+            </div>
+            <div style={{ padding: '8px 10px', display: 'flex', gap: 10, flexShrink: 0 }}>
+              <span style={{ fontFamily: FONTS.ui, fontSize: 10, fontWeight: 600, color: 'var(--c-text-hi)' }}>{canvasNodeCount} nodes</span>
+              <span style={{ fontFamily: FONTS.ui, fontSize: 10, color: 'var(--c-text-off)' }}>{noteCount} notes</span>
+            </div>
+            {previewDocs.length > 0 && (
+              <div style={{ padding: '0 10px 8px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {previewDocs.map((doc) => (
+                  <div key={doc.id} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <span style={{ fontFamily: FONTS.ui, fontSize: 9.5, fontWeight: 700, color: 'var(--c-text-hi)' }}>
+                      {doc.title || 'Untitled note'}
+                    </span>
+                    <span style={{ fontFamily: FONTS.ui, fontSize: 9.5, color: 'var(--c-text-lo)', lineHeight: 1.4 }}>
+                      {(stripHtmlPreview(doc.content) || 'No preview text yet').slice(0, 78)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div style={{ padding: '5px 10px', borderTop: '1px solid var(--c-border)', flexShrink: 0 }}>
+              <span style={{ fontFamily: FONTS.ui, fontSize: 9, color: 'var(--c-text-off)' }}>
+                press ↵ to open page overview
+              </span>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Note preview panel */}
+      {notePreview && (() => {
+        const previewW = 240;
+        const rect = panelRef.current?.getBoundingClientRect();
+        const panelLeft = rect?.left ?? 0;
+        const panelRight = rect?.right ?? WORKSPACE_EXPLORER_WIDTH;
+        const spaceRight = window.innerWidth - (panelRight + 8);
+        const left = spaceRight >= previewW ? panelRight + 8 : Math.max(8, panelLeft - previewW - 8);
+        const top = Math.max(8, Math.min(notePreview.anchorY - 80, window.innerHeight - 220));
+        const previewText = stripHtmlPreview(notePreview.doc.content) || 'No preview text yet';
+        return (
+          <div
+            style={{
+              position: 'fixed',
+              left,
+              top,
+              width: previewW,
+              maxHeight: 300,
+              zIndex: 200,
+              borderRadius: 10,
+              border: '1px solid var(--c-border)',
+              background: 'var(--c-panel)',
+              boxShadow: '0 8px 28px rgba(0,0,0,0.36)',
+              overflow: 'hidden',
+              pointerEvents: 'none',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            <div style={{ padding: '7px 10px', borderBottom: '1px solid var(--c-border)', flexShrink: 0 }}>
+              <span style={{ fontFamily: FONTS.ui, fontSize: 10, fontWeight: 700, color: 'var(--c-text-hi)' }}>
+                {notePreview.doc.title || 'Untitled note'}
+              </span>
+              <span style={{ fontFamily: FONTS.ui, fontSize: 9, color: 'var(--c-text-off)', marginLeft: 6 }}>
+                {notePreview.page.name}
+              </span>
+            </div>
+            <div style={{ padding: '10px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <span style={{ fontFamily: FONTS.ui, fontSize: 9.5, color: 'var(--c-text-lo)', lineHeight: 1.5 }}>
+                {previewText.slice(0, 220)}
+              </span>
+              <span style={{ fontFamily: FONTS.ui, fontSize: 9, color: 'var(--c-text-off)' }}>
+                updated {relativeTime(notePreview.doc.updatedAt)}
+              </span>
+            </div>
+            <div style={{ padding: '5px 10px', borderTop: '1px solid var(--c-border)', flexShrink: 0 }}>
+              <span style={{ fontFamily: FONTS.ui, fontSize: 9, color: 'var(--c-text-off)' }}>
+                click to open note
+              </span>
+            </div>
           </div>
         );
       })()}

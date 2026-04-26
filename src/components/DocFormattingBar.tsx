@@ -167,7 +167,17 @@ export default function DocFormattingBar({ nodeId }: Props) {
     : 'Download as Markdown';
 
   return (
-    <>
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      overflowX: 'auto',
+      overflowY: 'hidden',
+      scrollbarWidth: 'none',
+      msOverflowStyle: 'none',
+      WebkitOverflowScrolling: 'touch',
+      flex: 1,
+      minWidth: 0,
+    }}>
       {/* ── Text color ────────────────────────────────────────────────── */}
       <div className="relative px-1 py-1">
         <button
@@ -357,6 +367,6 @@ export default function DocFormattingBar({ nodeId }: Props) {
           {workspaceName ? 'Save' : 'Save .md'}
         </button>
       </div>
-    </>
+    </div>
   );
 }

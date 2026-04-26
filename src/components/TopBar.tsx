@@ -4,7 +4,7 @@ import { useBoardStore } from '../store/boardStore';
 import { TEMPLATES } from '../templates';
 import ConfirmDialog from './ConfirmDialog';
 import { saveBoard, saveBoardAs, clearFileHandle } from '../utils/fileSave';
-import { openWorkspace, saveWorkspace, loadImageAsset, findImageInWorkspace, hasWorkspaceHandle, clearWorkspaceHandle, FSA_DIR_SUPPORTED, IN_IFRAME } from '../utils/workspaceManager';
+import { openWorkspace, saveWorkspace, loadImageAsset, findImageInWorkspace, hasWorkspaceHandle, clearWorkspaceHandle } from '../utils/workspaceManager';
 import { toast } from '../utils/toast';
 import { exportDocumentsAsMarkdown, generateMarkdownFilename } from '../utils/exportMarkdown';
 import exportSound from '../assets/get1.mp3';
@@ -157,8 +157,6 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
   const [templatesModalOpen, setTemplatesModalOpen] = useState(false);
   const [missingWarningOpen, setMissingWarningOpen] = useState(false);
   const missingWarningRef = useRef<HTMLDivElement>(null);
-  const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
-  const workspaceMenuRef = useRef<HTMLDivElement>(null);
 
   const missingImages = nodes.filter(
     (n) => n.type === 'image' && (n as import('../types').ImageNode).assetName && !(n as import('../types').ImageNode).src
@@ -198,15 +196,6 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [missingWarningOpen]);
-
-  useEffect(() => {
-    if (!workspaceMenuOpen) return;
-    const handler = (e: MouseEvent) => {
-      if (workspaceMenuRef.current && !workspaceMenuRef.current.contains(e.target as Node)) setWorkspaceMenuOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [workspaceMenuOpen]);
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -726,7 +715,7 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
         })()}
 
         {/* Layout mode switcher — hidden when a document/note is open */}
-        <div className={`${appMode === 'document' ? 'hidden' : 'hidden sm:flex'} items-center shrink-0`} style={{ padding: 2, background: 'var(--c-hover)', border: '1px solid var(--c-border)', borderRadius: 7, height: 28 }}>
+        <div className={`${appMode === 'document' ? 'hidden' : 'flex'} items-center shrink-0`} style={{ padding: 2, background: 'var(--c-hover)', border: '1px solid var(--c-border)', borderRadius: 7, height: 28 }}>
           {(['freeform', 'stack'] as const).map((mode) => {
             const active = (activePage?.layoutMode ?? 'freeform') === mode;
             return (
@@ -734,10 +723,10 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
                 key={mode}
                 onClick={() => setPageLayoutMode(activePageId, mode)}
                 title={mode === 'freeform' ? 'Freeform canvas' : 'Stack — writing list'}
-                className="font-sans"
+                className="font-sans px-1.5 sm:px-[9px]"
                 style={{
                   display: 'inline-flex', alignItems: 'center', gap: 4,
-                  padding: '3px 9px', height: 22, borderRadius: 5, border: 'none',
+                  height: 22, borderRadius: 5, border: 'none',
                   cursor: 'pointer', fontSize: 11, fontWeight: 500,
                   background: active ? 'var(--c-panel)' : 'transparent',
                   color: active ? 'var(--c-text-hi)' : 'var(--c-text-lo)',
@@ -745,12 +734,8 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
                   transition: 'background 120ms, color 120ms',
                 }}
               >
-                {mode === 'freeform' ? (
-                  <IconFreeformPage />
-                ) : (
-                  <IconStackPage />
-                )}
-                {mode === 'freeform' ? 'Freeform' : 'Stack'}
+                {mode === 'freeform' ? <IconFreeformPage /> : <IconStackPage />}
+                <span className="hidden sm:inline">{mode === 'freeform' ? 'Freeform' : 'Stack'}</span>
               </button>
             );
           })}
@@ -779,97 +764,6 @@ export default function TopBar({ onShowAbout, timerVisible, onToggleTimer, pages
             {boardTitle}
           </button>
         )}
-        {/* Workspace indicator — interactive dropdown */}
-        <div className="relative hidden sm:block shrink-0" ref={workspaceMenuRef}>
-          {workspaceName ? (
-            <button
-              onClick={() => setWorkspaceMenuOpen((v) => !v)}
-              title={`Workspace: ${workspaceName}`}
-              className={[
-                'flex items-center gap-1 px-2 h-7 rounded text-[11px] font-sans transition-colors max-w-[160px]',
-                workspaceMenuOpen
-                  ? 'bg-[var(--c-hover)] text-[var(--c-text-hi)]'
-                  : 'text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
-              ].join(' ')}
-            >
-              <IconFolder />
-              <span className="truncate max-w-[100px]">{workspaceName}</span>
-              <IconChevronDown />
-            </button>
-          ) : (
-            <button
-              onClick={() => {
-                if (IN_IFRAME) {
-                  toast('Workspace folders are not available when embedded on itch.io');
-                } else {
-                  handleOpenFolder();
-                }
-              }}
-              title={
-                IN_IFRAME
-                  ? 'Workspace folders are not available when embedded on itch.io'
-                  : !FSA_DIR_SUPPORTED
-                  ? 'Requires Chrome, Edge, or the desktop app'
-                  : 'Open a folder workspace to save images as files and keep JSON small'
-              }
-              className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-sans border border-dashed border-[var(--c-border)] text-[var(--c-text-md)] hover:text-[var(--c-line)] hover:border-[var(--c-line)]/40 hover:bg-[var(--c-line)]/8 transition-colors"
-            >
-              <IconFolder />
-              {IN_IFRAME ? 'Workspace unavailable' : 'Open workspace…'}
-            </button>
-          )}
-          {workspaceMenuOpen && workspaceName && (
-            <div className="absolute top-full left-0 mt-1.5 z-[300] bg-[var(--c-panel)] border border-[var(--c-border)] rounded-xl shadow-2xl min-w-[190px] overflow-hidden">
-              {/* Header */}
-              <div className="px-3 py-2 border-b border-[var(--c-border)]">
-                <p className="font-sans text-[9px] text-[var(--c-text-lo)] uppercase tracking-wider">Active workspace</p>
-                <p className="font-sans text-[9px] text-[var(--c-line)] font-semibold truncate mt-0.5" title={workspaceName}>{workspaceName}</p>
-              </div>
-              {/* Actions */}
-              <div className="py-1">
-                <button
-                  onClick={() => { setWorkspaceMenuOpen(false); handleOpenFolder(); }}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-left font-sans text-[12px] text-[var(--c-text-md)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
-                >
-                  <IconFolder />
-                  Switch workspace…
-                </button>
-                <button
-                  onClick={() => { setWorkspaceMenuOpen(false); onToggleExplorer(); }}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-left font-sans text-[12px] text-[var(--c-text-md)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
-                >
-                  <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
-                    <rect x="1" y="1" width="4" height="4" rx="0.8" stroke="currentColor" strokeWidth="1.1"/>
-                    <rect x="1" y="6" width="4" height="4" rx="0.8" stroke="currentColor" strokeWidth="1.1"/>
-                    <path d="M7 3h3M7 5.5h3M7 8h3" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round"/>
-                  </svg>
-                  File explorer
-                  <svg
-                    width="10" height="10" viewBox="0 0 10 10" fill="none"
-                    className="ml-auto"
-                    style={{ opacity: explorerOpen ? 1 : 0 }}
-                  >
-                    <path d="M1.5 5l2.5 2.5 5-5" stroke="var(--c-line)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </button>
-                <button
-                  onClick={() => {
-                    setWorkspaceMenuOpen(false);
-                    clearWorkspaceHandle();
-                    setWorkspaceName(null);
-                    toast('Workspace closed');
-                  }}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-left font-sans text-[11px] text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
-                >
-                  <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
-                    <path d="M2 2l7 7M9 2l-7 7" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-                  </svg>
-                  Close workspace
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
         {/* Missing images warning */}
         {missingImages.length > 0 && (
           <div ref={missingWarningRef} className="relative ml-1">
