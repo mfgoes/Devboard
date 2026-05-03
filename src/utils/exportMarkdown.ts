@@ -18,7 +18,7 @@ function inlineToMd(node: Node, bold = false, italic = false, strike = false): s
       if (tag === 'br') { out += '\n'; continue; }
       if (tag === 'hr') { out += '\n---\n'; continue; }
       if (tag === 'img') {
-        const src = el.getAttribute('src') ?? '';
+        const src = el.getAttribute('data-workspace-src') ?? el.getAttribute('src') ?? '';
         const alt = el.getAttribute('alt') ?? '';
         out += `![${alt}](${src})`;
         continue;
@@ -31,6 +31,7 @@ function inlineToMd(node: Node, bold = false, italic = false, strike = false): s
       if (tag === 'b' || tag === 'strong') b = true;
       if (tag === 'i' || tag === 'em')     i = true;
       if (tag === 's' || tag === 'strike' || tag === 'del') s = true;
+      const color = el.style.color || el.getAttribute('color') || '';
       if (tag === 'span') {
         const fw = el.style.fontWeight;
         if (fw === 'bold' || fw === '700') b = true;
@@ -41,7 +42,12 @@ function inlineToMd(node: Node, bold = false, italic = false, strike = false): s
         out += `[${inlineToMd(el, b, i, s)}](${el.getAttribute('href') ?? ''})`;
         continue;
       }
-      out += inlineToMd(el, b, i, s);
+      const inner = inlineToMd(el, b, i, s);
+      if (color && tag !== 'a') {
+        out += `<span style="color: ${color};">${inner}</span>`;
+        continue;
+      }
+      out += inner;
     }
   }
   return out;
@@ -68,8 +74,19 @@ export function htmlToMarkdown(html: string): string {
       return;
     }
     if (tag === 'blockquote') {
-      const inner = inlineToMd(el).trimEnd();
-      for (const sub of inner.split('\n')) lines.push(`> ${sub}`);
+      const blockquote = el as HTMLElement;
+      const isCallout = blockquote.classList.contains('doc-callout') || blockquote.dataset.callout === 'true';
+      const bodyRoot = (blockquote.querySelector('.doc-callout__body') as HTMLElement | null) ?? blockquote;
+      const inner = inlineToMd(bodyRoot).trimEnd();
+      const bodyLines = inner ? inner.split('\n') : [];
+      if (isCallout) {
+        const emoji = blockquote.dataset.calloutEmoji?.trim();
+        const firstLine = bodyLines[0] ?? '';
+        lines.push(`> [!callout]${emoji ? ` ${emoji}` : ''}${firstLine ? ` ${firstLine}` : ''}`);
+        for (const sub of bodyLines.slice(1)) lines.push(`> ${sub}`);
+      } else {
+        for (const sub of inner.split('\n')) lines.push(`> ${sub}`);
+      }
       return;
     }
     if (tag === 'ul' || tag === 'ol') {
@@ -125,6 +142,38 @@ function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+function isEmojiToken(token: string): boolean {
+  return /\p{Extended_Pictographic}/u.test(token);
+}
+
+function parseCalloutQuote(lines: string[]): { emoji?: string; bodyLines: string[] } | null {
+  if (lines.length === 0) return null;
+  const match = lines[0].match(/^\[!callout\]\s*(.*)$/i);
+  if (!match) return null;
+
+  const headerRest = match[1].trim();
+  let emoji: string | undefined;
+  let firstBodyLine = '';
+
+  if (headerRest) {
+    const [firstToken, ...restTokens] = headerRest.split(/\s+/);
+    if (isEmojiToken(firstToken)) {
+      emoji = firstToken;
+      firstBodyLine = restTokens.join(' ');
+    } else {
+      firstBodyLine = headerRest;
+    }
+  }
+
+  return {
+    emoji,
+    bodyLines: [
+      ...(firstBodyLine ? [firstBodyLine] : []),
+      ...lines.slice(1),
+    ],
+  };
+}
+
 // Sentinels for protecting inline code spans during inline-markdown replacement.
 // Private-use-area chars; will never appear in normal user text.
 const CODE_OPEN = '';
@@ -166,7 +215,17 @@ export function markdownToHtml(md: string): string {
   };
   const closeQuote = () => {
     if (!inQuote) return;
-    parts.push(`<blockquote>${quoteBuf.map(inlineMdToHtml).join('<br>')}</blockquote>`);
+    const callout = parseCalloutQuote(quoteBuf);
+    if (callout) {
+      parts.push(
+        `<blockquote class="doc-callout" data-callout="true"${callout.emoji ? ` data-callout-emoji="${escapeHtml(callout.emoji)}"` : ''}>` +
+          `${callout.emoji ? `<span class="doc-callout__emoji" contenteditable="false">${escapeHtml(callout.emoji)}</span>` : ''}` +
+          `<div class="doc-callout__body">${callout.bodyLines.map(inlineMdToHtml).join('<br>') || '<br>'}</div>` +
+        `</blockquote>`,
+      );
+    } else {
+      parts.push(`<blockquote>${quoteBuf.map(inlineMdToHtml).join('<br>')}</blockquote>`);
+    }
     quoteBuf = [];
     inQuote = false;
   };

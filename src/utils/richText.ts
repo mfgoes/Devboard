@@ -9,9 +9,17 @@ export interface RichRun {
   href?: string;
 }
 
+export type RichLineKind = 'text' | 'h1' | 'h2' | 'bullet';
+
+export interface RichLine {
+  kind: RichLineKind;
+  runs: RichRun[];
+}
+
 export interface PositionedRun extends RichRun {
   x: number;
   y: number;
+  fontSize: number;
 }
 
 /** Returns true if the string contains HTML markup */
@@ -63,7 +71,8 @@ export interface PreviewSegment {
 }
 
 export interface PreviewLine {
-  kind: 'h1' | 'h2' | 'h3' | 'bullet' | 'numbered' | 'text';
+  kind: 'h1' | 'h2' | 'h3' | 'bullet' | 'numbered' | 'callout' | 'text';
+  emoji?: string;
   segments: PreviewSegment[];
 }
 
@@ -111,11 +120,11 @@ export function htmlToPreviewStructured(html: string, maxLines = 5): PreviewLine
     return out;
   }
 
-  function pushLine(node: Node, kind: PreviewLine['kind']) {
+  function pushLine(node: Node, kind: PreviewLine['kind'], emoji?: string) {
     if (lines.length >= maxLines) return;
     const segments = mergeSegs(extractSegs(node, false, false));
     const text = segments.map(s => s.text).join('').trim();
-    if (text) lines.push({ kind, segments });
+    if (text) lines.push({ kind, emoji, segments });
   }
 
   function walk(el: Element) {
@@ -137,11 +146,21 @@ export function htmlToPreviewStructured(html: string, maxLines = 5): PreviewLine
 
     if (tag === 'li') { pushLine(el, 'bullet'); return; }
 
+    if (tag === 'blockquote') {
+      if (el.classList.contains('doc-callout') || el.getAttribute('data-callout') === 'true') {
+        const body = (el.querySelector('.doc-callout__body') as HTMLElement | null) ?? el;
+        pushLine(body, 'callout', el.getAttribute('data-callout-emoji') ?? undefined);
+      } else {
+        pushLine(el, 'text');
+      }
+      return;
+    }
+
     if (tag === 'div' || tag === 'p') {
       const hasBlock = Array.from(el.childNodes).some(n => {
         if (n.nodeType !== Node.ELEMENT_NODE) return false;
         const t = (n as HTMLElement).tagName.toLowerCase();
-        return ['h1','h2','h3','ul','ol','li','div','p'].includes(t);
+        return ['h1','h2','h3','ul','ol','li','div','p','blockquote'].includes(t);
       });
       if (hasBlock) {
         for (const child of Array.from(el.childNodes)) {
@@ -174,83 +193,164 @@ export function htmlToPreviewStructured(html: string, maxLines = 5): PreviewLine
   return lines;
 }
 
-/** Parse HTML into an array of logical lines, each line an array of styled runs */
-export function parseRichText(html: string): RichRun[][] {
+function appendRichRun(list: RichRun[], next: RichRun) {
+  if (!next.text) return;
+  const last = list[list.length - 1];
+  if (
+    last
+    && last.bold === next.bold
+    && last.italic === next.italic
+    && last.underline === next.underline
+    && !!last.link === !!next.link
+    && last.href === next.href
+  ) {
+    last.text += next.text;
+    return;
+  }
+  list.push(next);
+}
+
+function extractInlineRuns(node: Node, target: RichRun[], bold = false, italic = false, underline = false, link = false, href?: string) {
+  if (node.nodeType === Node.TEXT_NODE) {
+    appendRichRun(target, { text: node.textContent ?? '', bold, italic, underline, link: link || undefined, href });
+    return;
+  }
+  if (node.nodeType !== Node.ELEMENT_NODE) return;
+
+  const el = node as HTMLElement;
+  const tag = el.tagName.toLowerCase();
+
+  if (tag === 'b' || tag === 'strong') bold = true;
+  if (tag === 'i' || tag === 'em') italic = true;
+  if (tag === 'u') underline = true;
+  if (tag === 'a') {
+    underline = true;
+    link = true;
+    href = (el as HTMLAnchorElement).getAttribute('href') || undefined;
+  }
+  if (tag === 'span') {
+    if (el.style.fontWeight === 'bold' || el.style.fontWeight === '700') bold = true;
+    if (el.style.fontStyle === 'italic') italic = true;
+    if (el.style.textDecoration?.includes('underline')) underline = true;
+  }
+
+  if (tag === 'br') {
+    appendRichRun(target, { text: '\n', bold, italic, underline, link: link || undefined, href });
+    return;
+  }
+
+  for (const child of Array.from(el.childNodes)) {
+    extractInlineRuns(child, target, bold, italic, underline, link, href);
+  }
+}
+
+/** Parse HTML into logical lines with block-level kind metadata */
+export function parseStructuredRichText(html: string): RichLine[] {
   const div = document.createElement('div');
   div.innerHTML = html;
 
-  const lines: RichRun[][] = [];
-  let currentLine: RichRun[] = [];
+  const lines: RichLine[] = [];
+  let currentInlineRuns: RichRun[] = [];
 
-  function flush() {
-    lines.push(currentLine);
-    currentLine = [];
-  }
+  const flushInlineLine = () => {
+    lines.push({ kind: 'text', runs: currentInlineRuns });
+    currentInlineRuns = [];
+  };
 
-  function append(text: string, b: boolean, i: boolean, u: boolean, lk: boolean, href?: string) {
-    if (!text) return;
-    const last = currentLine[currentLine.length - 1];
-    if (last && last.bold === b && last.italic === i && last.underline === u && !!last.link === lk && last.href === href) {
-      last.text += text;
-    } else {
-      currentLine.push({ text, bold: b, italic: i, underline: u, link: lk || undefined, href });
-    }
-  }
+  const pushBlockLines = (kind: RichLineKind, node: Node) => {
+    const blockRuns: RichRun[] = [];
+    extractInlineRuns(node, blockRuns);
+    const textParts: Array<RichRun & { isBreak: boolean }> = blockRuns.length === 0
+      ? [{ text: '', bold: false, italic: false, underline: false, isBreak: false }]
+      : blockRuns.flatMap((run) => run.text.split('\n').map((text, index, arr) => ({
+          ...run,
+          text,
+          isBreak: index < arr.length - 1,
+        })));
 
-  function walk(node: Node, b: boolean, i: boolean, u: boolean, lk: boolean, href?: string) {
-    if (node.nodeType === Node.TEXT_NODE) {
-      append(node.textContent ?? '', b, i, u, lk, href);
-      return;
-    }
-    if (node.nodeType !== Node.ELEMENT_NODE) return;
-
-    const el = node as HTMLElement;
-    const tag = el.tagName.toLowerCase();
-
-    // Inherit styles from element tag or inline style
-    if (tag === 'b' || tag === 'strong') b = true;
-    if (tag === 'i' || tag === 'em') i = true;
-    if (tag === 'u') u = true;
-    if (tag === 'a') { u = true; lk = true; href = (el as HTMLAnchorElement).getAttribute('href') || undefined; }
-    if (tag === 'span') {
-      if (el.style.fontWeight === 'bold') b = true;
-      if (el.style.fontStyle === 'italic') i = true;
-      if (el.style.textDecoration?.includes('underline')) u = true;
-    }
-
-    if (tag === 'br') {
-      // Only flush for <br> if we haven't just started a new line (avoids
-      // double-blank from <div><br></div> pattern used by contenteditable)
-      if (currentLine.length > 0 || lines.length === 0) {
-        flush();
-      } else {
-        lines.push([]);
+    let lineRuns: RichRun[] = [];
+    for (const part of textParts) {
+      appendRichRun(lineRuns, {
+        text: part.text,
+        bold: part.bold,
+        italic: part.italic,
+        underline: part.underline,
+        link: part.link,
+        href: part.href,
+      });
+      if (part.isBreak) {
+        lines.push({ kind, runs: lineRuns });
+        lineRuns = [];
       }
-      return;
     }
-
-    const isBlock = tag === 'div' || tag === 'p';
-    if (isBlock && currentLine.length > 0) flush();
-
-    for (const child of Array.from(el.childNodes)) {
-      walk(child, b, i, u, lk);
-    }
-
-    if (isBlock && currentLine.length > 0) flush();
-  }
+    lines.push({ kind, runs: lineRuns });
+  };
 
   for (const child of Array.from(div.childNodes)) {
-    walk(child, false, false, false, false);
-  }
-  if (currentLine.length > 0) flush();
+    if (child.nodeType === Node.TEXT_NODE) {
+      appendRichRun(currentInlineRuns, {
+        text: child.textContent ?? '',
+        bold: false,
+        italic: false,
+        underline: false,
+      });
+      continue;
+    }
 
-  // Remove trailing empty lines (artifacts of trailing <br> / <div>)
-  while (lines.length > 1 && lines[lines.length - 1].length === 0) {
+    if (child.nodeType !== Node.ELEMENT_NODE) continue;
+    const el = child as HTMLElement;
+    const tag = el.tagName.toLowerCase();
+
+    if (tag === 'br') {
+      flushInlineLine();
+      continue;
+    }
+
+    if (tag === 'ul' || tag === 'ol') {
+      if (currentInlineRuns.length > 0) flushInlineLine();
+      const items = Array.from(el.children).filter((item) => item.tagName.toLowerCase() === 'li');
+      if (items.length === 0) {
+        lines.push({ kind: 'bullet', runs: [] });
+      } else {
+        items.forEach((item) => pushBlockLines('bullet', item));
+      }
+      continue;
+    }
+
+    if (tag === 'li') {
+      if (currentInlineRuns.length > 0) flushInlineLine();
+      pushBlockLines('bullet', el);
+      continue;
+    }
+
+    const kind: RichLineKind = tag === 'h1'
+      ? 'h1'
+      : tag === 'h2'
+        ? 'h2'
+        : 'text';
+
+    if (['div', 'p', 'blockquote', 'h1', 'h2', 'h3'].includes(tag)) {
+      if (currentInlineRuns.length > 0) flushInlineLine();
+      pushBlockLines(kind, el);
+      continue;
+    }
+
+    extractInlineRuns(el, currentInlineRuns);
+  }
+
+  if (currentInlineRuns.length > 0) flushInlineLine();
+
+  while (lines.length > 1 && lines[lines.length - 1].runs.length === 0) {
     lines.pop();
   }
-  if (lines.length === 0) lines.push([]);
+  if (lines.length === 0) lines.push({ kind: 'text', runs: [] });
 
   return lines;
+}
+
+/** Parse HTML into an array of logical lines, each line an array of styled runs */
+export function parseRichText(html: string): RichRun[][] {
+  return parseStructuredRichText(html).map((line) => line.runs);
 }
 
 // ── Text measurement ──────────────────────────────────────────────────────────
@@ -281,16 +381,23 @@ export function layoutRichText(
   baseBold: boolean,
   baseItalic: boolean,
 ): PositionedRun[] {
-  const lines = parseRichText(html);
-  const lineH = Math.round(fontSize * lineHeightRatio);
+  const lines = parseStructuredRichText(html);
   const result: PositionedRun[] = [];
   let y = 0;
 
-  for (const lineRuns of lines) {
+  for (const line of lines) {
+    const lineFontSize = line.kind === 'h1'
+      ? Math.round(fontSize * 1.6)
+      : line.kind === 'h2'
+        ? Math.round(fontSize * 1.3)
+        : fontSize;
+    const lineH = Math.round(lineFontSize * lineHeightRatio);
+    const lineOffsetX = line.kind === 'bullet' ? Math.max(14, lineFontSize * 1.15) : 0;
+
     // Apply whole-note base styles
-    const runs = lineRuns.map((r) => ({
+    const runs = line.runs.map((r) => ({
       ...r,
-      bold: r.bold || baseBold,
+      bold: line.kind === 'h1' || line.kind === 'h2' ? true : (r.bold || baseBold),
       italic: r.italic || baseItalic,
     }));
 
@@ -304,16 +411,25 @@ export function layoutRichText(
       w: number;
     }
     const tokens: Token[] = [];
+    if (line.kind === 'bullet') {
+      tokens.push({
+        text: '• ',
+        bold: false,
+        italic: false,
+        underline: false,
+        w: measureText('• ', false, false, lineFontSize),
+      });
+    }
     for (const run of runs) {
       const parts = run.text.match(/\S+\s*|\s+/g) ?? [];
       for (const p of parts) {
-        const tw = measureText(p, run.bold, run.italic, fontSize);
+        const tw = measureText(p, run.bold, run.italic, lineFontSize);
         // Break tokens wider than the container into character chunks
         if (tw > containerWidth && p.trim().length > 1) {
           let remaining = p;
           while (remaining.length > 0) {
             let end = 1;
-            while (end < remaining.length && measureText(remaining.slice(0, end + 1), run.bold, run.italic, fontSize) <= containerWidth) {
+            while (end < remaining.length && measureText(remaining.slice(0, end + 1), run.bold, run.italic, lineFontSize) <= containerWidth) {
               end++;
             }
             const chunk = remaining.slice(0, end);
@@ -323,7 +439,7 @@ export function layoutRichText(
               italic: run.italic,
               underline: run.underline,
               link: run.link,
-              w: measureText(chunk, run.bold, run.italic, fontSize),
+              w: measureText(chunk, run.bold, run.italic, lineFontSize),
             });
             remaining = remaining.slice(end);
           }
@@ -351,19 +467,29 @@ export function layoutRichText(
         rowTokens.pop();
       }
       for (const rt of rowTokens) {
-        result.push({ x: rt.x, y, text: rt.text, bold: rt.bold, italic: rt.italic, underline: rt.underline, link: rt.link });
+        result.push({
+          x: rt.x,
+          y,
+          text: rt.text,
+          bold: rt.bold,
+          italic: rt.italic,
+          underline: rt.underline,
+          link: rt.link,
+          fontSize: lineFontSize,
+        });
       }
       rowTokens = [];
-      x = 0;
+      x = lineOffsetX;
       y += lineH;
     };
 
+    x = lineOffsetX;
     for (const token of tokens) {
       const isWS = /^\s+$/.test(token.text);
       if (!isWS && x > 0 && x + token.w > containerWidth) {
         flushRow();
       }
-      if (x === 0 && isWS) continue; // skip leading whitespace on a wrapped row
+      if (x === lineOffsetX && isWS) continue; // skip leading whitespace on a wrapped row
       rowTokens.push({ ...token, x });
       x += token.w;
     }

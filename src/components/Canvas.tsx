@@ -20,6 +20,7 @@ import CanvasToolPreviews from './CanvasToolPreviews';
 import CanvasToolbars from './CanvasToolbars';
 import { AnchorSide, StickyNoteNode, ShapeNode, TaskCardNode, ImageNode, DocumentNode, LinkNode, CodeBlockNode } from '../types';
 import { getWorkspaceName, openWorkspace } from '../utils/workspaceManager';
+import { applyWorkspaceSyncFromOpenResult } from '../utils/applyWorkspaceSync';
 import { useTheme } from '../theme';
 import { resolveCssColor } from '../utils/palette';
 import { useCanvasInteraction } from '../hooks/useCanvasInteraction';
@@ -33,7 +34,11 @@ function toAnchorRect(node: StickyNoteNode | ShapeNode | TaskCardNode | ImageNod
   return node;
 }
 
-export default function Canvas() {
+interface CanvasProps {
+  onBackgroundInteract?: () => void;
+}
+
+export default function Canvas({ onBackgroundInteract }: CanvasProps) {
   const t = useTheme();
   const stageRef     = useRef<Konva.Stage>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -244,10 +249,16 @@ export default function Canvas() {
         scaleX={camera.scale}
         scaleY={camera.scale}
         onWheel={handleWheel}
-        onMouseDown={handleMouseDown}
+        onMouseDown={(e) => {
+          if (e.target === e.currentTarget) onBackgroundInteract?.();
+          handleMouseDown(e);
+        }}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
-        onTouchStart={handleTouchStart}
+        onTouchStart={(e) => {
+          if (e.target === e.currentTarget) onBackgroundInteract?.();
+          handleTouchStart(e);
+        }}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
         onContextMenu={(e) => {
@@ -590,6 +601,7 @@ export default function Canvas() {
             if (result) {
               useBoardStore.getState().setWorkspaceName(result.name);
               if (result.data) useBoardStore.getState().loadBoard(result.data);
+              applyWorkspaceSyncFromOpenResult(result);
               const pending = pendingImageFile.current;
               pendingImageFile.current = null;
               if (pending) placeImage(pending.file, pending.worldX, pending.worldY);

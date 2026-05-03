@@ -73,6 +73,29 @@ function renderPreviewLine(line: PreviewLine, idx: number): React.ReactNode {
       <span style={{ ...ellipsis }}>{renderSegs(line.segments)}</span>
     </div>
   );
+  if (line.kind === 'callout') return (
+    <div
+      key={idx}
+      style={{
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: 8,
+        padding: '8px 10px',
+        margin: '2px 0',
+        borderRadius: 8,
+        background: 'rgba(255,255,255,0.06)',
+        color: 'var(--c-text-hi)',
+        overflow: 'hidden',
+      }}
+    >
+      {line.emoji && (
+        <span style={{ flexShrink: 0, lineHeight: 1.35, fontSize: 14 }}>
+          {line.emoji}
+        </span>
+      )}
+      <span style={{ ...ellipsis, fontStyle: 'italic' }}>{renderSegs(line.segments)}</span>
+    </div>
+  );
   return (
     <div key={idx} style={{ ...ellipsis, color: 'var(--c-text-md)' }}>
       {renderSegs(line.segments)}
@@ -81,7 +104,7 @@ function renderPreviewLine(line: PreviewLine, idx: number): React.ReactNode {
 }
 
 export default function DocumentNodeComponent({ node, isSelected, isDrawingLine, onAnchorDown, onAnchorEnter, onAnchorLeave, snapAnchor }: Props) {
-  const { camera, updateNode, selectIds, setFocusDocument, openDocument, openDocumentWithMorph, activeTool, documents } = useBoardStore();
+  const { camera, updateNode, selectIds, setFocusDocument, openDocument, openDocumentWithMorph, activeTool, documents, activeDocId, noteAutosaveEnabled } = useBoardStore();
 
   // Post-migration: read title/content from Document entity; fall back to inline fields
   const doc = node.docId ? documents.find((d) => d.id === node.docId) : undefined;
@@ -92,7 +115,11 @@ export default function DocumentNodeComponent({ node, isSelected, isDrawingLine,
   const cardRef = useRef<HTMLDivElement>(null);
   const [hoveredAnchor, setHoveredAnchor] = useState<AnchorSide | null>(null);
 
-  useDocumentAutoSave(node);
+  useDocumentAutoSave({
+    node,
+    enabled: noteAutosaveEnabled,
+    suspended: !!doc?.id && activeDocId === doc.id,
+  });
 
   const isLineTool  = activeTool === 'line';
   const showAnchors = isSelected || isLineTool || isDrawingLine === true;

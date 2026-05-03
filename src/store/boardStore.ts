@@ -4,9 +4,20 @@ import { CanvasNode, ConnectorNode, StickyNoteNode, Camera, Tool, BoardData, Sha
 import { findDocumentPlacement } from '../utils/documentPlacement';
 
 export interface TableCellRef { nodeId: string; row: number; col: number; }
+interface BoardHistorySnapshot { nodes: CanvasNode[]; documents: Document[]; }
+
+const MAX_HISTORY_SNAPSHOTS = 250;
 
 function generateId(): string {
   return Math.random().toString(36).slice(2, 11);
+}
+
+function createHistorySnapshot(state: Pick<BoardState, 'nodes' | 'documents'>): BoardHistorySnapshot {
+  return { nodes: state.nodes, documents: state.documents };
+}
+
+function pushHistorySnapshot(past: BoardHistorySnapshot[], snapshot: BoardHistorySnapshot): BoardHistorySnapshot[] {
+  return [...past, snapshot].slice(-MAX_HISTORY_SNAPSHOTS);
 }
 
 function normalizeDocumentPageIds(
@@ -108,9 +119,10 @@ interface BoardState {
   activeDocId: string | null;       // not persisted
   recentDocIds: string[];           // not persisted
   morphSourceRect: { left: number; top: number; width: number; height: number } | null; // not persisted
+  docViewMode: 'panel' | 'fullscreen'; // not persisted — defaults to 'panel'
   clipboard: CanvasNode[];
-  past: CanvasNode[][];
-  future: CanvasNode[][];
+  past: BoardHistorySnapshot[];
+  future: BoardHistorySnapshot[];
   activeShapeKind: ShapeKind;
   activeSticker: string;
   theme: 'dark' | 'light';
@@ -121,8 +133,13 @@ interface BoardState {
   tableHoverCell: { nodeId: string; row: number; col: number } | null;
   workspaceName: string | null;
   workspaceSavedAt: number; // not persisted — bumped after each saveWorkspace call
+  lastLocalSavedAt: number | null;
   explorerOpen: boolean;
   imageAssetFolder: string;
+  noteAutosaveEnabled: boolean;
+  cloudBoardId: string | null;
+  cloudBoardTitle: string | null;
+  cloudSyncedAt: number | null;
 
   // ── Existing actions ──────────────────────────────────────────────────────
   setBoardTitle: (title: string) => void;
@@ -136,6 +153,7 @@ interface BoardState {
   selectIds: (ids: string[]) => void;
   setEditingId: (id: string | null) => void;
   setFocusDocument: (id: string | null) => void;
+  setDocViewMode: (mode: 'panel' | 'fullscreen') => void;
   setActiveShapeKind: (kind: ShapeKind) => void;
   setActiveSticker: (src: string) => void;
   setTableEditState: (s: TableCellRef | null) => void;
@@ -146,8 +164,12 @@ interface BoardState {
   setReaction: (nodeId: string, emoji: string | null) => void;
   setWorkspaceName: (name: string | null) => void;
   bumpWorkspaceSaved: () => void;
+  markLocalSaved: (savedAt?: number) => void;
   setExplorerOpen: (open: boolean) => void;
   setImageAssetFolder: (folder: string) => void;
+  setNoteAutosaveEnabled: (enabled: boolean) => void;
+  setCloudBoardState: (state: { boardId: string; title: string; syncedAt?: number }) => void;
+  clearCloudBoardState: () => void;
   addPage: (name?: string) => void;
   deletePage: (id: string) => void;
   renamePage: (id: string, name: string) => void;
@@ -198,6 +220,7 @@ export const useBoardStore = create<BoardState>()(
       activeDocId: null,
       recentDocIds: [],
       morphSourceRect: null,
+      docViewMode: 'panel',
       clipboard: [],
       past: [],
       future: [],
@@ -211,8 +234,13 @@ export const useBoardStore = create<BoardState>()(
       tableHoverCell: null,
       workspaceName: null,
       workspaceSavedAt: 0,
+      lastLocalSavedAt: null,
       explorerOpen: false,
       imageAssetFolder: 'assets',
+      noteAutosaveEnabled: true,
+      cloudBoardId: null,
+      cloudBoardTitle: null,
+      cloudSyncedAt: null,
 
       setBoardTitle: (title) => set({ boardTitle: title }),
 
@@ -220,7 +248,7 @@ export const useBoardStore = create<BoardState>()(
 
       addNode: (node) =>
         set((state) => ({
-          past: [...state.past, state.nodes],
+          past: pushHistorySnapshot(state.past, createHistorySnapshot(state)),
           future: [],
           nodes: [...state.nodes, node],
           selectedIds: [node.id],
@@ -237,7 +265,7 @@ export const useBoardStore = create<BoardState>()(
         set((state) => {
           const map = new Map(updates.map((u) => [u.id, u.updates]));
           return {
-            past: [...state.past, state.nodes],
+            past: pushHistorySnapshot(state.past, createHistorySnapshot(state)),
             future: [],
             nodes: state.nodes.map((n) => {
               const u = map.get(n.id);
@@ -258,7 +286,7 @@ export const useBoardStore = create<BoardState>()(
             }
             return true;
           });
-          return { past: [...state.past, state.nodes], future: [], nodes: cleaned, selectedIds: [] };
+          return { past: pushHistorySnapshot(state.past, createHistorySnapshot(state)), future: [], nodes: cleaned, selectedIds: [] };
         }),
 
       setActiveTool: (tool) =>
@@ -293,9 +321,24 @@ export const useBoardStore = create<BoardState>()(
       setTableHoverCell: (s) => set({ tableHoverCell: s }),
 
       setWorkspaceName: (name) => set({ workspaceName: name }),
-      bumpWorkspaceSaved: () => set({ workspaceSavedAt: Date.now() }),
+      bumpWorkspaceSaved: () => {
+        const savedAt = Date.now();
+        set({ workspaceSavedAt: savedAt, lastLocalSavedAt: savedAt });
+      },
+      markLocalSaved: (savedAt = Date.now()) => set({ lastLocalSavedAt: savedAt }),
       setExplorerOpen: (open) => set({ explorerOpen: open }),
       setImageAssetFolder: (folder) => set({ imageAssetFolder: folder }),
+      setNoteAutosaveEnabled: (enabled) => set({ noteAutosaveEnabled: enabled }),
+      setCloudBoardState: ({ boardId, title, syncedAt }) => set({
+        cloudBoardId: boardId,
+        cloudBoardTitle: title,
+        cloudSyncedAt: syncedAt ?? Date.now(),
+      }),
+      clearCloudBoardState: () => set({
+        cloudBoardId: null,
+        cloudBoardTitle: null,
+        cloudSyncedAt: null,
+      }),
 
       setReaction: (nodeId, emoji) =>
         set((state) => ({
@@ -424,6 +467,10 @@ export const useBoardStore = create<BoardState>()(
             camera: activePg.camera ?? { x: 0, y: 0, scale: 1 },
             documents,
             schemaVersion: 3,
+            cloudBoardId: null,
+            cloudBoardTitle: null,
+            cloudSyncedAt: null,
+            lastLocalSavedAt: null,
             selectedIds: [],
             editingId: null,
             tableEditState: null,
@@ -444,6 +491,10 @@ export const useBoardStore = create<BoardState>()(
             pageSnapshots: {},
             documents,
             schemaVersion: 3,
+            cloudBoardId: null,
+            cloudBoardTitle: null,
+            cloudSyncedAt: null,
+            lastLocalSavedAt: null,
             selectedIds: [],
             editingId: null,
             tableEditState: null,
@@ -484,7 +535,7 @@ export const useBoardStore = create<BoardState>()(
           y: n.y + OFFSET,
         }));
         set((state) => ({
-          past: [...state.past, state.nodes],
+          past: pushHistorySnapshot(state.past, createHistorySnapshot(state)),
           future: [],
           nodes: [...state.nodes, ...newNodes],
           selectedIds: newNodes.map((n) => n.id),
@@ -506,7 +557,7 @@ export const useBoardStore = create<BoardState>()(
           y: n.y + OFFSET,
         }));
         set((state) => ({
-          past: [...state.past, state.nodes],
+          past: pushHistorySnapshot(state.past, createHistorySnapshot(state)),
           future: [],
           nodes: [...state.nodes, ...newNodes],
           selectedIds: newNodes.map((n) => n.id),
@@ -515,22 +566,34 @@ export const useBoardStore = create<BoardState>()(
 
       saveHistory: () =>
         set((state) => ({
-          past: [...state.past, state.nodes],
+          past: pushHistorySnapshot(state.past, createHistorySnapshot(state)),
           future: [],
         })),
 
       undo: () => {
-        const { nodes, past, future } = get();
+        const { nodes, documents, past, future } = get();
         if (!past.length) return;
         const prev = past[past.length - 1];
-        set({ past: past.slice(0, -1), future: [nodes, ...future], nodes: prev, selectedIds: [] });
+        set({
+          past: past.slice(0, -1),
+          future: [createHistorySnapshot({ nodes, documents }), ...future].slice(0, MAX_HISTORY_SNAPSHOTS),
+          nodes: prev.nodes,
+          documents: prev.documents,
+          selectedIds: [],
+        });
       },
 
       redo: () => {
-        const { nodes, past, future } = get();
+        const { nodes, documents, past, future } = get();
         if (!future.length) return;
         const next = future[0];
-        set({ past: [...past, nodes], future: future.slice(1), nodes: next, selectedIds: [] });
+        set({
+          past: pushHistorySnapshot(past, createHistorySnapshot({ nodes, documents })),
+          future: future.slice(1),
+          nodes: next.nodes,
+          documents: next.documents,
+          selectedIds: [],
+        });
       },
 
       toggleLock: (ids) =>
@@ -540,7 +603,7 @@ export const useBoardStore = create<BoardState>()(
             (n) => set_.has(n.id) && !(n as { locked?: boolean }).locked
           );
           return {
-            past: [...state.past, state.nodes],
+            past: pushHistorySnapshot(state.past, createHistorySnapshot(state)),
             future: [],
             nodes: state.nodes.map((n) =>
               set_.has(n.id) ? ({ ...n, locked: anyUnlocked } as CanvasNode) : n
@@ -556,7 +619,7 @@ export const useBoardStore = create<BoardState>()(
         if (eligible.length < 2) return;
         const newGroupId = generateId();
         set((state) => ({
-          past: [...state.past, state.nodes],
+          past: pushHistorySnapshot(state.past, createHistorySnapshot(state)),
           future: [],
           nodes: state.nodes.map((n) =>
             selectedIds.includes(n.id) && n.type !== 'connector'
@@ -568,7 +631,7 @@ export const useBoardStore = create<BoardState>()(
 
       ungroupNodes: (groupId) =>
         set((state) => ({
-          past: [...state.past, state.nodes],
+          past: pushHistorySnapshot(state.past, createHistorySnapshot(state)),
           future: [],
           nodes: state.nodes.map((n) =>
             (n as { groupId?: string }).groupId === groupId
@@ -582,7 +645,7 @@ export const useBoardStore = create<BoardState>()(
           const set_ = new Set(ids);
           const rest = state.nodes.filter((n) => !set_.has(n.id));
           const moved = state.nodes.filter((n) => set_.has(n.id));
-          return { past: [...state.past, state.nodes], future: [], nodes: [...rest, ...moved] };
+          return { past: pushHistorySnapshot(state.past, createHistorySnapshot(state)), future: [], nodes: [...rest, ...moved] };
         }),
 
       sendToBack: (ids) =>
@@ -590,7 +653,7 @@ export const useBoardStore = create<BoardState>()(
           const set_ = new Set(ids);
           const rest = state.nodes.filter((n) => !set_.has(n.id));
           const moved = state.nodes.filter((n) => set_.has(n.id));
-          return { past: [...state.past, state.nodes], future: [], nodes: [...moved, ...rest] };
+          return { past: pushHistorySnapshot(state.past, createHistorySnapshot(state)), future: [], nodes: [...moved, ...rest] };
         }),
 
       // ── Document entity actions ─────────────────────────────────────────────
@@ -609,7 +672,11 @@ export const useBoardStore = create<BoardState>()(
           updatedAt: partial.updatedAt ?? now,
           tags: partial.tags,
         };
-        set((state) => ({ documents: [...state.documents, doc] }));
+        set((state) => ({
+          past: pushHistorySnapshot(state.past, createHistorySnapshot(state)),
+          future: [],
+          documents: [...state.documents, doc],
+        }));
         return id;
       },
 
@@ -646,6 +713,8 @@ export const useBoardStore = create<BoardState>()(
             });
 
           return {
+            past: pushHistorySnapshot(state.past, createHistorySnapshot(state)),
+            future: [],
             documents: state.documents.filter((d) => d.id !== docId),
             nodes: cleanNodes(state.nodes),
             pageSnapshots: Object.fromEntries(
@@ -680,6 +749,8 @@ export const useBoardStore = create<BoardState>()(
       closeDocument: () =>
         set({ appMode: 'canvas', focusDocumentId: null, activeDocId: null, morphSourceRect: null }),
 
+      setDocViewMode: (mode) => set({ docViewMode: mode }),
+
       ensureDocumentNode: (docId, pageId) => {
         const targetPageId = pageId ?? get().activePageId;
         const CARD_W = 280;
@@ -710,7 +781,7 @@ export const useBoardStore = create<BoardState>()(
 
         if (targetPageId === state.activePageId) {
           set((current) => ({
-            past: [...current.past, current.nodes],
+            past: pushHistorySnapshot(current.past, createHistorySnapshot(current)),
             future: [],
             nodes: [...current.nodes, newNode],
             selectedIds: [newNode.id],
@@ -800,6 +871,11 @@ export const useBoardStore = create<BoardState>()(
           activePageId: state.activePageId,
           explorerOpen: state.explorerOpen,
           imageAssetFolder: state.imageAssetFolder,
+          noteAutosaveEnabled: state.noteAutosaveEnabled,
+          lastLocalSavedAt: state.lastLocalSavedAt,
+          cloudBoardId: state.cloudBoardId,
+          cloudBoardTitle: state.cloudBoardTitle,
+          cloudSyncedAt: state.cloudSyncedAt,
           documents: state.documents,
           schemaVersion: state.schemaVersion,
           pageSnapshots: Object.fromEntries(

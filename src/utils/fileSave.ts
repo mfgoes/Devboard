@@ -11,6 +11,16 @@ type FSAWindow = Window & typeof globalThis & {
   showSaveFilePicker: (opts?: unknown) => Promise<FileSystemFileHandle>;
 };
 
+interface SaveBoardOptions {
+  notify?: boolean;
+}
+
+export interface SaveBoardResult {
+  saved: boolean;
+  location: 'file' | 'download';
+  targetName?: string;
+}
+
 function jsonBlob(data: BoardData): Blob {
   return new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
 }
@@ -26,12 +36,15 @@ async function writeHandle(handle: FileSystemFileHandle, data: BoardData): Promi
 }
 
 /** ⌘S — reuse existing handle, or open picker on first call. */
-export async function saveBoard(data: BoardData): Promise<void> {
+export async function saveBoard(data: BoardData, options: SaveBoardOptions = {}): Promise<SaveBoardResult> {
+  const shouldNotify = options.notify !== false;
+
   if (!FSA_SUPPORTED) {
     saveAs(jsonBlob(data), suggestedName(data));
-    toast(`Downloaded · ${suggestedName(data)}`);
-    return;
+    if (shouldNotify) toast(`Downloaded · ${suggestedName(data)}`);
+    return { saved: true, location: 'download', targetName: suggestedName(data) };
   }
+
   const isOverwrite = !!fileHandle;
   if (!fileHandle) {
     try {
@@ -40,19 +53,23 @@ export async function saveBoard(data: BoardData): Promise<void> {
         types: [{ description: 'DevBoard file', accept: { 'application/json': ['.json', '.devboard.json'] } }],
       });
     } catch {
-      return; // user cancelled
+      return { saved: false, location: 'file' }; // user cancelled
     }
   }
+
   await writeHandle(fileHandle, data);
-  toast(isOverwrite ? `Overwritten · ${fileHandle.name}` : `Saved · ${fileHandle.name}`);
+  if (shouldNotify) toast(isOverwrite ? `Overwritten · ${fileHandle.name}` : `Saved · ${fileHandle.name}`);
+  return { saved: true, location: 'file', targetName: fileHandle.name };
 }
 
 /** "Save as JSON" — always opens picker so user can choose a new location. */
-export async function saveBoardAs(data: BoardData): Promise<void> {
+export async function saveBoardAs(data: BoardData, options: SaveBoardOptions = {}): Promise<SaveBoardResult> {
+  const shouldNotify = options.notify !== false;
+
   if (!FSA_SUPPORTED) {
     saveAs(jsonBlob(data), suggestedName(data));
-    toast(`Downloaded · ${suggestedName(data)}`);
-    return;
+    if (shouldNotify) toast(`Downloaded · ${suggestedName(data)}`);
+    return { saved: true, location: 'download', targetName: suggestedName(data) };
   }
   try {
     fileHandle = await (window as FSAWindow).showSaveFilePicker({
@@ -60,10 +77,11 @@ export async function saveBoardAs(data: BoardData): Promise<void> {
       types: [{ description: 'DevBoard file', accept: { 'application/json': ['.json', '.devboard.json'] } }],
     });
   } catch {
-    return; // user cancelled
+    return { saved: false, location: 'file' }; // user cancelled
   }
   await writeHandle(fileHandle, data);
-  toast(`Saved · ${fileHandle.name}`);
+  if (shouldNotify) toast(`Saved · ${fileHandle.name}`);
+  return { saved: true, location: 'file', targetName: fileHandle.name };
 }
 
 /** Call when loading a board so ⌘S doesn't overwrite the wrong file. */

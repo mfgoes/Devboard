@@ -185,11 +185,72 @@
       display: block;
     }
 
-    .swatch-var {
-      font-size: 0.65rem;
-      color: var(--c-text-lo);
-      font-family: 'Courier New', monospace;
-    }
+	    .swatch-var {
+	      font-size: 0.65rem;
+	      color: var(--c-text-lo);
+	      font-family: 'Courier New', monospace;
+	    }
+
+	    .surface-guide-grid {
+	      display: grid;
+	      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+	      gap: 12px;
+	      margin: 18px 0 12px;
+	    }
+
+	    .surface-example {
+	      border: 1px solid var(--c-border);
+	      border-radius: 10px;
+	      padding: 14px;
+	      min-height: 130px;
+	    }
+
+	    .surface-example--canvas { background: var(--c-canvas); }
+	    .surface-example--panel { background: var(--c-panel); }
+	    .surface-example--second {
+	      background: var(--c-canvas);
+	      background: color-mix(in srgb, var(--c-canvas) 54%, var(--c-panel));
+	    }
+	    .surface-example--interactive {
+	      background: var(--c-panel);
+	      transition: background 0.15s, border-color 0.15s;
+	    }
+	    .surface-example--interactive:hover {
+	      background: var(--c-hover);
+	      border-color: var(--c-accent2);
+	    }
+
+	    .surface-example-label {
+	      display: block;
+	      margin-bottom: 8px;
+	      color: var(--c-text-lo);
+	      font-size: 0.65rem;
+	      font-weight: 700;
+	      letter-spacing: 0.12em;
+	      text-transform: uppercase;
+	    }
+
+	    .surface-example-title {
+	      color: var(--c-text-hi);
+	      font-size: 0.9rem;
+	      font-weight: 700;
+	      margin-bottom: 6px;
+	    }
+
+	    .surface-example-copy {
+	      color: var(--c-text-md);
+	      font-size: 0.76rem;
+	      line-height: 1.55;
+	    }
+
+	    .surface-rules {
+	      display: grid;
+	      gap: 8px;
+	      margin-top: 16px;
+	      color: var(--c-text-md);
+	      font-size: 0.78rem;
+	      line-height: 1.6;
+	    }
 
     /* ── type scale ── */
     .type-row {
@@ -258,14 +319,34 @@
     .btn-primary { background: var(--c-accent); color: #fff; }
     .btn-primary:hover { opacity: 0.88; transform: translateY(-1px); }
 
-    .btn-ghost {
-      background: var(--c-panel);
-      border: 1px solid var(--c-border);
-      color: var(--c-text-md);
-    }
-    .btn-ghost:hover { background: var(--c-hover); color: var(--c-text-hi); }
+	    .btn-ghost {
+	      background: var(--c-panel);
+	      border: 1px solid var(--c-border);
+	      color: var(--c-text-md);
+	    }
+	    .btn-ghost:hover { background: var(--c-hover); color: var(--c-text-hi); }
 
-    .btn-sm { padding: 5px 12px; font-size: 0.75rem; }
+	    .btn-tertiary {
+	      background: transparent;
+	      border: 1px solid var(--c-border);
+	      color: var(--c-text-md);
+	      padding-inline: 12px;
+	    }
+
+	    .btn-tertiary:hover {
+	      background: var(--c-hover);
+	      border-color: var(--c-accent2);
+	      border-color: color-mix(in srgb, var(--c-border) 70%, var(--c-accent2));
+	      color: var(--c-text-hi);
+	    }
+
+	    .btn-tertiary svg {
+	      width: 14px;
+	      height: 14px;
+	      flex-shrink: 0;
+	    }
+
+	    .btn-sm { padding: 5px 12px; font-size: 0.75rem; }
 
     /* ── badge ── */
     .badge {
@@ -363,7 +444,7 @@
     input[type="text"] {
       background: var(--c-panel);
       border: 1px solid var(--c-border);
-      border-radius: 7px;
+      border-radius: 8px;
       color: var(--c-text-hi);
       font-family: inherit;
       font-size: 0.82rem;
@@ -698,10 +779,49 @@
           </div>
         </div>
 
-      </div>
+	      </div>
 
-      <h3 style="margin-top: 32px; margin-bottom: 16px; font-size: 1rem; font-weight: 600; color: var(--c-text-hi);">Supporting Colors</h3>
-      <p style="margin-bottom: 16px; color: var(--c-text-md);">Neutral and utility colors for shapes, strokes, and secondary elements. These pair with the main palette to provide contrast and visual distinction.</p>
+	      <h3 style="margin-top: 32px; margin-bottom: 12px; font-size: 1rem; font-weight: 600; color: var(--c-text-hi);">Surface Hierarchy</h3>
+	      <p style="margin-bottom: 16px; color: var(--c-text-md);">Use surface colors to separate structure before adding borders, shadows, or extra copy. The second surface shade is for passive information inside panels: visible enough to scan, quiet enough that it does not look clickable.</p>
+
+	      <div class="surface-guide-grid">
+	        <div class="surface-example surface-example--canvas">
+	          <span class="surface-example-label">Canvas</span>
+	          <div class="surface-example-title">Base workspace</div>
+	          <p class="surface-example-copy">Use <code style="font-family: 'Courier New', monospace;">--c-canvas</code> for app backgrounds, modal columns, and breathing room around active surfaces.</p>
+	        </div>
+
+	        <div class="surface-example surface-example--panel">
+	          <span class="surface-example-label">Panel</span>
+	          <div class="surface-example-title">Primary container</div>
+	          <p class="surface-example-copy">Use <code style="font-family: 'Courier New', monospace;">--c-panel</code> for dialogs, cards, toolbars, and areas that hold controls or selected content.</p>
+	        </div>
+
+	        <div class="surface-example surface-example--second">
+	          <span class="surface-example-label">Second surface</span>
+	          <div class="surface-example-title">Passive inset</div>
+	          <p class="surface-example-copy">Use a subtle mix of <code style="font-family: 'Courier New', monospace;">--c-canvas</code> over <code style="font-family: 'Courier New', monospace;">--c-panel</code> for counts, local contents, empty states, and beta notes.</p>
+	        </div>
+
+	        <div class="surface-example surface-example--interactive">
+	          <span class="surface-example-label">Interactive</span>
+	          <div class="surface-example-title">Hover surface</div>
+	          <p class="surface-example-copy">Use <code style="font-family: 'Courier New', monospace;">--c-hover</code> only for hover, selected rows, or controls. If it changes on hover, it should be actionable.</p>
+	        </div>
+	      </div>
+
+	      <div class="ds-notice">
+	        <strong style="color: var(--c-text-hi);">Readability rule:</strong> headings and values use <code style="font-family: 'Courier New', monospace;">--c-text-hi</code>, body copy uses <code style="font-family: 'Courier New', monospace;">--c-text-md</code>, and <code style="font-family: 'Courier New', monospace;">--c-text-lo</code> is only for metadata or helper text. Avoid long paragraphs on low-contrast text, especially inside second-surface panels.
+	      </div>
+
+	      <div class="surface-rules">
+	        <div><strong style="color: var(--c-text-hi);">Passive information:</strong> use second surface, no hover state, no pointer cursor, and minimal border treatment.</div>
+	        <div><strong style="color: var(--c-text-hi);">Clickable rows/cards:</strong> use panel surface plus border, hover to <code style="font-family: 'Courier New', monospace;">--c-hover</code>, and a visible selected/accent state.</div>
+	        <div><strong style="color: var(--c-text-hi);">Dense modals:</strong> alternate canvas, panel, and second surface instead of stacking multiple card-like boxes that all compete for attention.</div>
+	      </div>
+
+	      <h3 style="margin-top: 32px; margin-bottom: 16px; font-size: 1rem; font-weight: 600; color: var(--c-text-hi);">Supporting Colors</h3>
+	      <p style="margin-bottom: 16px; color: var(--c-text-md);">Neutral and utility colors for shapes, strokes, and secondary elements. These pair with the main palette to provide contrast and visual distinction.</p>
 
       <div class="palette-compare">
         <div class="palette-dark">
@@ -731,10 +851,14 @@
       <div class="preview-strip" style="margin-top: 24px;">
         <div class="preview-strip-label">Live preview — toggle mode to see both</div>
         <div class="preview-strip-body">
-          <button class="btn btn-primary">Download free →</button>
-          <button class="btn btn-ghost">Try in browser</button>
-          <span class="badge"><span class="badge-dot"></span>Free &amp; open source</span>
-          <span class="pill">Bezier curves</span>
+	          <button class="btn btn-primary">Download free →</button>
+	          <button class="btn btn-ghost">Try in browser</button>
+	          <button class="btn btn-tertiary btn-sm">
+	            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 11-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+	            Refresh list
+	          </button>
+	          <span class="badge"><span class="badge-dot"></span>Free &amp; open source</span>
+	          <span class="pill">Bezier curves</span>
           <span class="pill">Smart anchors</span>
           <kbd>⌘</kbd><kbd>D</kbd>
         </div>
@@ -943,29 +1067,49 @@
     <hr class="ds-rule" />
 
     <!-- ── Buttons ── -->
-    <section class="ds-section" id="buttons">
-      <div class="ds-section-title">Components</div>
-      <h2>Buttons</h2>
-      <p>Two variants: primary (terracotta fill) and ghost (panel border). Sizes: default and sm. Border-radius 8px for default, 6px for sm.</p>
+	    <section class="ds-section" id="buttons">
+	      <div class="ds-section-title">Components</div>
+	      <h2>Buttons</h2>
+	      <p>Three variants: primary (terracotta fill), ghost (panel border), and tertiary (quiet bordered utility). Sizes: default and sm. Border-radius 8px for default, 6px for sm.</p>
 
-      <div class="ds-notice">Buttons use <code style="font-family: 'Courier New', monospace;">font-family: inherit</code> — they will always match the site font automatically.</div>
+	      <div class="ds-notice">Buttons use <code style="font-family: 'Courier New', monospace;">font-family: inherit</code> — they will always match the site font automatically. Utility actions like refresh should still look like controls, not text links.</div>
 
-      <div class="component-row">
-        <span class="component-label">Primary</span>
-        <button class="btn btn-primary">Download free →</button>
-        <button class="btn btn-primary btn-sm">Get started</button>
+	      <div class="component-row">
+	        <span class="component-label">Primary</span>
+	        <button class="btn btn-primary">Download free →</button>
+	        <button class="btn btn-primary btn-sm">Get started</button>
       </div>
       <div class="component-row">
         <span class="component-label">Ghost</span>
-        <button class="btn btn-ghost">Try in browser</button>
-        <button class="btn btn-ghost btn-sm">Learn more</button>
-      </div>
-      <div class="component-row">
-        <span class="component-label">Mixed row (typical CTA)</span>
-        <button class="btn btn-primary">Download free →</button>
-        <button class="btn btn-ghost">Try in browser</button>
-        <button class="btn btn-ghost">
-          <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+	        <button class="btn btn-ghost">Try in browser</button>
+	        <button class="btn btn-ghost btn-sm">Learn more</button>
+	      </div>
+	      <div class="component-row">
+	        <span class="component-label">Tertiary utility</span>
+	        <button class="btn btn-tertiary btn-sm">
+	          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 11-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+	          Refresh list
+	        </button>
+	        <button class="btn btn-tertiary btn-sm">
+	          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/><path d="M3 7.5A2.5 2.5 0 015.5 5H9l2 2h7.5A2.5 2.5 0 0121 9.5v7A2.5 2.5 0 0118.5 19h-13A2.5 2.5 0 013 16.5z"/></svg>
+	          New local workspace
+	        </button>
+	      </div>
+	      <div class="surface-rules" style="margin-bottom: 18px;">
+	        <div><strong style="color: var(--c-text-hi);">Use tertiary buttons for:</strong> low-risk utilities such as refresh, create local workspace, sort, filter, or reveal more detail.</div>
+	        <div><strong style="color: var(--c-text-hi);">Keep them readable:</strong> pair a small icon with a short verb label, use <code style="font-family: 'Courier New', monospace;">--c-text-md</code> by default, and raise to <code style="font-family: 'Courier New', monospace;">--c-text-hi</code> on hover.</div>
+	        <div><strong style="color: var(--c-text-hi);">Avoid text-link buttons:</strong> reserve plain text actions for dismissive secondary choices like "Keep local-only", not core utilities.</div>
+	      </div>
+	      <div class="component-row">
+	        <span class="component-label">Mixed row (typical CTA)</span>
+	        <button class="btn btn-primary">Download free →</button>
+	        <button class="btn btn-ghost">Try in browser</button>
+	        <button class="btn btn-tertiary btn-sm">
+	          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 11-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+	          Refresh list
+	        </button>
+	        <button class="btn btn-ghost">
+	          <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
           GitHub
         </button>
       </div>
@@ -996,10 +1140,10 @@
     <hr class="ds-rule" />
 
     <!-- ── Cards ── -->
-    <section class="ds-section" id="cards">
-      <div class="ds-section-title">Components</div>
-      <h2>Cards</h2>
-      <p>Used in the feature grid. Panel background with border, hover lifts to <code style="font-family: 'Courier New', monospace; font-size: 0.8em; color: var(--c-accent2);">--c-hover</code> and accent border. Icon tile sits above title.</p>
+	    <section class="ds-section" id="cards">
+	      <div class="ds-section-title">Components</div>
+	      <h2>Cards</h2>
+	      <p>Used in the feature grid and for clickable/selectable rows. Panel background with border, hover lifts to <code style="font-family: 'Courier New', monospace; font-size: 0.8em; color: var(--c-accent2);">--c-hover</code> and accent border. Do not use hover-card styling for passive status, empty states, beta notes, or local contents; those should use the second surface shade instead.</p>
 
       <div style="display: flex; gap: 12px; flex-wrap: wrap;">
         <div class="ds-card">
@@ -1025,7 +1169,7 @@
     <section class="ds-section" id="inputs">
       <div class="ds-section-title">Components</div>
       <h2>Inputs</h2>
-      <p>Panel background, border that highlights to <code style="font-family: 'Courier New', monospace; font-size: 0.8em; color: var(--c-accent2);">--c-accent</code> on focus. Used for board title, search, dialogs.</p>
+      <p>Panel background, border that highlights to <code style="font-family: 'Courier New', monospace; font-size: 0.8em; color: var(--c-accent2);">--c-accent</code> on focus. Used for board title, search, dialogs. Default radius is <strong>8px</strong> so fields align with default button corners.</p>
 
       <div class="component-row">
         <span class="component-label">Text input</span>

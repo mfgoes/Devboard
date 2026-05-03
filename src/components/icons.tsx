@@ -7,6 +7,7 @@ import {
   AlignLeft, AlignCenter, AlignRight,
   Code, Eye, CircleDot, Copy, TextWrap,
   Quote, Code2, Minus,
+  Link2,
 } from 'lucide-react';
 
 export function IconGrip()         { return <GripVertical  size={12} />; }
@@ -26,6 +27,7 @@ export function IconTextWrap()     { return <TextWrap      size={13} />; }
 export function IconQuote()        { return <Quote          size={13} />; }
 export function IconCodeBlock()    { return <Code2          size={13} />; }
 export function IconHorizontalRule() { return <Minus        size={14} />; }
+export function IconLink()         { return <Link2         size={13} />; }
 export function IconFreeformPage() {
   return (
     <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">

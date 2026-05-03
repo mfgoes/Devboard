@@ -19,22 +19,21 @@ function TextBlockRichText({ node, fillColor }: { node: TextBlockNode; fillColor
   );
 
   // Group runs by line and calculate line widths
-  const lineHeight = Math.round(node.fontSize * 1.5);
-  const lineGroups: { [key: number]: typeof runs } = {};
-  const lineWidths: { [key: number]: number } = {};
+  const lineGroups = new Map<number, typeof runs>();
+  const lineWidths = new Map<number, number>();
 
   for (const run of runs) {
-    const lineIndex = Math.round(run.y / lineHeight);
-    if (!lineGroups[lineIndex]) {
-      lineGroups[lineIndex] = [];
-      lineWidths[lineIndex] = 0;
+    const lineY = run.y;
+    const existing = lineGroups.get(lineY);
+    if (existing) {
+      existing.push(run);
+    } else {
+      lineGroups.set(lineY, [run]);
     }
-    lineGroups[lineIndex].push(run);
   }
 
   // Calculate line widths from run positions
-  for (const lineIndex in lineGroups) {
-    const lineRuns = lineGroups[lineIndex];
+  for (const [lineY, lineRuns] of lineGroups.entries()) {
     if (lineRuns.length === 0) continue;
 
     // Measure the last run to get total width
@@ -42,14 +41,13 @@ function TextBlockRichText({ node, fillColor }: { node: TextBlockNode; fillColor
     const ctx = document.createElement('canvas').getContext('2d');
     if (ctx) {
       const style = [lastRun.bold ? 'bold' : '', lastRun.italic ? 'italic' : ''].filter(Boolean).join(' ') || 'normal';
-      ctx.font = `${style} ${node.fontSize}px 'Plus Jakarta Sans', sans-serif`;
-      lineWidths[lineIndex] = lastRun.x + ctx.measureText(lastRun.text).width;
+      ctx.font = `${style} ${lastRun.fontSize}px 'Plus Jakarta Sans', sans-serif`;
+      lineWidths.set(lineY, lastRun.x + ctx.measureText(lastRun.text).width);
     }
   }
 
   const alignedRuns = runs.map((run) => {
-    const lineIndex = Math.round(run.y / lineHeight);
-    const lineWidth = lineWidths[lineIndex] || node.width;
+    const lineWidth = lineWidths.get(run.y) || node.width;
 
     const align = node.textAlign ?? 'left';
     let alignOffset = 0;
@@ -70,7 +68,7 @@ function TextBlockRichText({ node, fillColor }: { node: TextBlockNode; fillColor
           x={run.x}
           y={run.y}
           text={run.text}
-          fontSize={node.fontSize}
+          fontSize={run.fontSize}
           fontStyle={[run.bold ? 'bold' : '', run.italic ? 'italic' : ''].filter(Boolean).join(' ') || 'normal'}
           textDecoration={run.underline ? 'underline' : ''}
           lineHeight={1}
@@ -214,7 +212,8 @@ export default function TextBlock({ node, isSelected, isEditing, onSnapMove, onS
     );
     if (runs.length > 0) {
       const maxY = Math.max(...runs.map(r => r.y));
-      hitHeight = maxY + node.fontSize * 1.5;
+      const maxFontSize = Math.max(...runs.map(r => r.fontSize));
+      hitHeight = maxY + maxFontSize * 1.5;
     }
   } else {
     // For plain text, estimate based on line count

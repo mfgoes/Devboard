@@ -4,13 +4,15 @@
  * Lazy-loads directory contents; opens note files and places assets on canvas.
  */
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import { saveAs } from 'file-saver';
 import { useBoardStore } from '../store/boardStore';
 import type { CanvasNode, Document, PageMeta } from '../types';
 import { listDirectory, readWorkspaceFile, readWorkspaceFileAsUrl, readWorkspaceFileInfo, getWorkspaceName, openWorkspace, createWorkspace, renameEntry, createDirectory, deleteEntry, FSA_DIR_SUPPORTED, IN_IFRAME, IS_TAURI, revealInFinder, saveTextFileToWorkspace, saveWorkspace } from '../utils/workspaceManager';
 import { FONTS } from '../utils/fonts';
 import { placeCodeFile, placeImageFile, placeDocumentFile, openDocumentFile } from '../utils/canvasPlacement';
-import { markdownToHtml } from '../utils/exportMarkdown';
+import { generateMarkdownFilename, htmlToMarkdown, markdownToHtml } from '../utils/exportMarkdown';
 import { toast } from '../utils/toast';
+import { applyWorkspaceSyncFromOpenResult } from '../utils/applyWorkspaceSync';
 import { useFilePreview } from '../hooks/useFilePreview';
 import { useTreeState } from '../hooks/useTreeState';
 import { IconFreeformPage, IconStackPage } from './icons';
@@ -85,6 +87,67 @@ function stripHtmlPreview(html: string): string {
     .replace(/<[^>]+>/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function generatePlainTextFilename(title?: string): string {
+  return generateMarkdownFilename(title).replace(/\.md$/i, '.txt');
+}
+
+function exportDocumentAsMarkdownFile(doc: Document): void {
+  const md = [`# ${doc.title || 'Untitled note'}`, '', htmlToMarkdown(doc.content ?? '')].join('\n').trim() + '\n';
+  saveAs(new Blob([md], { type: 'text/markdown;charset=utf-8' }), generateMarkdownFilename(doc.title));
+}
+
+function exportDocumentAsTextFile(doc: Document): void {
+  const text = stripHtmlPreview(doc.content ?? '');
+  const body = text ? `${doc.title || 'Untitled note'}\n\n${text}\n` : `${doc.title || 'Untitled note'}\n`;
+  saveAs(new Blob([body], { type: 'text/plain;charset=utf-8' }), generatePlainTextFilename(doc.title));
+}
+
+function exportDocumentAsPdf(doc: Document): void {
+  const printWindow = window.open('', '_blank', 'noopener,noreferrer,width=900,height=720');
+  if (!printWindow) {
+    toast('Allow pop-ups to export as PDF');
+    return;
+  }
+
+  const safeTitle = doc.title || 'Untitled note';
+  const content = doc.content?.trim() || '<p></p>';
+  printWindow.document.write(`
+    <!doctype html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>${safeTitle.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</title>
+        <style>
+          body { font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 48px; color: #1f1a16; line-height: 1.65; }
+          h1 { font-size: 30px; margin: 0 0 24px; }
+          h2, h3 { margin-top: 24px; }
+          p, li, blockquote, pre { font-size: 14px; }
+          blockquote { margin: 16px 0; padding: 10px 16px; border-left: 3px solid #b87750; background: #f5ede3; border-radius: 10px; }
+          pre { background: #f6f1ea; padding: 14px 16px; border-radius: 10px; overflow: auto; white-space: pre-wrap; }
+          code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+          hr { border: none; border-top: 1px solid #d7cdbf; margin: 24px 0; }
+          a { color: #8b4f2d; }
+          .doc-wrap { max-width: 760px; margin: 0 auto; }
+          @media print {
+            body { margin: 24px; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="doc-wrap">
+          <h1>${safeTitle.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</h1>
+          ${content}
+        </div>
+      </body>
+    </html>
+  `);
+  printWindow.document.close();
+  printWindow.focus();
+  printWindow.onload = () => {
+    printWindow.print();
+  };
 }
 
 function isVisibleInAssets(entry: TreeEntry): boolean {
@@ -448,6 +511,39 @@ function TreeRow({
 
 // ── Empty / no-workspace state ────────────────────────────────────────────────
 function NoWorkspaceState({ onOpen, onCreate }: { onOpen: () => void; onCreate?: () => void }) {
+  const [isBrave, setIsBrave] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const braveApi = (navigator as Navigator & { brave?: { isBrave?: () => Promise<boolean> } }).brave;
+    if (!braveApi?.isBrave) return;
+    braveApi.isBrave().then((value) => {
+      if (!cancelled) setIsBrave(Boolean(value));
+    }).catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const browserWorkspaceUnavailable = !IS_TAURI && !FSA_DIR_SUPPORTED;
+  const title = browserWorkspaceUnavailable
+    ? 'Folder access is unavailable here'
+    : isBrave
+      ? 'Open a folder to start'
+      : 'No folder open';
+  const body = browserWorkspaceUnavailable
+    ? IN_IFRAME
+      ? 'This embedded browser view cannot grant folder access. Open DevBoard in its own tab or use the desktop app to work with workspace folders.'
+      : 'This browser session cannot open workspace folders. Use the desktop app or a desktop Chromium browser with File System Access support.'
+    : isBrave
+      ? 'Brave desktop can usually open workspace folders, but Shields or privacy settings may block the folder picker on some setups.'
+      : 'A workspace is a normal folder where DevBoard keeps your pages, notes, and assets so everything reopens together later.';
+  const tip = browserWorkspaceUnavailable
+    ? 'Workspace folders need desktop browser support or the desktop app.'
+    : isBrave
+      ? 'If Open folder does nothing in Brave, click the lion icon in the address bar, disable Shields for this page, and try again.'
+      : 'Tip: use a dedicated project folder so workspace.json, pages/, notes/, and assets/ stay together.';
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px 16px', gap: 12, textAlign: 'center' }}>
       <svg width="36" height="36" viewBox="0 0 36 36" fill="none" style={{ opacity: 0.35 }}>
@@ -456,13 +552,13 @@ function NoWorkspaceState({ onOpen, onCreate }: { onOpen: () => void; onCreate?:
         <line x1="14" y1="20" x2="22" y2="20" stroke="var(--c-text-hi)" strokeWidth="2" strokeLinecap="round" />
       </svg>
       <div>
-        <p style={{ fontFamily: FONTS.ui, fontSize: 11, color: 'var(--c-text-hi)', fontWeight: 600, margin: '0 0 4px' }}>No folder open</p>
+        <p style={{ fontFamily: FONTS.ui, fontSize: 11, color: 'var(--c-text-hi)', fontWeight: 600, margin: '0 0 4px' }}>{title}</p>
         <p style={{ fontFamily: FONTS.ui, fontSize: 10, color: 'var(--c-text-lo)', margin: 0, lineHeight: 1.5 }}>
-          A workspace is a normal folder where DevBoard keeps your pages, notes, and assets so everything reopens together later.
+          {body}
         </p>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%', maxWidth: 220 }}>
-        {onCreate && (
+        {onCreate && !browserWorkspaceUnavailable && (
           <button
             onClick={onCreate}
             style={{
@@ -484,16 +580,18 @@ function NoWorkspaceState({ onOpen, onCreate }: { onOpen: () => void; onCreate?:
         )}
         <button
           onClick={onOpen}
+          disabled={browserWorkspaceUnavailable}
           style={{
             padding: '7px 16px',
             borderRadius: 8,
             border: onCreate ? '1px solid var(--c-border)' : 'none',
-            background: onCreate ? 'transparent' : 'var(--c-line)',
-            color: onCreate ? 'var(--c-text-hi)' : '#fff',
+            background: browserWorkspaceUnavailable ? 'var(--c-hover)' : onCreate ? 'transparent' : 'var(--c-line)',
+            color: browserWorkspaceUnavailable ? 'var(--c-text-lo)' : onCreate ? 'var(--c-text-hi)' : '#fff',
             fontFamily: FONTS.ui,
             fontSize: 11,
             fontWeight: 600,
-            cursor: 'pointer',
+            cursor: browserWorkspaceUnavailable ? 'default' : 'pointer',
+            opacity: browserWorkspaceUnavailable ? 0.7 : 1,
             letterSpacing: '0.02em',
           }}
         >
@@ -501,7 +599,7 @@ function NoWorkspaceState({ onOpen, onCreate }: { onOpen: () => void; onCreate?:
         </button>
       </div>
       <p style={{ fontFamily: FONTS.ui, fontSize: 9.5, color: 'var(--c-text-lo)', margin: 0, lineHeight: 1.5, maxWidth: 240 }}>
-        Tip: use a dedicated project folder so `workspace.json`, `pages/`, `notes/`, and `assets/` stay together.
+        {tip}
       </p>
     </div>
   );
@@ -510,6 +608,7 @@ function NoWorkspaceState({ onOpen, onCreate }: { onOpen: () => void; onCreate?:
 function PageGroup({
   page,
   docs,
+  coarsePointer,
   isActive,
   isCollapsed,
   activeDocId,
@@ -537,6 +636,7 @@ function PageGroup({
 }: {
   page: PageMeta;
   docs: Document[];
+  coarsePointer: boolean;
   isActive: boolean;
   isCollapsed: boolean;
   activeDocId: string | null;
@@ -569,6 +669,9 @@ function PageGroup({
   const [draggedDocId, setDraggedDocId] = useState<string | null>(null);
   const [dropTargetDocId, setDropTargetDocId] = useState<string | null>(null);
   const [noteMenu, setNoteMenu] = useState<{ doc: Document; x: number; y: number } | null>(null);
+  const [noteMenuExportOpen, setNoteMenuExportOpen] = useState(false);
+  const noteMenuRef = useRef<HTMLDivElement>(null);
+  const noteMenuExportRef = useRef<HTMLDivElement>(null);
   const [pageMenu, setPageMenu] = useState<{ x: number; y: number } | null>(null);
   const [pageHovered, setPageHovered] = useState(false);
   const [hoveredDocId, setHoveredDocId] = useState<string | null>(null);
@@ -609,9 +712,19 @@ function PageGroup({
 
   useEffect(() => {
     if (!noteMenu) return;
-    const handleWindowClick = () => setNoteMenu(null);
+    const handleWindowClick = (event: MouseEvent) => {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (noteMenuRef.current?.contains(target) || noteMenuExportRef.current?.contains(target)) return;
+      setNoteMenu(null);
+      setNoteMenuExportOpen(false);
+    };
     window.addEventListener('click', handleWindowClick);
     return () => window.removeEventListener('click', handleWindowClick);
+  }, [noteMenu]);
+
+  useEffect(() => {
+    if (!noteMenu) setNoteMenuExportOpen(false);
   }, [noteMenu]);
 
   useEffect(() => {
@@ -647,10 +760,11 @@ function PageGroup({
         }}
         style={{
           width: '100%',
+          minHeight: 24,
           display: 'flex',
           alignItems: 'center',
           gap: 6,
-          padding: '7px 9px',
+          padding: '4px 8px',
           borderRadius: 6,
           ...(isActive ? explorerFocusedRowStyle : {}),
           ...(pageFocused ? {
@@ -665,14 +779,14 @@ function PageGroup({
           } : {}),
         }}
         data-focused={pageFocused ? 'true' : undefined}
-        className="transition-colors"
+        className="group transition-colors"
       >
         <button
           onClick={onToggleCollapsed}
           title={isCollapsed ? `Expand "${page.name}"` : `Collapse "${page.name}"`}
-          style={{
-            width: 14,
-            height: 14,
+            style={{
+              width: 14,
+              height: 14,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -768,7 +882,7 @@ function PageGroup({
             />
           ) : (
             <span style={{
-              fontFamily: FONTS.ui, fontSize: 10.5, fontWeight: isActive ? 600 : 500,
+              fontFamily: FONTS.ui, fontSize: 10, fontWeight: isActive ? 600 : 500,
               color: isActive ? 'var(--c-text-hi)' : 'var(--c-text-lo)',
               overflow: 'hidden', textOverflow: 'ellipsis',
               whiteSpace: 'nowrap', flex: 1,
@@ -778,14 +892,65 @@ function PageGroup({
           )}
           <span style={{
             fontFamily: FONTS.ui,
-            fontSize: 9.5,
+            fontSize: 9,
             color: isActive ? 'var(--c-text-md)' : 'var(--c-text-lo)',
             flexShrink: 0,
+            lineHeight: 1,
+            display: 'flex',
+            alignItems: 'center',
+            alignSelf: 'center',
           }}>
             {docs.length}
           </span>
         </button>
-        <div style={{ position: 'relative', flexShrink: 0 }}>
+        <div style={{ position: 'relative', flexShrink: 0, display: 'flex', alignItems: 'center', alignSelf: 'center' }}>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onCreateNote();
+            }}
+            title={`New note in ${page.name}`}
+            style={{
+              width: 18,
+              height: 18,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 0,
+              border: 'none',
+              background: 'transparent',
+              color: 'var(--c-text-lo)',
+              borderRadius: 4,
+              cursor: 'pointer',
+              lineHeight: 1,
+              opacity: coarsePointer ? 0.72 : (pageHovered || pageFocused || isActive ? 0.72 : 0.36),
+              transition: 'opacity 0.12s ease, background 0.12s ease, color 0.12s ease',
+            }}
+            className="group-hover:opacity-100 focus:opacity-100"
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'var(--c-hover)';
+              e.currentTarget.style.color = 'var(--c-text-hi)';
+              e.currentTarget.style.opacity = '1';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.color = 'var(--c-text-lo)';
+              e.currentTarget.style.opacity = coarsePointer || pageHovered || pageFocused || isActive ? '0.72' : '0.36';
+            }}
+          >
+            <span
+              style={{
+                display: 'block',
+                fontSize: 14,
+                lineHeight: 1,
+                transform: 'translateY(-1px)',
+              }}
+            >
+              +
+            </span>
+          </button>
+        </div>
+        <div style={{ position: 'relative', flexShrink: 0, display: 'flex', alignItems: 'center', alignSelf: 'center' }}>
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -805,9 +970,10 @@ function PageGroup({
               color: 'var(--c-text-off)',
               borderRadius: 4,
               cursor: 'pointer',
+              lineHeight: 1,
             }}
           >
-            <span style={{ fontSize: 14, lineHeight: 1 }}>⋯</span>
+            <span style={{ fontSize: 14, lineHeight: 1, display: 'block', transform: 'translateY(-0.5px)' }}>⋯</span>
           </button>
           {pageMenu && (() => {
             const MENU_W = 180;
@@ -819,6 +985,18 @@ function PageGroup({
               className="py-1.5 rounded-xl border border-[var(--c-border)] bg-[var(--c-panel)] shadow-2xl"
               onMouseDown={(e) => e.stopPropagation()}
             >
+              <button
+                className="w-full flex items-center justify-between px-3 py-1.5 text-[12px] rounded transition-colors text-left text-[var(--c-text-md)] hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]"
+                style={{ fontFamily: FONTS.ui }}
+                onClick={() => {
+                  onCreateNote();
+                  setPageMenu(null);
+                }}
+              >
+                <span>New note</span>
+                <span className="text-[10px] ml-3 text-[var(--c-text-off)]">+</span>
+              </button>
+              <div style={{ height: 1, background: 'var(--c-border)', margin: '4px 0' }} />
               <div style={{ padding: '2px 10px 4px', fontFamily: FONTS.ui, fontSize: 10, color: 'var(--c-text-off)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                 Sort notes
               </div>
@@ -885,10 +1063,10 @@ function PageGroup({
 
       {!isCollapsed && (
         <div
-          style={{
-            marginTop: 4,
+              style={{
+            marginTop: 2,
             marginLeft: 22,
-            paddingLeft: 10,
+            paddingLeft: 8,
             borderLeft: '1px solid rgba(184,119,80,0.18)',
             maxHeight: 520,
             opacity: 1,
@@ -897,41 +1075,8 @@ function PageGroup({
             transition: 'max-height 0.18s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.14s ease, transform 0.18s cubic-bezier(0.22, 1, 0.36, 1), margin-top 0.18s ease',
           }}
         >
-          <button
-            onClick={onCreateNote}
-            style={{
-              width: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 7,
-              padding: '6px 8px',
-              background: 'transparent',
-              border: '1px dashed rgba(184,119,80,0.22)',
-              borderRadius: 7,
-              cursor: 'pointer',
-              textAlign: 'left',
-              color: 'var(--c-text-md)',
-              fontFamily: FONTS.ui,
-              fontSize: 10,
-              transition: 'background 0.12s, border-color 0.12s, color 0.12s',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'var(--c-hover)';
-              e.currentTarget.style.borderColor = 'rgba(184,119,80,0.34)';
-              e.currentTarget.style.color = 'var(--c-text-hi)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'transparent';
-              e.currentTarget.style.borderColor = 'rgba(184,119,80,0.22)';
-              e.currentTarget.style.color = 'var(--c-text-md)';
-            }}
-          >
-            <span style={{ fontSize: 15, lineHeight: 1, width: 12, textAlign: 'center', flexShrink: 0 }}>+</span>
-            <span>{`New note in ${page.name}`}</span>
-          </button>
-
           {docs.length === 0 ? (
-            <div style={{ padding: '8px 8px 2px', fontSize: 9.5, color: 'var(--c-text-lo)', fontFamily: FONTS.ui, fontStyle: 'italic' }}>
+            <div style={{ padding: '6px 8px 2px', fontSize: 9.5, color: 'var(--c-text-lo)', fontFamily: FONTS.ui, fontStyle: 'italic' }}>
               No notes on this page
             </div>
           ) : (
@@ -969,11 +1114,12 @@ function PageGroup({
 	                  }}
 	                  style={{
                     width: '100%',
+                    minHeight: 24,
                     display: 'flex',
                     alignItems: 'center',
                     gap: 7,
                     marginTop: 2,
-                    padding: '6px 8px',
+                    padding: '4px 8px',
 	                    background: isDragged
                         ? 'rgba(184,119,80,0.08)'
                         : (isFocused || isSelected)
@@ -1134,7 +1280,7 @@ function PageGroup({
                     />
                   ) : (
                     <span style={{
-                      fontFamily: FONTS.ui, fontSize: 10, fontWeight: isSelected ? 600 : 500,
+                      fontFamily: FONTS.ui, fontSize: 9.5, fontWeight: isSelected ? 600 : 500,
                       color: 'var(--c-text-hi)',
                       overflow: 'hidden', textOverflow: 'ellipsis',
                       whiteSpace: 'nowrap', flex: 1,
@@ -1142,7 +1288,7 @@ function PageGroup({
                       {doc.title || 'Untitled note'}
                     </span>
                   )}
-                  <span style={{ fontFamily: FONTS.ui, fontSize: 9.5, color: isSelected ? 'var(--c-text-md)' : 'var(--c-text-lo)', flexShrink: 0 }}>
+                  <span style={{ fontFamily: FONTS.ui, fontSize: 9, color: isSelected ? 'var(--c-text-md)' : 'var(--c-text-lo)', flexShrink: 0 }}>
                     {relativeTime(doc.updatedAt)}
                   </span>
                 </button>
@@ -1155,47 +1301,109 @@ function PageGroup({
         const MENU_W = 160;
         const left = Math.min(noteMenu.x, window.innerWidth - MENU_W - 8);
         const top = Math.min(noteMenu.y, window.innerHeight - 64);
+        const exportMenuLeft = Math.min(left + MENU_W - 8, window.innerWidth - 172 - 8);
+        const exportMenuTop = Math.min(top + 48, window.innerHeight - 110);
         return (
-          <div
-            style={{ position: 'fixed', left, top, zIndex: 9100, minWidth: MENU_W }}
-            className="py-1.5 rounded-xl border border-[var(--c-border)] bg-[var(--c-panel)] shadow-2xl"
-            onMouseDown={(e) => e.stopPropagation()}
-          >
-            {IS_TAURI && (
+          <>
+            <div
+              ref={noteMenuRef}
+              style={{ position: 'fixed', left, top, zIndex: 9100, minWidth: MENU_W }}
+              className="py-1.5 rounded-xl border border-[var(--c-border)] bg-[var(--c-panel)] shadow-2xl"
+              onMouseDown={(e) => e.stopPropagation()}
+            >
               <button
                 className="w-full flex items-center justify-between px-3 py-1.5 text-[12px] rounded transition-colors text-left text-[var(--c-text-md)] hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]"
                 style={{ fontFamily: FONTS.ui }}
                 onClick={() => {
-                  onRevealDocument(noteMenu.doc);
+                  exportDocumentAsMarkdownFile(noteMenu.doc);
                   setNoteMenu(null);
+                  setNoteMenuExportOpen(false);
                 }}
               >
-                <span>Show in Folder</span>
+                <span>Export .md</span>
               </button>
+              <button
+                className="w-full flex items-center justify-between px-3 py-1.5 text-[12px] rounded transition-colors text-left text-[var(--c-text-md)] hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]"
+                style={{ fontFamily: FONTS.ui }}
+                onMouseEnter={() => setNoteMenuExportOpen(true)}
+                onClick={() => setNoteMenuExportOpen((current) => !current)}
+              >
+                <span>Export as</span>
+                <span className="text-[10px] ml-3 text-[var(--c-text-off)]">›</span>
+              </button>
+              <div style={{ height: 1, background: 'var(--c-border)', margin: '3px 0' }} />
+              {IS_TAURI && (
+                <button
+                  className="w-full flex items-center justify-between px-3 py-1.5 text-[12px] rounded transition-colors text-left text-[var(--c-text-md)] hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]"
+                  style={{ fontFamily: FONTS.ui }}
+                  onClick={() => {
+                    onRevealDocument(noteMenu.doc);
+                    setNoteMenu(null);
+                    setNoteMenuExportOpen(false);
+                  }}
+                >
+                  <span>Show in Folder</span>
+                </button>
+              )}
+              <button
+                className="w-full flex items-center justify-between px-3 py-1.5 text-[12px] rounded transition-colors text-left text-[var(--c-text-md)] hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]"
+                style={{ fontFamily: FONTS.ui }}
+                onClick={() => {
+                  beginRename(noteMenu.doc);
+                  setNoteMenu(null);
+                  setNoteMenuExportOpen(false);
+                }}
+              >
+                <span>Rename</span>
+              </button>
+              <div style={{ height: 1, background: 'var(--c-border)', margin: '3px 0' }} />
+              <button
+                className="w-full flex items-center justify-between px-3 py-1.5 text-[12px] rounded transition-colors text-left hover:bg-[rgba(239,68,68,0.12)]"
+                style={{ fontFamily: FONTS.ui, color: '#f87171' }}
+                onClick={() => {
+                  onDeleteDocument(noteMenu.doc);
+                  setNoteMenu(null);
+                  setNoteMenuExportOpen(false);
+                }}
+              >
+                <span>Delete</span>
+                <span className="text-[10px] ml-3" style={{ color: '#f87171', opacity: 0.6 }}>⌫</span>
+              </button>
+            </div>
+
+            {noteMenuExportOpen && (
+              <div
+                ref={noteMenuExportRef}
+                style={{ position: 'fixed', left: exportMenuLeft, top: exportMenuTop, zIndex: 9101, minWidth: 172 }}
+                className="py-1.5 rounded-xl border border-[var(--c-border)] bg-[var(--c-panel)] shadow-2xl"
+                onMouseDown={(e) => e.stopPropagation()}
+                onMouseLeave={() => setNoteMenuExportOpen(false)}
+              >
+                <button
+                  className="w-full flex items-center justify-between px-3 py-1.5 text-[12px] rounded transition-colors text-left text-[var(--c-text-md)] hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]"
+                  style={{ fontFamily: FONTS.ui }}
+                  onClick={() => {
+                    exportDocumentAsPdf(noteMenu.doc);
+                    setNoteMenu(null);
+                    setNoteMenuExportOpen(false);
+                  }}
+                >
+                  <span>PDF…</span>
+                </button>
+                <button
+                  className="w-full flex items-center justify-between px-3 py-1.5 text-[12px] rounded transition-colors text-left text-[var(--c-text-md)] hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]"
+                  style={{ fontFamily: FONTS.ui }}
+                  onClick={() => {
+                    exportDocumentAsTextFile(noteMenu.doc);
+                    setNoteMenu(null);
+                    setNoteMenuExportOpen(false);
+                  }}
+                >
+                  <span>Plain text (.txt)</span>
+                </button>
+              </div>
             )}
-            <button
-              className="w-full flex items-center justify-between px-3 py-1.5 text-[12px] rounded transition-colors text-left text-[var(--c-text-md)] hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]"
-              style={{ fontFamily: FONTS.ui }}
-              onClick={() => {
-                beginRename(noteMenu.doc);
-                setNoteMenu(null);
-              }}
-            >
-              <span>Rename</span>
-            </button>
-            <div style={{ height: 1, background: 'var(--c-border)', margin: '3px 0' }} />
-            <button
-              className="w-full flex items-center justify-between px-3 py-1.5 text-[12px] rounded transition-colors text-left hover:bg-[rgba(239,68,68,0.12)]"
-              style={{ fontFamily: FONTS.ui, color: '#f87171' }}
-              onClick={() => {
-                onDeleteDocument(noteMenu.doc);
-                setNoteMenu(null);
-              }}
-            >
-              <span>Delete</span>
-              <span className="text-[10px] ml-3" style={{ color: '#f87171', opacity: 0.6 }}>⌫</span>
-            </button>
-          </div>
+          </>
         );
       })()}
     </div>
@@ -1212,12 +1420,14 @@ interface Props {
 }
 
 export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true }: Props) {
-  const workspaceName = useBoardStore((s) => s.workspaceName) ?? getWorkspaceName() ?? 'No folder open';
   const imageAssetFolder = useBoardStore((s) => s.imageAssetFolder);
-  const setImageAssetFolder = useBoardStore((s) => s.setImageAssetFolder);
   const boardTitle = useBoardStore((s) => s.boardTitle);
+  const setBoardTitle = useBoardStore((s) => s.setBoardTitle);
   const exportData = useBoardStore((s) => s.exportData);
   const setWorkspaceName = useBoardStore((s) => s.setWorkspaceName);
+  const cloudBoardId = useBoardStore((s) => s.cloudBoardId);
+  const cloudBoardTitle = useBoardStore((s) => s.cloudBoardTitle);
+  const markLocalSaved = useBoardStore((s) => s.markLocalSaved);
   const pages = useBoardStore((s) => s.pages);
   const addPage = useBoardStore((s) => s.addPage);
   const deletePage = useBoardStore((s) => s.deletePage);
@@ -1284,9 +1494,14 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
   const [pageSectionHeight, setPageSectionHeight] = useState(320);
   const [confirmingClose, setConfirmingClose] = useState(false);
   const confirmCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [folderEditing, setFolderEditing] = useState(false);
-  const [folderDraft, setFolderDraft] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [coarsePointer, setCoarsePointer] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const workspaceNameInputRef = useRef<HTMLInputElement>(null);
+  const workspaceNameBlurCancelledRef = useRef(false);
+  const [workspaceNameEditing, setWorkspaceNameEditing] = useState(false);
+  const [workspaceNameDraft, setWorkspaceNameDraft] = useState('');
   const [focusedIdx, setFocusedIdx] = useState<number | null>(null);
   const [pagePreview, setPagePreview] = useState<PagePreview | null>(null);
   const [notePreview, setNotePreview] = useState<NotePreview | null>(null);
@@ -1312,6 +1527,47 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
   const filesSectionMenuRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const resizeStateRef = useRef<{ startY: number; startHeight: number } | null>(null);
+  const workspaceDisplayName = useMemo(() => {
+    const title = boardTitle.trim();
+    return title || cloudBoardTitle || storeWorkspaceName || getWorkspaceName() || 'Untitled Workspace';
+  }, [boardTitle, cloudBoardTitle, storeWorkspaceName]);
+
+  const startWorkspaceNameEdit = useCallback(() => {
+    workspaceNameBlurCancelledRef.current = false;
+    setWorkspaceNameDraft(workspaceDisplayName);
+    setWorkspaceNameEditing(true);
+  }, [workspaceDisplayName]);
+
+  const cancelWorkspaceNameEdit = useCallback(() => {
+    workspaceNameBlurCancelledRef.current = true;
+    setWorkspaceNameDraft('');
+    setWorkspaceNameEditing(false);
+  }, []);
+
+  const commitWorkspaceNameEdit = useCallback(() => {
+    workspaceNameBlurCancelledRef.current = false;
+    const nextName = workspaceNameDraft.trim() || workspaceDisplayName;
+    setWorkspaceNameEditing(false);
+    setWorkspaceNameDraft('');
+    if (nextName === workspaceDisplayName) return;
+
+    setBoardTitle(nextName);
+    if (cloudBoardId) markLocalSaved();
+
+    const data = { ...useBoardStore.getState().exportData(), boardTitle: nextName };
+    void saveWorkspace(data, { notify: false })
+      .then((result) => {
+        if (result.saved) {
+          toast(`Renamed workspace · ${nextName}`);
+        } else if (cloudBoardId) {
+          toast('Workspace renamed locally. Sync to update the online copy.');
+        }
+      })
+      .catch((err) => {
+        console.warn('Workspace rename save failed:', err);
+        toast('Workspace renamed locally. Save again to update the folder.');
+      });
+  }, [cloudBoardId, markLocalSaved, setBoardTitle, workspaceDisplayName, workspaceNameDraft]);
 
   // Cleanup on unmount
   useEffect(() => () => {
@@ -1322,6 +1578,34 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
     if (typeof window === 'undefined') return;
     window.localStorage.setItem(ADVANCED_FILES_STORAGE_KEY, advancedFilesVisible ? '1' : '0');
   }, [advancedFilesVisible]);
+
+  useEffect(() => {
+    if (!searchOpen) return;
+    const raf = window.requestAnimationFrame(() => searchInputRef.current?.focus());
+    return () => window.cancelAnimationFrame(raf);
+  }, [searchOpen]);
+
+  useEffect(() => {
+    if (!workspaceNameEditing) return;
+    const raf = window.requestAnimationFrame(() => {
+      workspaceNameInputRef.current?.focus();
+      workspaceNameInputRef.current?.select();
+    });
+    return () => window.cancelAnimationFrame(raf);
+  }, [workspaceNameEditing]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+    const media = window.matchMedia('(pointer: coarse)');
+    const sync = () => setCoarsePointer(media.matches);
+    sync();
+    if (typeof media.addEventListener === 'function') {
+      media.addEventListener('change', sync);
+      return () => media.removeEventListener('change', sync);
+    }
+    media.addListener(sync);
+    return () => media.removeListener(sync);
+  }, []);
 
   useEffect(() => {
     const onPointerMove = (e: PointerEvent) => {
@@ -1502,6 +1786,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
     if (result) {
       useBoardStore.getState().setWorkspaceName?.(result.name);
       if (result.data) useBoardStore.getState().loadBoard(result.data);
+      applyWorkspaceSyncFromOpenResult(result);
       // Reload tree
       setRootLoading(true);
       setRootError(null);
@@ -1885,6 +2170,12 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
   }, [keyboardItems]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Escape' && searchOpen) {
+      e.preventDefault();
+      setSearchOpen(false);
+      setSearchQuery('');
+      return;
+    }
     if (keyboardItems.length === 0) return;
     if (e.key === 'ArrowDown') {
       e.preventDefault();
@@ -1932,7 +2223,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
       clearPagePreview();
       clearPreview();
     }
-  }, [activePageId, assetVisibleEntries, clearPagePreview, clearPreview, focusedIdx, focusedItem, handleToggle, keyboardItems, openDocumentWithMorph, openFile, placeFile, startDelete, startRename, switchPage]);
+  }, [activePageId, assetVisibleEntries, clearPagePreview, clearPreview, focusedIdx, focusedItem, handleToggle, keyboardItems, openDocumentWithMorph, openFile, placeFile, searchOpen, startDelete, startRename, switchPage]);
 
   return (
     <div
@@ -1948,19 +2239,166 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
       tabIndex={0}
       onKeyDown={handleKeyDown}
     >
-      {/* Header — drag handle */}
+      {/* Header */}
       <div
         style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '12px 12px 10px',
+          gap: 8,
+          padding: '8px 10px',
           borderBottom: '1px solid var(--c-border)',
           flexShrink: 0,
         }}
       >
-        <span style={{ fontFamily: FONTS.ui, fontSize: 12.5, fontWeight: 700, color: 'var(--c-text-hi)', letterSpacing: '-0.01em' }}>
-          Explorer
-        </span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, flex: 1 }}>
+          <button
+            onClick={onCollapse}
+            title="Collapse sidebar"
+            className="w-5 h-5 flex items-center justify-center rounded text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
+            style={{ border: 'none', background: 'transparent', cursor: 'pointer', flexShrink: 0 }}
+          >
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M7.75 2.25 4 6l3.75 3.75" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M10 2.25 6.25 6 10 9.75" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+          {!searchOpen ? (
+            workspaceNameEditing ? (
+              <input
+                ref={workspaceNameInputRef}
+                value={workspaceNameDraft}
+                onChange={(e) => setWorkspaceNameDraft(e.target.value)}
+                onBlur={() => {
+                  if (workspaceNameBlurCancelledRef.current) {
+                    workspaceNameBlurCancelledRef.current = false;
+                    return;
+                  }
+                  commitWorkspaceNameEdit();
+                }}
+                onMouseDown={(e) => e.stopPropagation()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    commitWorkspaceNameEdit();
+                  } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    cancelWorkspaceNameEdit();
+                  }
+                  e.stopPropagation();
+                }}
+                aria-label="Workspace name"
+                className="select-text"
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  height: 24,
+                  padding: '0 7px',
+                  background: 'var(--c-canvas)',
+                  border: '1px solid var(--c-border)',
+                  borderRadius: 6,
+                  outline: 'none',
+                  fontFamily: FONTS.ui,
+                  fontSize: 12,
+                  fontWeight: 800,
+                  color: 'var(--c-text-hi)',
+                  letterSpacing: 0,
+                }}
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={startWorkspaceNameEdit}
+                title="Rename workspace"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  minWidth: 0,
+                  maxWidth: '100%',
+                  padding: '2px 4px',
+                  background: 'transparent',
+                  border: 'none',
+                  borderRadius: 5,
+                  cursor: 'text',
+                  color: 'var(--c-text-hi)',
+                }}
+                className="group/workspace-name hover:bg-[var(--c-hover)]"
+              >
+                <span
+                  style={{
+                    minWidth: 0,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    fontFamily: FONTS.ui,
+                    fontSize: 12,
+                    fontWeight: 800,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {workspaceDisplayName}
+                </span>
+                <svg
+                  width="10"
+                  height="10"
+                  viewBox="0 0 10 10"
+                  fill="none"
+                  aria-hidden="true"
+                  className="opacity-0 group-hover/workspace-name:opacity-60 group-focus/workspace-name:opacity-60 transition-opacity"
+                  style={{ flexShrink: 0 }}
+                >
+                  <path d="M6.6 1.3 8.7 3.4 3.2 8.9H1.1V6.8L6.6 1.3Z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round" />
+                </svg>
+              </button>
+            )
+          ) : (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                minWidth: 0,
+                flex: 1,
+                height: 24,
+                padding: '0 8px',
+                border: '1px solid var(--c-border)',
+                borderRadius: 8,
+                background: 'var(--c-panel)',
+              }}
+            >
+              <svg width="11" height="11" viewBox="0 0 11 11" fill="none" style={{ flexShrink: 0, opacity: 0.55 }}>
+                <circle cx="4.5" cy="4.5" r="3.5" stroke="var(--c-text-hi)" strokeWidth="1.3" />
+                <line x1="7.5" y1="7.5" x2="10" y2="10" stroke="var(--c-text-hi)" strokeWidth="1.3" strokeLinecap="round" />
+              </svg>
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    e.preventDefault();
+                    setSearchOpen(false);
+                    setSearchQuery('');
+                    return;
+                  }
+                  if (['ArrowUp', 'ArrowDown', 'Enter'].includes(e.key)) handleKeyDown(e as unknown as React.KeyboardEvent);
+                }}
+                placeholder="Search assets..."
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  background: 'transparent',
+                  border: 'none',
+                  outline: 'none',
+                  fontFamily: FONTS.ui,
+                  fontSize: 10,
+                  color: 'var(--c-text-hi)',
+                  caretColor: 'var(--c-line)',
+                }}
+              />
+            </div>
+          )}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
           {confirmingClose ? (
             /* Two-step close confirmation */
             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -1987,14 +2425,20 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
           ) : (
             <>
               <button
-                onClick={onCollapse}
-                title="Collapse explorer"
+                onClick={() => {
+                  setSearchOpen((current) => {
+                    const next = !current;
+                    if (!next) setSearchQuery('');
+                    return next;
+                  });
+                }}
+                title={searchOpen ? 'Close search' : 'Search'}
                 className="w-5 h-5 flex items-center justify-center rounded text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
                 style={{ border: 'none', background: 'transparent', cursor: 'pointer', flexShrink: 0 }}
               >
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                  <path d="M7.75 2.25 4 6l3.75 3.75" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" strokeLinejoin="round" />
-                  <path d="M10 2.25 6.25 6 10 9.75" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" strokeLinejoin="round" />
+                <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+                  <circle cx="4.5" cy="4.5" r="3.5" stroke="currentColor" strokeWidth="1.3" />
+                  <line x1="7.5" y1="7.5" x2="10" y2="10" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
                 </svg>
               </button>
               {canClose && (
@@ -2018,82 +2462,17 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
         </div>
       </div>
 
-      {/* Search bar */}
-      {getWorkspaceName() && (
-        <div style={{ padding: '10px 12px 8px', borderBottom: '1px solid var(--c-border)', flexShrink: 0 }}>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              height: 32,
-              padding: '0 10px',
-              background: 'var(--c-panel)',
-              border: '1px solid var(--c-border)',
-              borderRadius: 10,
-              boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
-            }}
-          >
-            <svg width="12" height="12" viewBox="0 0 11 11" fill="none" style={{ flexShrink: 0, opacity: 0.55 }}>
-              <circle cx="4.5" cy="4.5" r="3.5" stroke="var(--c-text-hi)" strokeWidth="1.3" />
-              <line x1="7.5" y1="7.5" x2="10" y2="10" stroke="var(--c-text-hi)" strokeWidth="1.3" strokeLinecap="round" />
-            </svg>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={(e) => {
-                if (['ArrowUp', 'ArrowDown', 'Enter', 'Escape'].includes(e.key)) handleKeyDown(e as unknown as React.KeyboardEvent);
-              }}
-              placeholder="Search pages, assets..."
-              style={{
-                flex: 1,
-                background: 'transparent',
-                border: 'none',
-                outline: 'none',
-                fontFamily: FONTS.ui,
-                fontSize: 10.5,
-                color: 'var(--c-text-hi)',
-                caretColor: 'var(--c-line)',
-              }}
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, lineHeight: 1, color: 'var(--c-text-lo)' }}
-                title="Clear search"
-              >
-                <svg width="9" height="9" viewBox="0 0 9 9" fill="none">
-                  <path d="M1 1l7 7M8 1L1 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                </svg>
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Workspace root label */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', borderBottom: '1px solid var(--c-border)', flexShrink: 0, overflow: 'hidden' }}>
-        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" style={{ flexShrink: 0 }}>
-          <path d="M1 2.5a1 1 0 0 1 1-1h1.8L5 3H8.5a1 1 0 0 1 1 1v3.5a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V2.5z" fill="rgba(212, 131, 90, 0.2)" stroke="#d4835a" strokeWidth="1" strokeLinejoin="round" />
-        </svg>
-        <span
-          style={{ fontFamily: FONTS.ui, fontSize: 9.5, fontWeight: 700, color: 'var(--c-text-hi)', textTransform: 'uppercase', letterSpacing: '0.06em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-          title={workspaceName}
-        >
-          {workspaceName}
-        </span>
-      </div>
-
       {/* ── BOARDS section ─────────────────────────────────────────────────── */}
       {getWorkspaceName() && pages.length > 0 && (
         <div style={{ borderBottom: '1px solid var(--c-border)', flexShrink: 0 }}>
           {/* Section header */}
           <div
             onClick={() => setPagesSectionOpen((v) => !v)}
+            className="group"
             style={{
               width: '100%', display: 'flex', alignItems: 'center', gap: 4,
-              padding: '8px 12px 4px', background: 'none', border: 'none',
+              minHeight: 24,
+              padding: '4px 10px', background: 'none', border: 'none',
               cursor: 'pointer', userSelect: 'none',
             }}
           >
@@ -2104,7 +2483,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
               display: 'inline-block',
             }}>▾</span>
             <span style={explorerSectionHeaderStyle}>Pages</span>
-            <span style={{ marginLeft: 'auto', fontFamily: FONTS.ui, fontSize: 9.5, color: 'var(--c-text-lo)' }}>{pages.length}</span>
+            <span style={{ marginLeft: 'auto', fontFamily: FONTS.ui, fontSize: 9, color: 'var(--c-text-lo)' }}>{pages.length}</span>
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -2127,7 +2506,10 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
                 fontFamily: FONTS.ui,
                 fontSize: 14,
                 lineHeight: 1,
+                opacity: 0,
+                transition: 'opacity 0.12s ease, background 0.12s ease, color 0.12s ease',
               }}
+              className="group-hover:opacity-100 focus:opacity-100"
               onMouseEnter={(e) => {
                 e.currentTarget.style.background = 'var(--c-hover)';
                 e.currentTarget.style.color = 'var(--c-text-hi)';
@@ -2144,7 +2526,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
           {pagesSectionOpen && (
             <div
               style={{
-                padding: '0 8px 0',
+                padding: '0 6px 0',
                 height: pageSectionHeight,
                 overflowY: 'auto',
                 scrollbarWidth: 'thin',
@@ -2159,6 +2541,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
                     key={page.id}
                     page={page}
                     docs={docsForPage}
+                    coarsePointer={coarsePointer}
                     isActive={isActive}
                     isCollapsed={isCollapsed}
                     activeDocId={activeDocId}
@@ -2202,7 +2585,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
           onPointerDown={startPageSectionResize}
           title="Resize pages section"
           style={{
-            height: 12,
+            height: 8,
             flexShrink: 0,
             display: 'flex',
             alignItems: 'center',
@@ -2214,8 +2597,8 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
         >
           <div
             style={{
-              width: 40,
-              height: 4,
+              width: 32,
+              height: 3,
               borderRadius: 999,
               background: 'rgba(138, 117, 95, 0.26)',
             }}
@@ -2232,9 +2615,11 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
             e.stopPropagation();
             setFilesSectionMenu({ x: e.clientX, y: e.clientY });
           }}
+          className="group"
           style={{
             width: '100%', display: 'flex', alignItems: 'center', gap: 4,
-            padding: '8px 12px 4px', background: 'none', border: 'none',
+            minHeight: 24,
+            padding: '4px 10px', background: 'none', border: 'none',
             cursor: 'pointer', userSelect: 'none',
           }}
         >
@@ -2244,13 +2629,13 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
             transition: 'transform 0.12s',
             display: 'inline-block',
           }}>▾</span>
-          <span style={explorerSectionHeaderStyle}>Files</span>
-          <span style={{ marginLeft: 'auto', fontFamily: FONTS.ui, fontSize: 9.5, color: 'var(--c-text-lo)' }}>{assetTree.length}</span>
+          <span style={explorerSectionHeaderStyle}>Assets</span>
+          <span style={{ marginLeft: 'auto', fontFamily: FONTS.ui, fontSize: 9, color: 'var(--c-text-lo)' }}>{assetTree.length}</span>
           {advancedFilesVisible && (
             <span
               style={{
                 fontFamily: FONTS.ui,
-                fontSize: 8.5,
+                fontSize: 8,
                 color: 'var(--c-line)',
                 textTransform: 'uppercase',
                 letterSpacing: '0.06em',
@@ -2266,8 +2651,8 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
               role="button"
               tabIndex={0}
               title="New folder at root"
-              className="w-5 h-5 flex items-center justify-center rounded text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
-              style={{ flexShrink: 0 }}
+              className="w-5 h-5 flex items-center justify-center rounded text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors group-hover:opacity-100 focus:opacity-100"
+              style={{ flexShrink: 0, opacity: 0 }}
               onClick={(e) => {
                 e.stopPropagation();
                 setAssetsSectionOpen(true);
@@ -2320,7 +2705,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
 
       {/* File tree */}
       {assetsSectionOpen && (
-      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto py-1" style={{ scrollbarWidth: 'thin', overflowX: 'hidden' }}>
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto py-0.5" style={{ scrollbarWidth: 'thin', overflowX: 'hidden' }}>
         {/* Inline new-folder input at root */}
         {newFolderParent !== null && newFolderParent.length === 0 && (
           <div className="flex items-center gap-1.5 h-[26px] px-2 mx-1 rounded" style={{ background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.35)' }}>
@@ -2367,102 +2752,10 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
       </div>
       )}
 
-      {/* Default save folder — only shown when a workspace is open */}
-      {getWorkspaceName() && (
-        <div style={{ padding: '8px 12px', borderTop: '1px solid var(--c-border)', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
-          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" style={{ flexShrink: 0, opacity: 0.5 }}>
-            <path d="M1 2.5a1 1 0 0 1 1-1h1.8L5 3H8.5a1 1 0 0 1 1 1v3.5a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V2.5z" stroke="var(--c-text-off)" strokeWidth="1" strokeLinejoin="round" />
-          </svg>
-          {folderEditing ? (
-            <input
-              autoFocus
-              type="text"
-              value={folderDraft}
-              onChange={(e) => setFolderDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  const v = folderDraft.trim().replace(/^\/+|\/+$/g, '');
-                  if (v) setImageAssetFolder(v);
-                  setFolderEditing(false);
-                  e.stopPropagation();
-                }
-                if (e.key === 'Escape') { setFolderEditing(false); e.stopPropagation(); }
-                e.stopPropagation();
-              }}
-              onBlur={() => {
-                const v = folderDraft.trim().replace(/^\/+|\/+$/g, '');
-                if (v) setImageAssetFolder(v);
-                setFolderEditing(false);
-              }}
-              placeholder="assets"
-              style={{ flex: 1, background: 'transparent', border: 'none', borderBottom: '1px solid var(--c-line)', outline: 'none', fontFamily: FONTS.ui, fontSize: 10, color: 'var(--c-text-hi)', caretColor: 'var(--c-line)', paddingBottom: 1 }}
-            />
-          ) : (
-            <>
-              <span style={{ fontFamily: FONTS.ui, fontSize: 9.5, color: 'var(--c-text-off)', flex: 1 }}>
-                Save images to: <span style={{ color: 'var(--c-text-md)' }}>{imageAssetFolder}/</span>
-              </span>
-              <button
-                onClick={() => { setFolderDraft(imageAssetFolder); setFolderEditing(true); }}
-                title="Change default save folder"
-                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: 'var(--c-text-lo)', lineHeight: 1, flexShrink: 0 }}
-                onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--c-text-hi)')}
-                onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--c-text-lo)')}
-              >
-                <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                  <path d="M7 1.5l1.5 1.5-5 5H2V6.5l5-5z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round" />
-                </svg>
-              </button>
-            </>
-          )}
-        </div>
-      )}
-
-      {/* Files hint + trash */}
-      <div style={{ padding: '7px 12px 9px', borderTop: '1px solid var(--c-border)', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
-        <p style={{ fontSize: 8.5, color: 'var(--c-text-lo)', fontFamily: FONTS.ui, lineHeight: 1.4, margin: 0, flex: 1 }}>
-          {focusedIdx !== null && visibleEntries[focusedIdx]
-            ? 'Files: double-click or ↵ to place · drag to canvas · ↑↓ navigate'
-            : pages.length > 1
-              ? 'Active page can be deleted from here'
-              : 'Keep at least one page in the workspace'}
+      <div style={{ padding: '7px 10px 8px', borderTop: '1px solid var(--c-border)', flexShrink: 0 }}>
+        <p style={{ fontSize: 9, color: 'var(--c-text-lo)', fontFamily: FONTS.ui, lineHeight: 1.3, margin: 0 }}>
+          ⌘K to jump anywhere
         </p>
-        {(focusedIdx !== null && visibleEntries[focusedIdx]) || pages.length > 1 ? (
-          <button
-            onClick={() => {
-              if (focusedIdx !== null && visibleEntries[focusedIdx]) {
-                startDelete(visibleEntries[focusedIdx]!);
-                return;
-              }
-              const activePage = pages.find((page) => page.id === activePageId);
-              if (activePage && pages.length > 1) {
-                setDeletePageConfirm({ id: activePage.id, name: activePage.name });
-              }
-            }}
-            title={
-              focusedIdx !== null && visibleEntries[focusedIdx]
-                ? `Delete ${visibleEntries[focusedIdx]!.name}`
-                : `Delete ${pages.find((page) => page.id === activePageId)?.name ?? 'page'}`
-            }
-            style={{
-              flexShrink: 0,
-              width: 24, height: 24,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: 'none', border: '1px solid rgba(239,68,68,0.3)',
-              borderRadius: 6, cursor: 'pointer',
-              color: '#f87171', opacity: 0.75,
-              transition: 'opacity 0.15s, background 0.15s',
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.background = 'rgba(239,68,68,0.12)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.75'; e.currentTarget.style.background = 'none'; }}
-          >
-            <svg width="11" height="12" viewBox="0 0 11 12" fill="none">
-              <path d="M1 3h9M4 3V2h3v1M2 3l.7 7.5a1 1 0 0 0 1 .5h3.6a1 1 0 0 0 1-.5L9 3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-              <line x1="4.5" y1="5.5" x2="4.5" y2="8.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
-              <line x1="6.5" y1="5.5" x2="6.5" y2="8.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
-            </svg>
-          </button>
-        ) : null}
       </div>
 
       {/* Delete confirmation */}

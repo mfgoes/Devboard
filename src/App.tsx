@@ -10,6 +10,8 @@ import {
   markUpdateNotified,
   shouldAutoCheckForUpdates,
 } from './utils/updates';
+import { announceLocalSave } from './utils/saveStatus';
+import { applyWorkspaceSyncFromOpenResult } from './utils/applyWorkspaceSync';
 
 // Tauri event listener — only active when running inside a Tauri window
 async function listenTauriMenus(handlers: Record<string, () => void>) {
@@ -49,11 +51,10 @@ import WorkspaceExplorer, { WORKSPACE_EXPLORER_WIDTH } from './components/Worksp
 import JiraPanel from './components/JiraPanel';
 import SearchBar from './components/SearchBar';
 import { useBoardStore } from './store/boardStore';
-import { STICKER_KEYS } from './assets/stickerAssets';
-import { DEMO_COLORS } from './utils/palette';
 
 const EXPLORER_COLLAPSED_WIDTH = 28;
 const DESKTOP_EXPLORER_BREAKPOINT = 1024;
+const MOBILE_NOTE_BREAKPOINT = 768;
 const IS_WINDOWS = typeof navigator !== 'undefined' && navigator.userAgent.includes('Windows');
 
 function loadFromHash() {
@@ -83,6 +84,7 @@ export default function App() {
   // Only show welcome modal when explicitly triggered (logo click)
   const [showWelcome, setShowWelcome] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [templatesOpen, setTemplatesOpen] = useState(false);
   const [showBraveNotice, setShowBraveNotice] = useState(false);
   const [showMobileWorkspaceNotice, setShowMobileWorkspaceNotice] = useState(false);
   const [toastData, setToastData] = useState<ToastPayload | null>(null);
@@ -101,6 +103,8 @@ export default function App() {
   const closeDocument = useBoardStore((s) => s.closeDocument);
   const addDocument = useBoardStore((s) => s.addDocument);
   const openDocumentWithMorph = useBoardStore((s) => s.openDocumentWithMorph);
+  const docViewMode = useBoardStore((s) => s.docViewMode);
+  const setDocViewMode = useBoardStore((s) => s.setDocViewMode);
 
   const boardTitle = useBoardStore((s) => s.boardTitle);
   const workspaceName = useBoardStore((s) => s.workspaceName);
@@ -109,7 +113,7 @@ export default function App() {
   const isStackPage = activePage?.layoutMode === 'stack';
 
   useEffect(() => {
-    const label = workspaceName ?? boardTitle;
+    const label = boardTitle.trim() || workspaceName;
     document.title = label ? `${label} — DevBoard` : 'DevBoard';
   }, [boardTitle, workspaceName]);
   const activeNoticeCount = Number(showBraveNotice) + Number(showMobileWorkspaceNotice);
@@ -119,42 +123,98 @@ export default function App() {
   const [desktopExplorerPinned, setDesktopExplorerPinned] = useState(() => (
     typeof window !== 'undefined' ? window.innerWidth >= DESKTOP_EXPLORER_BREAKPOINT : true
   ));
+  const [isMobileViewport, setIsMobileViewport] = useState(() => (
+    typeof window !== 'undefined' ? window.innerWidth < MOBILE_NOTE_BREAKPOINT : false
+  ));
   const explorerVisible = desktopExplorerPinned || explorerOpen;
   const explorerOffset = explorerVisible ? (explorerCollapsed ? EXPLORER_COLLAPSED_WIDTH : explorerWidth) : 0;
+  const documentFrameOffset = isMobileViewport ? 0 : explorerOffset;
   const explorerDragRef = useRef(false);
+  const sidePanelDragRef = useRef(false);
+  const [docPanelWidth, setDocPanelWidth] = useState(() => (
+    typeof window !== 'undefined'
+      ? Math.max(440, Math.min(760, Math.round(window.innerWidth * 0.44)))
+      : 560
+  ));
+  const effectiveDocViewMode = isMobileViewport ? 'fullscreen' : docViewMode;
 
   // ── Zoom-morph state machine ─────────────────────────────────────────────
   const MORPH_MS = 380;
+  const PANEL_SLIDE_MS = 220;
   const [morphPhase, setMorphPhase] = useState<'idle' | 'opening' | 'open' | 'closing'>('idle');
-  const prevAppMode = useRef(appMode);
+  const [panelPhase, setPanelPhase] = useState<'idle' | 'open' | 'closing'>('idle');
+  const [morphRectOverride, setMorphRectOverride] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
+  const prevPresentation = useRef({ appMode, docViewMode: effectiveDocViewMode });
+
+  const getPanelRect = useCallback(() => {
+    const maxWidth = Math.max(380, window.innerWidth - documentFrameOffset - 120);
+    const panelWidth = window.innerWidth < 640
+      ? window.innerWidth
+      : Math.max(380, Math.min(maxWidth, docPanelWidth));
+    return {
+      left: window.innerWidth - panelWidth,
+      top: contentTop,
+      width: panelWidth,
+      height: Math.max(0, window.innerHeight - contentTop),
+    };
+  }, [contentTop, docPanelWidth, documentFrameOffset]);
 
   useEffect(() => {
-    if (appMode === 'document' && prevAppMode.current !== 'document') {
-      setMorphPhase('opening');
-      requestAnimationFrame(() => requestAnimationFrame(() => setMorphPhase('open')));
+    if (appMode === 'document' && prevPresentation.current.appMode !== 'document') {
+      if (effectiveDocViewMode === 'fullscreen') {
+        setMorphPhase('opening');
+        requestAnimationFrame(() => requestAnimationFrame(() => setMorphPhase('open')));
+      } else {
+        setPanelPhase('open');
+      }
+    } else if (appMode === 'canvas' && prevPresentation.current.appMode === 'document') {
+      setPanelPhase('idle');
+      setMorphPhase('idle');
+      setMorphRectOverride(null);
+    } else if (appMode === 'document' && prevPresentation.current.docViewMode !== effectiveDocViewMode) {
+      if (effectiveDocViewMode === 'fullscreen') {
+        setMorphRectOverride(prevPresentation.current.docViewMode === 'panel' ? getPanelRect() : null);
+        setPanelPhase('idle');
+        setMorphPhase('opening');
+        requestAnimationFrame(() => requestAnimationFrame(() => setMorphPhase('open')));
+      } else {
+        setMorphPhase('idle');
+        setMorphRectOverride(null);
+        setPanelPhase('open');
+      }
     }
-    prevAppMode.current = appMode;
-  }, [appMode]);
+    prevPresentation.current = { appMode, docViewMode: effectiveDocViewMode };
+  }, [appMode, effectiveDocViewMode, getPanelRect]);
 
   const closeDoc = useCallback(() => {
-    setMorphPhase('closing');
-    setTimeout(() => {
-      closeDocument();
-      setMorphPhase('idle');
-    }, MORPH_MS);
-  }, [closeDocument]);
+    if (effectiveDocViewMode === 'fullscreen') {
+      setMorphPhase('closing');
+      setTimeout(() => {
+        closeDocument();
+        setMorphPhase('idle');
+        setMorphRectOverride(null);
+      }, MORPH_MS);
+    } else {
+      setPanelPhase('closing');
+      setTimeout(() => {
+        closeDocument();
+        setPanelPhase('idle');
+        setMorphRectOverride(null);
+      }, PANEL_SLIDE_MS);
+    }
+  }, [closeDocument, effectiveDocViewMode]);
 
   // Esc closes document
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && morphPhase === 'open') {
+      if (e.key === 'Escape' && (morphPhase === 'open' || panelPhase === 'open')) {
         e.preventDefault();
         closeDoc();
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [morphPhase, closeDoc]);
+  }, [morphPhase, panelPhase, closeDoc]);
 
   // Cmd+N on stack pages → new note
   const handleNewNote = useCallback(() => {
@@ -168,7 +228,34 @@ export default function App() {
   const snapCloseDoc = useCallback(() => {
     closeDocument();
     setMorphPhase('idle');
+    setPanelPhase('idle');
+    setMorphRectOverride(null);
   }, [closeDocument]);
+
+  const expandToFullscreen = useCallback(() => {
+    setMorphRectOverride(getPanelRect());
+    setPanelPhase('idle');
+    setDocViewMode('fullscreen');
+    setMorphPhase('opening');
+    requestAnimationFrame(() => requestAnimationFrame(() => setMorphPhase('open')));
+  }, [getPanelRect, setDocViewMode]);
+
+  const collapseToPanel = useCallback(() => {
+    setMorphRectOverride(getPanelRect());
+    setMorphPhase('closing');
+    setTimeout(() => {
+      setDocViewMode('panel');
+      setMorphPhase('idle');
+      setPanelPhase('open');
+      setMorphRectOverride(null);
+    }, MORPH_MS);
+  }, [getPanelRect, setDocViewMode]);
+
+  const dismissSidePanelFromCanvas = useCallback(() => {
+    if (appMode === 'document' && effectiveDocViewMode === 'panel' && !isStackPage && panelPhase === 'open') {
+      closeDoc();
+    }
+  }, [appMode, closeDoc, effectiveDocViewMode, isStackPage, panelPhase]);
 
   useEffect(() => {
     const handleSnapClose = () => snapCloseDoc();
@@ -309,10 +396,24 @@ export default function App() {
   }, [desktopExplorerPinned, explorerOpen]);
 
   useEffect(() => {
-    const onResize = () => setDesktopExplorerPinned(window.innerWidth >= DESKTOP_EXPLORER_BREAKPOINT);
+    const onResize = () => {
+      setDesktopExplorerPinned(window.innerWidth >= DESKTOP_EXPLORER_BREAKPOINT);
+      setIsMobileViewport(window.innerWidth < MOBILE_NOTE_BREAKPOINT);
+      setDocPanelWidth((current) => {
+        const maxWidth = Math.max(380, window.innerWidth - (window.innerWidth < MOBILE_NOTE_BREAKPOINT ? 0 : explorerOffset) - 120);
+        return Math.max(380, Math.min(maxWidth, current));
+      });
+    };
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
-  }, []);
+  }, [explorerOffset]);
+
+  useEffect(() => {
+    if (isMobileViewport && appMode === 'document' && explorerOpen) {
+      setExplorerCollapsed(false);
+      setExplorerOpen(false);
+    }
+  }, [appMode, explorerOpen, isMobileViewport, setExplorerOpen]);
 
   const theme = useBoardStore((s) => s.theme);
 
@@ -342,6 +443,7 @@ export default function App() {
       useBoardStore.getState().setWorkspaceName(result.name);
       useBoardStore.getState().bumpWorkspaceSaved();
       if (result.data) useBoardStore.getState().loadBoard(result.data);
+      applyWorkspaceSyncFromOpenResult(result);
     }).catch((err) => {
       console.warn('Failed to restore workspace', err);
     });
@@ -356,7 +458,7 @@ export default function App() {
     }
   }, []);
 
-  // Seed welcome board on first visit (canvas-native start screen)
+  // Seed welcome board on first visit (workspace + notes first)
   useEffect(() => {
     const isFirstVisit = !localStorage.getItem('devboard-visited');
     if (!isFirstVisit) return;
@@ -365,92 +467,82 @@ export default function App() {
       const store = useBoardStore.getState();
       if (store.nodes.length > 0) return; // board was loaded from hash
       localStorage.setItem('devboard-visited', '1');
-
-      const cx = Math.round(window.innerWidth / 2);
-      const cy = Math.round(window.innerHeight / 2);
-
-      // Sticker keys
-      const sHappy    = STICKER_KEYS.find(k => k.includes('happy'))       ?? STICKER_KEYS[0];
-      const sFire     = STICKER_KEYS.find(k => k.includes('fire'))        ?? STICKER_KEYS[0];
-      const sThumbsUp = STICKER_KEYS.find(k => k.includes('thumbA.png'))  ?? STICKER_KEYS[0];
-      const sDerpy    = STICKER_KEYS.find(k => k.includes('derpy'))       ?? STICKER_KEYS[0];
-
-      // Pre-generate IDs so connectors can reference sticky nodes
-      const idS1 = generateId(), idS2 = generateId(), idS3 = generateId();
-
-      // Sticky geometry
-      const SW = 210;  // sticky width
-      const GAP = 44;  // gap between stickies
-      const ROW_Y = cy - 40;
-
-      const s1x = cx - SW * 1.5 - GAP;
-      const s2x = cx - SW / 2;
-      const s3x = cx + SW / 2 + GAP;
+      const now = Date.now();
+      const stackPageId = 'page-1';
+      const canvasPageId = 'page-2';
 
       store.loadBoard({
         boardTitle: 'Welcome to DevBoard',
-        nodes: [
-          // ── Header ──────────────────────────────────────────────────────────
+        nodes: [],
+        pages: [
           {
-            id: generateId(), type: 'textblock',
-            x: cx - 210, y: cy - 195,
-            text: 'Welcome to DevBoard',
-            fontSize: 28, width: 420, color: 'auto', bold: true, italic: false, underline: false,
-          } as import('./types').TextBlockNode,
+            id: stackPageId,
+            name: 'Start here',
+            layoutMode: 'stack',
+            noteSort: 'custom',
+            nodes: [],
+            camera: { x: 0, y: 0, scale: 1 },
+          },
           {
-            id: generateId(), type: 'textblock',
-            x: cx - 200, y: cy - 148,
-            text: 'A thinking canvas for solo devs. Drop ideas, connect them, ship faster.',
-            fontSize: 13, width: 400, color: 'auto', bold: false, italic: true, underline: false,
-          } as import('./types').TextBlockNode,
-
-          // ── Three feature stickies ───────────────────────────────────────────
-          {
-            id: idS1, type: 'sticky',
-            x: s1x, y: ROW_Y,
-            text: 'Drop ideas\n\nSticky notes, shapes, text — put anything on the canvas.',
-            color: DEMO_COLORS.ideas, width: SW, height: 130,
-            fontSizeMode: 'fixed',
-          } as import('./types').StickyNoteNode,
-          {
-            id: idS2, type: 'sticky',
-            x: s2x, y: ROW_Y,
-            text: 'Connect them\n\nDraw arrows between ideas to map flows and relationships.',
-            color: DEMO_COLORS.connect, width: SW, height: 130,
-            fontSizeMode: 'fixed',
-          } as import('./types').StickyNoteNode,
-          {
-            id: idS3, type: 'sticky',
-            x: s3x, y: ROW_Y,
-            text: 'Share & export\n\nSave as PNG or a shareable link. Offline. No account.',
-            color: DEMO_COLORS.share, width: SW, height: 130,
-            fontSizeMode: 'fixed',
-          } as import('./types').StickyNoteNode,
-
-          // ── Connectors between stickies ──────────────────────────────────────
-          {
-            id: generateId(), type: 'connector',
-            fromNodeId: idS1, fromAnchor: 'right', fromX: s1x + SW, fromY: ROW_Y + 65,
-            toNodeId: idS2,   toAnchor: 'left',   toX: s2x,        toY: ROW_Y + 65,
-            color: DEMO_COLORS.connector, strokeWidth: 2,
-            lineStyle: 'curved', strokeStyle: 'solid',
-            arrowHeadStart: 'none', arrowHeadEnd: 'arrow',
-          } as import('./types').ConnectorNode,
-          {
-            id: generateId(), type: 'connector',
-            fromNodeId: idS2, fromAnchor: 'right', fromX: s2x + SW, fromY: ROW_Y + 65,
-            toNodeId: idS3,   toAnchor: 'left',   toX: s3x,        toY: ROW_Y + 65,
-            color: DEMO_COLORS.connector, strokeWidth: 2,
-            lineStyle: 'curved', strokeStyle: 'solid',
-            arrowHeadStart: 'none', arrowHeadEnd: 'arrow',
-          } as import('./types').ConnectorNode,
-
-          // ── Stickers for fun ─────────────────────────────────────────────────
-          { id: generateId(), type: 'sticker', src: sHappy,    x: cx - 310, y: cy - 220, width: 80, height: 80, rotation: -12 } as import('./types').StickerNode,
-          { id: generateId(), type: 'sticker', src: sFire,     x: s3x + SW + 10, y: ROW_Y + 60,  width: 70, height: 70, rotation: 10  } as import('./types').StickerNode,
-          { id: generateId(), type: 'sticker', src: sThumbsUp, x: s1x - 80, y: ROW_Y + 55, width: 70, height: 70, rotation: -8  } as import('./types').StickerNode,
-          { id: generateId(), type: 'sticker', src: sDerpy,    x: cx - 35,  y: ROW_Y + 148, width: 65, height: 65, rotation: 6   } as import('./types').StickerNode,
+            id: canvasPageId,
+            name: 'Canvas',
+            layoutMode: 'freeform',
+            noteSort: 'updated',
+            nodes: [
+              {
+                id: generateId(),
+                type: 'textblock',
+                x: 120,
+                y: 110,
+                text: 'Use this page when notes need a spatial layout.',
+                fontSize: 16,
+                width: 320,
+                color: 'auto',
+                bold: false,
+                italic: true,
+                underline: false,
+              } as import('./types').TextBlockNode,
+            ],
+            camera: { x: 0, y: 0, scale: 1 },
+          },
         ],
+        activePageId: stackPageId,
+        documents: [
+          {
+            id: 'doc_welcome_workspace',
+            title: 'Open or create a workspace folder',
+            emoji: '📁',
+            pageId: stackPageId,
+            orderIndex: 0,
+            createdAt: now,
+            updatedAt: now,
+            tags: ['workspace'],
+            content: '<p>Start by attaching a real workspace folder so your board, notes, and files live together.</p><p>Use the top bar to <strong>Open workspace folder</strong> for an existing project, or <strong>Create workspace folder</strong> to start fresh.</p><p>Once connected, DevBoard can keep notes beside your project files instead of in a throwaway canvas.</p>',
+          },
+          {
+            id: 'doc_welcome_notes',
+            title: 'Jot down notes first',
+            emoji: '📝',
+            pageId: stackPageId,
+            orderIndex: 1,
+            createdAt: now,
+            updatedAt: now,
+            tags: ['notes'],
+            content: '<p>This page opens in <strong>Stack mode</strong> so new ideas start as simple notes, not scattered stickies.</p><p>Use <strong>⌘N</strong> to make a note and capture:</p><ul><li>next steps</li><li>questions</li><li>ideas worth keeping</li></ul><p>Think of this as your project notebook.</p>',
+          },
+          {
+            id: 'doc_welcome_canvas',
+            title: 'Switch to canvas when ideas need space',
+            emoji: '🗺️',
+            pageId: stackPageId,
+            orderIndex: 2,
+            createdAt: now,
+            updatedAt: now,
+            tags: ['canvas'],
+            content: '<p>Canvas is still there when you need it.</p><p>Use it for spatial work like arranging stickies, drawing flows, or mapping relationships. Start with notes, then switch a page to <strong>Canvas</strong> mode when the work becomes visual.</p>',
+          },
+        ],
+        schemaVersion: 3,
       });
     }, 0);
   }, []);
@@ -484,17 +576,26 @@ export default function App() {
         if (requestActiveDocumentSave()) return;
         const data = useBoardStore.getState().exportData();
         if (getWorkspaceName()) {
-          saveWorkspace(data);
+          saveWorkspace(data, { notify: false }).then((result) => {
+            if (!result.saved) return;
+            announceLocalSave('workspace');
+          });
         } else {
-          saveBoard(data);
+          saveBoard(data, { notify: false }).then((result) => {
+            if (!result.saved) return;
+            announceLocalSave('file');
+          });
         }
         return;
       }
 
-      const el = (e.target as HTMLElement);
+      const el = (e.target as HTMLElement | null);
       const tag = el?.tagName?.toLowerCase();
-      // Skip shortcuts when typing in inputs, textareas, or contentEditable elements
-      if (tag === 'input' || tag === 'textarea' || el?.isContentEditable) return;
+      const isNativeTextInput = tag === 'input' || tag === 'textarea' || tag === 'select' || !!el?.isContentEditable;
+      const selection = window.getSelection?.();
+      const hasNativeTextSelection = !!selection && !selection.isCollapsed && selection.toString().trim().length > 0;
+      const shouldUseNativeClipboard = isNativeTextInput || !!el?.closest('[data-native-clipboard="true"]') || hasNativeTextSelection;
+      if (shouldUseNativeClipboard) return;
 
       const mod = e.metaKey || e.ctrlKey;
 
@@ -628,7 +729,18 @@ export default function App() {
       'menu:new_note':     () => handleNewNote(),
       'menu:save':         () => {
         if (requestActiveDocumentSave()) return;
-        saveBoard(useBoardStore.getState().exportData());
+        const data = useBoardStore.getState().exportData();
+        if (getWorkspaceName()) {
+          void saveWorkspace(data, { notify: false }).then((result) => {
+            if (!result.saved) return;
+            announceLocalSave('workspace');
+          });
+        } else {
+          void saveBoard(data, { notify: false }).then((result) => {
+            if (!result.saved) return;
+            announceLocalSave('file');
+          });
+        }
       },
       'menu:save_as':      () => import('./utils/fileSave').then(m => m.saveBoardAs(useBoardStore.getState().exportData())),
       'menu:export_png':   () => {
@@ -714,6 +826,8 @@ export default function App() {
         jiraOpen={jiraOpen}
         onToggleJira={() => setJiraOpen((v) => !v)}
         onToggleSearch={() => setSearchOpen((v) => !v)}
+        templatesOpen={templatesOpen}
+        onTemplatesOpenChange={setTemplatesOpen}
       />
       {showTimer && <TimerWidget onClose={() => setShowTimer(false)} />}
       {pagesOpen && <PagesPanel onClose={() => setPagesOpen(false)} />}
@@ -722,7 +836,7 @@ export default function App() {
       {showBraveNotice && (
         <div className="absolute top-11 left-0 right-0 z-50 flex items-center justify-between gap-3 bg-orange-500 text-white text-xs px-4 py-2">
           <span>
-            🦁 <strong>Brave browser detected:</strong> If interactions don't work, click the 🦁 icon in the address bar and disable <strong>Shields</strong> for this page.
+            🦁 <strong>Brave browser detected:</strong> Workspace folders can work here, but if <strong>Open folder</strong> does nothing, click the 🦁 icon in the address bar and disable <strong>Shields</strong> for this page.
           </span>
           <button
             onClick={() => setShowBraveNotice(false)}
@@ -838,13 +952,25 @@ export default function App() {
         {isStackPage ? (
           <StackView pageId={activePageId} pageName={activePage?.name ?? ''} />
         ) : (
-          <Canvas />
+          <Canvas onBackgroundInteract={dismissSidePanelFromCanvas} />
         )}
       </div>
-      {!isStackPage && <Toolbar />}
-      {!isStackPage && <ZoomToolbar />}
+      {!isStackPage && appMode !== 'document' && <Toolbar />}
+      {!isStackPage && appMode !== 'document' && <ZoomToolbar />}
       {appMode !== 'document' && <FocusMode />}
-      {showOnboarding && <OnboardingModal onClose={() => setShowOnboarding(false)} />}
+      {showOnboarding && (
+        <OnboardingModal
+          onClose={() => setShowOnboarding(false)}
+          onStartWriting={() => {
+            setShowOnboarding(false);
+            handleNewNote();
+          }}
+          onShowTemplates={() => {
+            setShowOnboarding(false);
+            setTemplatesOpen(true);
+          }}
+        />
+      )}
       {showWelcome && <WelcomeModal onClose={handleCloseWelcome} />}
 
       <QuickSwitcher
@@ -873,17 +999,68 @@ export default function App() {
         }}
       />
 
-      {/* Zoom-morph overlay — document editor */}
-      {morphPhase !== 'idle' && (() => {
+      {/* ── Side panel (default mode) ───────────────────────────────── */}
+      {effectiveDocViewMode === 'panel' && panelPhase !== 'idle' && (() => {
+        const panelRect = getPanelRect();
+        return (
+          <div style={{
+            position: 'fixed',
+            top: panelRect.top,
+            right: panelPhase === 'open' ? 0 : -panelRect.width,
+            width: panelRect.width,
+            bottom: 0,
+            zIndex: 170,
+            transition: `right ${PANEL_SLIDE_MS}ms cubic-bezier(0.22,1,0.36,1)`,
+            boxShadow: '-8px 0 32px rgba(0,0,0,0.3)',
+            borderLeft: '1px solid var(--c-border)',
+            overflow: 'hidden',
+          }}>
+            <div
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: -3,
+                width: 6,
+                bottom: 0,
+                cursor: 'col-resize',
+                zIndex: 12,
+              }}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                sidePanelDragRef.current = true;
+                const startX = e.clientX;
+                const startW = panelRect.width;
+                const onMove = (ev: MouseEvent) => {
+                  if (!sidePanelDragRef.current) return;
+                  const maxWidth = Math.max(380, window.innerWidth - documentFrameOffset - 120);
+                  const next = Math.max(380, Math.min(maxWidth, startW - (ev.clientX - startX)));
+                  setDocPanelWidth(next);
+                };
+                const onUp = () => {
+                  sidePanelDragRef.current = false;
+                  window.removeEventListener('mousemove', onMove);
+                  window.removeEventListener('mouseup', onUp);
+                };
+                window.addEventListener('mousemove', onMove);
+                window.addEventListener('mouseup', onUp);
+              }}
+            />
+            <DocumentMode onClose={closeDoc} onExpand={expandToFullscreen} panelMode />
+          </div>
+        );
+      })()}
+
+      {/* ── Full-screen morph overlay (expand mode) ──────────────────── */}
+      {effectiveDocViewMode === 'fullscreen' && morphPhase !== 'idle' && (() => {
         const W = window.innerWidth;
         const H = window.innerHeight;
-        const src = morphSourceRect;
+        const src = morphRectOverride ?? morphSourceRect;
         const isOpen = morphPhase === 'open';
         const frameStyle: React.CSSProperties = {
           position: 'fixed',
-          left: isOpen ? explorerOffset : (src?.left ?? explorerOffset + (W - explorerOffset) / 2 - 150),
+          left: isOpen ? documentFrameOffset : (src?.left ?? documentFrameOffset + (W - documentFrameOffset) / 2 - 150),
           top: isOpen ? contentTop : (src?.top ?? H / 2 - 100),
-          width: isOpen ? Math.max(0, W - explorerOffset) : (src?.width ?? 300),
+          width: isOpen ? Math.max(0, W - documentFrameOffset) : (src?.width ?? 300),
           height: isOpen ? Math.max(0, H - contentTop) : (src?.height ?? 200),
           borderRadius: isOpen ? 0 : 10,
           overflow: 'hidden',
@@ -893,9 +1070,9 @@ export default function App() {
           <div style={{ position: 'fixed', inset: 0, zIndex: 170, pointerEvents: 'none' }}>
             <div style={{
               position: 'fixed',
-              left: explorerOffset,
+              left: documentFrameOffset,
               top: contentTop,
-              width: Math.max(0, W - explorerOffset),
+              width: Math.max(0, W - documentFrameOffset),
               height: Math.max(0, H - contentTop),
               background: 'rgba(0,0,0,0.45)',
               opacity: isOpen ? 1 : 0,
@@ -903,7 +1080,10 @@ export default function App() {
               pointerEvents: 'none',
             }} />
             <div style={{ ...frameStyle, pointerEvents: 'auto' }}>
-              <DocumentMode onClose={closeDoc} />
+              <DocumentMode
+                onClose={closeDoc}
+                onCollapseToPanel={isMobileViewport ? undefined : collapseToPanel}
+              />
             </div>
           </div>
         );

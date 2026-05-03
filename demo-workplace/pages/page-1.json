@@ -1,190 +1,20 @@
 {
+  "name": "Main docs",
+  "noteSort": "updated",
   "nodes": [
     {
-      "id": "sticky-shipping",
-      "type": "sticky",
-      "x": -502.33711483222254,
-      "y": 55.700166913739665,
-      "text": "Ship to itch.io\n\nSingle HTML file, offline, no account needed.",
-      "color": "#fde68a",
-      "width": 200,
-      "height": 130,
-      "fontSizeMode": "fixed"
-    },
-    {
-      "id": "sticky-tech",
-      "type": "sticky",
-      "x": 320,
-      "y": 80,
-      "text": "Tech Stack\n\nReact + Konva + Zustand + Vite singlefile",
-      "color": "#bae6fd",
-      "width": 200,
-      "height": 130,
-      "fontSizeMode": "fixed"
-    },
-    {
-      "id": "sticky-docs",
-      "type": "sticky",
-      "x": 560,
-      "y": 80,
-      "text": "Document System\n\nRich text notes with wikilinks and canvas node pills.",
-      "color": "#bbf7d0",
-      "width": 200,
-      "height": 130,
-      "fontSizeMode": "fixed"
-    },
-    {
-      "id": "connector-1",
-      "type": "connector",
-      "fromNodeId": "sticky-shipping",
-      "fromAnchor": "right",
-      "fromX": 280,
-      "fromY": 145,
-      "toNodeId": "sticky-tech",
-      "toAnchor": "left",
-      "toX": 320,
-      "toY": 145,
-      "color": "#94a3b8",
-      "strokeWidth": 2,
-      "lineStyle": "curved",
-      "strokeStyle": "solid",
-      "arrowHeadStart": "none",
-      "arrowHeadEnd": "arrow"
-    },
-    {
-      "id": "connector-2",
-      "type": "connector",
-      "fromNodeId": "sticky-tech",
-      "fromAnchor": "right",
-      "fromX": 520,
-      "fromY": 145,
-      "toNodeId": "sticky-docs",
-      "toAnchor": "left",
-      "toX": 560,
-      "toY": 145,
-      "color": "#94a3b8",
-      "strokeWidth": 2,
-      "lineStyle": "curved",
-      "strokeStyle": "solid",
-      "arrowHeadStart": "none",
-      "arrowHeadEnd": "arrow"
-    },
-    {
-      "id": "doc-card-overview",
+      "id": "jnxur5vii",
       "type": "document",
-      "x": -53,
-      "y": 284,
-      "width": 200,
-      "height": 80,
-      "docId": "doc-overview"
-    },
-    {
-      "id": "doc-card-techstack",
-      "type": "document",
-      "x": 320,
-      "y": 260,
-      "width": 200,
-      "height": 80,
-      "docId": "doc-techstack"
-    },
-    {
-      "id": "doc-card-sprint",
-      "type": "document",
-      "x": 694,
-      "y": 271,
-      "width": 200,
-      "height": 80,
-      "docId": "doc-sprint"
-    },
-    {
-      "id": "rfx8o7xpw",
-      "type": "document",
-      "x": 0,
-      "y": -139.3717578438382,
+      "x": 287,
+      "y": 297,
       "width": 280,
       "height": 176,
-      "docId": "doc_ci1yhqkqc"
-    },
-    {
-      "id": "zp10ckdm7",
-      "type": "document",
-      "x": 355.3474897319404,
-      "y": -186.3180341701837,
-      "width": 280,
-      "height": 176,
-      "docId": "doc_23axpqjdy"
-    },
-    {
-      "id": "pb8dvoyjo",
-      "type": "document",
-      "x": 804.5875321165718,
-      "y": -120.29983308626034,
-      "width": 280,
-      "height": 176,
-      "docId": "doc_twnq0s3g1"
-    },
-    {
-      "id": "zg9af4zc3",
-      "type": "image",
-      "x": 727.2523866901859,
-      "y": 437.35930780518476,
-      "width": 293.6228444566973,
-      "height": 437.4980382404789,
-      "src": "",
-      "assetName": "e21uv73kg.jpg",
-      "assetFolder": "assets",
-      "rotation": -0.587457200970519
-    },
-    {
-      "id": "n7bwzasnb",
-      "type": "shape",
-      "kind": "rect",
-      "x": -302.33711483222254,
-      "y": 604.6715909300984,
-      "width": 288,
-      "height": 160,
-      "fill": "#e2e8f0",
-      "stroke": "transparent",
-      "strokeWidth": 2,
-      "text": "",
-      "fontSize": 14,
-      "bold": false,
-      "italic": false,
-      "textAlign": "center"
-    },
-    {
-      "id": "9bt3oap3t",
-      "type": "connector",
-      "fromNodeId": "n7bwzasnb",
-      "fromAnchor": "right",
-      "fromX": -14.33711483222254,
-      "fromY": 684.6715909300984,
-      "toNodeId": "zg9af4zc3",
-      "toAnchor": "left",
-      "toX": 248.98091933796115,
-      "toY": 744.1325950373223,
-      "color": "#3a2810",
-      "strokeWidth": 2,
-      "lineStyle": "curved",
-      "strokeStyle": "solid",
-      "arrowHeadStart": "none",
-      "arrowHeadEnd": "arrow"
-    },
-    {
-      "id": "v5sranmw1",
-      "type": "sticky",
-      "x": 120,
-      "y": 777.0078261842058,
-      "text": "",
-      "color": "#F8BBD0",
-      "width": 200,
-      "height": 160,
-      "fontSizeMode": "dynamic"
+      "docId": "doc_vaiqiz6n5"
     }
   ],
   "camera": {
-    "x": 239.09074081950405,
-    "y": 244.85015219614326,
-    "scale": 0.6816302059305631
+    "x": 119.34070167479217,
+    "y": 96.11522153065437,
+    "scale": 0.7159615387469966
   }
 }

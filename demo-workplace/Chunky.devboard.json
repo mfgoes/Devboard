@@ -1,0 +1,20 @@
+{
+  "boardTitle": "Chunky",
+  "nodes": [],
+  "pages": [
+    {
+      "id": "page-1",
+      "name": "Page 1",
+      "noteSort": "updated",
+      "nodes": [],
+      "camera": {
+        "x": 0,
+        "y": 0,
+        "scale": 1
+      }
+    }
+  ],
+  "activePageId": "page-1",
+  "documents": [],
+  "schemaVersion": 3
+}

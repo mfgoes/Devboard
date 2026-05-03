@@ -57,7 +57,7 @@ function StickyRichText({ node, liveWidth, liveHeight }: { node: StickyNoteNode;
           x={10 + run.x}
           y={10 + run.y}
           text={run.text}
-          fontSize={fs}
+          fontSize={run.fontSize}
           fontStyle={[run.bold ? 'bold' : '', run.italic ? 'italic' : ''].filter(Boolean).join(' ') || 'normal'}
           textDecoration={run.underline ? 'underline' : ''}
           lineHeight={1}
