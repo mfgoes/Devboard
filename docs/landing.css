@@ -168,6 +168,168 @@ h1 em {
   margin-bottom: 28px;
   line-height: 1.6;
 }
+.sync-pricing-section {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 88px 20px;
+}
+
+.pricing-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+  margin-top: 42px;
+}
+
+.pricing-card {
+  position: relative;
+  border: 1px solid rgba(74, 58, 45, 0.14);
+  border-radius: 28px;
+  padding: 32px;
+  background:
+    linear-gradient(180deg, rgba(255, 252, 246, 0.82), rgba(245, 238, 228, 0.72));
+  box-shadow:
+    0 24px 70px rgba(45, 35, 26, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.pricing-card--featured {
+  border-color: rgba(166, 98, 52, 0.34);
+  background:
+    radial-gradient(circle at top right, rgba(166, 98, 52, 0.18), transparent 38%),
+    linear-gradient(180deg, rgba(255, 250, 242, 0.9), rgba(241, 232, 220, 0.82));
+}
+
+.pricing-card-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  align-items: flex-start;
+}
+
+.pricing-kicker {
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgba(45, 35, 26, 0.64);
+  margin-bottom: 14px;
+}
+
+.pricing-card h3 {
+  margin: 0;
+  font-size: clamp(2.6rem, 5vw, 4.5rem);
+  line-height: 0.95;
+  letter-spacing: -0.06em;
+  color: var(--ink, #2a221d);
+}
+
+.pricing-card h3 span {
+  display: block;
+  margin-top: 8px;
+  font-size: 1rem;
+  line-height: 1.3;
+  letter-spacing: -0.02em;
+  color: rgba(45, 35, 26, 0.62);
+}
+
+.pricing-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  color: #a66234;
+  background: rgba(166, 98, 52, 0.1);
+  border: 1px solid rgba(166, 98, 52, 0.14);
+  flex: 0 0 auto;
+}
+
+.pricing-icon svg {
+  width: 23px;
+  height: 23px;
+}
+
+.pricing-sub {
+  max-width: 420px;
+  margin: 18px 0 0;
+  font-size: 1.05rem;
+  line-height: 1.55;
+  color: rgba(45, 35, 26, 0.72);
+}
+
+.pricing-list {
+  margin: 28px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pricing-list li {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 11px 0;
+  border-top: 1px solid rgba(74, 58, 45, 0.1);
+  color: rgba(45, 35, 26, 0.86);
+  font-size: 0.98rem;
+}
+
+.pricing-list li::before {
+  content: "✓";
+  color: #a66234;
+  font-weight: 900;
+  flex: 0 0 auto;
+}
+
+.pricing-note {
+  margin: 26px 0 0;
+  padding: 16px 18px;
+  border-radius: 18px;
+  background: rgba(45, 35, 26, 0.06);
+  color: rgba(45, 35, 26, 0.68);
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+.pricing-badge {
+  position: absolute;
+  top: 22px;
+  right: 22px;
+  padding: 7px 11px;
+  border-radius: 999px;
+  background: rgba(166, 98, 52, 0.12);
+  color: #8f522c;
+  border: 1px solid rgba(166, 98, 52, 0.18);
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 820px) {
+  .sync-pricing-section {
+    padding: 64px 18px;
+  }
+
+  .pricing-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .pricing-card {
+    padding: 26px;
+    border-radius: 24px;
+  }
+
+  .pricing-badge {
+    position: static;
+    display: inline-flex;
+    margin-bottom: 18px;
+  }
+
+  .pricing-card h3 {
+    font-size: 3rem;
+  }
+}
 
 .hero-checks {
   display: flex;
@@ -497,7 +659,8 @@ h1 em {
 .ic-pink   { background: rgba(244,114,182,0.13); color: #f472b6; }
 .ic-slate  { background: rgba(148,163,184,0.13); color: #94a3b8; }
 .ic-cyan   { background: rgba(34,211,238,0.13);  color: #22d3ee; }
-.ic-lime   { background: rgba(163,230,53,0.13);  color: #a3e635; }
+.ic-green   { background: rgba(163,230,53,0.13);  color: #4d7114; }
+
 
 .card h3 {
   font-size: 0.85rem;
