@@ -6,7 +6,7 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { saveAs } from 'file-saver';
 import { useBoardStore } from '../store/boardStore';
-import type { CanvasNode, Document, PageMeta } from '../types';
+import type { Camera, CanvasNode, Document, PageMeta } from '../types';
 import { listDirectory, readWorkspaceFile, readWorkspaceFileAsUrl, readWorkspaceFileInfo, getWorkspaceName, openWorkspace, createWorkspace, renameEntry, createDirectory, deleteEntry, FSA_DIR_SUPPORTED, IN_IFRAME, IS_TAURI, revealInFinder, saveTextFileToWorkspace, saveWorkspace } from '../utils/workspaceManager';
 import { FONTS } from '../utils/fonts';
 import { placeCodeFile, placeImageFile, placeDocumentFile, openDocumentFile } from '../utils/canvasPlacement';
@@ -90,6 +90,35 @@ function SectionChevron({ open }: { open: boolean }) {
   );
 }
 
+function CloudOnlyBadge() {
+  return (
+    <span
+      title="Cloud workspace"
+      aria-label="Cloud workspace"
+      style={{
+        width: 16,
+        height: 16,
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: 'var(--c-text-lo)',
+        opacity: 0.82,
+        flexShrink: 0,
+      }}
+    >
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <path
+          d="M5.2 12.5H12a2.45 2.45 0 0 0 .35-4.88 4.15 4.15 0 0 0-7.95-1.1A3.02 3.02 0 0 0 5.2 12.5Z"
+          stroke="currentColor"
+          strokeWidth="1.35"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </span>
+  );
+}
+
 const ADVANCED_FILES_STORAGE_KEY = 'devboard-advanced-files-visible';
 
 const HIDDEN_ASSET_ROOTS = new Set(['notes', 'documents', 'pages']);
@@ -116,6 +145,84 @@ type NotePreview = {
   doc: Document;
   anchorY: number;
 };
+
+function sortTreeEntries(entries: TreeEntry[]): TreeEntry[] {
+  return [...entries].sort((a, b) => {
+    if (a.kind !== b.kind) return a.kind === 'directory' ? -1 : 1;
+    return a.name.localeCompare(b.name, undefined, { numeric: true });
+  });
+}
+
+function buildVirtualCloudTree({
+  pages,
+  documents,
+  nodes,
+  pageSnapshots,
+  expandedPaths,
+}: {
+  pages: PageMeta[];
+  documents: Document[];
+  nodes: CanvasNode[];
+  pageSnapshots: Record<string, { nodes: CanvasNode[]; camera: Camera }>;
+  expandedPaths: Set<string>;
+}): TreeEntry[] {
+  const roots = new Map<string, TreeEntry>();
+  const ensureDir = (path: string[]): TreeEntry => {
+    const name = path[path.length - 1];
+    const parentPath = path.slice(0, -1);
+    const target = path.join('/');
+    const parent = parentPath.length ? ensureDir(parentPath) : null;
+    const siblings = parent ? (parent.children ??= []) : Array.from(roots.values());
+    let entry = siblings.find((item) => item.name === name && item.kind === 'directory');
+    if (!entry) {
+      entry = {
+        ...buildEntry(name, 'directory', parentPath),
+        expanded: expandedPaths.has(target),
+        loading: false,
+        children: [],
+      };
+      if (parent) parent.children = sortTreeEntries([...(parent.children ?? []), entry]);
+      else roots.set(name, entry);
+    } else {
+      entry.expanded = expandedPaths.has(target);
+      entry.children ??= [];
+    }
+    return entry;
+  };
+  const addFile = (path: string[]) => {
+    if (path.length === 0) return;
+    const fileName = path[path.length - 1];
+    const parentPath = path.slice(0, -1);
+    const parent = parentPath.length ? ensureDir(parentPath) : null;
+    const entry = buildEntry(fileName, 'file', parentPath);
+    if (parent) {
+      if (!(parent.children ?? []).some((item) => item.path.join('/') === entry.path.join('/'))) {
+        parent.children = sortTreeEntries([...(parent.children ?? []), entry]);
+      }
+    } else if (!roots.has(fileName)) {
+      roots.set(fileName, entry);
+    }
+  };
+
+  addFile(['workspace.json']);
+  for (const page of pages) addFile(['pages', `${page.id}.json`]);
+  for (const doc of documents) {
+    if (!doc.linkedFile) continue;
+    addFile(doc.linkedFile.split('/').filter(Boolean));
+  }
+
+  const allNodes = [
+    ...nodes,
+    ...Object.values(pageSnapshots).flatMap((snapshot) => snapshot.nodes),
+  ];
+  for (const node of allNodes) {
+    if (node.type !== 'image' || !node.assetName) continue;
+    const folder = node.assetFolder || 'assets';
+    addFile([...folder.split('/').filter(Boolean), node.assetName]);
+  }
+
+  return sortTreeEntries(Array.from(roots.values()));
+}
 
 function stripHtmlPreview(html: string): string {
   return html
@@ -1467,51 +1574,6 @@ function PageGroup({
                     ⋮⋮
                   </span>
                   <NoteRowIcon doc={doc} active={isSelected} />
-                  {!isRenaming && (
-                    <span
-                      role="button"
-                      tabIndex={0}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        onToggleFavoriteDocument(doc);
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key !== 'Enter' && e.key !== ' ') return;
-                        e.preventDefault();
-                        e.stopPropagation();
-                        onToggleFavoriteDocument(doc);
-                      }}
-                      title={doc.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-                      aria-label={doc.isFavorite ? `Remove ${doc.title || 'Untitled note'} from favorites` : `Add ${doc.title || 'Untitled note'} to favorites`}
-                      style={{
-                        width: 18,
-                        height: 18,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        padding: 0,
-                        border: 'none',
-                        borderRadius: 4,
-                        background: 'transparent',
-                        color: doc.isFavorite ? '#d6a045' : 'var(--c-text-off)',
-                        opacity: doc.isFavorite || isHovered ? 1 : 0,
-                        cursor: 'pointer',
-                        flexShrink: 0,
-                        transition: 'opacity 0.12s ease, background 0.12s ease, color 0.12s ease',
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.background = 'var(--c-hover)';
-                        e.currentTarget.style.color = doc.isFavorite ? '#d6a045' : 'var(--c-text-md)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.background = 'transparent';
-                        e.currentTarget.style.color = doc.isFavorite ? '#d6a045' : 'var(--c-text-off)';
-                      }}
-                    >
-                      <IconStar filled={!!doc.isFavorite} size={12} />
-                    </span>
-                  )}
                   {isRenaming ? (
                     <input
                       autoFocus
@@ -1770,6 +1832,11 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
   const [favoritesSectionOpen, setFavoritesSectionOpen] = useState(true);
   const [recentsSectionOpen, setRecentsSectionOpen] = useState(true);
   const [assetsSectionOpen, setAssetsSectionOpen] = useState(true);
+  const [cloudExpandedPaths, setCloudExpandedPaths] = useState<Record<string, boolean>>({
+    assets: true,
+    notes: true,
+    pages: false,
+  });
   const [advancedFilesVisible, setAdvancedFilesVisible] = useState(() => {
     if (typeof window === 'undefined') return false;
     return window.localStorage.getItem(ADVANCED_FILES_STORAGE_KEY) === '1';
@@ -1815,6 +1882,9 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
     const title = boardTitle.trim();
     return title || cloudBoardTitle || storeWorkspaceName || getWorkspaceName() || 'Untitled Workspace';
   }, [boardTitle, cloudBoardTitle, storeWorkspaceName]);
+  const hasLocalWorkspace = !!getWorkspaceName();
+  const hasWorkspaceContext = hasLocalWorkspace || !!cloudBoardId;
+  const cloudOnlyWorkspace = !hasLocalWorkspace && !!cloudBoardId;
 
   const startWorkspaceNameEdit = useCallback(() => {
     workspaceNameBlurCancelledRef.current = false;
@@ -2093,6 +2163,11 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
   const [renameExtWarning, setRenameExtWarning] = useState<{ entry: TreeEntry; newName: string } | null>(null);
 
   const startRename = useCallback((entry: TreeEntry) => {
+    if (cloudOnlyWorkspace) {
+      toast('Cloud files are read-only here. Download to a folder to edit filenames.');
+      setExplorerMenu(null);
+      return;
+    }
     if (isWorkspaceManagedEntry(entry)) {
       toast('Workspace files are read-only here');
       setExplorerMenu(null);
@@ -2102,7 +2177,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
     setRenameDraft(entry.name);
     renamingEntryRef.current = entry;
     setExplorerMenu(null);
-  }, []);
+  }, [cloudOnlyWorkspace]);
 
   const doRename = useCallback(async (entry: TreeEntry, newName: string) => {
     try {
@@ -2157,6 +2232,11 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
   }, [removeFromTree]);
 
   const startDelete = useCallback((entry: TreeEntry) => {
+    if (cloudOnlyWorkspace) {
+      toast('Cloud files are read-only here. Download to a folder to delete files.');
+      setExplorerMenu(null);
+      return;
+    }
     if (isWorkspaceManagedEntry(entry)) {
       toast('Workspace files are read-only here');
       setExplorerMenu(null);
@@ -2164,7 +2244,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
     }
     setDeleteConfirm(entry);
     setExplorerMenu(null);
-  }, []);
+  }, [cloudOnlyWorkspace]);
 
   // Cancel rename when clicking outside the inline input
   useEffect(() => {
@@ -2419,14 +2499,45 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
     setWorkspaceName(result.name);
   }, [boardTitle, exportData, setWorkspaceName]);
 
+  const cloudTree = useMemo(() => buildVirtualCloudTree({
+    pages,
+    documents,
+    nodes: storeNodes,
+    pageSnapshots,
+    expandedPaths: new Set(
+      Object.entries(cloudExpandedPaths)
+        .filter(([, expanded]) => expanded)
+        .map(([path]) => path)
+    ),
+  }), [cloudExpandedPaths, documents, pageSnapshots, pages, storeNodes]);
+
+  const handleAssetToggle = useCallback((path: string[]) => {
+    if (!cloudOnlyWorkspace) {
+      handleToggle(path);
+      return;
+    }
+    const key = path.join('/');
+    setCloudExpandedPaths((prev) => ({ ...prev, [key]: !prev[key] }));
+  }, [cloudOnlyWorkspace, handleToggle]);
+
   const assetTree = useMemo(
-    () => advancedFilesVisible ? tree : tree.filter(isVisibleInAssets),
-    [advancedFilesVisible, tree]
+    () => {
+      const sourceTree = cloudOnlyWorkspace ? cloudTree : tree;
+      if (cloudOnlyWorkspace) return sourceTree;
+      return advancedFilesVisible ? sourceTree : sourceTree.filter(isVisibleInAssets);
+    },
+    [advancedFilesVisible, cloudOnlyWorkspace, cloudTree, tree]
   );
 
   const assetSearchResults = useMemo(
-    () => searchResults?.filter((entry) => advancedFilesVisible || isVisibleInAssets(entry)) ?? null,
-    [advancedFilesVisible, searchResults]
+    () => {
+      if (!searchQuery.trim()) return null;
+      const results = flattenTree(cloudOnlyWorkspace ? cloudTree : tree)
+        .filter((entry) => entry.name.toLowerCase().includes(searchQuery.toLowerCase()));
+      if (cloudOnlyWorkspace || advancedFilesVisible) return results;
+      return results.filter(isVisibleInAssets);
+    },
+    [advancedFilesVisible, cloudOnlyWorkspace, cloudTree, flattenTree, searchQuery, tree]
   );
 
   const assetVisibleEntries = useMemo(
@@ -2436,7 +2547,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
 
   const keyboardItems = useMemo<ExplorerKeyboardItem[]>(() => {
     const items: ExplorerKeyboardItem[] = [];
-    if (getWorkspaceName() && pages.length > 0 && pagesSectionOpen) {
+    if (hasWorkspaceContext && pages.length > 0 && pagesSectionOpen) {
       for (const page of pages) {
         items.push({ kind: 'page', pageId: page.id });
         const isCollapsed = collapsedPageIds[page.id] ?? !(page.id === activePageId);
@@ -2449,9 +2560,9 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
       for (const entry of assetVisibleEntries) items.push({ kind: 'asset', path: entry.path });
     }
     return items;
-  }, [activePageId, assetVisibleEntries, assetsSectionOpen, collapsedPageIds, pageDocs, pages, pagesSectionOpen]);
+  }, [activePageId, assetVisibleEntries, assetsSectionOpen, collapsedPageIds, hasWorkspaceContext, pageDocs, pages, pagesSectionOpen]);
 
-  visibleEntriesRef.current = visibleEntries;
+  visibleEntriesRef.current = assetVisibleEntries;
   const focusedItem = focusedIdx !== null ? keyboardItems[focusedIdx] ?? null : null;
   const focusedPath = focusedItem?.kind === 'asset' ? focusedItem.path.join('/') : null;
   const focusedPageId = focusedItem?.kind === 'page' ? focusedItem.pageId : null;
@@ -2534,7 +2645,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
         const entry = assetVisibleEntries.find((candidate) => candidate.path.join('/') === item.path.join('/'));
         if (!entry) return;
         if (entry.kind === 'directory') {
-          handleToggle(entry.path);
+          handleAssetToggle(entry.path);
         } else if (e.shiftKey) {
           clearPreview();
           placeFile(entry);
@@ -2557,7 +2668,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
       clearPagePreview();
       clearPreview();
     }
-  }, [activePageId, assetVisibleEntries, clearPagePreview, clearPreview, focusedIdx, focusedItem, handleToggle, keyboardItems, openDocumentWithMorph, openFile, placeFile, searchOpen, startDelete, startRename, switchPage]);
+  }, [activePageId, assetVisibleEntries, clearPagePreview, clearPreview, focusedIdx, focusedItem, handleAssetToggle, keyboardItems, openDocumentWithMorph, openFile, placeFile, searchOpen, startDelete, startRename, switchPage]);
 
   return (
     <div
@@ -2803,7 +2914,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
         </div>
       </div>
 
-      {getWorkspaceName() && documents.length > 0 && (
+      {hasWorkspaceContext && documents.length > 0 && (
         <div style={{ borderBottom: '1px solid var(--c-border)', flexShrink: 0 }}>
           {favoriteDocs.length > 0 && (
             <>
@@ -2897,7 +3008,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
       )}
 
       {/* ── BOARDS section ─────────────────────────────────────────────────── */}
-      {getWorkspaceName() && pages.length > 0 && (
+      {hasWorkspaceContext && pages.length > 0 && (
         <div style={{ borderBottom: '1px solid var(--c-border)', flexShrink: 0 }}>
           {/* Section header */}
           <div
@@ -2911,6 +3022,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
             }}
           >
             <span style={explorerSectionHeaderStyle}>Pages</span>
+            {cloudOnlyWorkspace && <CloudOnlyBadge />}
             <SectionChevron open={pagesSectionOpen} />
             <span style={{ marginLeft: 'auto', fontFamily: FONTS.ui, fontSize: 9, color: 'var(--c-text-lo)' }}>{pages.length}</span>
             <button
@@ -3010,7 +3122,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
         </div>
       )}
 
-      {getWorkspaceName() && pages.length > 0 && pagesSectionOpen && (
+      {hasWorkspaceContext && pages.length > 0 && pagesSectionOpen && (
         <div
           onPointerDown={startPageSectionResize}
           title="Resize pages section"
@@ -3054,6 +3166,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
           }}
         >
           <span style={explorerSectionHeaderStyle}>Asset files</span>
+          {cloudOnlyWorkspace && <CloudOnlyBadge />}
           <SectionChevron open={assetsSectionOpen} />
           <span style={{ marginLeft: 'auto', fontFamily: FONTS.ui, fontSize: 9, color: 'var(--c-text-lo)' }}>{assetTree.length}</span>
           {advancedFilesVisible && (
@@ -3071,7 +3184,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
               Advanced
             </span>
           )}
-          {getWorkspaceName() && (
+          {hasLocalWorkspace && (
             <span
               role="button"
               tabIndex={0}
@@ -3153,18 +3266,18 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
             />
           </div>
         )}
-        {rootLoading ? (
+        {rootLoading && !cloudOnlyWorkspace ? (
           <div style={{ padding: '10px 16px', fontSize: 10, color: 'var(--c-text-lo)', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Loading…</div>
         ) : rootError ? (
           <div style={{ padding: '10px 16px', fontSize: 10.5, color: '#c96a6a', fontFamily: FONTS.ui, lineHeight: 1.5 }}>{rootError}</div>
-        ) : !getWorkspaceName() ? (
+        ) : !hasWorkspaceContext ? (
           <NoWorkspaceState onOpen={handleOpenFolder} onCreate={IS_TAURI ? handleCreateWorkspace : undefined} />
         ) : assetSearchResults !== null ? (
           assetSearchResults.length === 0 ? (
             <div style={{ padding: '10px 16px', fontSize: 10, color: 'var(--c-text-lo)', fontFamily: FONTS.ui, fontStyle: 'italic' }}>No matches</div>
           ) : (
             assetSearchResults.map((entry) => (
-              <TreeRow key={entry.path.join('/')} entry={entry} depth={0} focusedPath={focusedPath} renamingPath={renamingPath} renameDraft={renameDraft} onRenameDraftChange={setRenameDraft} onRenameCommit={commitRename} onRenameCancel={() => setRenamingPath(null)} onToggle={handleToggle} onFileSingleClick={handleFileSingleClick} onFileOpen={handleFileOpen} onMarkdownDrop={importMarkdownToNotes} onContextMenu={handleEntryContextMenu} onFileDragStart={handleFileDragStart} onFileHover={handleFileHover} usedOnCanvas={usedOnCanvas} isDark={isDark} onFocus={focusAssetPath} />
+              <TreeRow key={entry.path.join('/')} entry={entry} depth={0} focusedPath={focusedPath} renamingPath={renamingPath} renameDraft={renameDraft} onRenameDraftChange={setRenameDraft} onRenameCommit={commitRename} onRenameCancel={() => setRenamingPath(null)} onToggle={handleAssetToggle} onFileSingleClick={handleFileSingleClick} onFileOpen={handleFileOpen} onMarkdownDrop={importMarkdownToNotes} onContextMenu={handleEntryContextMenu} onFileDragStart={handleFileDragStart} onFileHover={handleFileHover} usedOnCanvas={usedOnCanvas} isDark={isDark} onFocus={focusAssetPath} />
             ))
           )
         ) : assetTree.length === 0 ? (
@@ -3173,7 +3286,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
           </div>
         ) : (
           assetTree.map((entry) => (
-            <TreeRow key={entry.path.join('/')} entry={entry} depth={0} focusedPath={focusedPath} renamingPath={renamingPath} renameDraft={renameDraft} onRenameDraftChange={setRenameDraft} onRenameCommit={commitRename} onRenameCancel={() => setRenamingPath(null)} onToggle={handleToggle} onFileSingleClick={handleFileSingleClick} onFileOpen={handleFileOpen} onMarkdownDrop={importMarkdownToNotes} onContextMenu={handleEntryContextMenu} onFileDragStart={handleFileDragStart} onFileHover={handleFileHover} usedOnCanvas={usedOnCanvas} isDark={isDark} onFocus={focusAssetPath} />
+            <TreeRow key={entry.path.join('/')} entry={entry} depth={0} focusedPath={focusedPath} renamingPath={renamingPath} renameDraft={renameDraft} onRenameDraftChange={setRenameDraft} onRenameCommit={commitRename} onRenameCancel={() => setRenamingPath(null)} onToggle={handleAssetToggle} onFileSingleClick={handleFileSingleClick} onFileOpen={handleFileOpen} onMarkdownDrop={importMarkdownToNotes} onContextMenu={handleEntryContextMenu} onFileDragStart={handleFileDragStart} onFileHover={handleFileHover} usedOnCanvas={usedOnCanvas} isDark={isDark} onFocus={focusAssetPath} />
           ))
         )}
       </div>
@@ -3328,7 +3441,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
         const canActOnFile = explorerMenu.entry.kind === 'file' && (IMAGE_EXTS.has(menuExt) || DOC_EXTS.has(menuExt) || CODE_EXTS[menuExt] !== undefined);
         const isDocFile = explorerMenu.entry.kind === 'file' && DOC_EXTS.has(menuExt);
         const entryRelativePath = explorerMenu.entry.path.join('/');
-        const isReadOnly = isWorkspaceManagedEntry(explorerMenu.entry);
+        const isReadOnly = cloudOnlyWorkspace || isWorkspaceManagedEntry(explorerMenu.entry);
         return (
           <div
             ref={explorerMenuRef}
@@ -3379,7 +3492,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
                 className="px-3 py-1.5 text-[12px]"
                 style={{ fontFamily: FONTS.ui, color: 'var(--c-text-off)' }}
               >
-                Managed by Pages
+                {cloudOnlyWorkspace ? 'Cloud file' : 'Managed by Pages'}
               </div>
             ) : (
               <>

@@ -8,7 +8,7 @@ import { toast } from '../utils/toast';
 import { focusNode } from '../utils/focusNode';
 import { IconAlignCenter, IconAlignLeft, IconAlignRight, IconArrowRight, IconCode, IconCodeBlock, IconCopy, IconEye, IconHorizontalRule, IconLink, IconList, IconListOrdered, IconNodeLink, IconQuote, IconSaveFile, IconStar, IconTextWrap, IconUnlink, IconWikiLink } from './icons';
 import { useDocumentAutoSave } from '../hooks/useDocumentAutoSave';
-import { type DocumentCommandDefinition, getDocumentCommandsForSurface, runDocumentCommand } from './documentCommands';
+import { type DocumentCommandDefinition, type DocumentCommandGroup, getDocumentCommandsForSurface, runDocumentCommand } from './documentCommands';
 import { sanitizeClipboardHtml } from '../utils/richText';
 import { saveLinkedWorkspaceToCloud } from '../utils/saveStatus';
 
@@ -233,6 +233,10 @@ function activeWikiChipFromRange(range: Range | null, root: HTMLElement | null):
 
 function stripHtml(html: string): string {
   return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function documentTextWithRawLinks(html: string): string {
+  return stripChipsFromHTML(html).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
 }
 
 function normalizeTitleText(text: string): string {
@@ -711,6 +715,7 @@ interface FmtBarProps {
   onToggleSource: () => void;
   onToggleEdit: () => void;
   onSave: () => void;
+  onExportMarkdown: () => void;
   onSourceInsert: (syntax: string) => void;
   sourceWrap: boolean;
   setSourceWrap: React.Dispatch<React.SetStateAction<boolean>>;
@@ -722,6 +727,9 @@ interface FmtBarProps {
   onShowWordCount: () => void;
   wordCount: number;
   readingTime: string;
+  insertCommands: DocumentCommandDefinition[];
+  onInsertCommand: (command: DocumentCommandDefinition) => void;
+  onCaptureSelection: () => void;
 }
 
 interface SelectionToolbarAnchor {
@@ -741,6 +749,7 @@ function FormattingBar({
   onToggleSource,
   onToggleEdit,
   onSave,
+  onExportMarkdown,
   onSourceInsert,
   sourceWrap,
   setSourceWrap,
@@ -752,10 +761,14 @@ function FormattingBar({
   onShowWordCount,
   wordCount,
   readingTime,
+  insertCommands,
+  onInsertCommand,
+  onCaptureSelection,
 }: FmtBarProps) {
   const [showFormatMenu, setShowFormatMenu] = useState(false);
   const [showAlignMenu, setShowAlignMenu] = useState(false);
   const [showToolsMenu, setShowToolsMenu] = useState(false);
+  const [showNoteMenu, setShowNoteMenu] = useState(false);
   const [hoveredControl, setHoveredControl] = useState<string | null>(null);
   const [toolbarWidth, setToolbarWidth] = useState(() => (typeof window !== 'undefined' ? window.innerWidth : 1440));
   const isMobileNarrow = toolbarWidth < 520;
@@ -767,13 +780,16 @@ function FormattingBar({
   const formatBtnRef = useRef<HTMLButtonElement>(null);
   const alignBtnRef = useRef<HTMLButtonElement>(null);
   const toolsBtnRef = useRef<HTMLButtonElement>(null);
+  const noteBtnRef = useRef<HTMLButtonElement>(null);
   const formatMenuRef = useRef<HTMLDivElement>(null);
   const alignMenuRef = useRef<HTMLDivElement>(null);
   const toolsMenuRef = useRef<HTMLDivElement>(null);
+  const noteMenuRef = useRef<HTMLDivElement>(null);
 
   const saveSelection = () => {
     const sel = window.getSelection();
     if (sel && sel.rangeCount > 0) savedRangeRef.current = sel.getRangeAt(0).cloneRange();
+    onCaptureSelection();
   };
 
   const restoreSelection = () => {
@@ -919,15 +935,21 @@ function FormattingBar({
   const formatMenuRect = showFormatMenu && formatBtnRef.current ? formatBtnRef.current.getBoundingClientRect() : null;
   const alignMenuRect = showAlignMenu && alignBtnRef.current ? alignBtnRef.current.getBoundingClientRect() : null;
   const toolsMenuRect = showToolsMenu && toolsBtnRef.current ? toolsBtnRef.current.getBoundingClientRect() : null;
+  const noteMenuRect = showNoteMenu && noteBtnRef.current ? noteBtnRef.current.getBoundingClientRect() : null;
+  const groupedInsertCommands = insertCommands.reduce<Record<DocumentCommandGroup, DocumentCommandDefinition[]>>((acc, command) => {
+    (acc[command.group] ||= []).push(command);
+    return acc;
+  }, {} as Record<DocumentCommandGroup, DocumentCommandDefinition[]>);
 
   const closeMenus = () => {
     setShowFormatMenu(false);
     setShowAlignMenu(false);
     setShowToolsMenu(false);
+    setShowNoteMenu(false);
   };
 
   useEffect(() => {
-    if (!showFormatMenu && !showAlignMenu && !showToolsMenu) return;
+    if (!showFormatMenu && !showAlignMenu && !showToolsMenu && !showNoteMenu) return;
     const handleWindowPointer = (event: MouseEvent | TouchEvent) => {
       const target = event.target as Node | null;
       if (!target) return;
@@ -935,7 +957,8 @@ function FormattingBar({
         toolbarRef.current?.contains(target) ||
         formatMenuRef.current?.contains(target) ||
         alignMenuRef.current?.contains(target) ||
-        toolsMenuRef.current?.contains(target)
+        toolsMenuRef.current?.contains(target) ||
+        noteMenuRef.current?.contains(target)
       ) {
         return;
       }
@@ -947,7 +970,7 @@ function FormattingBar({
       window.removeEventListener('mousedown', handleWindowPointer);
       window.removeEventListener('touchstart', handleWindowPointer);
     };
-  }, [showFormatMenu, showAlignMenu, showToolsMenu]);
+  }, [showFormatMenu, showAlignMenu, showToolsMenu, showNoteMenu]);
 
   useEffect(() => {
     const el = toolbarRef.current;
@@ -1034,6 +1057,7 @@ function FormattingBar({
                 setShowFormatMenu((v) => !v);
                 setShowAlignMenu(false);
                 setShowToolsMenu(false);
+                setShowNoteMenu(false);
                 tick((n) => n + 1);
               }}
               {...hoverHandlers('format')}
@@ -1061,6 +1085,7 @@ function FormattingBar({
                 setShowAlignMenu((v) => !v);
                 setShowFormatMenu(false);
                 setShowToolsMenu(false);
+                setShowNoteMenu(false);
               }}
               {...hoverHandlers('align')}
               title="Alignment"
@@ -1078,12 +1103,12 @@ function FormattingBar({
                 setShowToolsMenu((v) => !v);
                 setShowFormatMenu(false);
                 setShowAlignMenu(false);
+                setShowNoteMenu(false);
               }}
               {...hoverHandlers('tools')}
-              title="Document tools"
+              title="Insert block or link"
             >
-              {!useCompactToolbar && <span style={{ fontSize: 11 }}>Tools</span>}
-              {useCompactToolbar ? '+' : null}
+              <span style={{ fontSize: 11 }}>Insert</span>
               <span style={{ fontSize: 9, opacity: 0.7 }}>▼</span>
             </button>
           </>
@@ -1240,6 +1265,22 @@ function FormattingBar({
             >
               <IconSaveFile />
             </button>
+            <button
+              ref={noteBtnRef}
+              style={btnStyle(showNoteMenu, hoveredControl === 'note')}
+              title="Note actions"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                setShowNoteMenu((v) => !v);
+                setShowFormatMenu(false);
+                setShowAlignMenu(false);
+                setShowToolsMenu(false);
+              }}
+              {...hoverHandlers('note')}
+            >
+              <span style={{ fontSize: 11 }}>Note</span>
+              <span style={{ fontSize: 9, opacity: 0.7 }}>▼</span>
+            </button>
             <div style={{ width: 1, height: 18, background: 'rgba(255,255,255,0.12)', margin: '0 2px 0 2px', flexShrink: 0 }} />
           </>
         )}
@@ -1311,7 +1352,62 @@ function FormattingBar({
       )}
 
       {toolsMenuRect && (
-        <div ref={toolsMenuRef} style={menuShell(toolsMenuRect, 220)} onMouseDown={(e) => e.stopPropagation()}>
+        <div
+          ref={toolsMenuRef}
+          style={{ ...menuShell(toolsMenuRect, 260), maxHeight: 'min(72vh, 620px)', overflowY: 'auto' }}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          {(Object.keys(groupedInsertCommands) as DocumentCommandGroup[]).map((group) => (
+            <div key={group}>
+              <div style={{ padding: '7px 10px 4px', color: 'var(--c-text-off)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0 }}>
+                {group}
+              </div>
+              {groupedInsertCommands[group].map((command) => (
+                <button
+                  key={command.id}
+                  style={menuButtonStyle}
+                  title={command.description}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    saveSelection();
+                    closeMenus();
+                    onInsertCommand(command);
+                  }}
+                  {...menuHover}
+                >
+                  <span
+                    style={{
+                      width: 24,
+                      height: 22,
+                      borderRadius: 6,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                      background: 'rgba(184,119,80,0.12)',
+                      color: 'var(--c-line)',
+                      fontSize: 11,
+                      fontWeight: 800,
+                      fontFamily: command.id === 'code-block' ? 'JetBrains Mono, monospace' : 'inherit',
+                    }}
+                  >
+                    {command.glyph}
+                  </span>
+                  <span>{command.label}</span>
+                  {command.hint && (
+                    <span style={{ marginLeft: 'auto', color: 'var(--c-text-lo)', fontSize: 11, fontFamily: 'JetBrains Mono, monospace' }}>
+                      {command.hint}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {noteMenuRect && (
+        <div ref={noteMenuRef} style={menuShell(noteMenuRect, 220)} onMouseDown={(e) => e.stopPropagation()}>
           <button
             style={menuButtonStyle}
             onMouseDown={(e) => {
@@ -1335,7 +1431,7 @@ function FormattingBar({
             <span>Word count</span>
             <span style={{ marginLeft: 'auto', color: 'var(--c-text-lo)', fontSize: 11 }}>{wordCount} words</span>
           </button>
-          <button style={menuButtonStyle} onMouseDown={(e) => { e.preventDefault(); closeMenus(); onSave(); }} {...menuHover}><span>Export</span></button>
+          <button style={menuButtonStyle} onMouseDown={(e) => { e.preventDefault(); closeMenus(); onExportMarkdown(); }} {...menuHover}><span>Export .md</span></button>
           <button style={menuButtonStyle} onMouseDown={(e) => { e.preventDefault(); closeMenus(); onOpenOutline(); }} {...menuHover}><span>Outline</span></button>
           <button style={menuButtonStyle} onMouseDown={(e) => { e.preventDefault(); closeMenus(); onOpenProperties(); }} {...menuHover}><span>Properties</span></button>
           <div style={{ height: 1, background: 'var(--c-border)', margin: '6px 4px' }} />
@@ -2420,11 +2516,11 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
   const backlinks = useMemo(() => {
     if (!doc?.title?.trim()) return [];
     const esc = doc.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const pat = new RegExp(`\\[\\[${esc}(?:\\|[^\\]]*)?\\]\\]`, 'gi');
+    const pat = new RegExp(`\\[\\[${esc}(?:\\|[^\\]]*)?\\]\\]`, 'i');
     return documents
-      .filter((d) => d.id !== doc.id && pat.test(d.content.replace(/<[^>]+>/g, ' ')))
+      .filter((d) => d.id !== doc.id && pat.test(documentTextWithRawLinks(d.content)))
       .map((d) => {
-        const text = d.content.replace(/<[^>]+>/g, ' ');
+        const text = documentTextWithRawLinks(d.content);
         const idx = text.search(pat);
         const start = Math.max(0, idx - 70);
         const end = Math.min(text.length, idx + 70);
@@ -2619,6 +2715,11 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
 
   const slashCommands = useMemo<SlashCommand[]>(() => {
     return getDocumentCommandsForSurface('slash');
+  }, []);
+
+  const captureEditorSelection = useCallback(() => {
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0) savedSelectionRef.current = sel.getRangeAt(0).cloneRange();
   }, []);
 
   useEffect(() => () => {
@@ -3014,6 +3115,13 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
     }
   };
 
+  const handleExportMarkdown = useCallback(() => {
+    if (!doc) return;
+    const md = documentMarkdownFromParts(doc.title, doc.content);
+    saveAs(new Blob([md], { type: 'text/markdown;charset=utf-8' }), generateMarkdownFilename(doc.title));
+    toast('Exported Markdown note.');
+  }, [doc]);
+
   useEffect(() => {
     const onSaveActiveDocument = () => { void handleSave(); };
     window.addEventListener('devboard:save-active-document', onSaveActiveDocument);
@@ -3305,10 +3413,8 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
     setWikiContextMenu(null);
   }, [unwrapWikiChip, wikiContextMenu]);
 
-  const startWikiContextRename = useCallback(() => {
-    if (!wikiContextMenu) return;
-    const chip = wikiContextMenu.chip;
-    const originalText = chip.textContent ?? wikiContextMenu.doc.title;
+  const startWikiRename = useCallback((chip: HTMLElement, fallbackTitle: string) => {
+    const originalText = chip.textContent ?? fallbackTitle;
     chip.style.visibility = 'hidden';
     setWikiRename({
       chip,
@@ -3319,7 +3425,17 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
     setWikiContextMenu(null);
     setWikiPreview(null);
     wikiPreviewTitle.current = null;
-  }, [wikiContextMenu]);
+  }, []);
+
+  const startWikiPreviewRename = useCallback(() => {
+    if (!wikiPreview) return;
+    startWikiRename(wikiPreview.chip, wikiPreview.doc.title);
+  }, [startWikiRename, wikiPreview]);
+
+  const startWikiContextRename = useCallback(() => {
+    if (!wikiContextMenu) return;
+    startWikiRename(wikiContextMenu.chip, wikiContextMenu.doc.title);
+  }, [startWikiRename, wikiContextMenu]);
 
   const cancelWikiRename = useCallback(() => {
     if (!wikiRename) return;
@@ -3374,7 +3490,7 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
       wikiRenameInputRef.current?.focus();
       wikiRenameInputRef.current?.select();
     });
-  }, [wikiRename]);
+  }, [wikiRename?.chip]);
 
   const openSlashPalette = useCallback(() => {
     const sel = window.getSelection();
@@ -3668,6 +3784,7 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
             onToggleSource={switchToSource}
             onToggleEdit={switchToEdit}
             onSave={handleSave}
+            onExportMarkdown={handleExportMarkdown}
             onSourceInsert={insertSourceSyntax}
             sourceWrap={sourceWrap}
             setSourceWrap={setSourceWrap}
@@ -3679,6 +3796,9 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
             onShowWordCount={handleShowWordCount}
             wordCount={docWordCount}
             readingTime={docReadingTime}
+            insertCommands={slashCommands}
+            onInsertCommand={handleSlashCommandSelect}
+            onCaptureSelection={captureEditorSelection}
           />
 
           {viewMode === 'edit' && (
@@ -4280,7 +4400,7 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderTop: '1px solid var(--c-border)' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', borderTop: '1px solid var(--c-border)' }}>
             <button
               type="button"
               onMouseDown={(e) => e.preventDefault()}
@@ -4312,6 +4432,38 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
             >
               <IconArrowRight size={15} />
               Open
+            </button>
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={startWikiPreviewRename}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'var(--c-hover)';
+                e.currentTarget.style.color = 'var(--c-text-hi)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent';
+                e.currentTarget.style.color = 'var(--c-text-hi)';
+              }}
+              style={{
+                border: 0,
+                borderRight: '1px solid var(--c-border)',
+                background: 'transparent',
+                color: 'var(--c-text-hi)',
+                padding: '12px 14px',
+                fontSize: 14,
+                fontWeight: 650,
+                fontFamily: 'inherit',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                transition: 'background 0.12s, color 0.12s',
+              }}
+            >
+              <IconTextWrap />
+              Rename
             </button>
             <button
               type="button"

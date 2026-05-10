@@ -431,6 +431,17 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
     )) ?? null,
     [currentWorkspaceId, currentWorkspaceName, effectiveCloudBoardId, localRecents]
   );
+  const currentRememberedLocationLabel = !currentLocationLabel && currentLocalRecent?.localPathHint
+    ? formatWorkspaceLocationLabel({
+        deviceId: getDeviceId(),
+        deviceLabel: getDeviceLabel(),
+        localPathHint: currentLocalRecent.localPathHint,
+      })
+    : null;
+  const currentLocalFolderTitle = currentLocationLabel?.fullPath ?? currentRememberedLocationLabel?.fullPath ?? undefined;
+  const reconnectLocalFolderLabel = currentRememberedLocationLabel
+    ? `Reconnect ${currentRememberedLocationLabel.folderName ?? 'folder'}...`
+    : 'Reconnect folder...';
   const recentRows = useMemo<RecentWorkspaceRow[]>(() => {
     const rows = new Map<string, RecentWorkspaceRow>();
 
@@ -494,10 +505,16 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
   const hasUnsyncedLocalChanges = !!cloudBoardId && !!lastLocalSavedAt && !!effectiveCloudSyncedAt && lastLocalSavedAt > effectiveCloudSyncedAt + 1000;
   const hasNewerCloudCopy = !!linkedCloudUpdatedAt && !!effectiveCloudSyncedAt && linkedCloudUpdatedAt > effectiveCloudSyncedAt + 1000;
   const isLinkedSyncSignedOut = !user && syncEnabled;
+  const workingOnCloudOnly = !localPathHint && !!currentRememberedLocationLabel && syncEnabled;
+  const localFolderAccessNeeded = !localPathHint && !!currentRememberedLocationLabel && !syncEnabled;
   const currentStatus = isLinkedSyncSignedOut
     ? 'Sync paused'
     : !user
       ? 'Local only'
+      : localFolderAccessNeeded
+      ? 'Folder access needed'
+      : workingOnCloudOnly
+      ? 'Working on cloud'
       : hasNewerCloudCopy
       ? 'Cloud copy newer'
       : hasUnsyncedLocalChanges
@@ -507,7 +524,7 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
           : 'Sync available';
   const statusTone = currentStatus === 'Synced'
     ? 'border border-[rgba(120,167,145,0.32)] bg-[rgba(120,167,145,0.18)] text-[rgb(72,112,92)]'
-    : currentStatus === 'Local changes not synced' || currentStatus === 'Cloud copy newer' || currentStatus === 'Sync paused'
+    : currentStatus === 'Local changes not synced' || currentStatus === 'Cloud copy newer' || currentStatus === 'Sync paused' || currentStatus === 'Folder access needed'
       ? 'border border-[#f59e0b]/30 bg-[#f59e0b]/15 text-[#b45309]'
       : 'border border-[rgba(54,137,151,0.36)] bg-[rgba(54,137,151,0.15)] text-[rgb(38,103,116)]';
   const primaryActionLabel = syncEnabled ? 'Sync now' : 'Sync this workspace';
@@ -1548,15 +1565,19 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
                       <p className="font-sans text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--c-text-lo)]">Local folder</p>
                       <div
                         className="mt-1 inline-flex max-w-full items-center gap-1.5 font-sans text-[12px] font-semibold text-[var(--c-text-md)]"
-                        title={currentLocationLabel?.fullPath ?? currentLocalRecent?.localPathHint ?? undefined}
+                        title={currentLocalFolderTitle}
                       >
-                        {currentLocationLabel ? <IconDevice kind={currentLocationLabel.deviceKind} /> : <IconNewWorkspace />}
+                        {currentLocationLabel || currentRememberedLocationLabel ? (
+                          <IconDevice kind={(currentLocationLabel ?? currentRememberedLocationLabel)!.deviceKind} />
+                        ) : (
+                          <IconNewWorkspace />
+                        )}
                         <span className="truncate">
-                          {currentLocationLabel?.label ?? (currentLocalRecent ? 'Folder remembered, access needed' : 'No local folder connected')}
+                          {currentLocationLabel?.label ?? currentRememberedLocationLabel?.label ?? 'No local folder connected'}
                         </span>
                       </div>
                     </div>
-                    {localFolderConnected && (
+                    {localFolderConnected ? (
                       <button
                         type="button"
                         onClick={() => void handleOpenLocalFolder()}
@@ -1566,7 +1587,18 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
                         <IconFolderOpen />
                         {openingLocalFolder ? 'Opening...' : 'Open folder'}
                       </button>
-                    )}
+                    ) : currentRememberedLocationLabel ? (
+                      <button
+                        type="button"
+                        onClick={() => void handleReconnectLocalFolder()}
+                        disabled={actionLoading !== null}
+                        className="inline-flex items-center gap-1.5 rounded-md border border-[#f59e0b]/30 bg-[#f59e0b]/10 px-2 py-1.5 font-sans text-[11px] font-semibold text-[#b45309] transition-colors hover:bg-[#f59e0b]/15 hover:text-[#92400e] disabled:cursor-default disabled:opacity-60"
+                        title={currentRememberedLocationLabel.fullPath ?? undefined}
+                      >
+                        <IconFolderOpen />
+                        {reconnectingLocalFolder ? 'Reconnecting...' : syncEnabled ? 'Use local folder' : 'Reconnect folder'}
+                      </button>
+                    ) : null}
                   </div>
 
                   {!IS_TAURI && (
@@ -1741,7 +1773,16 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
                         className="flex w-full items-center gap-2 px-3 py-2 text-left font-sans text-[12px] font-semibold text-[var(--c-text-md)] transition-colors hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)] disabled:cursor-default disabled:opacity-60"
                       >
                         <span className="text-[var(--c-text-lo)]"><IconFolderOpen /></span>
-                        {reconnectingLocalFolder ? 'Reconnecting folder...' : 'Reconnect folder...'}
+                        <span className="min-w-0">
+                          <span className="block truncate">
+                            {reconnectingLocalFolder ? 'Reconnecting folder...' : reconnectLocalFolderLabel}
+                          </span>
+                          {currentRememberedLocationLabel && (
+                            <span className="mt-0.5 block truncate text-[10px] font-medium text-[var(--c-text-lo)]" title={currentRememberedLocationLabel.fullPath ?? undefined}>
+                              {currentRememberedLocationLabel.label}
+                            </span>
+                          )}
+                        </span>
                       </button>
                       <button
                         type="button"
