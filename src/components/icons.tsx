@@ -7,7 +7,7 @@ import {
   AlignLeft, AlignCenter, AlignRight,
   Code, Eye, CircleDot, Copy, TextWrap,
   Quote, Code2, Minus,
-  Link2,
+  Link2, Star, ArrowRight, Unlink, Brackets,
 } from 'lucide-react';
 
 export function IconGrip()         { return <GripVertical  size={12} />; }
@@ -28,6 +28,12 @@ export function IconQuote()        { return <Quote          size={13} />; }
 export function IconCodeBlock()    { return <Code2          size={13} />; }
 export function IconHorizontalRule() { return <Minus        size={14} />; }
 export function IconLink()         { return <Link2         size={13} />; }
+export function IconWikiLink()     { return <Brackets      size={14} />; }
+export function IconArrowRight({ size = 14 }: { size?: number }) { return <ArrowRight size={size} />; }
+export function IconUnlink({ size = 14 }: { size?: number }) { return <Unlink size={size} />; }
+export function IconStar({ filled = false, size = 13 }: { filled?: boolean; size?: number }) {
+  return <Star size={size} fill={filled ? 'currentColor' : 'none'} />;
+}
 export function IconFreeformPage() {
   return (
     <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">

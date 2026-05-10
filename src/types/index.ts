@@ -240,6 +240,7 @@ export interface Document {
   pageId?: string;        // which page this document belongs to
   linkedFile?: string;    // workspace-relative path, e.g. "notes/ideas.md"
   orderIndex?: number;
+  isFavorite?: boolean;
   createdAt: number;      // epoch ms
   updatedAt: number;      // epoch ms
   tags?: string[];
@@ -290,4 +291,7 @@ export interface BoardData {
   // Phase 2 document entities — absent in legacy saves
   documents?: Document[];
   schemaVersion?: number;
+  workspaceIdentity?: {
+    workspaceId: string;
+  };
 }

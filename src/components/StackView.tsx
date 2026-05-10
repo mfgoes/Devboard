@@ -1,6 +1,7 @@
-import { useMemo, useRef, useState } from 'react';
+import { forwardRef, useMemo, useRef, useState } from 'react';
 import { useBoardStore } from '../store/boardStore';
 import { Document } from '../types';
+import { IconStar } from './icons';
 
 function stripHtml(html: string): string {
   return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -30,20 +31,23 @@ function sortDocumentsForPage(docs: Document[], sortMode: 'updated' | 'custom' =
 interface StackCardProps {
   doc: Document;
   onOpen: (rect: DOMRect) => void;
+  onToggleFavorite: () => void;
 }
 
-function StackCard({ doc, onOpen }: StackCardProps) {
+function StackCard({ doc, onOpen, onToggleFavorite }: StackCardProps) {
   const cardRef = useRef<HTMLDivElement>(null);
   const preview = useMemo(() => stripHtml(doc.content).slice(0, 300), [doc.content]);
   const [hovered, setHovered] = useState(false);
+  const openFromCard = () => {
+    const rect = cardRef.current?.getBoundingClientRect();
+    if (rect) onOpen(rect);
+  };
 
   return (
     <div
       ref={cardRef}
-      onClick={() => {
-        const rect = cardRef.current?.getBoundingClientRect();
-        if (rect) onOpen(rect);
-      }}
+      onClick={openFromCard}
+      onDoubleClick={openFromCard}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
@@ -80,6 +84,32 @@ function StackCard({ doc, onOpen }: StackCardProps) {
         }}>
           {doc.title || 'Untitled'}
         </span>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleFavorite();
+          }}
+          title={doc.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+          aria-label={doc.isFavorite ? `Remove ${doc.title || 'Untitled'} from favorites` : `Add ${doc.title || 'Untitled'} to favorites`}
+          style={{
+            width: 28,
+            height: 28,
+            border: 'none',
+            borderRadius: 7,
+            background: 'transparent',
+            color: doc.isFavorite ? '#d6a045' : 'var(--c-text-lo)',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+        >
+          <IconStar filled={!!doc.isFavorite} size={14} />
+        </button>
       </div>
 
       {preview && (
@@ -131,6 +161,7 @@ export default function StackView({ pageId, pageName }: Props) {
   const addDocument = useBoardStore((s) => s.addDocument);
   const ensureDocumentNode = useBoardStore((s) => s.ensureDocumentNode);
   const openDocumentWithMorph = useBoardStore((s) => s.openDocumentWithMorph);
+  const toggleFavoriteDocument = useBoardStore((s) => s.toggleFavoriteDocument);
   const page = pages.find((entry) => entry.id === pageId);
   const [sort, setSort] = useState<'page' | 'az' | 'tag'>('page');
   const newBtnRef = useRef<HTMLDivElement>(null);
@@ -214,7 +245,12 @@ export default function StackView({ pageId, pageName }: Props) {
 
         {/* Doc cards */}
         {pageDocs.map((doc) => (
-          <StackCard key={doc.id} doc={doc} onOpen={(rect) => handleOpen(doc.id, rect)} />
+          <StackCard
+            key={doc.id}
+            doc={doc}
+            onOpen={(rect) => handleOpen(doc.id, rect)}
+            onToggleFavorite={() => toggleFavoriteDocument(doc.id)}
+          />
         ))}
 
         {pageDocs.length === 0 && (
@@ -226,8 +262,6 @@ export default function StackView({ pageId, pageName }: Props) {
     </div>
   );
 }
-
-import { forwardRef } from 'react';
 
 const NewNoteButton = forwardRef<HTMLDivElement, { onClick: () => void }>(({ onClick }, ref) => {
   const [hovered, setHovered] = useState(false);

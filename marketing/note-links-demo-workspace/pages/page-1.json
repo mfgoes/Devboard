@@ -1,0 +1,152 @@
+{
+  "name": "Project Atlas",
+  "layoutMode": "freeform",
+  "noteSort": "updated",
+  "nodes": [
+    {
+      "id": "section_project_atlas",
+      "type": "section",
+      "x": -380,
+      "y": -260,
+      "width": 920,
+      "height": 620,
+      "name": "Project Atlas: scattered notes become a map",
+      "color": "#4f7cff"
+    },
+    {
+      "id": "doc_project_atlas_card",
+      "type": "document",
+      "x": -40,
+      "y": -120,
+      "width": 300,
+      "height": 190,
+      "docId": "doc_notes_project_atlas_md"
+    },
+    {
+      "id": "doc_launch_meeting_card",
+      "type": "document",
+      "x": -330,
+      "y": -170,
+      "width": 260,
+      "height": 170,
+      "docId": "doc_notes_launch_meeting_md"
+    },
+    {
+      "id": "doc_research_card",
+      "type": "document",
+      "x": 300,
+      "y": -180,
+      "width": 260,
+      "height": 170,
+      "docId": "doc_notes_research_snippets_md"
+    },
+    {
+      "id": "doc_maya_card",
+      "type": "document",
+      "x": -320,
+      "y": 130,
+      "width": 260,
+      "height": 170,
+      "docId": "doc_notes_maya_client_notes_md"
+    },
+    {
+      "id": "doc_budget_card",
+      "type": "document",
+      "x": 300,
+      "y": 130,
+      "width": 260,
+      "height": 170,
+      "docId": "doc_notes_budget_decision_md"
+    },
+    {
+      "id": "sticky_video_hook",
+      "type": "sticky",
+      "x": -40,
+      "y": 120,
+      "width": 250,
+      "height": 150,
+      "text": "Video hook:\nYou wrote it down. Somewhere.",
+      "color": "#f7c948",
+      "fontSize": 22,
+      "fontSizeMode": "dynamic",
+      "bold": true
+    },
+    {
+      "id": "connector_launch_to_project",
+      "type": "connector",
+      "fromNodeId": "doc_launch_meeting_card",
+      "fromAnchor": "right",
+      "fromX": -70,
+      "fromY": -85,
+      "toNodeId": "doc_project_atlas_card",
+      "toAnchor": "left",
+      "toX": -40,
+      "toY": -25,
+      "color": "#7c8aa5",
+      "strokeWidth": 2,
+      "lineStyle": "curved",
+      "strokeStyle": "solid",
+      "arrowHeadStart": "none",
+      "arrowHeadEnd": "arrow"
+    },
+    {
+      "id": "connector_research_to_project",
+      "type": "connector",
+      "fromNodeId": "doc_research_card",
+      "fromAnchor": "left",
+      "fromX": 300,
+      "fromY": -95,
+      "toNodeId": "doc_project_atlas_card",
+      "toAnchor": "right",
+      "toX": 260,
+      "toY": -25,
+      "color": "#7c8aa5",
+      "strokeWidth": 2,
+      "lineStyle": "curved",
+      "strokeStyle": "solid",
+      "arrowHeadStart": "none",
+      "arrowHeadEnd": "arrow"
+    },
+    {
+      "id": "connector_maya_to_project",
+      "type": "connector",
+      "fromNodeId": "doc_maya_card",
+      "fromAnchor": "right",
+      "fromX": -60,
+      "fromY": 215,
+      "toNodeId": "doc_project_atlas_card",
+      "toAnchor": "bottom",
+      "toX": 110,
+      "toY": 70,
+      "color": "#7c8aa5",
+      "strokeWidth": 2,
+      "lineStyle": "curved",
+      "strokeStyle": "solid",
+      "arrowHeadStart": "none",
+      "arrowHeadEnd": "arrow"
+    },
+    {
+      "id": "connector_budget_to_project",
+      "type": "connector",
+      "fromNodeId": "doc_budget_card",
+      "fromAnchor": "left",
+      "fromX": 300,
+      "fromY": 215,
+      "toNodeId": "doc_project_atlas_card",
+      "toAnchor": "bottom",
+      "toX": 110,
+      "toY": 70,
+      "color": "#7c8aa5",
+      "strokeWidth": 2,
+      "lineStyle": "curved",
+      "strokeStyle": "solid",
+      "arrowHeadStart": "none",
+      "arrowHeadEnd": "arrow"
+    }
+  ],
+  "camera": {
+    "x": 36,
+    "y": 16,
+    "scale": 0.82
+  }
+}

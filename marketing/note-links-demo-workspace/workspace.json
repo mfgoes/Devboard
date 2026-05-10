@@ -1,0 +1,12 @@
+{
+  "title": "Note Links Demo",
+  "pages": [
+    {
+      "id": "page-1",
+      "name": "Project Atlas",
+      "layoutMode": "freeform",
+      "noteSort": "updated"
+    }
+  ],
+  "activePageId": "page-1"
+}

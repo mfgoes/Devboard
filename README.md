@@ -1,7 +1,7 @@
 # DevBoard
 
 **The note app that thinks visually.**  
-A focused Markdown editor with `[[wikilinks]]` and a real infinite canvas — now with optional cloud sync.
+A focused Markdown editor with Obsidian-style `[[wikilinks]]`, backlinks, favorites, and a real infinite canvas — now with optional cloud sync.
 
 [Open in browser](https://mfgoes.github.io/Devboard/) · [Download](https://mfgoes.github.io/Devboard/download.html) · [Manual](https://mfgoes.github.io/Devboard/manual.html)
 
@@ -18,6 +18,7 @@ Most tools force that work across two apps: one for writing, another for diagram
 DevBoard brings both modes into one local-first workspace:
 
 - **Write** in Markdown with `[[wikilinks]]`, backlinks, and focus mode
+- **Find** important notes quickly with favorites, recents, stack view, and `⌘K`
 - **Map** ideas on an infinite canvas with notes, shapes, connectors, and code blocks
 - **Connect** documents and canvas nodes with `@node:` references
 
@@ -29,9 +30,19 @@ It is the place for ideas that start as notes, become systems, and need to stay 
 
 DevBoard works without an account. Your workspace is a folder of Markdown and JSON files on your machine.
 
-When you want backup or multi-device access, you can sign in with GitHub or Google and sync up to 3 workspaces through EU-hosted cloud storage.
+When you want backup or multi-device access, you can sign in with GitHub or Google and sync up to 3 selected workspaces through EU-hosted Supabase storage.
 
 Cloud sync is optional. Local ownership stays the default.
+
+Recent sync work includes:
+
+- GitHub and Google authentication
+- Cloud workspace picker for creating, opening, renaming, and deleting synced workspaces
+- Push/pull sync for selected workspaces, including updates to existing cloud copies
+- Save status in the app chrome, with local save and cloud sync timestamps
+- Device identity tracking for clearer multi-device sync state
+- Supabase row-level security policies and workspace sync history/location tables
+- Local folder materialization for Markdown notes, canvas pages, assets, and workspace metadata
 
 ---
 
@@ -107,6 +118,7 @@ Keep architecture diagrams, planning boards, and notes next to your project file
 - Clean Markdown editor with formatting toolbar  
 - `[[Wikilinks]]` between notes  
 - Backlinks panel (bi-directional linking)  
+- Favorite notes for quick access in the sidebar  
 - `@node:` mentions — reference canvas nodes inside documents  
 - Focus mode for deep work  
 - Stack view for browsing notes  
@@ -122,13 +134,15 @@ Keep architecture diagrams, planning boards, and notes next to your project file
 - Open any local folder as a workspace  
 - File explorer (VS Code-style)  
 - Multiple canvas pages + Markdown notes  
-- Quick switcher (`⌘K`)  
+- Favorites, recents, and quick switcher (`⌘K`)  
 
 ### ☁️ Sync (optional)
 - Cloud backup & sync (up to 3 workspaces)  
 - GitHub / Google login  
 - Hosted in EU (NL) infrastructure  
 - Built on Supabase → AWS (EU region)  
+- Create, open, rename, delete, push, and pull synced workspaces  
+- Local save and cloud sync status indicators  
 
 ### ⚙️ General
 - Local-first by default  

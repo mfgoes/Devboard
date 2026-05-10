@@ -39,7 +39,7 @@
       <li class="hide-mobile"><a href="#features">Features</a></li>
       <li class="hide-mobile"><a href="https://github.com/mfgoes/Devboard" target="_blank" rel="noopener">GitHub ↗</a></li>
       <li class="hide-mobile"><a class="nav-kofi" href="https://ko-fi.com/devboardapp" target="_blank" rel="noopener">♥ Support</a></li>
-      <li><a class="nav-cta" href="./download.html">Download free →</a></li>
+      <li><a class="nav-cta" href="./app.html" target="_blank" rel="noopener">Try in browser</a></li>
     </ul>
   </nav>
 <!-- hero -->
@@ -47,21 +47,21 @@
   <h1>Clear your head.<br><em>Map your ideas.</em></h1>
 
   <p class="hero-sub">
-    A local-first workspace for notes, diagrams, and visual thinking - with optional EU cloud sync.
+    A local-first workspace for Obsidian-style notes and visual thinking. Write in Markdown, connect the pieces, then open the canvas when the structure needs room.
   </p>
 
   <ul class="hero-checks">
-    <li>Markdown notes with wikilinks, backlinks, and focus mode</li>
-    <li>Infinite canvas for maps, systems, stories, and diagrams</li>
-    <li>Your files stay local by default</li>
+    <li>Markdown notes with wikilinks, backlinks, and favorites</li>
+    <li>Canvas maps for systems, stories, diagrams, and planning</li>
+    <li>Plain files in a folder you control</li>
   </ul>
 
   <div class="cta-row">
-    <a class="btn btn-primary" href="./download.html">
-      Download free →
-    </a>
-    <a class="btn btn-ghost" href="./app.html" target="_blank" rel="noopener">
+    <a class="btn btn-primary" href="./app.html" target="_blank" rel="noopener">
       Try in browser
+    </a>
+    <a class="btn btn-ghost" href="./download.html">
+      Download desktop
     </a>
   </div>
 
@@ -91,26 +91,25 @@
     </div>
   </div>
 
-  <!-- tabbed feature section -->
-  <!-- tabbed feature section -->
+  <!-- workflow feature section -->
 <div class="tabs-section" id="features">
   <div class="tab-bar">
-    <button class="tab-btn active" data-tab="notes">Linked notes</button>
-    <button class="tab-btn" data-tab="canvas">Visual canvas</button>
-    <button class="tab-btn" data-tab="sync">Local + sync</button>
+    <button class="tab-btn active" data-tab="write">Write</button>
+    <button class="tab-btn" data-tab="link">Link</button>
+    <button class="tab-btn" data-tab="map">Map</button>
   </div>
 
-  <div class="tab-panel active" id="tab-notes">
+  <div class="tab-panel active" id="tab-write">
     <div class="feature-strip">
       <div class="feature-text">
-        <div class="feature-eyebrow">Linked notes</div>
-        <h2>Notes that know about each other</h2>
-        <p>Write in Markdown. Type <code>[[</code> to link to another note. Drop <code>@node:</code> to reference a node on the canvas. A backlinks panel shows everywhere a note is mentioned — your characters, locations, decisions, and diagrams stay connected.</p>
+        <div class="feature-eyebrow">Start with words</div>
+        <h2>Write the thought before it disappears</h2>
+        <p>Open a note and write in Markdown. Capture the messy version, keep important notes close with favorites, and use focus mode when the page needs your full attention.</p>
         <div class="feature-pills">
-          <span class="pill">[[Wikilinks]]</span>
-          <span class="pill">@node mentions</span>
-          <span class="pill">Backlinks panel</span>
+          <span class="pill">Markdown</span>
+          <span class="pill">Favorites</span>
           <span class="pill">Focus mode</span>
+          <span class="pill">Quick switcher</span>
         </div>
       </div>
       <div class="feature-img">
@@ -119,38 +118,17 @@
     </div>
   </div>
 
-  <div class="tab-panel" id="tab-canvas">
+  <div class="tab-panel" id="tab-link">
     <div class="feature-strip">
       <div class="feature-text">
-        <div class="feature-eyebrow">Visual canvas</div>
-        <h2>For when notes need to become a system</h2>
-        <p>Switch to canvas mode for sticky notes, shapes, sections, and connector arrows that stay attached as you move things around. Plot a story structure, sketch an architecture, or run a retro — without leaving your workspace.</p>
+        <div class="feature-eyebrow">Connect the pieces</div>
+        <h2>Let one note lead to the next</h2>
+        <p>Type <code>[[</code> to link notes together, then use backlinks to see where each idea appears. Reference canvas nodes with <code>@node:</code> so documents and diagrams stay part of the same thought.</p>
         <div class="feature-pills">
-          <span class="pill">Sticky notes &amp; shapes</span>
-          <span class="pill">Smart connectors</span>
-          <span class="pill">Sections &amp; grouping</span>
-          <span class="pill">Code blocks</span>
-        </div>
-      </div>
-      <div class="feature-img">
-        <img src="assets_landing/timeline.png" alt="Visual canvas with shapes, sections, and connectors in DevBoard" />
-      </div>
-    </div>
-  </div>
-
-  <div class="tab-panel" id="tab-sync">
-    <div class="feature-strip flip">
-      <div class="feature-text">
-        <div class="feature-eyebrow">Local-first + optional sync</div>
-        <h2>Your workspace stays yours</h2>
-        <p>
-          Open a local folder directly in DevBoard. Notes are real Markdown files, canvas pages live beside them, and the built-in file explorer keeps everything close. Use it fully offline, or sign in with GitHub or Google to sync up to 3 workspaces through EU-hosted cloud storage.
-        </p>
-        <div class="feature-pills">
-          <span class="pill">Local by default</span>
-          <span class="pill">Markdown + JSON</span>
-          <span class="pill">EU-hosted sync</span>
-          <span class="pill">GitHub / Google login</span>
+          <span class="pill">[[Wikilinks]]</span>
+          <span class="pill">Backlinks panel</span>
+          <span class="pill">@node mentions</span>
+          <span class="pill">Cross-references</span>
         </div>
       </div>
       <div class="feature-img">
@@ -158,11 +136,31 @@
       </div>
     </div>
   </div>
+
+  <div class="tab-panel" id="tab-map">
+    <div class="feature-strip flip">
+      <div class="feature-text">
+        <div class="feature-eyebrow">Open the canvas</div>
+        <h2>Turn connected notes into a visible system</h2>
+        <p>
+          Switch to canvas mode for sticky notes, shapes, sections, images, code blocks, and connector arrows that stay attached as you rearrange. Your files stay local. Sync is optional and covered below.
+        </p>
+        <div class="feature-pills">
+          <span class="pill">Sticky notes &amp; shapes</span>
+          <span class="pill">Smart connectors</span>
+          <span class="pill">Sections &amp; grouping</span>
+          <span class="pill">Markdown + JSON</span>
+        </div>
+      </div>
+      <div class="feature-img">
+        <img src="assets_landing/timeline.png" alt="Visual canvas with shapes, sections, and connectors in DevBoard" />
+      </div>
+    </div>
+  </div>
 </div>
 
   <hr class="divider" />
 
-  <!-- what you get -->
   <div class="comparison">
     <div class="section-header section-header--center">
       <div class="section-eyebrow">Why DevBoard</div>
@@ -172,124 +170,52 @@
 
     <div class="cmp-table">
       <div class="cmp-head">
-        <div class="cmp-label">Why people choose it</div>
+        <div class="cmp-label">How it compares</div>
         <div class="cmp-col cmp-col--devboard">
           <span class="cmp-product-name">DevBoard</span>
+        </div>
+        <div class="cmp-col">
+          <span class="cmp-product-name">Obsidian</span>
+        </div>
+        <div class="cmp-col">
+          <span class="cmp-product-name">Notion</span>
         </div>
       </div>
 
       <div class="cmp-row">
         <div class="cmp-label">Free to use, with no account required</div>
         <div class="cmp-col cmp-col--devboard"><span class="cmp-yes">✓</span></div>
+        <div class="cmp-col"><span class="cmp-yes">✓</span></div>
+        <div class="cmp-col"><span class="cmp-no">-</span></div>
       </div>
       <div class="cmp-row">
         <div class="cmp-label">Local-first and fully offline</div>
         <div class="cmp-col cmp-col--devboard"><span class="cmp-yes">✓</span></div>
+        <div class="cmp-col"><span class="cmp-yes">✓</span></div>
+        <div class="cmp-col"><span class="cmp-no">-</span></div>
       </div>
       <div class="cmp-row">
-        <div class="cmp-label">Real Markdown notes in your own folder</div>
+        <div class="cmp-label">Notes and canvas in one workspace</div>
         <div class="cmp-col cmp-col--devboard"><span class="cmp-yes">✓</span></div>
+        <div class="cmp-col"><span class="cmp-ltd">Plugin flow</span></div>
+        <div class="cmp-col"><span class="cmp-ltd">Limited</span></div>
       </div>
       <div class="cmp-row">
-        <div class="cmp-label">Good for both long-form writing and visual thinking</div>
+        <div class="cmp-label">Real Markdown notes, wikilinks, backlinks, and favorites</div>
         <div class="cmp-col cmp-col--devboard"><span class="cmp-yes">✓</span></div>
+        <div class="cmp-col"><span class="cmp-yes">✓</span></div>
+        <div class="cmp-col"><span class="cmp-ltd">Limited</span></div>
       </div>
       <div class="cmp-row">
-        <div class="cmp-label">One workspace instead of splitting notes in Obsidian, docs in Notion, and diagrams in FigJam</div>
+        <div class="cmp-label">Cross-reference notes and canvas nodes with <code>@node:</code></div>
         <div class="cmp-col cmp-col--devboard"><span class="cmp-yes">✓</span></div>
+        <div class="cmp-col"><span class="cmp-no">-</span></div>
+        <div class="cmp-col"><span class="cmp-no">-</span></div>
       </div>
-
     </div>
   </div>
 
   <hr class="divider" />
-<!-- feature grid -->
-<section class="features-section" id="features">
-  <div class="section-header">
-    <div class="section-eyebrow">What you get</div>
-    <h2>One workspace, two modes, your folder</h2>
-    <p>Write when you need clarity. Map when you need structure. Keep it all in a local-first workspace you control.</p>
-  </div>
-
-  <div class="grid-3">
-    <div class="card">
-      <div class="card-icon ic-teal">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
-        </svg>
-      </div>
-      <h3>Linked notes</h3>
-      <p>Write in Markdown with <code>[[wikilinks]]</code> and see backlinks automatically, so your notes connect into a real knowledge graph.</p>
-    </div>
-
-    <div class="card">
-      <div class="card-icon ic-violet">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="9"/>
-          <circle cx="12" cy="12" r="3"/>
-        </svg>
-      </div>
-      <h3>Focus mode</h3>
-      <p>Strip away the noise for distraction-free writing, then switch to stack view when you want the bigger picture across your notes.</p>
-    </div>
-
-    <div class="card">
-      <div class="card-icon ic-orange">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-        </svg>
-      </div>
-      <h3>Your workspace</h3>
-      <p>Open a local folder directly in DevBoard. Notes are real Markdown files, with canvas pages and assets living alongside them.</p>
-    </div>
-
-    <div class="card">
-      <div class="card-icon ic-indigo">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="3" y="3" width="7" height="7" rx="1.5"/>
-          <rect x="14" y="3" width="7" height="7" rx="1.5"/>
-          <rect x="14" y="14" width="7" height="7" rx="1.5"/>
-          <rect x="3" y="14" width="7" height="7" rx="1.5"/>
-          <path d="M10 6.5h4"/>
-          <path d="M17.5 10v4"/>
-          <path d="M14 17.5h-4"/>
-          <path d="M6.5 14v-4"/>
-        </svg>
-      </div>
-      <h3>Visual canvas</h3>
-      <p>Use an infinite canvas for sticky notes, shapes, connectors, images, code blocks, and sections when ideas need spatial structure.</p>
-    </div>
-
-    <div class="card">
-      <div class="card-icon ic-yellow">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M8 8h8"/>
-          <path d="M8 12h4"/>
-          <path d="M8 16h6"/>
-          <path d="M16 8l4-4"/>
-          <path d="M20 4v4h-4"/>
-          <rect x="4" y="4" width="12" height="16" rx="2"/>
-        </svg>
-      </div>
-      <h3>Cross-references</h3>
-      <p>Use <code>@node:</code> mentions to reference a canvas node from inside a note, so documents and diagrams stay connected.</p>
-    </div>
-
-    <div class="card">
-      <div class="card-icon ic-green">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M17.5 19H9a4 4 0 1 1 .88-7.9A5 5 0 0 1 19 12a3.5 3.5 0 0 1-1.5 7z"/>
-          <path d="M12 12v6"/>
-          <path d="M9.5 15.5 12 18l2.5-2.5"/>
-        </svg>
-      </div>
-      <h3>Optional sync</h3>
-      <p>Use DevBoard fully offline, or sign in with GitHub or Google to sync up to 3 workspaces with EU-hosted cloud storage.</p>
-    </div>
-  </div>
-</section>
-
 <!-- sync pricing -->
 <section class="sync-pricing-section" id="sync">
   <div class="section-header section-header--center">
@@ -319,6 +245,7 @@
         <li>Unlimited local workspaces</li>
         <li>Markdown notes and canvas pages</li>
         <li>Export to Markdown, JSON, and PNG</li>
+        <li>Local workspaces stay free</li>
         <li>No account required</li>
       </ul>
     </article>
@@ -357,8 +284,8 @@
     <h2>Open a folder and start writing</h2>
     <p>Free forever. No account. Works in your browser or as a native app on macOS, Windows &amp; Linux.</p>
     <div class="cta-row">
-      <a class="btn btn-primary" href="./download.html">Download free →</a>
-      <a class="btn btn-ghost" href="./app.html" target="_blank" rel="noopener">Try in browser</a>
+      <a class="btn btn-primary" href="./app.html" target="_blank" rel="noopener">Try in browser</a>
+      <a class="btn btn-ghost" href="./download.html">Download desktop</a>
     </div>
   </div>
 
@@ -388,8 +315,8 @@
     <!-- support / ko-fi -->
     <aside class="support-callout">
       <div class="support-text">
-        <h3>Enjoying DevBoard?</h3>
-        <p>It's free and made by one person. A small tip on Ko-fi keeps me motivated to ship new features.</p>
+        <h3>Support sustainable development</h3>
+        <p>DevBoard is sustainably made by one person. If it saves you switching between tools, consider supporting development. Most supporters give €5-10.</p>
       </div>
       <a class="btn btn-kofi" href="https://ko-fi.com/devboardapp" target="_blank" rel="noopener">
         <span aria-hidden="true">☕</span>
@@ -403,6 +330,7 @@
     <p>Created by <a href="https://mfgoes.github.io/portfolio-2026/" target="_blank" rel="noopener">Mischa</a></p>
     <div class="footer-links">
       <a href="https://github.com/mfgoes/Devboard" target="_blank" rel="noopener">GitHub</a>
+      <a href="./note-links.html">Note links</a>
       <a href="https://ko-fi.com/devboardapp" target="_blank" rel="noopener">♥ Ko-fi</a>
       <a href="design-system.html" target="_blank" rel="noopener">Design System</a>
       <a href="https://x.com/MishoWave" target="_blank" rel="noopener">X / Twitter</a>

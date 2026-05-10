@@ -10,12 +10,12 @@ import type { CanvasNode, Document, PageMeta } from '../types';
 import { listDirectory, readWorkspaceFile, readWorkspaceFileAsUrl, readWorkspaceFileInfo, getWorkspaceName, openWorkspace, createWorkspace, renameEntry, createDirectory, deleteEntry, FSA_DIR_SUPPORTED, IN_IFRAME, IS_TAURI, revealInFinder, saveTextFileToWorkspace, saveWorkspace } from '../utils/workspaceManager';
 import { FONTS } from '../utils/fonts';
 import { placeCodeFile, placeImageFile, placeDocumentFile, openDocumentFile } from '../utils/canvasPlacement';
-import { generateMarkdownFilename, htmlToMarkdown, markdownToHtml } from '../utils/exportMarkdown';
+import { documentMarkdownFromParts, generateMarkdownFilename, markdownBodyToHtml, titleFromMarkdown } from '../utils/exportMarkdown';
 import { toast } from '../utils/toast';
 import { applyWorkspaceSyncFromOpenResult } from '../utils/applyWorkspaceSync';
 import { useFilePreview } from '../hooks/useFilePreview';
 import { useTreeState } from '../hooks/useTreeState';
-import { IconFreeformPage, IconStackPage } from './icons';
+import { IconFreeformPage, IconStackPage, IconStar } from './icons';
 import {
   SKIP_DIRS,
   IMAGE_EXTS,
@@ -55,10 +55,47 @@ const explorerFocusedRowStyle: React.CSSProperties = {
   outlineOffset: -1,
 };
 
+function SectionChevron({ open }: { open: boolean }) {
+  return (
+    <span
+      className="opacity-0 group-hover:opacity-100 group-focus:opacity-100 group-hover:bg-[var(--c-hover)] group-focus:bg-[var(--c-hover)] transition-opacity"
+      style={{
+        width: 18,
+        height: 18,
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: 5,
+        fontSize: 14,
+        fontWeight: 800,
+        lineHeight: 1,
+        color: 'var(--c-text-md)',
+        transition: 'opacity 0.14s ease, background 0.14s ease',
+        marginLeft: 4,
+        transform: 'translateY(0.5px)',
+      }}
+      aria-hidden="true"
+    >
+      <span
+        style={{
+          display: 'block',
+          lineHeight: 1,
+          transform: `${open ? 'rotate(0deg)' : 'rotate(-90deg)'} translateY(-0.5px)`,
+          transition: 'transform 0.14s ease',
+        }}
+      >
+        ▾
+      </span>
+    </span>
+  );
+}
+
 const ADVANCED_FILES_STORAGE_KEY = 'devboard-advanced-files-visible';
 
 const HIDDEN_ASSET_ROOTS = new Set(['notes', 'documents', 'pages']);
 const HIDDEN_ASSET_FILES = new Set(['workspace.json']);
+const WORKSPACE_MANAGED_ROOTS = new Set(['notes', 'documents', 'pages']);
+const WORKSPACE_MANAGED_FILES = new Set(['workspace.json']);
 
 type ExplorerKeyboardItem =
   | { kind: 'page'; pageId: string }
@@ -94,7 +131,7 @@ function generatePlainTextFilename(title?: string): string {
 }
 
 function exportDocumentAsMarkdownFile(doc: Document): void {
-  const md = [`# ${doc.title || 'Untitled note'}`, '', htmlToMarkdown(doc.content ?? '')].join('\n').trim() + '\n';
+  const md = `${documentMarkdownFromParts(doc.title || 'Untitled note', doc.content)}\n`;
   saveAs(new Blob([md], { type: 'text/markdown;charset=utf-8' }), generateMarkdownFilename(doc.title));
 }
 
@@ -157,6 +194,12 @@ function isVisibleInAssets(entry: TreeEntry): boolean {
   if (HIDDEN_ASSET_ROOTS.has(root)) return false;
   if (entry.path.length === 1 && HIDDEN_ASSET_FILES.has(entry.name)) return false;
   return true;
+}
+
+function isWorkspaceManagedEntry(entry: TreeEntry): boolean {
+  const root = entry.path[0];
+  if (!root) return false;
+  return WORKSPACE_MANAGED_ROOTS.has(root) || (entry.path.length === 1 && WORKSPACE_MANAGED_FILES.has(entry.name));
 }
 
 function nodeBounds(node: CanvasNode): { x: number; y: number; w: number; h: number } | null {
@@ -246,6 +289,173 @@ function sortDocumentsForExplorer(docs: Document[], sortMode: PageMeta['noteSort
   });
 }
 
+function NoteRowIcon({ doc, active }: { doc: Document; active: boolean }) {
+  return (
+    <span style={{ width: 14, display: 'flex', justifyContent: 'center', flexShrink: 0, color: active ? 'var(--c-line)' : 'var(--c-text-lo)' }}>
+      {doc.emoji ? (
+        <span style={{ fontSize: 12, lineHeight: 1 }}>{doc.emoji}</span>
+      ) : (
+        <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+          <rect x="1.5" y="1.5" width="9" height="9" rx="1.4" stroke="currentColor" strokeWidth="1.1" />
+          <path d="M3.5 4h5M3.5 6h5M3.5 8h3" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
+        </svg>
+      )}
+    </span>
+  );
+}
+
+function NoteHoverThumbnail({ doc }: { doc: Document }) {
+  const plain = stripHtmlPreview(doc.content);
+
+  return (
+    <div
+      style={{
+        height: 156,
+        borderRadius: 8,
+        border: '1px solid rgba(138,117,95,0.22)',
+        background: 'linear-gradient(180deg, rgba(255,255,255,0.86), rgba(245,237,227,0.96))',
+        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.65)',
+        padding: '14px 16px',
+        overflow: 'hidden',
+        color: '#2c241f',
+      }}
+    >
+      {doc.emoji && <div style={{ fontSize: 18, lineHeight: 1, marginBottom: 8 }}>{doc.emoji}</div>}
+      <div style={{ fontFamily: FONTS.ui, fontSize: 15, fontWeight: 800, lineHeight: 1.2, color: '#2c241f', marginBottom: 10 }}>
+        {(doc.title || 'Untitled note').slice(0, 70)}
+      </div>
+      <div
+        style={{
+          fontFamily: FONTS.ui,
+          fontSize: 10.5,
+          fontWeight: 500,
+          lineHeight: 1.48,
+          color: 'rgba(44,36,31,0.72)',
+          display: '-webkit-box',
+          WebkitLineClamp: doc.emoji ? 5 : 6,
+          WebkitBoxOrient: 'vertical',
+          overflow: 'hidden',
+        }}
+      >
+        {plain || 'No preview text yet'}
+      </div>
+    </div>
+  );
+}
+
+function NoteShortcutRow({
+  doc,
+  active,
+  onOpen,
+  onToggleFavorite,
+  onPreview,
+  onPreviewEnd,
+}: {
+  doc: Document;
+  active: boolean;
+  onOpen: (doc: Document) => void;
+  onToggleFavorite: (doc: Document) => void;
+  onPreview: (doc: Document, clientY: number) => void;
+  onPreviewEnd: () => void;
+}) {
+  const [hovered, setHovered] = useState(false);
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const favorite = !!doc.isFavorite;
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(doc)}
+      onMouseEnter={(e) => {
+        setHovered(true);
+        if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+        hoverTimerRef.current = setTimeout(() => onPreview(doc, e.clientY), 380);
+      }}
+      onMouseLeave={() => {
+        setHovered(false);
+        if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+        hoverTimerRef.current = null;
+        onPreviewEnd();
+      }}
+      title={doc.title || 'Untitled note'}
+      style={{
+        width: '100%',
+        minHeight: 24,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 7,
+        padding: '4px 8px',
+        border: 'none',
+        borderRadius: 6,
+        background: active ? 'rgba(184,119,80,0.14)' : hovered ? 'rgba(184,119,80,0.08)' : 'transparent',
+        outline: active ? '1px solid rgba(184,119,80,0.26)' : hovered ? '1px solid rgba(184,119,80,0.16)' : 'none',
+        outlineOffset: -1,
+        cursor: 'pointer',
+        textAlign: 'left',
+      }}
+    >
+      <NoteRowIcon doc={doc} active={active} />
+      <span
+        style={{
+          flex: 1,
+          minWidth: 0,
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+          fontFamily: FONTS.ui,
+          fontSize: 9.5,
+          fontWeight: active ? 650 : 550,
+          color: active ? 'var(--c-text-hi)' : 'var(--c-text-md)',
+        }}
+      >
+        {doc.title || 'Untitled note'}
+      </span>
+      <span
+        role="button"
+        tabIndex={0}
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onToggleFavorite(doc);
+        }}
+        onKeyDown={(e) => {
+          if (e.key !== 'Enter' && e.key !== ' ') return;
+          e.preventDefault();
+          e.stopPropagation();
+          onToggleFavorite(doc);
+        }}
+        title={favorite ? 'Remove from favorites' : 'Add to favorites'}
+        aria-label={favorite ? `Remove ${doc.title || 'Untitled note'} from favorites` : `Add ${doc.title || 'Untitled note'} to favorites`}
+        style={{
+          width: 18,
+          height: 18,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 0,
+          border: 'none',
+          borderRadius: 4,
+          background: 'transparent',
+          color: favorite ? '#d6a045' : 'var(--c-text-off)',
+          opacity: favorite || hovered ? 1 : 0,
+          cursor: 'pointer',
+          flexShrink: 0,
+          transition: 'opacity 0.12s ease, background 0.12s ease, color 0.12s ease',
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = 'var(--c-hover)';
+          e.currentTarget.style.color = favorite ? '#d6a045' : 'var(--c-text-md)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = 'transparent';
+          e.currentTarget.style.color = favorite ? '#d6a045' : 'var(--c-text-off)';
+        }}
+      >
+        <IconStar filled={favorite} size={12} />
+      </span>
+    </button>
+  );
+}
+
 // ── TreeRow ───────────────────────────────────────────────────────────────────
 function TreeRow({
   entry,
@@ -291,6 +501,8 @@ function TreeRow({
   const isDoc = !isDir && DOC_EXTS.has(ext(entry.name));
   const canOpen = !isDir && (CODE_EXTS[ext(entry.name)] !== undefined || isImage || isDoc);
   const isNotesFolder = isDir && entry.path.join('/') === 'notes';
+  const isWorkspaceManaged = isWorkspaceManagedEntry(entry);
+  const acceptsNoteDrop = isNotesFolder && !isWorkspaceManaged;
   const primaryAction = isDoc ? 'open note' : 'place on canvas';
   const isFocused = focusedPath === entry.path.join('/');
   const isRenaming = renamingPath === entry.path.join('/');
@@ -301,7 +513,9 @@ function TreeRow({
       : isDoc
         ? `${entry.path.join('/')} — single-click to preview · double-click or ↵ to open note · drag to place`
         : `${entry.path.join('/')} — single-click to preview · double-click or ↵ to place`
-    : entry.path.join('/');
+    : isWorkspaceManaged
+      ? `${entry.path.join('/')} — managed by DevBoard`
+      : entry.path.join('/');
 
   // Distinguish single vs double click without a 300ms delay penalty
   const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -365,23 +579,23 @@ function TreeRow({
         }}
         onDragStart={(e) => { if ((isImage || isDoc) && !isRenaming) onFileDragStart(entry, e); else e.preventDefault(); }}
         onDragEnter={(e) => {
-          if (!isNotesFolder) return;
+          if (!acceptsNoteDrop) return;
           e.preventDefault();
           e.stopPropagation();
           setDropActive(true);
         }}
         onDragOver={(e) => {
-          if (!isNotesFolder) return;
+          if (!acceptsNoteDrop) return;
           e.preventDefault();
           e.stopPropagation();
           e.dataTransfer.dropEffect = 'copy';
           setDropActive(true);
         }}
         onDragLeave={() => {
-          if (isNotesFolder) setDropActive(false);
+          if (acceptsNoteDrop) setDropActive(false);
         }}
         onDrop={(e) => {
-          if (!isNotesFolder) return;
+          if (!acceptsNoteDrop) return;
           e.preventDefault();
           e.stopPropagation();
           setDropActive(false);
@@ -479,6 +693,20 @@ function TreeRow({
             }}
             title="On canvas"
           />
+        )}
+        {!isRenaming && isWorkspaceManaged && (
+          <svg
+            className="hidden group-hover:block shrink-0"
+            width="10"
+            height="10"
+            viewBox="0 0 10 10"
+            fill="none"
+            aria-hidden="true"
+          >
+            <title>Managed by DevBoard</title>
+            <rect x="2" y="4.25" width="6" height="4.25" rx="1" stroke="var(--c-text-off)" strokeWidth="1" />
+            <path d="M3.25 4.25V3a1.75 1.75 0 0 1 3.5 0v1.25" stroke="var(--c-text-off)" strokeWidth="1" strokeLinecap="round" />
+          </svg>
         )}
         {!isRenaming && canOpen && (
           <span className="hidden group-hover:inline text-[9px] text-[var(--c-line)] shrink-0" title={`Double-click to ${primaryAction}`}>↵</span>
@@ -613,6 +841,7 @@ function PageGroup({
   isCollapsed,
   activeDocId,
   onRenameDocument,
+  onToggleFavoriteDocument,
   onReorderDocuments,
   onDeleteDocument,
   onRevealDocument,
@@ -641,6 +870,7 @@ function PageGroup({
   isCollapsed: boolean;
   activeDocId: string | null;
   onRenameDocument: (docId: string, title: string) => void;
+  onToggleFavoriteDocument: (doc: Document) => void;
   onReorderDocuments: (docIds: string[]) => void;
   onDeleteDocument: (doc: Document) => void;
   onRevealDocument: (doc: Document) => void;
@@ -1222,7 +1452,7 @@ function PageGroup({
                   <span
                     title="Drag note to reorder"
                     style={{
-                      width: 12,
+                      width: 10,
                       display: 'flex',
                       justifyContent: 'center',
                       color: isDropTarget || isDragged ? 'var(--c-line)' : 'var(--c-text-off)',
@@ -1236,16 +1466,52 @@ function PageGroup({
                   >
                     ⋮⋮
                   </span>
-                  <span style={{ width: 14, display: 'flex', justifyContent: 'center', flexShrink: 0, color: isSelected ? 'var(--c-line)' : 'var(--c-text-lo)' }}>
-                    {doc.emoji ? (
-                      <span style={{ fontSize: 12, lineHeight: 1 }}>{doc.emoji}</span>
-                    ) : (
-                      <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
-                        <rect x="1.5" y="1.5" width="9" height="9" rx="1.4" stroke="currentColor" strokeWidth="1.1" />
-                        <path d="M3.5 4h5M3.5 6h5M3.5 8h3" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
-                      </svg>
-                    )}
-                  </span>
+                  <NoteRowIcon doc={doc} active={isSelected} />
+                  {!isRenaming && (
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onToggleFavoriteDocument(doc);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key !== 'Enter' && e.key !== ' ') return;
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onToggleFavoriteDocument(doc);
+                      }}
+                      title={doc.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+                      aria-label={doc.isFavorite ? `Remove ${doc.title || 'Untitled note'} from favorites` : `Add ${doc.title || 'Untitled note'} to favorites`}
+                      style={{
+                        width: 18,
+                        height: 18,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: 0,
+                        border: 'none',
+                        borderRadius: 4,
+                        background: 'transparent',
+                        color: doc.isFavorite ? '#d6a045' : 'var(--c-text-off)',
+                        opacity: doc.isFavorite || isHovered ? 1 : 0,
+                        cursor: 'pointer',
+                        flexShrink: 0,
+                        transition: 'opacity 0.12s ease, background 0.12s ease, color 0.12s ease',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = 'var(--c-hover)';
+                        e.currentTarget.style.color = doc.isFavorite ? '#d6a045' : 'var(--c-text-md)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'transparent';
+                        e.currentTarget.style.color = doc.isFavorite ? '#d6a045' : 'var(--c-text-off)';
+                      }}
+                    >
+                      <IconStar filled={!!doc.isFavorite} size={12} />
+                    </span>
+                  )}
                   {isRenaming ? (
                     <input
                       autoFocus
@@ -1330,6 +1596,19 @@ function PageGroup({
               >
                 <span>Export as</span>
                 <span className="text-[10px] ml-3 text-[var(--c-text-off)]">›</span>
+              </button>
+              <div style={{ height: 1, background: 'var(--c-border)', margin: '3px 0' }} />
+              <button
+                className="w-full flex items-center justify-between px-3 py-1.5 text-[12px] rounded transition-colors text-left text-[var(--c-text-md)] hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]"
+                style={{ fontFamily: FONTS.ui }}
+                onClick={() => {
+                  onToggleFavoriteDocument(noteMenu.doc);
+                  setNoteMenu(null);
+                  setNoteMenuExportOpen(false);
+                }}
+              >
+                <span>{noteMenu.doc.isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}</span>
+                <span className="text-[10px] ml-3" style={{ color: noteMenu.doc.isFavorite ? '#d6a045' : 'var(--c-text-off)' }}>★</span>
               </button>
               <div style={{ height: 1, background: 'var(--c-border)', margin: '3px 0' }} />
               {IS_TAURI && (
@@ -1417,9 +1696,10 @@ interface Props {
   onClose: () => void;
   onCollapse: () => void;
   canClose?: boolean;
+  collapseIcon?: 'close' | 'open';
 }
 
-export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true }: Props) {
+export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true, collapseIcon = 'close' }: Props) {
   const imageAssetFolder = useBoardStore((s) => s.imageAssetFolder);
   const boardTitle = useBoardStore((s) => s.boardTitle);
   const setBoardTitle = useBoardStore((s) => s.setBoardTitle);
@@ -1437,8 +1717,10 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
   const activeDocId = useBoardStore((s) => s.activeDocId);
   const switchPage = useBoardStore((s) => s.switchPage);
   const documents = useBoardStore((s) => s.documents);
+  const recentDocIds = useBoardStore((s) => s.recentDocIds);
   const addDocument = useBoardStore((s) => s.addDocument);
   const updateDocument = useBoardStore((s) => s.updateDocument);
+  const toggleFavoriteDocument = useBoardStore((s) => s.toggleFavoriteDocument);
   const deleteDocument = useBoardStore((s) => s.deleteDocument);
   const openDocumentWithMorph = useBoardStore((s) => s.openDocumentWithMorph);
   const storeNodes = useBoardStore((s) => s.nodes);
@@ -1485,6 +1767,8 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
 
   // Local state
   const [pagesSectionOpen, setPagesSectionOpen] = useState(true);
+  const [favoritesSectionOpen, setFavoritesSectionOpen] = useState(true);
+  const [recentsSectionOpen, setRecentsSectionOpen] = useState(true);
   const [assetsSectionOpen, setAssetsSectionOpen] = useState(true);
   const [advancedFilesVisible, setAdvancedFilesVisible] = useState(() => {
     if (typeof window === 'undefined') return false;
@@ -1648,6 +1932,9 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
   const openFile = useCallback(async (entry: TreeEntry) => {
     const e = ext(entry.name);
     if (DOC_EXTS.has(e)) {
+      if (isWorkspaceManagedEntry(entry)) {
+        toast('Opening from Pages. Notes are read-only in Asset files; edit them from the Pages section above.');
+      }
       await openDocumentFile(entry.path);
     } else {
       await placeFile(entry);
@@ -1697,11 +1984,10 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
       return;
     }
 
-    const titleMatch = content.match(/^#\s+(.+)/m);
-    const title = titleMatch ? titleMatch[1].trim() : stem;
     const linkedFile = `notes/${filename}`;
     const existingDoc = useBoardStore.getState().documents.find((doc) => doc.linkedFile === linkedFile);
-    const docId = existingDoc?.id ?? addDocument({ title, content: markdownToHtml(content), linkedFile });
+    const noteTitle = titleFromMarkdown(filename, content);
+    const docId = existingDoc?.id ?? addDocument({ title: noteTitle, content: markdownBodyToHtml(content, noteTitle), linkedFile });
     openDocumentWithMorph(docId);
     void saveWorkspace(useBoardStore.getState().exportData());
     try {
@@ -1807,6 +2093,11 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
   const [renameExtWarning, setRenameExtWarning] = useState<{ entry: TreeEntry; newName: string } | null>(null);
 
   const startRename = useCallback((entry: TreeEntry) => {
+    if (isWorkspaceManagedEntry(entry)) {
+      toast('Workspace files are read-only here');
+      setExplorerMenu(null);
+      return;
+    }
     setRenamingPath(entry.path.join('/'));
     setRenameDraft(entry.name);
     renamingEntryRef.current = entry;
@@ -1866,6 +2157,11 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
   }, [removeFromTree]);
 
   const startDelete = useCallback((entry: TreeEntry) => {
+    if (isWorkspaceManagedEntry(entry)) {
+      toast('Workspace files are read-only here');
+      setExplorerMenu(null);
+      return;
+    }
     setDeleteConfirm(entry);
     setExplorerMenu(null);
   }, []);
@@ -1982,6 +2278,24 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
     return docsByPage;
   }, [documents, pages]);
 
+  const favoriteDocs = useMemo(
+    () => documents.filter((doc) => doc.isFavorite).sort((a, b) => b.updatedAt - a.updatedAt),
+    [documents]
+  );
+  const visibleFavoriteDocs = useMemo(() => favoriteDocs.slice(0, 5), [favoriteDocs]);
+
+  const recentDocs = useMemo(() => {
+    const byId = new Map(documents.map((doc) => [doc.id, doc]));
+    const opened = recentDocIds
+      .map((id) => byId.get(id))
+      .filter((doc): doc is Document => !!doc && !doc.isFavorite);
+    if (opened.length > 0) return opened;
+    return [...documents]
+      .filter((doc) => !doc.isFavorite)
+      .sort((a, b) => b.updatedAt - a.updatedAt)
+      .slice(0, 6);
+  }, [documents, recentDocIds]);
+
   const getPageNodes = useCallback((pageId: string) => {
     if (pageId === activePageId) return storeNodes;
     return pageSnapshots[pageId]?.nodes ?? [];
@@ -2001,6 +2315,20 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
     useBoardStore.getState().ensureDocumentNode(docId, pageId);
     openDocumentWithMorph(docId);
   }, [activePageId, addDocument, documents, openDocumentWithMorph, pages, switchPage]);
+
+  const openDocumentFromShortcut = useCallback((doc: Document) => {
+    if (doc.pageId && doc.pageId !== activePageId) switchPage(doc.pageId);
+    openDocumentWithMorph(doc.id);
+  }, [activePageId, openDocumentWithMorph, switchPage]);
+
+  const toggleFavoriteFromExplorer = useCallback((doc: Document) => {
+    toggleFavoriteDocument(doc.id);
+    if (getWorkspaceName()) {
+      window.setTimeout(() => {
+        void saveWorkspace(useBoardStore.getState().exportData(), { notify: false });
+      }, 0);
+    }
+  }, [toggleFavoriteDocument]);
 
   const renameDocumentFromExplorer = useCallback((docId: string, title: string) => {
     updateDocument(docId, { title });
@@ -2072,6 +2400,12 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
       anchorY,
     });
   }, [clearPreview]);
+
+  const showShortcutNotePreview = useCallback((doc: Document, anchorY: number) => {
+    const page = pages.find((entry) => entry.id === doc.pageId) ?? pages.find((entry) => entry.id === activePageId) ?? pages[0];
+    if (!page) return;
+    showNotePreview(page, doc, anchorY);
+  }, [activePageId, pages, showNotePreview]);
 
   const startPageSectionResize = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     resizeStateRef.current = { startY: e.clientY, startHeight: pageSectionHeight };
@@ -2250,17 +2584,6 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, flex: 1 }}>
-          <button
-            onClick={onCollapse}
-            title="Collapse sidebar"
-            className="w-5 h-5 flex items-center justify-center rounded text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
-            style={{ border: 'none', background: 'transparent', cursor: 'pointer', flexShrink: 0 }}
-          >
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-              <path d="M7.75 2.25 4 6l3.75 3.75" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" strokeLinejoin="round" />
-              <path d="M10 2.25 6.25 6 10 9.75" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
           {!searchOpen ? (
             workspaceNameEditing ? (
               <input
@@ -2382,7 +2705,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
                   }
                   if (['ArrowUp', 'ArrowDown', 'Enter'].includes(e.key)) handleKeyDown(e as unknown as React.KeyboardEvent);
                 }}
-                placeholder="Search assets..."
+                placeholder="Search asset files..."
                 style={{
                   flex: 1,
                   minWidth: 0,
@@ -2425,6 +2748,24 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
           ) : (
             <>
               <button
+                onClick={onCollapse}
+                title={collapseIcon === 'open' ? 'Open sidebar' : 'Close sidebar'}
+                className="w-7 h-7 flex items-center justify-center rounded-lg text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
+                style={{ border: 'none', background: 'transparent', cursor: 'pointer', flexShrink: 0 }}
+              >
+                {collapseIcon === 'open' ? (
+                  <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+                    <path d="M5.2 3.1 9.6 7.5l-4.4 4.4" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M2 3.1 6.4 7.5 2 11.9" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                ) : (
+                  <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+                    <path d="M9.8 3.1 5.4 7.5l4.4 4.4" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M13 3.1 8.6 7.5 13 11.9" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                )}
+              </button>
+              <button
                 onClick={() => {
                   setSearchOpen((current) => {
                     const next = !current;
@@ -2462,6 +2803,99 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
         </div>
       </div>
 
+      {getWorkspaceName() && documents.length > 0 && (
+        <div style={{ borderBottom: '1px solid var(--c-border)', flexShrink: 0 }}>
+          {favoriteDocs.length > 0 && (
+            <>
+              <button
+                type="button"
+                onClick={() => setFavoritesSectionOpen((v) => !v)}
+                className="group"
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  minHeight: 24,
+                  padding: '4px 10px',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  userSelect: 'none',
+                }}
+              >
+                <span style={explorerSectionHeaderStyle}>Favorites</span>
+                <SectionChevron open={favoritesSectionOpen} />
+                <span style={{ marginLeft: 'auto', fontFamily: FONTS.ui, fontSize: 9, color: 'var(--c-text-lo)' }}>{favoriteDocs.length}</span>
+              </button>
+              {favoritesSectionOpen && (
+                <div style={{ padding: '0 6px 4px' }}>
+                  {visibleFavoriteDocs.map((doc) => (
+                    <NoteShortcutRow
+                      key={doc.id}
+                      doc={doc}
+                      active={doc.id === activeDocId}
+                      onOpen={openDocumentFromShortcut}
+                      onToggleFavorite={toggleFavoriteFromExplorer}
+                      onPreview={showShortcutNotePreview}
+                      onPreviewEnd={clearNotePreview}
+                    />
+                  ))}
+                  {favoriteDocs.length > visibleFavoriteDocs.length && (
+                    <div style={{ padding: '5px 8px 2px', fontFamily: FONTS.ui, fontSize: 9, color: 'var(--c-text-lo)' }}>
+                      +{favoriteDocs.length - visibleFavoriteDocs.length} more favorites
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+
+          <button
+            type="button"
+            onClick={() => setRecentsSectionOpen((v) => !v)}
+            className="group"
+            style={{
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+              minHeight: 24,
+              padding: '4px 10px',
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              userSelect: 'none',
+            }}
+          >
+            <span style={explorerSectionHeaderStyle}>Recents</span>
+            <SectionChevron open={recentsSectionOpen} />
+            <span style={{ marginLeft: 'auto', fontFamily: FONTS.ui, fontSize: 9, color: 'var(--c-text-lo)' }}>{recentDocs.length}</span>
+          </button>
+          {recentsSectionOpen && (
+            <div style={{ padding: '0 6px 4px' }}>
+              {recentDocs.length === 0 ? (
+                <div style={{ padding: '6px 8px 2px', fontSize: 9.5, color: 'var(--c-text-lo)', fontFamily: FONTS.ui, fontStyle: 'italic' }}>
+                  No recent notes
+                </div>
+              ) : (
+                recentDocs.map((doc) => (
+                  <NoteShortcutRow
+                    key={doc.id}
+                    doc={doc}
+                    active={doc.id === activeDocId}
+                    onOpen={openDocumentFromShortcut}
+                    onToggleFavorite={toggleFavoriteFromExplorer}
+                    onPreview={showShortcutNotePreview}
+                    onPreviewEnd={clearNotePreview}
+                  />
+                ))
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ── BOARDS section ─────────────────────────────────────────────────── */}
       {getWorkspaceName() && pages.length > 0 && (
         <div style={{ borderBottom: '1px solid var(--c-border)', flexShrink: 0 }}>
@@ -2476,13 +2910,8 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
               cursor: 'pointer', userSelect: 'none',
             }}
           >
-            <span style={{
-              fontSize: 9, color: 'var(--c-text-off)',
-              transform: pagesSectionOpen ? 'rotate(0deg)' : 'rotate(-90deg)',
-              transition: 'transform 0.12s',
-              display: 'inline-block',
-            }}>▾</span>
             <span style={explorerSectionHeaderStyle}>Pages</span>
+            <SectionChevron open={pagesSectionOpen} />
             <span style={{ marginLeft: 'auto', fontFamily: FONTS.ui, fontSize: 9, color: 'var(--c-text-lo)' }}>{pages.length}</span>
             <button
               onClick={(e) => {
@@ -2546,6 +2975,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
                     isCollapsed={isCollapsed}
                     activeDocId={activeDocId}
                     onRenameDocument={renameDocumentFromExplorer}
+                    onToggleFavoriteDocument={toggleFavoriteFromExplorer}
                     onReorderDocuments={(docIds) => reorderDocumentsForPage(page.id, docIds)}
                     onDeleteDocument={deleteDocumentFromExplorer}
                     onRevealDocument={revealDocumentInFinder}
@@ -2623,13 +3053,8 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
             cursor: 'pointer', userSelect: 'none',
           }}
         >
-          <span style={{
-            fontSize: 9, color: 'var(--c-text-off)',
-            transform: assetsSectionOpen ? 'rotate(0deg)' : 'rotate(-90deg)',
-            transition: 'transform 0.12s',
-            display: 'inline-block',
-          }}>▾</span>
-          <span style={explorerSectionHeaderStyle}>Assets</span>
+          <span style={explorerSectionHeaderStyle}>Asset files</span>
+          <SectionChevron open={assetsSectionOpen} />
           <span style={{ marginLeft: 'auto', fontFamily: FONTS.ui, fontSize: 9, color: 'var(--c-text-lo)' }}>{assetTree.length}</span>
           {advancedFilesVisible && (
             <span
@@ -2743,7 +3168,9 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
             ))
           )
         ) : assetTree.length === 0 ? (
-          <div style={{ padding: '10px 16px', fontSize: 10, color: 'var(--c-text-lo)', fontFamily: FONTS.ui, fontStyle: 'italic' }}>Folder is empty</div>
+          <div style={{ padding: '10px 16px', fontSize: 10, color: 'var(--c-text-lo)', fontFamily: FONTS.ui, fontStyle: 'italic', lineHeight: 1.45 }}>
+            No asset files. Notes live under Pages.
+          </div>
         ) : (
           assetTree.map((entry) => (
             <TreeRow key={entry.path.join('/')} entry={entry} depth={0} focusedPath={focusedPath} renamingPath={renamingPath} renameDraft={renameDraft} onRenameDraftChange={setRenameDraft} onRenameCommit={commitRename} onRenameCancel={() => setRenamingPath(null)} onToggle={handleToggle} onFileSingleClick={handleFileSingleClick} onFileOpen={handleFileOpen} onMarkdownDrop={importMarkdownToNotes} onContextMenu={handleEntryContextMenu} onFileDragStart={handleFileDragStart} onFileHover={handleFileHover} usedOnCanvas={usedOnCanvas} isDark={isDark} onFocus={focusAssetPath} />
@@ -2901,6 +3328,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
         const canActOnFile = explorerMenu.entry.kind === 'file' && (IMAGE_EXTS.has(menuExt) || DOC_EXTS.has(menuExt) || CODE_EXTS[menuExt] !== undefined);
         const isDocFile = explorerMenu.entry.kind === 'file' && DOC_EXTS.has(menuExt);
         const entryRelativePath = explorerMenu.entry.path.join('/');
+        const isReadOnly = isWorkspaceManagedEntry(explorerMenu.entry);
         return (
           <div
             ref={explorerMenuRef}
@@ -2946,23 +3374,34 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
                 <div style={{ height: 1, background: 'var(--c-border)', margin: '3px 0' }} />
               </>
             )}
-            <button
-              className="w-full flex items-center justify-between px-3 py-1.5 text-[12px] rounded transition-colors text-left text-[var(--c-text-md)] hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]"
-              style={{ fontFamily: FONTS.ui }}
-              onClick={() => startRename(explorerMenu.entry)}
-            >
-              <span>Rename</span>
-              <span className="text-[10px] text-[var(--c-text-off)] ml-3">F2</span>
-            </button>
-            <div style={{ height: 1, background: 'var(--c-border)', margin: '3px 0' }} />
-            <button
-              className="w-full flex items-center justify-between px-3 py-1.5 text-[12px] rounded transition-colors text-left hover:bg-[rgba(239,68,68,0.12)]"
-              style={{ fontFamily: FONTS.ui, color: '#f87171' }}
-              onClick={() => startDelete(explorerMenu.entry)}
-            >
-              <span>Delete</span>
-              <span className="text-[10px] ml-3" style={{ color: '#f87171', opacity: 0.6 }}>⌫</span>
-            </button>
+            {isReadOnly ? (
+              <div
+                className="px-3 py-1.5 text-[12px]"
+                style={{ fontFamily: FONTS.ui, color: 'var(--c-text-off)' }}
+              >
+                Managed by Pages
+              </div>
+            ) : (
+              <>
+                <button
+                  className="w-full flex items-center justify-between px-3 py-1.5 text-[12px] rounded transition-colors text-left text-[var(--c-text-md)] hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]"
+                  style={{ fontFamily: FONTS.ui }}
+                  onClick={() => startRename(explorerMenu.entry)}
+                >
+                  <span>Rename</span>
+                  <span className="text-[10px] text-[var(--c-text-off)] ml-3">F2</span>
+                </button>
+                <div style={{ height: 1, background: 'var(--c-border)', margin: '3px 0' }} />
+                <button
+                  className="w-full flex items-center justify-between px-3 py-1.5 text-[12px] rounded transition-colors text-left hover:bg-[rgba(239,68,68,0.12)]"
+                  style={{ fontFamily: FONTS.ui, color: '#f87171' }}
+                  onClick={() => startDelete(explorerMenu.entry)}
+                >
+                  <span>Delete</span>
+                  <span className="text-[10px] ml-3" style={{ color: '#f87171', opacity: 0.6 }}>⌫</span>
+                </button>
+              </>
+            )}
           </div>
         );
       })()}
@@ -3038,14 +3477,13 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
 
       {/* Note preview panel */}
       {notePreview && (() => {
-        const previewW = 240;
+        const previewW = 280;
         const rect = panelRef.current?.getBoundingClientRect();
         const panelLeft = rect?.left ?? 0;
         const panelRight = rect?.right ?? WORKSPACE_EXPLORER_WIDTH;
         const spaceRight = window.innerWidth - (panelRight + 8);
         const left = spaceRight >= previewW ? panelRight + 8 : Math.max(8, panelLeft - previewW - 8);
-        const top = Math.max(8, Math.min(notePreview.anchorY - 80, window.innerHeight - 220));
-        const previewText = stripHtmlPreview(notePreview.doc.content) || 'No preview text yet';
+        const top = Math.max(8, Math.min(notePreview.anchorY - 96, window.innerHeight - 280));
         return (
           <div
             style={{
@@ -3053,7 +3491,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
               left,
               top,
               width: previewW,
-              maxHeight: 300,
+              maxHeight: 320,
               zIndex: 200,
               borderRadius: 10,
               border: '1px solid var(--c-border)',
@@ -3073,13 +3511,8 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
                 {notePreview.page.name}
               </span>
             </div>
-            <div style={{ padding: '10px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <span style={{ fontFamily: FONTS.ui, fontSize: 9.5, color: 'var(--c-text-lo)', lineHeight: 1.5 }}>
-                {previewText.slice(0, 220)}
-              </span>
-              <span style={{ fontFamily: FONTS.ui, fontSize: 9, color: 'var(--c-text-off)' }}>
-                updated {relativeTime(notePreview.doc.updatedAt)}
-              </span>
+            <div style={{ padding: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <NoteHoverThumbnail doc={notePreview.doc} />
             </div>
             <div style={{ padding: '5px 10px', borderTop: '1px solid var(--c-border)', flexShrink: 0 }}>
               <span style={{ fontFamily: FONTS.ui, fontSize: 9, color: 'var(--c-text-off)' }}>

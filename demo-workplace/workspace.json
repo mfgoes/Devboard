@@ -4,6 +4,7 @@
     {
       "id": "page-1",
       "name": "Main docs",
+      "layoutMode": "stack",
       "noteSort": "updated"
     },
     {
@@ -73,18 +74,18 @@
     "deviceId": "48fee604-dc0c-43e8-8ae4-43b6951b3c1a",
     "deviceLabel": "MacIntel · Chrome",
     "lastLocalPath": "demo-workplace",
-    "lastOpenedAt": 1777838435454,
+    "lastOpenedAt": 1778090881738,
     "locations": {
       "48fee604-dc0c-43e8-8ae4-43b6951b3c1a": {
         "deviceLabel": "MacIntel · Chrome",
         "path": "demo-workplace",
-        "openedAt": 1777838435454,
-        "syncedAt": 1777838435267
+        "openedAt": 1778090881738,
+        "syncedAt": 1778090881683
       }
     },
-    "cloudBoardId": "2a104d87-bbac-43dd-a5ac-45fcaead1b73",
+    "cloudBoardId": "64fa9230-1164-4e82-8735-761877e80ae7",
     "cloudBoardTitle": "bob",
     "cloudWorkspaceId": "1c5032a1-1d27-46bc-9538-92ec5ceff6b4",
-    "lastSyncedAt": 1777838435267
+    "lastSyncedAt": 1778090881683
   }
 }

@@ -1,13 +1,14 @@
 import type { User } from '@supabase/supabase-js';
 import type { BoardData } from '../types';
 import { supabase } from './supabase';
-import { summarizeBoardContent, type WorkspaceContentSummary } from './workspaceManager';
+import { getWorkspaceSyncMetadata, summarizeBoardContent, type WorkspaceContentSummary } from './workspaceManager';
 
 const DEFAULT_WORKSPACE_NAME = 'My DevBoard Sync';
 
 export interface CloudBoardSummary {
   id: string;
   workspaceId: string;
+  logicalWorkspaceId?: string | null;
   title: string;
   createdAt: string;
   updatedAt: string;
@@ -62,11 +63,21 @@ function mapBoardSummary(row: { id: string; workspace_id: string; title: string;
   return {
     id: row.id,
     workspaceId: row.workspace_id,
+    logicalWorkspaceId: row.board_data?.workspaceIdentity?.workspaceId ?? null,
     title: row.title,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     lastOpenedAt: row.last_opened_at ?? null,
     contentSummary: summarizeBoardContent(row.board_data),
+  };
+}
+
+function boardDataWithWorkspaceIdentity(boardData: BoardData, title: string): BoardData {
+  const workspaceId = boardData.workspaceIdentity?.workspaceId ?? getWorkspaceSyncMetadata()?.workspaceId ?? null;
+  return {
+    ...boardData,
+    boardTitle: title,
+    workspaceIdentity: workspaceId ? { workspaceId } : undefined,
   };
 }
 
@@ -131,7 +142,7 @@ export async function createCloudBoard(user: User, title: string, boardData: Boa
       workspace_id: workspace.id,
       title,
       schema_version: boardData.schemaVersion ?? 3,
-      board_data: { ...boardData, boardTitle: title },
+      board_data: boardDataWithWorkspaceIdentity(boardData, title),
       created_by: user.id,
       last_opened_at: new Date().toISOString(),
     })
@@ -151,7 +162,7 @@ export async function updateCloudBoard(boardId: string, title: string, boardData
     .update({
       title,
       schema_version: boardData.schemaVersion ?? 3,
-      board_data: { ...boardData, boardTitle: title },
+      board_data: boardDataWithWorkspaceIdentity(boardData, title),
       last_opened_at: new Date().toISOString(),
     })
     .eq('id', boardId)

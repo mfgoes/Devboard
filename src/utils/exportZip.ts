@@ -7,7 +7,7 @@
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { BoardData, CanvasNode, Document } from '../types';
-import { generateMarkdownFilename, htmlToMarkdown } from './exportMarkdown';
+import { documentMarkdownFromParts, generateMarkdownFilename } from './exportMarkdown';
 
 function dataUrlToBlob(dataUrl: string): Blob {
   const [header, b64] = dataUrl.split(',');
@@ -36,13 +36,7 @@ function stripImageSrc(nodes: CanvasNode[]): CanvasNode[] {
 }
 
 function documentToMarkdownFile(doc: Document): string {
-  const parts: string[] = [];
-  if (doc.title) {
-    parts.push(`# ${doc.title}`);
-    parts.push('');
-  }
-  if (doc.content) parts.push(htmlToMarkdown(doc.content));
-  return `${parts.join('\n').trimEnd()}\n`;
+  return `${documentMarkdownFromParts(doc.title, doc.content)}\n`;
 }
 
 function uniqueNotePath(doc: Document, usedPaths: Set<string>): string {

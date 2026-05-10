@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useBoardStore } from '../store/boardStore';
 import { DocumentNode } from '../types';
-import { generateMarkdownFilename, htmlToMarkdown } from '../utils/exportMarkdown';
+import { documentMarkdownFromParts, generateMarkdownFilename } from '../utils/exportMarkdown';
 import { hasWorkspaceHandle, saveTextFileToWorkspace } from '../utils/workspaceManager';
 
 const DEBOUNCE_MS = 1500;
@@ -49,7 +49,7 @@ export function useDocumentAutoSave({
 
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(async () => {
-      const md = htmlToMarkdown(content);
+      const md = documentMarkdownFromParts(title, content);
       const fileName = generateMarkdownFilename(title);
       const resolvedLinkedFile = linkedFile ?? `notes/${fileName}`;
       const parts = resolvedLinkedFile.split('/').filter(Boolean);

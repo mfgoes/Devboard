@@ -1,13 +1,14 @@
 import { useState, useMemo } from 'react';
 import { useBoardStore } from '../store/boardStore';
 import { Document } from '../types';
+import { IconStar } from './icons';
 
 function stripHtml(html: string): string {
   return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
 export default function DocSidebar() {
-  const { documents, activeDocId, recentDocIds, openDocument, closeDocument, addDocument, addNode, camera } =
+  const { documents, activeDocId, recentDocIds, openDocument, closeDocument, addDocument, addNode, camera, toggleFavoriteDocument } =
     useBoardStore();
   const [query, setQuery] = useState('');
 
@@ -39,6 +40,14 @@ export default function DocSidebar() {
         .filter((d): d is Document => !!d && d.id !== activeDocId)
         .slice(0, 5),
     [recentDocIds, documents, activeDocId],
+  );
+
+  const favorites = useMemo(
+    () =>
+      sorted
+        .filter((d) => d.isFavorite)
+        .slice(0, 12),
+    [sorted],
   );
 
   const handleNew = () => {
@@ -74,6 +83,87 @@ export default function DocSidebar() {
     gap: 2,
     transition: 'background 0.12s',
   });
+
+  const starButtonStyle = (favorite: boolean): React.CSSProperties => ({
+    width: 22,
+    height: 22,
+    border: 'none',
+    borderRadius: 5,
+    background: 'transparent',
+    color: favorite ? '#d6a045' : 'var(--c-text-lo)',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    opacity: favorite ? 1 : 0.65,
+    flexShrink: 0,
+  });
+
+  const renderDocumentItem = (d: Document, options?: { compact?: boolean }) => {
+    const isActive = d.id === activeDocId;
+    const favorite = !!d.isFavorite;
+    return (
+      <div
+        key={d.id}
+        onClick={() => openDocument(d.id)}
+        style={itemStyle(isActive)}
+        onMouseEnter={(e) => {
+          if (!isActive) (e.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,0.05)';
+        }}
+        onMouseLeave={(e) => {
+          if (!isActive) (e.currentTarget as HTMLDivElement).style.background = 'transparent';
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+          <span style={{
+            fontSize: options?.compact ? 12 : 12.5,
+            fontWeight: isActive ? 600 : 400,
+            color: isActive ? 'var(--c-text-hi)' : 'var(--c-text-md)',
+            overflow: 'hidden',
+            whiteSpace: 'nowrap',
+            textOverflow: 'ellipsis',
+            flex: 1,
+            minWidth: 0,
+          }}>
+            {d.emoji ? `${d.emoji} ` : ''}{d.title || 'Untitled'}
+          </span>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleFavoriteDocument(d.id);
+            }}
+            title={favorite ? 'Remove from favorites' : 'Add to favorites'}
+            aria-label={favorite ? `Remove ${d.title || 'Untitled'} from favorites` : `Add ${d.title || 'Untitled'} to favorites`}
+            style={starButtonStyle(favorite)}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
+              e.currentTarget.style.color = favorite ? '#d6a045' : 'var(--c-text-md)';
+              e.currentTarget.style.opacity = '1';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.color = favorite ? '#d6a045' : 'var(--c-text-lo)';
+              e.currentTarget.style.opacity = favorite ? '1' : '0.65';
+            }}
+          >
+            <IconStar filled={favorite} size={13} />
+          </button>
+        </div>
+        {!options?.compact && (
+          <span style={{
+            fontSize: 10.5,
+            color: 'var(--c-text-lo)',
+            overflow: 'hidden',
+            whiteSpace: 'nowrap',
+            textOverflow: 'ellipsis',
+          }}>
+            {stripHtml(d.content).slice(0, 60) || 'Empty…'}
+          </span>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div
@@ -171,25 +261,23 @@ export default function DocSidebar() {
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '0 8px 8px' }}>
+        {/* Favorites */}
+        {favorites.length > 0 && !query.trim() && (
+          <section style={{ marginBottom: 12 }}>
+            <div style={{ padding: '4px 4px 4px 8px', fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', color: 'var(--c-text-lo)', textTransform: 'uppercase' }}>
+              Favorites
+            </div>
+            {favorites.map((d) => renderDocumentItem(d, { compact: true }))}
+          </section>
+        )}
+
         {/* Recent */}
         {recents.length > 0 && !query.trim() && (
           <section style={{ marginBottom: 12 }}>
             <div style={{ padding: '4px 4px 4px 8px', fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', color: 'var(--c-text-lo)', textTransform: 'uppercase' }}>
               Recent
             </div>
-            {recents.map((d) => (
-              <div
-                key={d.id}
-                onClick={() => openDocument(d.id)}
-                style={itemStyle(false)}
-                onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,0.05)'; }}
-                onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = 'transparent'; }}
-              >
-                <span style={{ fontSize: 12, color: 'var(--c-text-md)', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
-                  {d.title || 'Untitled'}
-                </span>
-              </div>
-            ))}
+            {recents.map((d) => renderDocumentItem(d, { compact: true }))}
           </section>
         )}
 
@@ -203,42 +291,7 @@ export default function DocSidebar() {
               No notes found.
             </div>
           )}
-          {filtered.map((d) => {
-            const isActive = d.id === activeDocId;
-            return (
-              <div
-                key={d.id}
-                onClick={() => openDocument(d.id)}
-                style={itemStyle(isActive)}
-                onMouseEnter={(e) => {
-                  if (!isActive) (e.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,0.05)';
-                }}
-                onMouseLeave={(e) => {
-                  if (!isActive) (e.currentTarget as HTMLDivElement).style.background = 'transparent';
-                }}
-              >
-                <span style={{
-                  fontSize: 12.5,
-                  fontWeight: isActive ? 600 : 400,
-                  color: isActive ? 'var(--c-text-hi)' : 'var(--c-text-md)',
-                  overflow: 'hidden',
-                  whiteSpace: 'nowrap',
-                  textOverflow: 'ellipsis',
-                }}>
-                  {d.title || 'Untitled'}
-                </span>
-                <span style={{
-                  fontSize: 10.5,
-                  color: 'var(--c-text-lo)',
-                  overflow: 'hidden',
-                  whiteSpace: 'nowrap',
-                  textOverflow: 'ellipsis',
-                }}>
-                  {stripHtml(d.content).slice(0, 60) || 'Empty…'}
-                </span>
-              </div>
-            );
-          })}
+          {filtered.map((d) => renderDocumentItem(d))}
         </section>
       </div>
 

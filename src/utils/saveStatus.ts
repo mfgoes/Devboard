@@ -14,14 +14,20 @@ export function announceLocalSave(kind: 'workspace' | 'file') {
   markLocalSaved();
 
   if (cloudBoardId && cloudBoardTitle) {
-    void syncLinkedWorkspaceAfterLocalSave(target);
+    void saveLinkedWorkspaceToCloud(target, {
+      successMessage: `Saved locally to your ${target} and synced.`,
+      failureMessage: `Saved locally to your ${target}. Sync failed.`,
+    });
     return;
   }
 
   toast(`Saved locally to your ${target}.`);
 }
 
-async function syncLinkedWorkspaceAfterLocalSave(target: string) {
+export async function saveLinkedWorkspaceToCloud(
+  target: string,
+  messages: { successMessage?: string; failureMessage?: string } = {},
+): Promise<boolean> {
   const {
     boardTitle,
     cloudBoardId,
@@ -31,7 +37,8 @@ async function syncLinkedWorkspaceAfterLocalSave(target: string) {
     workspaceName,
   } = useBoardStore.getState();
 
-  if (!cloudBoardId) return;
+  if (!cloudBoardId) return false;
+  setWorkspaceSyncMetadata({});
 
   const title = boardTitle.trim() || workspaceName || cloudBoardTitle || 'Untitled Workspace';
 
@@ -57,7 +64,8 @@ async function syncLinkedWorkspaceAfterLocalSave(target: string) {
       localPathHint: getWorkspacePathHint(),
       metadata: { target },
     });
-    toast(`Saved locally to your ${target} and synced.`);
+    if (messages.successMessage) toast(messages.successMessage);
+    return true;
   } catch (err) {
     console.warn('Workspace Sync after local save failed', err);
     void rememberCloudSyncContext(cloudBoardId, {
@@ -68,9 +76,10 @@ async function syncLinkedWorkspaceAfterLocalSave(target: string) {
       localPathHint: getWorkspacePathHint(),
       metadata: { target, error: err instanceof Error ? err.message : String(err) },
     });
-    toast(`Saved locally to your ${target}. Sync failed.`, {
+    toast(messages.failureMessage ?? 'Cloud save failed.', {
       label: 'Workspace Sync',
       onClick: openCloudModal,
     });
+    return false;
   }
 }

@@ -25,11 +25,15 @@ import {
 } from '../utils/deviceIdentity';
 import {
   getWorkspacePathHint,
+  getWorkspaceSyncMetadata,
   clearWorkspaceHandle,
+  createWorkspace,
   downloadCloudWorkspaceToFolder,
   IS_TAURI,
   listLocalRecentWorkspaces,
+  openWorkspace,
   openRecentWorkspace,
+  revealInFinder,
   relocateRecentWorkspace,
   removeLocalRecentWorkspace,
   saveWorkspace,
@@ -42,6 +46,7 @@ import { applyWorkspaceSyncFromOpenResult } from '../utils/applyWorkspaceSync';
 
 const SYNC_WORKSPACE_LIMIT = 3;
 const LOCAL_SYNC_LINKS_KEY = 'devboard:cloud-workspace-links';
+const CURRENT_WORKSPACE_DOWNLOAD_ROW_ID = 'current-workspace';
 
 type CloudWorkspaceSummary = CloudBoardSummary;
 type LocalSyncLink = { cloudBoardId: string | null; title: string; syncedAt: number; disabled?: boolean };
@@ -241,6 +246,23 @@ function IconRefresh() {
   );
 }
 
+function IconFolderOpen() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
+      <path d="M1.4 4.3a1 1 0 0 1 1-1h2.2l1 1h5a1 1 0 0 1 1 1v.5" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+      <path d="M1.8 5.6h9.8l-1 4.4a1 1 0 0 1-1 .8H2.8a1 1 0 0 1-1-.8l-.6-3.2a1 1 0 0 1 .6-1.2Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function IconChevronDown() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 11 11" fill="none" aria-hidden="true">
+      <path d="M3 4.3 5.5 6.8 8 4.3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function IconNewWorkspace() {
   return (
     <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
@@ -307,7 +329,7 @@ function IconMore() {
 }
 
 export default function CloudModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { isConfigured, isLoading: authLoading, user, signInWithGoogle, signInWithGitHub, signInWithEmail, signUpWithEmail } = useAuth();
+  const { isConfigured, isLoading: authLoading, user, signInWithGoogle, signInWithGitHub, signInWithEmail, signUpWithEmail, signOut } = useAuth();
   const exportData = useBoardStore((s) => s.exportData);
   const loadBoard = useBoardStore((s) => s.loadBoard);
   const boardTitle = useBoardStore((s) => s.boardTitle);
@@ -337,6 +359,8 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
   const [replaceConfirmId, setReplaceConfirmId] = useState<string | null>(null);
   const [detailsRowId, setDetailsRowId] = useState<string | null>(null);
   const [downloadChoiceRowId, setDownloadChoiceRowId] = useState<string | null>(null);
+  const [addMenuOpen, setAddMenuOpen] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState<{ rowId: string; progress: WorkspaceDownloadProgress } | null>(null);
   const [syncedBaselines, setSyncedBaselines] = useState<Record<string, number>>({});
   const [syncJustFinished, setSyncJustFinished] = useState(false);
@@ -352,14 +376,24 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
   const signInTabRef = useRef<HTMLButtonElement>(null);
   const signUpTabRef = useRef<HTMLButtonElement>(null);
   const syncFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const accountMenuRef = useRef<HTMLDivElement>(null);
   const [authTabIndicator, setAuthTabIndicator] = useState<{ left: number; width: number }>({ left: 0, width: 0 });
   const modalHeaderSurface = { background: 'color-mix(in srgb, var(--c-panel) 78%, var(--c-canvas))' };
   const leftPaneSurface = { background: 'color-mix(in srgb, var(--c-canvas) 82%, var(--c-panel))' };
   const secondSurface = { background: 'color-mix(in srgb, var(--c-canvas) 58%, var(--c-panel))' };
   const quietSurface = { background: 'color-mix(in srgb, var(--c-canvas) 42%, var(--c-panel))' };
   const betaSurface = { background: 'color-mix(in srgb, var(--c-canvas) 50%, var(--c-panel))' };
+  const accountLabel = user?.user_metadata?.user_name
+    ?? user?.user_metadata?.preferred_username
+    ?? user?.user_metadata?.name
+    ?? user?.email
+    ?? 'Account';
+  const avatarUrl = typeof user?.user_metadata?.avatar_url === 'string' ? user.user_metadata.avatar_url : null;
+  const accountInitial = accountLabel.trim().charAt(0).toUpperCase() || 'A';
 
   const currentWorkspaceName = boardTitle.trim() || workspaceName || cloudBoardTitle || 'Untitled Workspace';
+  const currentSyncMetadata = getWorkspaceSyncMetadata();
+  const currentWorkspaceId = currentSyncMetadata?.workspaceId ?? null;
   const localSyncLink = user ? getLocalSyncLink(user.id, currentWorkspaceName) : null;
   const localSyncDisabled = localSyncLink?.disabled === true;
   const localPathHint = getWorkspacePathHint();
@@ -378,17 +412,33 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
     () => workspaces.filter((workspace) => workspace.title.trim().toLowerCase() === currentWorkspaceName.trim().toLowerCase()),
     [currentWorkspaceName, workspaces]
   );
-  const inferredCloudWorkspace = linkedCloudWorkspace ?? (!localSyncDisabled && exactTitleMatches.length === 1 ? exactTitleMatches[0] : null);
+  const identityCloudWorkspace = useMemo(
+    () => currentWorkspaceId
+      ? workspaces.find((workspace) => workspace.logicalWorkspaceId === currentWorkspaceId) ?? null
+      : null,
+    [currentWorkspaceId, workspaces]
+  );
+  const inferredCloudWorkspace = linkedCloudWorkspace ?? identityCloudWorkspace ?? (!localSyncDisabled && exactTitleMatches.length === 1 ? exactTitleMatches[0] : null);
   const effectiveCloudBoardId = cloudBoardId ?? inferredCloudWorkspace?.id ?? null;
   const effectiveCloudUpdatedAt = inferredCloudWorkspace ? cloudTimestamp(inferredCloudWorkspace.updatedAt) : cloudSyncedAt;
   const syncEnabled = !!effectiveCloudBoardId;
+  const currentLocalRecent = useMemo(
+    () => localRecents.find((recent) => (
+      (!!currentWorkspaceId && recent.workspaceId === currentWorkspaceId)
+      ||
+      (!!effectiveCloudBoardId && recent.cloudBoardId === effectiveCloudBoardId)
+      || recent.title.trim().toLowerCase() === currentWorkspaceName.trim().toLowerCase()
+    )) ?? null,
+    [currentWorkspaceId, currentWorkspaceName, effectiveCloudBoardId, localRecents]
+  );
   const recentRows = useMemo<RecentWorkspaceRow[]>(() => {
     const rows = new Map<string, RecentWorkspaceRow>();
 
     for (const recent of localRecents) {
       const cloudById = recent.cloudBoardId ? workspaces.find((workspace) => workspace.id === recent.cloudBoardId) : undefined;
+      const cloudByWorkspaceId = recent.workspaceId ? workspaces.find((workspace) => workspace.logicalWorkspaceId === recent.workspaceId) : undefined;
       const sameTitleMatches = workspaces.filter((workspace) => workspace.title.trim().toLowerCase() === recent.title.trim().toLowerCase());
-      const cloud = cloudById ?? (sameTitleMatches.length === 1 ? sameTitleMatches[0] : undefined);
+      const cloud = cloudById ?? cloudByWorkspaceId ?? (sameTitleMatches.length === 1 ? sameTitleMatches[0] : undefined);
       const id = cloud ? `cloud:${cloud.id}` : `local:${recent.id}`;
       const sortTime = Math.max(
         recent.lastSavedAt ?? 0,
@@ -438,11 +488,17 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
     });
   }, [effectiveCloudBoardId, localPathHint, localRecents, workspaces]);
   const linkedCloudUpdatedAt = effectiveCloudUpdatedAt;
-  const hasUnsyncedLocalChanges = !!cloudBoardId && !!lastLocalSavedAt && !!cloudSyncedAt && lastLocalSavedAt > cloudSyncedAt + 1000;
-  const hasNewerCloudCopy = !!linkedCloudUpdatedAt && !!cloudSyncedAt && linkedCloudUpdatedAt > cloudSyncedAt + 1000;
-  const currentStatus = !user
-    ? 'Local only'
-    : hasNewerCloudCopy
+  const effectiveCloudSyncedAt = effectiveCloudBoardId
+    ? Math.max(cloudSyncedAt ?? 0, syncedBaselines[effectiveCloudBoardId] ?? 0) || null
+    : cloudSyncedAt;
+  const hasUnsyncedLocalChanges = !!cloudBoardId && !!lastLocalSavedAt && !!effectiveCloudSyncedAt && lastLocalSavedAt > effectiveCloudSyncedAt + 1000;
+  const hasNewerCloudCopy = !!linkedCloudUpdatedAt && !!effectiveCloudSyncedAt && linkedCloudUpdatedAt > effectiveCloudSyncedAt + 1000;
+  const isLinkedSyncSignedOut = !user && syncEnabled;
+  const currentStatus = isLinkedSyncSignedOut
+    ? 'Sync paused'
+    : !user
+      ? 'Local only'
+      : hasNewerCloudCopy
       ? 'Cloud copy newer'
       : hasUnsyncedLocalChanges
         ? 'Local changes not synced'
@@ -451,7 +507,7 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
           : 'Sync available';
   const statusTone = currentStatus === 'Synced'
     ? 'border border-[rgba(120,167,145,0.32)] bg-[rgba(120,167,145,0.18)] text-[rgb(72,112,92)]'
-    : currentStatus === 'Local changes not synced' || currentStatus === 'Cloud copy newer'
+    : currentStatus === 'Local changes not synced' || currentStatus === 'Cloud copy newer' || currentStatus === 'Sync paused'
       ? 'border border-[#f59e0b]/30 bg-[#f59e0b]/15 text-[#b45309]'
       : 'border border-[rgba(54,137,151,0.36)] bg-[rgba(54,137,151,0.15)] text-[rgb(38,103,116)]';
   const primaryActionLabel = syncEnabled ? 'Sync now' : 'Sync this workspace';
@@ -461,6 +517,14 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
     [nodes, pageSnapshots]
   );
   const imageCount = allCanvasNodes.filter((node) => node.type === 'image').length;
+  const localFolderConnected = !!localPathHint;
+  const currentFolderDownloadProgress = downloadProgress?.rowId === CURRENT_WORKSPACE_DOWNLOAD_ROW_ID ? downloadProgress.progress : null;
+  const currentFolderDownloadPercent = currentFolderDownloadProgress
+    ? Math.round((currentFolderDownloadProgress.completedSteps / Math.max(currentFolderDownloadProgress.totalSteps, 1)) * 100)
+    : 0;
+  const openingLocalFolder = actionLoading === 'show-local-folder';
+  const reconnectingLocalFolder = actionLoading === 'reconnect-local-folder';
+  const creatingLocalFolder = actionLoading === 'create-local-folder' || (!!inferredCloudWorkspace && actionLoading === `download:${inferredCloudWorkspace.id}`);
   const authButtonBaseClass = 'inline-flex w-full items-center justify-center gap-[7px] rounded-lg px-[22px] py-[11px] font-sans text-[0.85rem] font-semibold transition-[opacity,transform,background,color,border-color] duration-150 disabled:cursor-default disabled:opacity-60';
   const authButtonPrimaryClass = `${authButtonBaseClass} border border-transparent bg-[var(--c-line)] text-white hover:-translate-y-px hover:opacity-[0.88]`;
   const authButtonGhostClass = `${authButtonBaseClass} border border-[var(--c-border)] bg-[var(--c-panel)] text-[var(--c-text-md)] hover:-translate-y-px hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]`;
@@ -474,8 +538,8 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
     }
   };
 
-  const reloadWorkspaces = async () => {
-    if (!user) return;
+  const reloadWorkspaces = async (): Promise<CloudWorkspaceSummary[]> => {
+    if (!user) return [];
     setWorkspacesLoading(true);
     try {
       const nextWorkspaces = await listCloudWorkspaces(user);
@@ -486,10 +550,12 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
         if (current && nextWorkspaces.some((workspace) => workspace.id === current)) return current;
         return nextWorkspaces[0]?.id ?? null;
       });
+      return nextWorkspaces;
     } catch (err) {
       console.warn('Failed to load synced workspaces', err);
       toast(`Could not load synced workspaces. ${errorMessage(err, '')}`.trim());
       setCloudLocations({});
+      return [];
     } finally {
       setWorkspacesLoading(false);
     }
@@ -497,7 +563,7 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
 
   const reloadRecentRows = async () => {
     await reloadLocalRecents();
-    if (user) await reloadWorkspaces();
+    return user ? reloadWorkspaces() : [];
   };
 
   const rememberSyncLink = (workspace: CloudWorkspaceSummary) => {
@@ -567,8 +633,11 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
       }
     }
 
-    if (exactTitleMatches.length === 1 && currentWorkspaceName !== 'Untitled Workspace') {
-      const linked = exactTitleMatches[0];
+    const linkedByIdentityOrTitle = identityCloudWorkspace
+      ?? (exactTitleMatches.length === 1 && currentWorkspaceName !== 'Untitled Workspace' ? exactTitleMatches[0] : null);
+
+    if (linkedByIdentityOrTitle) {
+      const linked = linkedByIdentityOrTitle;
       setCloudBoardState({ boardId: linked.id, title: linked.title, syncedAt: cloudTimestamp(linked.updatedAt) });
       setSelectedWorkspaceId(linked.id);
       writeLocalSyncLink(user.id, currentWorkspaceName, {
@@ -577,7 +646,7 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
         syncedAt: cloudTimestamp(linked.updatedAt),
       });
     }
-  }, [cloudBoardId, currentWorkspaceName, exactTitleMatches, open, setCloudBoardState, user, workspaces]);
+  }, [cloudBoardId, currentWorkspaceName, exactTitleMatches, identityCloudWorkspace, open, setCloudBoardState, user, workspaces]);
 
   useEffect(() => {
     if (authMode === 'signup') {
@@ -592,6 +661,17 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
       if (syncFeedbackTimerRef.current) clearTimeout(syncFeedbackTimerRef.current);
     };
   }, []);
+
+  useEffect(() => {
+    if (!accountMenuOpen) return;
+    const onDown = (event: MouseEvent) => {
+      if (accountMenuRef.current && !accountMenuRef.current.contains(event.target as Node)) {
+        setAccountMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [accountMenuOpen]);
 
   useLayoutEffect(() => {
     const container = authTabsRef.current;
@@ -681,6 +761,17 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
     }
   };
 
+  const handleSignOut = async () => {
+    setAccountMenuOpen(false);
+    try {
+      await signOut();
+      toast('Signed out.');
+    } catch (err) {
+      console.warn('Sign-out failed', err);
+      toast('Could not sign out right now.');
+    }
+  };
+
   const handleCreateOnlineCopy = async () => {
     if (!user) return;
     if (!cloudBoardId && workspaces.length >= SYNC_WORKSPACE_LIMIT) {
@@ -690,6 +781,7 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
 
     setActionLoading('save-new');
     try {
+      setWorkspaceSyncMetadata(getWorkspaceSyncMetadata() ?? {});
       const saved = await createCloudWorkspaceSnapshot(user, currentWorkspaceName, exportData());
       setCloudBoardState({ boardId: saved.id, title: saved.title, syncedAt: cloudTimestamp(saved.updatedAt) });
       rememberSyncLink(saved);
@@ -717,6 +809,11 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
     setActionLoading(`update:${targetWorkspace.id}`);
     setSyncJustFinished(false);
     try {
+      if (!getWorkspaceSyncMetadata()?.workspaceId && targetWorkspace.logicalWorkspaceId) {
+        setWorkspaceSyncMetadata({ workspaceId: targetWorkspace.logicalWorkspaceId });
+      } else {
+        setWorkspaceSyncMetadata(getWorkspaceSyncMetadata() ?? {});
+      }
       const updated = await updateCloudWorkspaceSnapshot(targetWorkspace.id, currentWorkspaceName || targetWorkspace.title, exportData());
       const syncedAt = cloudTimestamp(updated.updatedAt);
       setSyncedBaselines((current) => ({ ...current, [updated.id]: syncedAt }));
@@ -724,7 +821,16 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
       rememberSyncLink(updated);
       rememberCloudEvent(updated, 'sync', { action: 'sync_now', lastSyncedAt: syncedAt });
       toast('Synced current workspace.');
-      await reloadRecentRows();
+      const reloadedWorkspaces = await reloadRecentRows();
+      const reloadedWorkspace = reloadedWorkspaces.find((workspace) => workspace.id === updated.id);
+      const finalSyncedAt = Math.max(
+        syncedAt,
+        reloadedWorkspace ? cloudTimestamp(reloadedWorkspace.updatedAt) : 0,
+      );
+      if (finalSyncedAt > syncedAt) {
+        setSyncedBaselines((current) => ({ ...current, [updated.id]: finalSyncedAt }));
+        setCloudBoardState({ boardId: updated.id, title: updated.title, syncedAt: finalSyncedAt });
+      }
       setSelectedWorkspaceId(updated.id);
       setSyncJustFinished(true);
       if (syncFeedbackTimerRef.current) clearTimeout(syncFeedbackTimerRef.current);
@@ -832,6 +938,13 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
       clearWorkspaceHandle();
       useBoardStore.getState().setWorkspaceName(null);
       loadBoard({ ...cloudWorkspace, boardTitle: workspace.title });
+      setWorkspaceSyncMetadata({
+        workspaceId: workspace.logicalWorkspaceId ?? cloudWorkspace.workspaceIdentity?.workspaceId ?? `cloud-board:${workspace.id}`,
+        cloudBoardId: workspace.id,
+        cloudBoardTitle: workspace.title,
+        cloudWorkspaceId: workspace.workspaceId,
+        lastSyncedAt: cloudTimestamp(workspace.updatedAt),
+      });
       setCloudBoardState({ boardId: workspace.id, title: workspace.title, syncedAt: cloudTimestamp(workspace.updatedAt) });
       rememberCloudEvent(workspace, 'open', { action: 'open_cloud_snapshot', lastSyncedAt: cloudTimestamp(workspace.updatedAt) });
       setSelectedWorkspaceId(workspace.id);
@@ -882,6 +995,7 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
           boardId: workspace.id,
           title: workspace.title,
           workspaceId: workspace.workspaceId,
+          logicalWorkspaceId: workspace.logicalWorkspaceId,
           updatedAt: workspace.updatedAt,
         },
         data: { ...cloudWorkspace, boardTitle: workspace.title },
@@ -901,6 +1015,89 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
     } finally {
       setActionLoading(null);
       setDownloadProgress(null);
+    }
+  };
+
+  const handleOpenLocalFolder = async () => {
+    if (!localPathHint) {
+      toast('Reconnect a local folder first.');
+      return;
+    }
+    if (!IS_TAURI) {
+      toast('Folder access is connected in this browser. Use your system file picker to open it.');
+      return;
+    }
+
+    setActionLoading('show-local-folder');
+    try {
+      const shown = await revealInFinder('');
+      if (shown) toast('Opened local folder.');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleReconnectLocalFolder = async () => {
+    setAddMenuOpen(false);
+    setActionLoading('reconnect-local-folder');
+    try {
+      const result = await openWorkspace();
+      if (!result) return;
+      applyOpenedLocalWorkspace(result);
+      await reloadRecentRows();
+      toast(`Connected local folder · ${result.name}`);
+    } catch (err) {
+      console.warn('Failed to reconnect local folder', err);
+      toast('Could not reconnect that folder.');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleCreateLocalFolder = async () => {
+    setAddMenuOpen(false);
+    if (!localPathHint && currentLocalRecent) {
+      toast('This workspace already has a remembered local folder. Reconnect it, or save an explicit copy.');
+      return;
+    }
+
+    if (inferredCloudWorkspace) {
+      await handleDownloadWorkspace(inferredCloudWorkspace, CURRENT_WORKSPACE_DOWNLOAD_ROW_ID);
+      return;
+    }
+
+    if (!IS_TAURI) {
+      toast('Creating a new workspace folder from here is available in the desktop app.');
+      return;
+    }
+
+    setActionLoading('create-local-folder');
+    try {
+      const result = await createWorkspace(exportData(), currentWorkspaceName || 'DevBoard Workspace');
+      if (!result) return;
+
+      useBoardStore.getState().setWorkspaceName(result.name);
+      if (effectiveCloudBoardId) {
+        const syncedAt = linkedCloudUpdatedAt ?? cloudSyncedAt ?? Date.now();
+        setWorkspaceSyncMetadata({
+          cloudBoardId: effectiveCloudBoardId,
+          cloudBoardTitle: cloudBoardTitle ?? currentWorkspaceName,
+          lastSyncedAt: syncedAt,
+        });
+        setCloudBoardState({
+          boardId: effectiveCloudBoardId,
+          title: cloudBoardTitle ?? currentWorkspaceName,
+          syncedAt,
+        });
+        await saveWorkspace(exportData(), { notify: false });
+      }
+      await reloadRecentRows();
+      toast(`Created local folder · ${result.name}`);
+    } catch (err) {
+      console.warn('Failed to create local folder', err);
+      toast('Could not create a local folder.');
+    } finally {
+      setActionLoading(null);
     }
   };
 
@@ -1002,6 +1199,7 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
   };
 
   const handleStartNewWorkspace = () => {
+    setAddMenuOpen(false);
     loadBoard({
       boardTitle: 'Untitled Workspace',
       nodes: [],
@@ -1053,14 +1251,59 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
           </svg>
         </button>
 
-        <div className={user ? 'flex items-center justify-between border-b border-[var(--c-border)] px-5 py-4 pr-14' : 'hidden'} style={user ? modalHeaderSurface : undefined}>
-          <div>
-            <h2 className="mt-1 font-sans text-[18px] font-semibold text-[var(--c-text-hi)]">
+        <div className={user ? 'flex items-center justify-between gap-4 border-b border-[var(--c-border)] px-5 py-4 pr-16' : 'hidden'} style={user ? modalHeaderSurface : undefined}>
+          <div className="min-w-0">
+            <h2 className="font-sans text-[18px] font-semibold text-[var(--c-text-hi)]">
               Workspace Sync
             </h2>
             <p className="mt-1 font-sans text-[12px] text-[var(--c-text-lo)]">
               Your chosen workspaces, ready wherever you need them.
             </p>
+          </div>
+          <div className="relative shrink-0" ref={accountMenuRef}>
+            <button
+              type="button"
+              onClick={() => setAccountMenuOpen((current) => !current)}
+              className={[
+                'flex h-8 min-w-0 max-w-[220px] items-center gap-2 rounded border px-2 font-sans text-[11px] transition-colors',
+                accountMenuOpen
+                  ? 'border-[var(--c-line)] bg-[var(--c-hover)] text-[var(--c-text-hi)]'
+                  : 'border-[var(--c-border)] text-[var(--c-text-md)] hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]',
+              ].join(' ')}
+              title={user?.email ?? accountLabel}
+              aria-expanded={accountMenuOpen}
+            >
+              <div className="flex h-4 w-4 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--c-line)] font-sans text-[9px] font-semibold text-white">
+                {avatarUrl ? (
+                  <img src={avatarUrl} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                ) : (
+                  accountInitial
+                )}
+              </div>
+              <span className="min-w-0 max-w-[120px] truncate">
+                {accountLabel}
+              </span>
+              <IconChevronDown />
+            </button>
+            {accountMenuOpen && (
+              <div className="absolute right-0 top-full z-30 mt-1.5 w-60 rounded-xl border border-[var(--c-border)] bg-[var(--c-panel)] py-1.5 shadow-2xl">
+                <div className="px-3 py-2">
+                  <p className="truncate font-sans text-[11px] font-semibold text-[var(--c-text-hi)]">{accountLabel}</p>
+                  {user?.email && (
+                    <p className="mt-0.5 truncate font-sans text-[10px] text-[var(--c-text-lo)]">{user.email}</p>
+                  )}
+                </div>
+                <div className="my-1 border-t border-[var(--c-border)]" />
+                <button
+                  type="button"
+                  onClick={() => void handleSignOut()}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left font-sans text-[12px] font-semibold text-[var(--c-text-md)] transition-colors hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]"
+                >
+                  <IconGitHub />
+                  Sign out
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -1299,23 +1542,49 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
                     <p className="mt-0.5 font-sans text-[12px] text-[var(--c-text-md)]">{formatExactDate(linkedCloudUpdatedAt)}</p>
                   </div>
                 </div>
-                {currentLocationLabel && (
-                  <div className="mt-3">
-                    <p className="font-sans text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--c-text-lo)]">Local folder</p>
-                    <div
-                      className="mt-1 inline-flex max-w-full items-center gap-1.5 rounded-lg border border-[var(--c-border)] bg-[var(--c-panel)]/55 px-2.5 py-1.5 font-sans text-[11px] font-semibold text-[var(--c-text-md)]"
-                      title={currentLocationLabel.fullPath ?? undefined}
-                    >
-                      <IconDevice kind={currentLocationLabel.deviceKind} />
-                      <span className="truncate">{currentLocationLabel.label}</span>
+                <div className="mt-3 border-t border-[var(--c-border)] pt-3">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="font-sans text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--c-text-lo)]">Local folder</p>
+                      <div
+                        className="mt-1 inline-flex max-w-full items-center gap-1.5 font-sans text-[12px] font-semibold text-[var(--c-text-md)]"
+                        title={currentLocationLabel?.fullPath ?? currentLocalRecent?.localPathHint ?? undefined}
+                      >
+                        {currentLocationLabel ? <IconDevice kind={currentLocationLabel.deviceKind} /> : <IconNewWorkspace />}
+                        <span className="truncate">
+                          {currentLocationLabel?.label ?? (currentLocalRecent ? 'Folder remembered, access needed' : 'No local folder connected')}
+                        </span>
+                      </div>
                     </div>
-                    {!IS_TAURI && (
-                      <p className="mt-1.5 font-sans text-[10px] leading-snug text-[var(--c-text-lo)]">
-                        Desktop app gives the smoothest folder workflow: reopen local folders directly, without browser permission prompts.
-                      </p>
+                    {localFolderConnected && (
+                      <button
+                        type="button"
+                        onClick={() => void handleOpenLocalFolder()}
+                        disabled={actionLoading !== null}
+                        className="inline-flex items-center gap-1.5 rounded-md px-1 py-1 font-sans text-[11px] font-semibold text-[var(--c-line)] transition-colors hover:bg-[rgba(184,119,80,0.1)] hover:text-[#8f5738] disabled:cursor-default disabled:opacity-60"
+                      >
+                        <IconFolderOpen />
+                        {openingLocalFolder ? 'Opening...' : 'Open folder'}
+                      </button>
                     )}
                   </div>
-                )}
+
+                  {!IS_TAURI && (
+                    <p className="mt-2 font-sans text-[10px] leading-snug text-[var(--c-text-lo)]">
+                      Desktop app gives the smoothest folder workflow: reopen local folders directly, without browser permission prompts.
+                    </p>
+                  )}
+                  {currentFolderDownloadProgress && (
+                    <div className="mt-2">
+                      <div className="h-1.5 overflow-hidden rounded-full bg-[var(--c-border)]">
+                        <div className="h-full rounded-full bg-[var(--c-line)] transition-[width]" style={{ width: `${currentFolderDownloadPercent}%` }} />
+                      </div>
+                      <p className="mt-1 font-sans text-[10px] text-[var(--c-text-lo)]">
+                        {currentFolderDownloadProgress.label}
+                      </p>
+                    </div>
+                  )}
+                </div>
 
                 <div className="mt-4">
                   <p className="font-sans text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--c-text-lo)]">Contents</p>
@@ -1402,7 +1671,7 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
                     <button
                       onClick={() => void handleUpdateLinkedWorkspace()}
                       disabled={actionLoading !== null}
-                      className="rounded-xl bg-[var(--c-line)] px-3 py-1.5 font-sans text-[12px] font-semibold text-white transition-opacity hover:opacity-85 disabled:cursor-default disabled:opacity-60"
+                      className="rounded-lg px-2 py-1.5 font-sans text-[11px] font-semibold text-[var(--c-text-lo)] transition-colors hover:bg-[rgba(184,119,80,0.1)] hover:text-[var(--c-line)] disabled:cursor-default disabled:opacity-60"
                     >
                       {actionLoading?.startsWith('update:') ? primaryBusyLabel : primaryActionLabel}
                     </button>
@@ -1427,13 +1696,6 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
                 )}
               </div>
 
-              <button
-                onClick={handleStartNewWorkspace}
-                className="mt-4 inline-flex items-center gap-1.5 rounded-lg border border-[var(--c-border)] bg-[var(--c-panel)] px-2.5 py-1.5 font-sans text-[11px] font-semibold text-[var(--c-text-md)] transition-colors hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]"
-              >
-                <IconNewWorkspace />
-                <span className="whitespace-nowrap">New local workspace</span>
-              </button>
             </div>
 
             <div className="px-4 py-4" style={leftPaneSurface}>
@@ -1452,13 +1714,56 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
                     Open local folders and synced copies you have used recently.
                   </p>
                 </div>
-                <button
-                  onClick={() => void reloadRecentRows()}
-                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-[var(--c-border)] bg-[var(--c-panel)] px-2 py-1.5 font-sans text-[11px] font-semibold text-[var(--c-text-md)] transition-colors hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]"
-                >
-                  <IconRefresh />
-                  <span className="whitespace-nowrap">Refresh</span>
-                </button>
+                <div className="relative flex shrink-0 items-center gap-1.5">
+                  <button
+                    onClick={() => { setAddMenuOpen(false); void reloadRecentRows(); }}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--c-border)] bg-[var(--c-panel)] text-[var(--c-text-md)] transition-colors hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]"
+                    title="Refresh workspaces"
+                    aria-label="Refresh workspaces"
+                  >
+                    <IconRefresh />
+                  </button>
+                  <button
+                    onClick={() => setAddMenuOpen((current) => !current)}
+                    disabled={actionLoading !== null}
+                    className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[var(--c-border)] bg-[var(--c-panel)] px-2.5 font-sans text-[11px] font-semibold text-[var(--c-text-md)] transition-colors hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)] disabled:cursor-default disabled:opacity-60"
+                    aria-expanded={addMenuOpen}
+                  >
+                    Add
+                    <IconChevronDown />
+                  </button>
+                  {addMenuOpen && (
+                    <div className="absolute right-0 top-full z-30 mt-1.5 w-[230px] overflow-hidden rounded-xl border border-[var(--c-border)] bg-[var(--c-panel)] py-1 shadow-2xl">
+                      <button
+                        type="button"
+                        onClick={() => void handleReconnectLocalFolder()}
+                        disabled={actionLoading !== null}
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left font-sans text-[12px] font-semibold text-[var(--c-text-md)] transition-colors hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)] disabled:cursor-default disabled:opacity-60"
+                      >
+                        <span className="text-[var(--c-text-lo)]"><IconFolderOpen /></span>
+                        {reconnectingLocalFolder ? 'Reconnecting folder...' : 'Reconnect folder...'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleCreateLocalFolder()}
+                        disabled={actionLoading !== null}
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left font-sans text-[12px] font-semibold text-[var(--c-text-md)] transition-colors hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)] disabled:cursor-default disabled:opacity-60"
+                      >
+                        <span className="text-[var(--c-text-lo)]"><IconNewWorkspace /></span>
+                        {creatingLocalFolder ? 'Making folder...' : localFolderConnected ? 'Save local copy...' : 'Make local folder...'}
+                      </button>
+                      <div className="my-1 border-t border-[var(--c-border)]" />
+                      <button
+                        type="button"
+                        onClick={handleStartNewWorkspace}
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left font-sans text-[12px] font-semibold text-[var(--c-text-md)] transition-colors hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]"
+                      >
+                        <span className="text-[var(--c-text-lo)]"><IconNewWorkspace /></span>
+                        New blank workspace
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {workspaces.length >= SYNC_WORKSPACE_LIMIT && (
@@ -1501,7 +1806,11 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
                   const cloudUpdatedAt = workspace ? cloudTimestamp(workspace.updatedAt) : null;
                   const localUpdatedAt = recent ? Math.max(recent.lastSavedAt ?? 0, recent.lastOpenedAt) : null;
                   const optimisticSyncedAt = workspace ? syncedBaselines[workspace.id] ?? null : null;
-                  const syncedLocalBaseline = workspace && recent?.cloudBoardId === workspace.id
+                  const recentMatchesWorkspace = !!workspace && !!recent && (
+                    recent.cloudBoardId === workspace.id
+                    || (!!workspace.logicalWorkspaceId && recent.workspaceId === workspace.logicalWorkspaceId)
+                  );
+                  const syncedLocalBaseline = workspace && recentMatchesWorkspace
                     ? Math.max(
                         recent.cloudSyncedAt ?? 0,
                         optimisticSyncedAt ?? 0,
@@ -1554,7 +1863,7 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
                         >
                           <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                             <p className="truncate font-sans text-[12px] font-semibold text-[var(--c-text-hi)]">{row.title}</p>
-                            {row.isCurrent && <span className="shrink-0 rounded-full bg-[rgba(120,167,145,0.18)] px-2 py-0.5 font-sans text-[10px] font-semibold text-[rgb(72,112,92)]">Current</span>}
+                            {row.isCurrent && <span className="shrink-0 rounded-md border border-[var(--c-border)] bg-[var(--c-panel)] px-1.5 py-0.5 font-sans text-[10px] font-semibold text-[var(--c-text-md)]">Current</span>}
                             {workspace && <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[rgba(120,167,145,0.18)] px-2 py-0.5 font-sans text-[10px] font-semibold text-[rgb(72,112,92)]"><IconCheck /> Synced</span>}
                             {!workspace && <span className="shrink-0 rounded-full bg-[var(--c-hover)] px-2 py-0.5 font-sans text-[10px] font-semibold text-[var(--c-text-md)]">Local only</span>}
                             {workspace && !recent && <span className="shrink-0 rounded-full bg-[var(--c-hover)] px-2 py-0.5 font-sans text-[10px] font-semibold text-[var(--c-text-md)]">Cloud only</span>}

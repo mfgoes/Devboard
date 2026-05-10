@@ -1,6 +1,7 @@
 interface Props {
   onClose: () => void;
   onStartWriting?: () => void;
+  onStartMapping?: () => void;
   onShowTemplates?: () => void;
 }
 
@@ -13,7 +14,7 @@ function CheckIcon() {
   );
 }
 
-export default function OnboardingModal({ onClose, onStartWriting, onShowTemplates }: Props) {
+export default function OnboardingModal({ onClose, onStartWriting, onStartMapping, onShowTemplates }: Props) {
   const handleDontShowAgain = () => {
     localStorage.setItem('devboard-onboarding-dismissed', '1');
     onClose();
@@ -45,12 +46,12 @@ export default function OnboardingModal({ onClose, onStartWriting, onShowTemplat
 
         {/* Main heading */}
         <h1 className="text-[var(--c-text-hi)] text-[20px] font-bold leading-tight mb-3">
-          Clear your head. Map your ideas.
+          Start with notes. Map what matters.
         </h1>
 
         {/* Tagline */}
         <p className="text-[var(--c-text-lo)] text-[13px] leading-relaxed mb-6">
-          A private workspace where your notes aren't just lists.
+          A private workspace for connected notes, visual thinking, and local files.
         </p>
 
         {/* Features grid */}
@@ -59,15 +60,15 @@ export default function OnboardingModal({ onClose, onStartWriting, onShowTemplat
             <div className="flex-shrink-0"><CheckIcon /></div>
             <div>
               <p className="text-[12px] font-semibold text-[var(--c-text-md)] mb-0.5">Notes that connect</p>
-              <p className="text-[11px] text-[var(--c-text-lo)]">Wikilinks, backlinks, and a focus mode built for writing.</p>
+              <p className="text-[11px] text-[var(--c-text-lo)]">Stack pages, wikilinks, backlinks, and focus mode for writing.</p>
             </div>
           </div>
 
           <div className="flex gap-3">
             <div className="flex-shrink-0"><CheckIcon /></div>
             <div>
-              <p className="text-[12px] font-semibold text-[var(--c-text-md)] mb-0.5">Infinite canvas</p>
-              <p className="text-[11px] text-[var(--c-text-lo)]">Sketch systems, map flows, think visually.</p>
+              <p className="text-[12px] font-semibold text-[var(--c-text-md)] mb-0.5">Visual maps when you need them</p>
+              <p className="text-[11px] text-[var(--c-text-lo)]">Switch to canvas pages for flows, systems, and relationships.</p>
             </div>
           </div>
 
@@ -92,13 +93,13 @@ export default function OnboardingModal({ onClose, onStartWriting, onShowTemplat
             onClick={() => (onShowTemplates ? onShowTemplates() : onClose())}
             className="w-full px-4 py-2 border border-[var(--c-border)] hover:border-[var(--c-line)] text-[var(--c-text-hi)] text-sm rounded-lg transition-colors font-medium"
           >
-            Browse templates
+            Use a starter workspace
           </button>
           <button
-            onClick={onClose}
+            onClick={() => (onStartMapping ? onStartMapping() : onClose())}
             className="w-full px-4 py-1.5 text-[var(--c-text-lo)] hover:text-[var(--c-text-md)] text-xs rounded-lg transition-colors"
           >
-            Explore the canvas
+            Map ideas on canvas
           </button>
 
           {/* Minimalist getting-started hint */}

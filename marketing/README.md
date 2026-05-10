@@ -24,6 +24,7 @@ Scripts for promoting DevBoard on Ko-fi, Bluesky, X, and TikTok / Reels / Shorts
 | File | Length | Audience | Where to post |
 |---|---|---|---|
 | [`short-15s-teaser.md`](short-15s-teaser.md) | 15s | General | TikTok, Reels, Shorts |
+| [`short-30s-note-links.md`](short-30s-note-links.md) | 30s | Plain-text note users | TikTok, Reels, Bluesky video |
 | [`short-30s-writers.md`](short-30s-writers.md) | 30s | Writers / worldbuilders | TikTok, Bluesky video |
 | [`short-30s-daily.md`](short-30s-daily.md) | 30s | Daily-note / PKM users | TikTok, Reels |
 | [`medium-60s-demo.md`](medium-60s-demo.md) | 60s | Solo devs / makers | TikTok, Shorts, Bluesky |

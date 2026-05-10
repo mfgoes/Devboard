@@ -1,20 +1,79 @@
 import { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { useBoardStore } from '../store/boardStore';
 import { CanvasNode, Document } from '../types';
-import { htmlToMarkdown, markdownToHtml } from '../utils/exportMarkdown';
+import { documentMarkdownFromParts, htmlToMarkdown, markdownToHtml } from '../utils/exportMarkdown';
 import { saveAs } from 'file-saver';
 import { hasWorkspaceHandle, readWorkspaceFileAsUrl, saveImageAsset, saveTextFileToWorkspace } from '../utils/workspaceManager';
 import { toast } from '../utils/toast';
 import { focusNode } from '../utils/focusNode';
-import { IconAlignCenter, IconAlignLeft, IconAlignRight, IconCode, IconCodeBlock, IconCopy, IconDoc, IconEye, IconHorizontalRule, IconLink, IconList, IconListOrdered, IconNodeLink, IconQuote, IconSaveFile, IconTextWrap } from './icons';
+import { IconAlignCenter, IconAlignLeft, IconAlignRight, IconArrowRight, IconCode, IconCodeBlock, IconCopy, IconEye, IconHorizontalRule, IconLink, IconList, IconListOrdered, IconNodeLink, IconQuote, IconSaveFile, IconStar, IconTextWrap, IconUnlink, IconWikiLink } from './icons';
 import { useDocumentAutoSave } from '../hooks/useDocumentAutoSave';
 import { type DocumentCommandDefinition, getDocumentCommandsForSurface, runDocumentCommand } from './documentCommands';
+import { sanitizeClipboardHtml } from '../utils/richText';
+import { saveLinkedWorkspaceToCloud } from '../utils/saveStatus';
 
 // ── Inline chip utilities ─────────────────────────────────────────────────────
 
 const CHIP_PATTERN = /(\[\[[^\]]+\]\])|(@node:[a-zA-Z0-9_-]+)|(#[a-zA-Z][a-zA-Z0-9_-]*)/g;
 
+function parseWikiLink(raw: string): { title: string; alias: string } {
+  const [titlePart, ...aliasParts] = raw.split('|');
+  const title = titlePart.trim();
+  const alias = aliasParts.join('|').trim();
+  return { title, alias };
+}
+
+function wikiLinkRaw(title: string, alias?: string): string {
+  const cleanTitle = title.trim();
+  const cleanAlias = alias?.trim();
+  return cleanAlias && cleanAlias !== cleanTitle
+    ? `[[${cleanTitle}|${cleanAlias}]]`
+    : `[[${cleanTitle}]]`;
+}
+
+function copyPlainText(text: string): boolean {
+  let copied = false;
+  const activeElement = document.activeElement as HTMLElement | null;
+  const selection = window.getSelection();
+  const ranges: Range[] = [];
+  for (let i = 0; i < (selection?.rangeCount ?? 0); i += 1) {
+    const range = selection?.getRangeAt(i);
+    if (range) ranges.push(range.cloneRange());
+  }
+
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.setAttribute('readonly', 'true');
+  textarea.style.position = 'fixed';
+  textarea.style.left = '-9999px';
+  textarea.style.top = '0';
+
+  const onCopy = (event: ClipboardEvent) => {
+    event.clipboardData?.setData('text/plain', text);
+    event.preventDefault();
+    copied = true;
+  };
+
+  document.body.appendChild(textarea);
+  textarea.select();
+  document.addEventListener('copy', onCopy);
+  const ok = document.execCommand('copy');
+  document.removeEventListener('copy', onCopy);
+  textarea.remove();
+
+  selection?.removeAllRanges();
+  ranges.forEach((range) => selection?.addRange(range));
+  activeElement?.focus?.();
+
+  return ok && copied;
+}
+
 function applyChipsToDOM(container: HTMLElement): void {
+  container.querySelectorAll<HTMLElement>('[data-chip="wiki"]').forEach((chip) => {
+    chip.classList.add('chip-wiki');
+    chip.removeAttribute('contenteditable');
+  });
+
   const textNodes: Text[] = [];
   function walk(node: Node) {
     if (node.nodeType === Node.TEXT_NODE) { textNodes.push(node as Text); return; }
@@ -39,27 +98,33 @@ function applyChipsToDOM(container: HTMLElement): void {
     while ((match = CHIP_PATTERN.exec(text)) !== null) {
       if (match.index > lastIdx) frag.appendChild(document.createTextNode(text.slice(lastIdx, match.index)));
 
-      const span = document.createElement('span');
-      span.contentEditable = 'false';
-
       if (match[1]) {
-        const title = match[1].slice(2, -2);
+        const { title, alias } = parseWikiLink(match[1].slice(2, -2));
+        const span = document.createElement('span');
         span.className = 'chip-wiki';
         span.dataset.chip = 'wiki';
         span.dataset.title = title;
-        span.textContent = title;
+        if (alias) span.dataset.alias = alias;
+        if (alias) span.title = `Links to ${title}`;
+        span.textContent = alias || title;
+        frag.appendChild(span);
       } else if (match[2]) {
         const nodeId = match[2].slice(6);
+        const span = document.createElement('span');
+        span.contentEditable = 'false';
         span.className = 'chip-node';
         span.dataset.chip = 'node';
         span.dataset.nodeid = nodeId;
         span.textContent = nodeId;
+        frag.appendChild(span);
       } else if (match[3]) {
+        const span = document.createElement('span');
+        span.contentEditable = 'false';
         span.className = 'chip-tag';
         span.dataset.chip = 'tag';
         span.textContent = match[3];
+        frag.appendChild(span);
       }
-      frag.appendChild(span);
       lastIdx = match.index + match[0].length;
     }
     if (lastIdx < text.length) frag.appendChild(document.createTextNode(text.slice(lastIdx)));
@@ -74,7 +139,11 @@ function stripChipsFromHTML(html: string): string {
     const chip = el as HTMLElement;
     const type = chip.dataset.chip;
     let raw = '';
-    if (type === 'wiki') raw = `[[${chip.dataset.title ?? chip.textContent}]]`;
+    if (type === 'wiki') {
+      const title = chip.dataset.title ?? chip.textContent ?? '';
+      const text = chip.textContent ?? '';
+      raw = text.trim() ? wikiLinkRaw(title, text !== title ? text : '') : '';
+    }
     else if (type === 'node') raw = `@node:${chip.dataset.nodeid ?? chip.textContent}`;
     else raw = chip.textContent ?? '';
     chip.replaceWith(document.createTextNode(raw));
@@ -82,10 +151,122 @@ function stripChipsFromHTML(html: string): string {
   return div.innerHTML;
 }
 
+function closestWikiChip(node: Node | null, root: HTMLElement): HTMLElement | null {
+  let current = node;
+  if (current?.nodeType === Node.TEXT_NODE) current = current.parentNode;
+  while (current && current !== root) {
+    if (
+      current.nodeType === Node.ELEMENT_NODE &&
+      (current as HTMLElement).classList.contains('chip-wiki') &&
+      root.contains(current)
+    ) {
+      return current as HTMLElement;
+    }
+    current = current.parentNode;
+  }
+  return null;
+}
+
+function siblingWikiChip(node: Node | null, direction: 'previous' | 'next'): HTMLElement | null {
+  let current = node;
+  while (current) {
+    const sibling = direction === 'previous' ? current.previousSibling : current.nextSibling;
+    if (sibling?.nodeType === Node.ELEMENT_NODE && (sibling as HTMLElement).classList.contains('chip-wiki')) {
+      return sibling as HTMLElement;
+    }
+    if (sibling) return null;
+    current = current.parentNode;
+  }
+  return null;
+}
+
+function activeWikiChipFromRange(range: Range | null, root: HTMLElement | null): HTMLElement | null {
+  if (!range || !root) return null;
+
+  const fromCommonAncestor = closestWikiChip(range.commonAncestorContainer, root);
+  if (fromCommonAncestor) return fromCommonAncestor;
+
+  const fromStart = closestWikiChip(range.startContainer, root);
+  if (fromStart) return fromStart;
+
+  const fromEnd = closestWikiChip(range.endContainer, root);
+  if (fromEnd) return fromEnd;
+
+  if (
+    !range.collapsed &&
+    range.startContainer === range.endContainer &&
+    range.startContainer.nodeType === Node.ELEMENT_NODE &&
+    range.endOffset === range.startOffset + 1
+  ) {
+    const selectedNode = range.startContainer.childNodes[range.startOffset];
+    if (selectedNode?.nodeType === Node.ELEMENT_NODE && (selectedNode as HTMLElement).classList.contains('chip-wiki')) {
+      return selectedNode as HTMLElement;
+    }
+  }
+
+  if (!range.collapsed) return null;
+
+  if (range.startContainer.nodeType === Node.TEXT_NODE) {
+    const text = range.startContainer.textContent ?? '';
+    if (range.startOffset === 0) {
+      const previous = siblingWikiChip(range.startContainer, 'previous');
+      if (previous && root.contains(previous)) return previous;
+    }
+    if (range.startOffset === text.length) {
+      const next = siblingWikiChip(range.startContainer, 'next');
+      if (next && root.contains(next)) return next;
+    }
+  }
+
+  if (range.startContainer.nodeType === Node.ELEMENT_NODE) {
+    const container = range.startContainer;
+    const before = container.childNodes[range.startOffset - 1];
+    const after = container.childNodes[range.startOffset];
+    if (before?.nodeType === Node.ELEMENT_NODE && (before as HTMLElement).classList.contains('chip-wiki')) return before as HTMLElement;
+    if (after?.nodeType === Node.ELEMENT_NODE && (after as HTMLElement).classList.contains('chip-wiki')) return after as HTMLElement;
+  }
+
+  return null;
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function stripHtml(html: string): string {
   return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function normalizeTitleText(text: string): string {
+  return text.trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+function isBlankEditorBlock(el: HTMLElement): boolean {
+  if (el.querySelector('img, figure, table, hr, pre, code, [data-chip]')) return false;
+  return (el.textContent ?? '').replace(/\u00a0/g, ' ').trim() === '';
+}
+
+function stripLeadingHtmlTitle(html: string, title?: string): string {
+  const expected = normalizeTitleText(title ?? '');
+  if (!html || !expected) return html;
+
+  const root = document.createElement('div');
+  root.innerHTML = html;
+
+  while (true) {
+    const children = Array.from(root.children) as HTMLElement[];
+    const firstContentIndex = children.findIndex((child) => !isBlankEditorBlock(child));
+    if (firstContentIndex < 0) return '';
+
+    const firstContent = children[firstContentIndex];
+    const isMatchingTitle =
+      firstContent.tagName === 'H1' &&
+      normalizeTitleText(firstContent.textContent ?? '') === expected;
+    if (!isMatchingTitle) return root.innerHTML;
+
+    for (let i = 0; i <= firstContentIndex; i += 1) children[i].remove();
+    while (root.firstElementChild && isBlankEditorBlock(root.firstElementChild as HTMLElement)) {
+      root.firstElementChild.remove();
+    }
+  }
 }
 
 function relativeTime(ms: number): string {
@@ -410,18 +591,62 @@ function toggleInlineCode(savedRange: Range | null) {
   if (!range) return;
   const sel = window.getSelection();
   if (sel) { sel.removeAllRanges(); sel.addRange(range); }
+  const root = rangeRoot(range);
+  if (!root) return;
 
-  // If the selection is collapsed inside an existing <code>, unwrap it
-  let parent: Node | null = range.startContainer;
-  while (parent && (parent as HTMLElement).tagName?.toLowerCase() !== 'code') parent = parent.parentElement;
-  if (parent) {
-    const code = parent as HTMLElement;
-    const frag = document.createDocumentFragment();
-    while (code.firstChild) frag.appendChild(code.firstChild);
-    code.replaceWith(frag);
-    code.dispatchEvent(new Event('input', { bubbles: true }));
+  const closestCode = (node: Node | null): HTMLElement | null => {
+    let current = node;
+    if (current?.nodeType === Node.TEXT_NODE) current = current.parentNode;
+    while (current && (current as HTMLElement).contentEditable !== 'true') {
+      if ((current as HTMLElement).tagName?.toLowerCase() === 'code') return current as HTMLElement;
+      current = current.parentNode;
+    }
+    return null;
+  };
+
+  const unwrapCodeElements = (codes: HTMLElement[]) => {
+    const unwrappedTextNodes: Text[] = [];
+    codes.forEach((code) => {
+      const unwrapped = document.createTextNode(code.textContent ?? '');
+      code.replaceWith(unwrapped);
+      unwrappedTextNodes.push(unwrapped);
+    });
+
+    const nextRange = document.createRange();
+    const first = unwrappedTextNodes[0];
+    const last = unwrappedTextNodes[unwrappedTextNodes.length - 1];
+    if (first && last) {
+      nextRange.setStart(first, 0);
+      nextRange.setEnd(last, last.length);
+      sel?.removeAllRanges();
+      sel?.addRange(nextRange);
+    }
+
+    root.dispatchEvent(new Event('input', { bubbles: true }));
+  };
+
+  const codeParent =
+    closestCode(range.startContainer) ||
+    closestCode(range.commonAncestorContainer);
+
+  if (codeParent) {
+    unwrapCodeElements([codeParent]);
     return;
   }
+
+  const intersectingCodes = Array.from(root.querySelectorAll<HTMLElement>('code'))
+    .filter((code) => {
+      try {
+        return range.intersectsNode(code);
+      } catch {
+        return false;
+      }
+    });
+  if (intersectingCodes.length > 0) {
+    unwrapCodeElements(intersectingCodes);
+    return;
+  }
+
   if (range.collapsed) return;
   const code = document.createElement('code');
   try { range.surroundContents(code); }
@@ -431,7 +656,7 @@ function toggleInlineCode(savedRange: Range | null) {
     code.textContent = text;
     range.insertNode(code);
   }
-  code.dispatchEvent(new Event('input', { bubbles: true }));
+  root.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
 // Insert <hr> after the current block
@@ -1134,53 +1359,48 @@ function FormattingBar({
 
 interface SelectionFormattingToolbarProps {
   anchor: SelectionToolbarAnchor | null;
+  isWikiLinkActive: boolean;
   onWikilinkClick: (rect: DOMRect) => void;
 }
 
-function SelectionFormattingToolbar({ anchor, onWikilinkClick }: SelectionFormattingToolbarProps) {
-  const [showBlockMenu, setShowBlockMenu] = useState(false);
+function SelectionFormattingToolbar({ anchor, isWikiLinkActive, onWikilinkClick }: SelectionFormattingToolbarProps) {
   const [showColorMenu, setShowColorMenu] = useState(false);
   const [showLinkMenu, setShowLinkMenu] = useState(false);
   const [linkValue, setLinkValue] = useState('');
   const [hoveredControl, setHoveredControl] = useState<string | null>(null);
   const savedRangeRef = useRef<Range | null>(null);
   const [, tick] = useState(0);
-  const blockBtnRef = useRef<HTMLButtonElement>(null);
   const colorBtnRef = useRef<HTMLButtonElement>(null);
   const linkBtnRef = useRef<HTMLButtonElement>(null);
   const floatingToolbarRef = useRef<HTMLDivElement>(null);
-  const blockMenuRef = useRef<HTMLDivElement>(null);
   const colorMenuRef = useRef<HTMLDivElement>(null);
   const linkMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!anchor) {
-      setShowBlockMenu(false);
       setShowColorMenu(false);
       setShowLinkMenu(false);
     }
   }, [anchor]);
 
   useEffect(() => {
-    if (!showBlockMenu && !showColorMenu && !showLinkMenu) return;
+    if (!showColorMenu && !showLinkMenu) return;
     const handleWindowPointer = (event: MouseEvent) => {
       const target = event.target as Node | null;
       if (!target) return;
       if (
         floatingToolbarRef.current?.contains(target) ||
-        blockMenuRef.current?.contains(target) ||
         colorMenuRef.current?.contains(target) ||
         linkMenuRef.current?.contains(target)
       ) {
         return;
       }
-      setShowBlockMenu(false);
       setShowColorMenu(false);
       setShowLinkMenu(false);
     };
     window.addEventListener('mousedown', handleWindowPointer);
     return () => window.removeEventListener('mousedown', handleWindowPointer);
-  }, [showBlockMenu, showColorMenu, showLinkMenu]);
+  }, [showColorMenu, showLinkMenu]);
 
   const saveSelection = () => {
     const sel = window.getSelection();
@@ -1212,19 +1432,17 @@ function SelectionFormattingToolbar({ anchor, onWikilinkClick }: SelectionFormat
     onMouseLeave: () => setHoveredControl((current) => (current === id ? null : current)),
   });
 
-  const currentBlock = getBlockType(showBlockMenu ? savedRangeRef.current : null);
-  const blockMenuRect = showBlockMenu && blockBtnRef.current ? blockBtnRef.current.getBoundingClientRect() : null;
   const colorMenuRect = showColorMenu && colorBtnRef.current ? colorBtnRef.current.getBoundingClientRect() : null;
   const linkMenuRect = showLinkMenu && linkBtnRef.current ? linkBtnRef.current.getBoundingClientRect() : null;
   const activeLinkHref = getLinkHref(savedRangeRef.current);
 
   const toolbarButtonStyle = (active: boolean, hovered = false): React.CSSProperties => ({
-    width: 30,
+    width: 32,
     height: 30,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 7,
+    borderRadius: 8,
     border: active ? '1px solid rgba(184,119,80,0.46)' : '1px solid transparent',
     background: active
       ? (hovered ? 'rgba(184,119,80,0.3)' : 'rgba(184,119,80,0.2)')
@@ -1234,8 +1452,17 @@ function SelectionFormattingToolbar({ anchor, onWikilinkClick }: SelectionFormat
     transition: 'background 0.12s, border-color 0.12s, color 0.12s',
     flexShrink: 0,
   });
+  const toolbarInsertButtonStyle = (active: boolean, hovered = false): React.CSSProperties => ({
+    ...toolbarButtonStyle(active, hovered),
+    width: 'auto',
+    minWidth: 116,
+    justifyContent: 'flex-start',
+    gap: 8,
+    padding: '0 10px',
+    fontSize: 12,
+    fontWeight: 700,
+  });
 
-  const currentBlockLabel = BLOCK_LABELS[currentBlock] ?? 'Paragraph';
   const menuShell = (rect: DOMRect | null, width = 176): React.CSSProperties => ({
     position: 'fixed',
     top: Math.min((rect?.bottom ?? 0) + 6, window.innerHeight - 220),
@@ -1288,96 +1515,79 @@ function SelectionFormattingToolbar({ anchor, onWikilinkClick }: SelectionFormat
           transform: 'translateX(-50%)',
           zIndex: 555,
           display: 'flex',
+          flexDirection: 'column',
           alignItems: 'center',
-          gap: 4,
-          padding: 4,
-          borderRadius: 12,
+          gap: 3,
+          padding: 6,
+          borderRadius: 16,
           background: 'var(--c-panel)',
           border: '1px solid var(--c-border)',
           boxShadow: '0 16px 38px rgba(0,0,0,0.34)',
-          maxWidth: 'min(92vw, 640px)',
-          overflowX: 'auto',
-          scrollbarWidth: 'none',
+          maxWidth: 'min(92vw, 340px)',
+          overflow: 'visible',
         }}
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <button
-          ref={blockBtnRef}
-          style={{ ...toolbarButtonStyle(false, hoveredControl === 'block'), width: 84, justifyContent: 'space-between', padding: '0 8px', fontSize: 11 }}
-          onMouseDown={(e) => {
-            e.preventDefault();
-            saveSelection();
-            setShowBlockMenu((v) => !v);
-            setShowColorMenu(false);
-            setShowLinkMenu(false);
-          }}
-          {...hoverHandlers('block')}
-        >
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentBlockLabel}</span>
-          <span style={{ fontSize: 9, opacity: 0.7 }}>▼</span>
-        </button>
-        <button style={toolbarButtonStyle(document.queryCommandState('bold'), hoveredControl === 'bold')} onMouseDown={(e) => { e.preventDefault(); saveSelection(); execAndTick(() => document.execCommand('bold')); }} {...hoverHandlers('bold')}><b>B</b></button>
-        <button style={{ ...toolbarButtonStyle(document.queryCommandState('italic'), hoveredControl === 'italic'), fontStyle: 'italic' }} onMouseDown={(e) => { e.preventDefault(); saveSelection(); execAndTick(() => document.execCommand('italic')); }} {...hoverHandlers('italic')}><i>I</i></button>
-        <button style={{ ...toolbarButtonStyle(document.queryCommandState('underline'), hoveredControl === 'underline'), textDecoration: 'underline' }} onMouseDown={(e) => { e.preventDefault(); saveSelection(); execAndTick(() => document.execCommand('underline')); }} {...hoverHandlers('underline')}>U</button>
-        <button style={{ ...toolbarButtonStyle(document.queryCommandState('strikeThrough'), hoveredControl === 'strike'), textDecoration: 'line-through' }} onMouseDown={(e) => { e.preventDefault(); saveSelection(); execAndTick(() => document.execCommand('strikeThrough')); }} {...hoverHandlers('strike')}>S</button>
-        <button
-          ref={colorBtnRef}
-          style={toolbarButtonStyle(showColorMenu, hoveredControl === 'color')}
-          onMouseDown={(e) => {
-            e.preventDefault();
-            saveSelection();
-            setShowColorMenu((v) => !v);
-            setShowBlockMenu(false);
-            setShowLinkMenu(false);
-          }}
-          {...hoverHandlers('color')}
-          title="Text color and highlight"
-        >
-          <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
-            <span style={{ fontFamily: 'serif', fontSize: 12, fontWeight: 700, lineHeight: 1 }}>A</span>
-            <span style={{ width: 12, height: 2.5, borderRadius: 999, background: 'currentColor', display: 'block' }} />
-          </span>
-        </button>
-        <button style={toolbarButtonStyle(false, hoveredControl === 'inline-code')} onMouseDown={(e) => { e.preventDefault(); saveSelection(); restoreSelection(); toggleInlineCode(savedRangeRef.current); tick((n) => n + 1); }} {...hoverHandlers('inline-code')}><IconCode /></button>
-        <button
-          ref={linkBtnRef}
-          style={toolbarButtonStyle(!!activeLinkHref || showLinkMenu, hoveredControl === 'link')}
-          onMouseDown={(e) => {
-            e.preventDefault();
-            saveSelection();
-            setLinkValue(getLinkHref(savedRangeRef.current));
-            setShowLinkMenu((v) => !v);
-            setShowBlockMenu(false);
-            setShowColorMenu(false);
-          }}
-          {...hoverHandlers('link')}
-          title="External link"
-        >
-          <IconLink />
-        </button>
-        <button style={toolbarButtonStyle(false, hoveredControl === 'wiki-link')} onMouseDown={(e) => { e.preventDefault(); saveSelection(); restoreSelection(); onWikilinkClick((e.currentTarget as HTMLButtonElement).getBoundingClientRect()); }} {...hoverHandlers('wiki-link')}><IconDoc /></button>
-      </div>
-
-      {blockMenuRect && (
-        <div ref={blockMenuRef} style={menuShell(blockMenuRect)} onMouseDown={(e) => e.stopPropagation()}>
-          {(['p', 'h1', 'h2', 'h3'] as const).map((tag) => (
-            <button
-              key={tag}
-              style={{ ...menuButtonStyle, background: currentBlock === tag ? 'rgba(184,119,80,0.15)' : 'transparent', color: currentBlock === tag ? 'var(--c-line)' : 'var(--c-text-md)' }}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                restoreSelection();
-                applyBlock(tag, savedRangeRef.current);
-                setShowBlockMenu(false);
-                tick((n) => n + 1);
-              }}
-              {...menuHover}
-            >
-              {BLOCK_LABELS[tag]}
-            </button>
-          ))}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+          <button style={toolbarButtonStyle(document.queryCommandState('bold'), hoveredControl === 'bold')} onMouseDown={(e) => { e.preventDefault(); saveSelection(); execAndTick(() => document.execCommand('bold')); }} {...hoverHandlers('bold')} title="Bold"><b>B</b></button>
+          <button style={{ ...toolbarButtonStyle(document.queryCommandState('italic'), hoveredControl === 'italic'), fontStyle: 'italic' }} onMouseDown={(e) => { e.preventDefault(); saveSelection(); execAndTick(() => document.execCommand('italic')); }} {...hoverHandlers('italic')} title="Italic"><i>I</i></button>
+          <button style={{ ...toolbarButtonStyle(document.queryCommandState('underline'), hoveredControl === 'underline'), textDecoration: 'underline' }} onMouseDown={(e) => { e.preventDefault(); saveSelection(); execAndTick(() => document.execCommand('underline')); }} {...hoverHandlers('underline')} title="Underline">U</button>
+          <button style={{ ...toolbarButtonStyle(document.queryCommandState('strikeThrough'), hoveredControl === 'strike'), textDecoration: 'line-through' }} onMouseDown={(e) => { e.preventDefault(); saveSelection(); execAndTick(() => document.execCommand('strikeThrough')); }} {...hoverHandlers('strike')} title="Strikethrough">S</button>
+          <button
+            ref={colorBtnRef}
+            style={toolbarButtonStyle(showColorMenu, hoveredControl === 'color')}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              saveSelection();
+              setShowColorMenu((v) => !v);
+              setShowLinkMenu(false);
+            }}
+            {...hoverHandlers('color')}
+            title="Text color and highlight"
+          >
+            <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
+              <span style={{ fontFamily: 'serif', fontSize: 12, fontWeight: 700, lineHeight: 1 }}>A</span>
+              <span style={{ width: 12, height: 2.5, borderRadius: 999, background: 'currentColor', display: 'block' }} />
+            </span>
+          </button>
         </div>
-      )}
+
+        <div style={{ width: '100%', height: 1, background: 'var(--c-border)', opacity: 0.72 }} />
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+          <button
+            style={toolbarInsertButtonStyle(isWikiLinkActive, hoveredControl === 'wiki-link')}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              saveSelection();
+              restoreSelection();
+              onWikilinkClick((e.currentTarget as HTMLButtonElement).getBoundingClientRect());
+            }}
+            {...hoverHandlers('wiki-link')}
+            title={isWikiLinkActive ? 'Edit note link' : 'Link note'}
+          >
+            <IconWikiLink />
+            <span>Link note</span>
+          </button>
+          <div style={{ width: 1, height: 24, background: 'var(--c-border)', opacity: 0.72, margin: '0 4px' }} />
+          <button
+            ref={linkBtnRef}
+            style={toolbarButtonStyle(!!activeLinkHref || showLinkMenu, hoveredControl === 'link')}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              saveSelection();
+              setLinkValue(getLinkHref(savedRangeRef.current));
+              setShowLinkMenu((v) => !v);
+              setShowColorMenu(false);
+            }}
+            {...hoverHandlers('link')}
+            title="External link"
+          >
+            <IconLink />
+          </button>
+          <button style={toolbarButtonStyle(false, hoveredControl === 'inline-code')} onMouseDown={(e) => { e.preventDefault(); saveSelection(); restoreSelection(); toggleInlineCode(savedRangeRef.current); tick((n) => n + 1); }} {...hoverHandlers('inline-code')} title="Inline code"><IconCode /></button>
+        </div>
+      </div>
 
       {colorMenuRect && (
         <div ref={colorMenuRef} style={{ ...menuShell(colorMenuRect, 220), padding: 8 }} onMouseDown={(e) => e.stopPropagation()}>
@@ -1553,15 +1763,19 @@ interface WikilinkPickerProps {
   pos: { x: number; y: number };
   documents: Document[];
   activeDocId: string | null;
+  initialQuery?: string;
   onSelect: (title: string) => void;
   onCreate: (title: string) => void;
   onClose: () => void;
 }
 
-function WikilinkPicker({ pos, documents, activeDocId, onSelect, onCreate, onClose }: WikilinkPickerProps) {
-  const [query, setQuery] = useState('');
+function WikilinkPicker({ pos, documents, activeDocId, initialQuery = '', onSelect, onCreate, onClose }: WikilinkPickerProps) {
+  const [query, setQuery] = useState(initialQuery);
   const inputRef = useRef<HTMLInputElement>(null);
-  useEffect(() => { inputRef.current?.focus(); }, []);
+  useEffect(() => {
+    inputRef.current?.focus();
+    if (initialQuery) inputRef.current?.select();
+  }, [initialQuery]);
 
   const filtered = useMemo(() => {
     const q = query.toLowerCase().trim();
@@ -1628,6 +1842,11 @@ function WikilinkPicker({ pos, documents, activeDocId, onSelect, onCreate, onClo
             >
               <span style={{ fontSize: 15, lineHeight: 1, color: 'var(--c-line)' }}>+</span>
               <span style={{ fontSize: 13, color: 'var(--c-text-md)' }}>New note: <b style={{ color: 'var(--c-text-hi)' }}>"{query.trim()}"</b></span>
+            </div>
+          )}
+          {filtered.length === 0 && query.trim() && (
+            <div style={{ padding: '10px 12px', fontSize: 11, color: 'var(--c-text-lo)', lineHeight: 1.45 }}>
+              No matching notes. Clear the search to browse existing notes.
             </div>
           )}
           {filtered.length === 0 && !query.trim() && (
@@ -1865,7 +2084,7 @@ function SlashCommandPalette({ pos, commands, onSelect, onClose }: SlashCommandP
       case 'code-block': return <IconCodeBlock />;
       case 'divider': return <IconHorizontalRule />;
       case 'external-link': return <IconLink />;
-      case 'wiki-link': return <IconDoc />;
+      case 'wiki-link': return <IconWikiLink />;
       case 'node-link': return <IconNodeLink />;
       case 'tag': return <span style={{ fontSize: 11, fontWeight: 700 }}>#</span>;
       case 'image-upload':
@@ -2131,7 +2350,7 @@ interface DocumentModeProps {
 }
 
 export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, panelMode = false }: DocumentModeProps) {
-  const { documents, activeDocId, updateDocument, addDocument, closeDocument, openDocumentWithMorph, nodes, pages, activePageId, boardTitle, saveHistory, undo, redo, noteAutosaveEnabled, imageAssetFolder } = useBoardStore();
+  const { documents, activeDocId, updateDocument, toggleFavoriteDocument, addDocument, closeDocument, openDocumentWithMorph, nodes, pages, activePageId, boardTitle, saveHistory, undo, redo, noteAutosaveEnabled, imageAssetFolder } = useBoardStore();
   const contentRef = useRef<HTMLDivElement>(null);
   const editorScrollRef = useRef<HTMLDivElement>(null);
   const sourceRef = useRef<HTMLTextAreaElement>(null);
@@ -2144,9 +2363,12 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
   const [sourceWrap, setSourceWrap] = useState(true);
   const [, forceUpdate] = useState(0);
   const [docHistory, setDocHistory] = useState<string[]>([]);
-  const [wikiPreview, setWikiPreview] = useState<{ x: number; y: number; doc: Document } | null>(null);
+  const [wikiPreview, setWikiPreview] = useState<{ x: number; y: number; doc: Document; chip: HTMLElement } | null>(null);
+  const [wikiContextMenu, setWikiContextMenu] = useState<{ x: number; y: number; doc: Document; chip: HTMLElement } | null>(null);
+  const [wikiRename, setWikiRename] = useState<{ chip: HTMLElement; originalText: string; value: string; rect: DOMRect } | null>(null);
   const wikiPreviewTitle = useRef<string | null>(null);
-  const [wikilinkPicker, setWikilinkPicker] = useState<{ x: number; y: number } | null>(null);
+  const wikiPreviewCloseTimerRef = useRef<number | null>(null);
+  const [wikilinkPicker, setWikilinkPicker] = useState<{ x: number; y: number; initialQuery?: string } | null>(null);
   const [nodePicker, setNodePicker] = useState<{ x: number; y: number } | null>(null);
   const [emojiPicker, setEmojiPicker] = useState<{ x: number; y: number } | null>(null);
   const [isHoveringDoc, setIsHoveringDoc] = useState(false);
@@ -2160,8 +2382,11 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
   const [selectedImageRect, setSelectedImageRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
   const [, forceSaveStatusTick] = useState(0);
   const savedSelectionRef = useRef<Range | null>(null);
+  const wikiRenameInputRef = useRef<HTMLInputElement>(null);
+  const suppressWikiRenameBlurRef = useRef(false);
   const hydrationVersionRef = useRef(0);
   const imageResizeStateRef = useRef<{ imageId: string; startX: number; startWidth: number } | null>(null);
+  const wikiPointerDownRef = useRef<{ chip: HTMLElement; x: number; y: number } | null>(null);
 
   const doc = documents.find((d) => d.id === activeDocId) as Document | undefined;
   const activePage = pages.find((p) => p.id === activePageId);
@@ -2195,7 +2420,7 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
   const backlinks = useMemo(() => {
     if (!doc?.title?.trim()) return [];
     const esc = doc.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const pat = new RegExp(`\\[\\[${esc}\\]\\]`, 'gi');
+    const pat = new RegExp(`\\[\\[${esc}(?:\\|[^\\]]*)?\\]\\]`, 'gi');
     return documents
       .filter((d) => d.id !== doc.id && pat.test(d.content.replace(/<[^>]+>/g, ' ')))
       .map((d) => {
@@ -2396,16 +2621,23 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
     return getDocumentCommandsForSurface('slash');
   }, []);
 
+  useEffect(() => () => {
+    if (wikiPreviewCloseTimerRef.current !== null) {
+      window.clearTimeout(wikiPreviewCloseTimerRef.current);
+    }
+  }, []);
+
   // Sync content to DOM when switching documents; auto-bootstrap H1 for new docs
   useEffect(() => {
     if (!doc || !contentRef.current) return;
     let cancelled = false;
     const run = async () => {
       let content = doc.content ?? '';
-      if (!content.trim() && doc.title) {
-        content = `<h1>${doc.title}</h1><p><br></p>`;
+      if (!content.trim()) {
+        content = '<p><br></p>';
         updateDocument(doc.id, { content });
       }
+      content = stripLeadingHtmlTitle(content, doc.title) || '<p><br></p>';
       const hydrated = await hydrateDocumentImages(content);
       if (cancelled || !contentRef.current) return;
       contentRef.current.innerHTML = hydrated;
@@ -2414,17 +2646,7 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
       ensureDocumentHeadingIds(contentRef.current);
       updatePlaceholderVisibility(contentRef.current);
       setViewMode('edit');
-      const h1 = contentRef.current.querySelector('h1');
-      if (h1) {
-        const range = document.createRange();
-        range.selectNodeContents(h1);
-        range.collapse(false);
-        const sel = window.getSelection();
-        sel?.removeAllRanges();
-        sel?.addRange(range);
-      } else {
-        contentRef.current.focus();
-      }
+      contentRef.current.focus();
     };
     void run();
     return () => {
@@ -2440,35 +2662,49 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
     }
 
     const sel = window.getSelection();
-    if (!sel || sel.rangeCount === 0 || sel.isCollapsed) {
+    if (!sel || sel.rangeCount === 0) {
       setSelectionToolbarAnchor(null);
       return;
     }
 
     const range = sel.getRangeAt(0);
+    const activeWikiChip = activeWikiChipFromRange(range, contentRef.current);
     const startNode = range.startContainer.nodeType === Node.TEXT_NODE ? range.startContainer.parentNode : range.startContainer;
     const endNode = range.endContainer.nodeType === Node.TEXT_NODE ? range.endContainer.parentNode : range.endContainer;
 
-    if (!startNode || !endNode || !contentRef.current.contains(startNode) || !contentRef.current.contains(endNode)) {
+    if (
+      !activeWikiChip &&
+      (!startNode || !endNode || !contentRef.current.contains(startNode) || !contentRef.current.contains(endNode))
+    ) {
       setSelectionToolbarAnchor(null);
       return;
     }
 
-    const rect = range.getBoundingClientRect();
+    if (!activeWikiChip && sel.isCollapsed) {
+      setSelectionToolbarAnchor(null);
+      return;
+    }
+
+    const rect = activeWikiChip?.getBoundingClientRect() ?? range.getBoundingClientRect();
     if (!rect.width && !rect.height) {
       setSelectionToolbarAnchor(null);
       return;
     }
 
     const editorRect = editorScrollRef.current?.getBoundingClientRect();
-    const desiredTop = rect.top - 50;
+    const toolbarHeight = 76;
+    const verticalGap = 8;
+    const desiredBelow = rect.bottom + verticalGap;
+    const desiredAbove = rect.top - toolbarHeight - verticalGap;
+    const hasRoomBelow = desiredBelow + toolbarHeight <= window.innerHeight - 12;
+    const top = hasRoomBelow ? desiredBelow : Math.max(12, desiredAbove);
     const unclampedLeft = rect.left + rect.width / 2;
     const clampedLeft = editorRect
       ? Math.max(editorRect.left + 24, Math.min(editorRect.right - 24, unclampedLeft))
       : unclampedLeft;
     setSelectionToolbarAnchor({
       left: clampedLeft,
-      top: desiredTop > 16 ? desiredTop : rect.bottom + 10,
+      top,
     });
   }, [viewMode]);
 
@@ -2590,7 +2826,8 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
     let cancelled = false;
     const version = ++hydrationVersionRef.current;
     const run = async () => {
-      const hydrated = await hydrateDocumentImages(doc.content ?? '');
+      const bodyContent = stripLeadingHtmlTitle(doc.content ?? '', doc.title) || '<p><br></p>';
+      const hydrated = await hydrateDocumentImages(bodyContent);
       if (cancelled || version !== hydrationVersionRef.current) return;
 
       if (viewMode === 'edit' && contentRef.current) {
@@ -2652,18 +2889,15 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [redo, undo, viewMode]);
 
-  // When H1 in editor changes, sync to doc.title
+  // Keep the editable body separate from the note title shown above it.
   const handleInput = useCallback(() => {
     if (!contentRef.current || !doc) return;
     ensureDocImageIds(contentRef.current);
     ensureDocumentHeadingIds(contentRef.current);
     updatePlaceholderVisibility(contentRef.current);
-    const firstBlock = contentRef.current.firstElementChild as HTMLElement | null;
-    const updates: Partial<Document> = { content: stripChipsFromHTML(contentRef.current.innerHTML) };
-    if (firstBlock?.tagName === 'H1') {
-      const h1Text = firstBlock.textContent ?? '';
-      if (h1Text && h1Text !== doc.title) updates.title = h1Text;
-    }
+    const updates: Partial<Document> = {
+      content: stripLeadingHtmlTitle(stripChipsFromHTML(contentRef.current.innerHTML), doc.title),
+    };
     if (getDocumentHistorySignature({ title: doc.title, content: doc.content, emoji: doc.emoji, linkedFile: doc.linkedFile }) !== getDocumentHistorySignature({ title: updates.title ?? doc.title, content: updates.content ?? doc.content, emoji: doc.emoji, linkedFile: doc.linkedFile })) {
       checkpointDocumentHistory();
     }
@@ -2737,8 +2971,9 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
 
   const handleSave = async () => {
     if (!doc) return;
-    const md = htmlToMarkdown(doc.content ?? '');
+    const md = documentMarkdownFromParts(doc.title, doc.content);
     const filename = generateMarkdownFilename(doc.title);
+    const cloudBoardId = useBoardStore.getState().cloudBoardId;
     if (hasWorkspaceHandle()) {
       try {
         const linkedFile = doc.linkedFile ?? `notes/${filename}`;
@@ -2750,11 +2985,27 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
         setLastSavedAt(Date.now());
         setHasEditedSinceOpen(true);
         setDirtySinceSave(false);
-        toast(`Saved: ${linkedFile}`);
+        if (cloudBoardId) {
+          void saveLinkedWorkspaceToCloud('note', {
+            successMessage: `Saved ${linkedFile} and cloud copy.`,
+            failureMessage: `Saved ${linkedFile}. Cloud save failed.`,
+          });
+        } else {
+          toast(`Saved: ${linkedFile}`);
+        }
       } catch (err) {
         console.error(err);
         toast('Save failed');
       }
+    } else if (cloudBoardId) {
+      const ok = await saveLinkedWorkspaceToCloud('note', {
+        successMessage: 'Saved to cloud.',
+        failureMessage: 'Cloud save failed.',
+      });
+      if (!ok) return;
+      setLastSavedAt(Date.now());
+      setHasEditedSinceOpen(true);
+      setDirtySinceSave(false);
     } else {
       saveAs(new Blob([md], { type: 'text/markdown;charset=utf-8' }), filename);
       setLastSavedAt(Date.now());
@@ -2837,11 +3088,46 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
     toast(`Replaced "${search}"`);
   }, [checkpointDocumentHistory, doc, markDirty, sourceText, viewMode]);
 
+  const closeWikiPreview = useCallback((delay = 120) => {
+    if (wikiPreviewCloseTimerRef.current !== null) {
+      window.clearTimeout(wikiPreviewCloseTimerRef.current);
+    }
+    wikiPreviewCloseTimerRef.current = window.setTimeout(() => {
+      wikiPreviewTitle.current = null;
+      setWikiPreview(null);
+      wikiPreviewCloseTimerRef.current = null;
+    }, delay);
+  }, []);
+
+  const keepWikiPreviewOpen = useCallback(() => {
+    if (wikiPreviewCloseTimerRef.current === null) return;
+    window.clearTimeout(wikiPreviewCloseTimerRef.current);
+    wikiPreviewCloseTimerRef.current = null;
+  }, []);
+
+  useEffect(() => {
+    if (!wikiContextMenu) return;
+    const close = () => setWikiContextMenu(null);
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') close();
+    };
+    window.addEventListener('pointerdown', close);
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('scroll', close, true);
+    return () => {
+      window.removeEventListener('pointerdown', close);
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('scroll', close, true);
+    };
+  }, [wikiContextMenu]);
+
   // ── Chip insertion ────────────────────────────────────────────────────────
 
   const insertChipInEditor = useCallback((chipEl: HTMLElement) => {
     if (!contentRef.current) return;
-    contentRef.current.focus();
+    const scrollEl = editorScrollRef.current;
+    const previousScrollTop = scrollEl?.scrollTop ?? 0;
+    contentRef.current.focus({ preventScroll: true });
     const sel = window.getSelection();
     if (!sel) return;
 
@@ -2865,15 +3151,25 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
     }
 
     contentRef.current.dispatchEvent(new Event('input', { bubbles: true }));
+    if (scrollEl) {
+      scrollEl.scrollTop = previousScrollTop;
+      requestAnimationFrame(() => {
+        scrollEl.scrollTop = previousScrollTop;
+      });
+    }
   }, []);
 
   const insertWikiChip = useCallback((title: string) => {
+    const alias = savedSelectionRef.current?.toString().trim();
     const span = document.createElement('span');
     span.className = 'chip-wiki';
     span.dataset.chip = 'wiki';
     span.dataset.title = title;
-    span.textContent = title;
-    span.contentEditable = 'false';
+    if (alias && alias !== title) {
+      span.dataset.alias = alias;
+      span.title = `Links to ${title}`;
+    }
+    span.textContent = alias || title;
     insertChipInEditor(span);
     setWikilinkPicker(null);
   }, [insertChipInEditor]);
@@ -2895,14 +3191,51 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
     insertWikiChip(title);
   }, [addDocument, insertWikiChip]);
 
+  const getActiveWikiChip = useCallback(() => {
+    const root = contentRef.current;
+    const sel = window.getSelection();
+    const range = sel?.rangeCount ? sel.getRangeAt(0) : savedSelectionRef.current;
+    return activeWikiChipFromRange(range, root);
+  }, []);
+
+  const unwrapWikiChip = useCallback((chip: HTMLElement | null) => {
+    const root = contentRef.current;
+    if (!root || !chip) return false;
+
+    const replacement = document.createTextNode(chip.textContent ?? '');
+    chip.replaceWith(replacement);
+
+    const range = document.createRange();
+    range.setStart(replacement, 0);
+    range.setEnd(replacement, replacement.length);
+    const sel = window.getSelection();
+    sel?.removeAllRanges();
+    sel?.addRange(range);
+    savedSelectionRef.current = range.cloneRange();
+
+    root.dispatchEvent(new Event('input', { bubbles: true }));
+    setWikilinkPicker(null);
+    setSelectionToolbarAnchor(null);
+    wikiPreviewTitle.current = null;
+    setWikiPreview(null);
+    return true;
+  }, []);
+
+  const unwrapActiveWikiLink = useCallback(() => {
+    return unwrapWikiChip(getActiveWikiChip());
+  }, [getActiveWikiChip, unwrapWikiChip]);
+
   // ── Toolbar callbacks ─────────────────────────────────────────────────────
 
   const handleWikilinkClick = useCallback((rect: DOMRect) => {
     const sel = window.getSelection();
-    if (sel && sel.rangeCount > 0) savedSelectionRef.current = sel.getRangeAt(0).cloneRange();
+    if (sel && sel.rangeCount > 0) {
+      savedSelectionRef.current = sel.getRangeAt(0).cloneRange();
+    }
+    if (unwrapActiveWikiLink()) return;
     setNodePicker(null);
     setWikilinkPicker({ x: rect.left, y: rect.bottom + 6 });
-  }, []);
+  }, [unwrapActiveWikiLink]);
 
   const handleNodeLinkClick = useCallback((rect: DOMRect) => {
     const sel = window.getSelection();
@@ -2910,6 +3243,138 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
     setWikilinkPicker(null);
     setNodePicker({ x: rect.left, y: rect.bottom + 6 });
   }, []);
+
+  const openLinkedDocument = useCallback((targetDoc: Document) => {
+    if (!doc) return;
+    setDocHistory((prev) => [...prev, doc.id]);
+    setWikiPreview(null);
+    setWikiContextMenu(null);
+    wikiPreviewTitle.current = null;
+    openDocumentWithMorph(targetDoc.id);
+  }, [doc, openDocumentWithMorph]);
+
+  const openWikiPreviewDoc = useCallback(() => {
+    if (!wikiPreview) return;
+    openLinkedDocument(wikiPreview.doc);
+  }, [openLinkedDocument, wikiPreview]);
+
+  const openWikiContextDoc = useCallback(() => {
+    if (!wikiContextMenu) return;
+    openLinkedDocument(wikiContextMenu.doc);
+  }, [openLinkedDocument, wikiContextMenu]);
+
+  const focusAfterWikiChip = useCallback((chip: HTMLElement) => {
+    contentRef.current?.focus();
+    const range = document.createRange();
+    range.setStartAfter(chip);
+    range.collapse(true);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    savedSelectionRef.current = range.cloneRange();
+  }, []);
+
+  const changeWikiPreviewTarget = useCallback(() => {
+    if (!wikiPreview || !contentRef.current) return;
+    contentRef.current.focus();
+    const range = document.createRange();
+    range.selectNode(wikiPreview.chip);
+    const sel = window.getSelection();
+    sel?.removeAllRanges();
+    sel?.addRange(range);
+    savedSelectionRef.current = range.cloneRange();
+
+    const rect = wikiPreview.chip.getBoundingClientRect();
+    setWikiPreview(null);
+    wikiPreviewTitle.current = null;
+    setNodePicker(null);
+    setWikilinkPicker({
+      x: Math.min(rect.left, window.innerWidth - PICKER_WIDTH - 12),
+      y: rect.bottom + 6,
+    });
+  }, [wikiPreview]);
+
+  const removeWikiPreviewLink = useCallback(() => {
+    if (!wikiPreview) return;
+    unwrapWikiChip(wikiPreview.chip);
+  }, [unwrapWikiChip, wikiPreview]);
+
+  const removeWikiContextLink = useCallback(() => {
+    if (!wikiContextMenu) return;
+    unwrapWikiChip(wikiContextMenu.chip);
+    setWikiContextMenu(null);
+  }, [unwrapWikiChip, wikiContextMenu]);
+
+  const startWikiContextRename = useCallback(() => {
+    if (!wikiContextMenu) return;
+    const chip = wikiContextMenu.chip;
+    const originalText = chip.textContent ?? wikiContextMenu.doc.title;
+    chip.style.visibility = 'hidden';
+    setWikiRename({
+      chip,
+      originalText,
+      value: originalText,
+      rect: chip.getBoundingClientRect(),
+    });
+    setWikiContextMenu(null);
+    setWikiPreview(null);
+    wikiPreviewTitle.current = null;
+  }, [wikiContextMenu]);
+
+  const cancelWikiRename = useCallback(() => {
+    if (!wikiRename) return;
+    suppressWikiRenameBlurRef.current = true;
+    wikiRename.chip.style.visibility = '';
+    focusAfterWikiChip(wikiRename.chip);
+    setWikiRename(null);
+  }, [focusAfterWikiChip, wikiRename]);
+
+  const commitWikiRename = useCallback(() => {
+    if (!wikiRename) return;
+    const chip = wikiRename.chip;
+    const title = chip.dataset.title ?? '';
+    const nextText = wikiRename.value.trim() || wikiRename.originalText || title;
+
+    chip.textContent = nextText;
+    if (nextText && nextText !== title) chip.dataset.alias = nextText;
+    else delete chip.dataset.alias;
+    chip.style.visibility = '';
+
+    focusAfterWikiChip(chip);
+    contentRef.current?.dispatchEvent(new Event('input', { bubbles: true }));
+    setWikiRename(null);
+  }, [focusAfterWikiChip, wikiRename]);
+
+  const copyWikiContextLink = useCallback(async () => {
+    if (!wikiContextMenu) return;
+    const title = wikiContextMenu.chip.dataset.title ?? wikiContextMenu.doc.title;
+    const text = wikiContextMenu.chip.textContent ?? '';
+    const alias = text && text !== title ? text : '';
+    const rawLink = wikiLinkRaw(title, alias);
+
+    if (copyPlainText(rawLink)) {
+      toast('Copied wikilink.');
+      setWikiContextMenu(null);
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(rawLink);
+      toast('Copied wikilink.');
+    } catch {
+      toast('Could not copy wikilink.');
+    } finally {
+      setWikiContextMenu(null);
+    }
+  }, [wikiContextMenu]);
+
+  useEffect(() => {
+    if (!wikiRename) return;
+    requestAnimationFrame(() => {
+      wikiRenameInputRef.current?.focus();
+      wikiRenameInputRef.current?.select();
+    });
+  }, [wikiRename]);
 
   const openSlashPalette = useCallback(() => {
     const sel = window.getSelection();
@@ -2963,7 +3428,7 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
       insertDivider: () => insertBlockHtmlAtSelection('<hr><div data-placeholder="Type something…" data-placeholder-visible="true"><br></div>', { replaceCurrentBlock: true }),
       insertExternalLink: () => insertBlockHtmlAtSelection('<div><a href="https://example.com" data-placeholder="Paste a link…" data-placeholder-visible="true"><br></a></div>', { replaceCurrentBlock: true }),
       insertWikiLink: () => insertBlockHtmlAtSelection(
-        `<div><span class="chip-wiki" data-chip="wiki" data-title="${escapeHtmlAttr(linkedTitle)}" contenteditable="false">${escapeInlineHtml(linkedTitle)}</span></div><div><br></div>`,
+        `<div><span class="chip-wiki" data-chip="wiki" data-title="${escapeHtmlAttr(linkedTitle)}">${escapeInlineHtml(linkedTitle)}</span></div><div><br></div>`,
       ),
       insertNodeLink: () => insertBlockHtmlAtSelection(
         `<div><span class="chip-node" data-chip="node" data-nodeid="${escapeHtmlAttr(linkedNodeId)}" contenteditable="false">${escapeInlineHtml(linkedNodeLabel)}</span></div><div><br></div>`,
@@ -2974,6 +3439,9 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
   }, [checkpointDocumentHistory, closeSlashPalette, doc?.id, documents, insertBlockHtmlAtSelection, nodes]);
 
   if (!doc) return null;
+
+  const isWikiLinkActive = !!getActiveWikiChip();
+  const wikiPreviewTitleText = wikiPreview?.doc.title || 'Untitled';
 
   return (
     <div
@@ -3050,6 +3518,36 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
           {activePage?.name ?? boardTitle}
         </button>
         <span style={{ fontSize: 12, color: 'var(--c-text-lo)', opacity: 0.4, flexShrink: 0 }}>›</span>
+        <button
+          type="button"
+          onClick={() => toggleFavoriteDocument(doc.id)}
+          title={doc.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+          aria-label={doc.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+          style={{
+            width: 28,
+            height: 28,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'transparent',
+            border: 'none',
+            borderRadius: 6,
+            color: doc.isFavorite ? '#d6a045' : 'var(--c-text-lo)',
+            cursor: 'pointer',
+            flexShrink: 0,
+            transition: 'background 0.12s, color 0.12s',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'var(--c-hover)';
+            e.currentTarget.style.color = doc.isFavorite ? '#d6a045' : 'var(--c-text-md)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'transparent';
+            e.currentTarget.style.color = doc.isFavorite ? '#d6a045' : 'var(--c-text-lo)';
+          }}
+        >
+          <IconStar filled={!!doc.isFavorite} size={14} />
+        </button>
         <input
           ref={titleInputRef}
           type="text"
@@ -3059,10 +3557,6 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
             if (newTitle !== doc.title) checkpointDocumentHistory();
             markDirty();
             updateDocument(doc.id, { title: newTitle });
-            if (contentRef.current) {
-              const firstBlock = contentRef.current.firstElementChild;
-              if (firstBlock?.tagName === 'H1') firstBlock.textContent = newTitle;
-            }
           }}
           placeholder="Untitled note"
           style={{
@@ -3190,6 +3684,7 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
           {viewMode === 'edit' && (
             <SelectionFormattingToolbar
               anchor={selectionToolbarAnchor}
+              isWikiLinkActive={isWikiLinkActive}
               onWikilinkClick={handleWikilinkClick}
             />
           )}
@@ -3201,28 +3696,51 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
               onScroll={() => {
                 updateSelectionToolbar();
                 syncSelectedImageOverlay(selectedImageId);
+                setWikiContextMenu(null);
               }}
-              onMouseLeave={() => { wikiPreviewTitle.current = null; setWikiPreview(null); }}
+              onMouseLeave={() => closeWikiPreview()}
+              onContextMenu={(e) => {
+                const chip = (e.target as HTMLElement).closest?.('[data-chip="wiki"]') as HTMLElement | null;
+                if (!chip) return;
+                const title = chip.dataset.title ?? '';
+                const linked = documents.find((d) => d.title === title);
+                if (!linked) return;
+                e.preventDefault();
+                e.stopPropagation();
+                closeWikiPreview(0);
+                setSelectionToolbarAnchor(null);
+                setWikiContextMenu({
+                  x: Math.min(e.clientX, window.innerWidth - 240),
+                  y: Math.min(e.clientY, window.innerHeight - 180),
+                  doc: linked,
+                  chip,
+                });
+              }}
               onMouseMove={(e) => {
                 const chip = (e.target as HTMLElement).closest?.('[data-chip="wiki"]') as HTMLElement | null;
                 if (chip) {
+                  keepWikiPreviewOpen();
                   const title = chip.dataset.title ?? '';
-                  if (wikiPreviewTitle.current !== title) {
+                  if (wikiPreviewTitle.current !== title || wikiPreview?.chip !== chip) {
                     wikiPreviewTitle.current = title;
                     const linked = documents.find((d) => d.title === title);
                     if (linked) {
                       const rect = chip.getBoundingClientRect();
-                      setWikiPreview({ x: Math.min(rect.left, window.innerWidth - 340), y: rect.bottom + 10, doc: linked });
+                      setWikiPreview({ x: Math.min(rect.left, window.innerWidth - 380), y: rect.bottom + 10, doc: linked, chip });
                     } else {
                       setWikiPreview(null);
                     }
                   }
                 } else if (wikiPreviewTitle.current !== null) {
-                  wikiPreviewTitle.current = null;
-                  setWikiPreview(null);
+                  closeWikiPreview();
                 }
               }}
+              onPointerDown={(e) => {
+                const chip = (e.target as HTMLElement).closest?.('[data-chip="wiki"]') as HTMLElement | null;
+                wikiPointerDownRef.current = chip ? { chip, x: e.clientX, y: e.clientY } : null;
+              }}
               onClick={(e) => {
+                setWikiContextMenu(null);
                 const target = e.target as HTMLElement;
                 const imageFigure = target.closest('figure[data-doc-image="true"]') as HTMLElement | null;
                 if (imageFigure?.dataset.docImageId) {
@@ -3237,6 +3755,11 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
                 if (!chip) return;
                 const type = chip.dataset.chip;
                 if (type === 'wiki') {
+                  const pointerDown = wikiPointerDownRef.current;
+                  wikiPointerDownRef.current = null;
+                  const moved = pointerDown?.chip === chip && Math.hypot(e.clientX - pointerDown.x, e.clientY - pointerDown.y) > 4;
+                  const selection = window.getSelection();
+                  if (moved || (selection && !selection.isCollapsed)) return;
                   const title = chip.dataset.title;
                   const linked = documents.find((d) => d.title === title);
                   if (linked && doc) {
@@ -3297,6 +3820,54 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
               </div>
 
               <div
+                style={{
+                  padding: '0 max(48px, calc(50% - 380px))',
+                }}
+              >
+                <textarea
+                  ref={(el) => {
+                    if (!el) return;
+                    el.style.height = 'auto';
+                    el.style.height = `${el.scrollHeight}px`;
+                  }}
+                  value={doc.title}
+                  onChange={(e) => {
+                    const newTitle = e.target.value.replace(/\n/g, ' ');
+                    e.currentTarget.style.height = 'auto';
+                    e.currentTarget.style.height = `${e.currentTarget.scrollHeight}px`;
+                    if (newTitle !== doc.title) checkpointDocumentHistory();
+                    markDirty();
+                    updateDocument(doc.id, { title: newTitle });
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key !== 'Enter') return;
+                    e.preventDefault();
+                    contentRef.current?.focus();
+                  }}
+                  placeholder="Untitled note"
+                  rows={1}
+                  aria-label="Note title"
+                  style={{
+                    width: '100%',
+                    minHeight: panelMode ? 40 : 52,
+                    resize: 'none',
+                    overflow: 'hidden',
+                    border: 'none',
+                    outline: 'none',
+                    background: 'transparent',
+                    color: 'var(--c-text-hi)',
+                    fontFamily: "'Plus Jakarta Sans', sans-serif",
+                    fontSize: panelMode ? 30 : 40,
+                    fontWeight: 760,
+                    lineHeight: 1.16,
+                    letterSpacing: 0,
+                    padding: 0,
+                    margin: '0 0 22px',
+                  }}
+                />
+              </div>
+
+              <div
                 ref={contentRef}
                 contentEditable
                 suppressContentEditableWarning
@@ -3332,11 +3903,21 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
                 }}
                 onPaste={(e) => {
                   const imageItem = Array.from(e.clipboardData?.items ?? []).find((item) => item.type.startsWith('image/'));
-                  if (!imageItem) return;
-                  const file = imageItem.getAsFile();
-                  if (!file) return;
+                  if (imageItem) {
+                    const file = imageItem.getAsFile();
+                    if (!file) return;
+                    e.preventDefault();
+                    void insertImageFile(file);
+                    return;
+                  }
+
+                  const html = e.clipboardData.getData('text/html');
+                  const text = e.clipboardData.getData('text/plain');
+                  if (!html && !text) return;
                   e.preventDefault();
-                  void insertImageFile(file);
+                  document.execCommand('insertHTML', false, sanitizeClipboardHtml(html, text));
+                  if (contentRef.current) applyChipsToDOM(contentRef.current);
+                  handleInput();
                 }}
                 onDragOver={(e) => {
                   const hasImage = Array.from(e.dataTransfer?.files ?? []).some((file) => file.type.startsWith('image/'));
@@ -3351,7 +3932,7 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
                   void insertImageFile(file);
                 }}
                 style={{
-                  padding: '12px max(48px, calc(50% - 380px)) 48px',
+                  padding: '0 max(48px, calc(50% - 380px)) 48px',
                   color: 'var(--c-text-hi)',
                   fontSize: '16px',
                   lineHeight: 1.8,
@@ -3657,41 +4238,303 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
       {/* Wiki hover preview card */}
       {wikiPreview && (
         <div
+          onMouseEnter={keepWikiPreviewOpen}
+          onMouseLeave={() => closeWikiPreview()}
           style={{
             position: 'fixed',
             left: wikiPreview.x,
             top: wikiPreview.y,
-            width: 320,
+            width: 360,
             background: 'var(--c-panel)',
             border: '1px solid var(--c-border)',
-            borderRadius: 12,
+            borderRadius: 14,
             boxShadow: '0 8px 32px rgba(0,0,0,0.35)',
-            padding: '14px 16px',
+            overflow: 'hidden',
             zIndex: 9999,
-            pointerEvents: 'none',
+            pointerEvents: 'auto',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }}>
-            <svg width="13" height="13" viewBox="0 0 13 13" fill="none" style={{ flexShrink: 0, opacity: 0.6 }}>
-              <rect x="1" y="1" width="11" height="11" rx="1.5" stroke="var(--c-text-lo)" strokeWidth="1.2"/>
-              <path d="M3.5 4.5h6M3.5 6.5h6M3.5 8.5h4" stroke="var(--c-text-lo)" strokeWidth="1" strokeLinecap="round"/>
+          <div style={{ display: 'grid', gridTemplateColumns: '22px minmax(0, 1fr)', gap: 12, alignItems: 'center', padding: '16px 18px 15px' }}>
+            <svg width="18" height="18" viewBox="0 0 13 13" fill="none" style={{ opacity: 0.7 }}>
+              <rect x="1" y="1" width="11" height="11" rx="1.5" stroke="var(--c-text-lo)" strokeWidth="1.2" />
+              <path d="M3.5 4.5h6M3.5 6.5h6M3.5 8.5h4" stroke="var(--c-text-lo)" strokeWidth="1" strokeLinecap="round" />
             </svg>
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--c-text-hi)', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
-              {wikiPreview.doc.title || 'Untitled'}
-            </span>
+            <div style={{ minWidth: 0 }}>
+              <div
+                title={wikiPreviewTitleText}
+                style={{
+                  color: 'var(--c-text-hi)',
+                  fontSize: 15,
+                  fontWeight: 750,
+                  lineHeight: 1.25,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {wikiPreviewTitleText}
+              </div>
+              <div style={{ color: 'var(--c-text-lo)', fontSize: 12, fontWeight: 650, lineHeight: 1.4 }}>
+                Page
+              </div>
+            </div>
           </div>
-          <div style={{ fontSize: 13, color: 'var(--c-text-md)', lineHeight: 1.6, marginBottom: 10, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-            {stripHtml(wikiPreview.doc.content).slice(0, 200) || 'Empty note'}
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderTop: '1px solid var(--c-border)' }}>
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={openWikiPreviewDoc}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'var(--c-hover)';
+                e.currentTarget.style.color = 'var(--c-text-hi)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent';
+                e.currentTarget.style.color = 'var(--c-text-hi)';
+              }}
+              style={{
+                border: 0,
+                borderRight: '1px solid var(--c-border)',
+                background: 'transparent',
+                color: 'var(--c-text-hi)',
+                padding: '12px 14px',
+                fontSize: 14,
+                fontWeight: 650,
+                fontFamily: 'inherit',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                transition: 'background 0.12s, color 0.12s',
+              }}
+            >
+              <IconArrowRight size={15} />
+              Open
+            </button>
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={removeWikiPreviewLink}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(248,113,113,0.12)';
+                e.currentTarget.style.color = '#f87171';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent';
+                e.currentTarget.style.color = '#f87171';
+              }}
+              style={{
+                border: 0,
+                background: 'transparent',
+                color: '#f87171',
+                padding: '12px 14px',
+                fontSize: 14,
+                fontWeight: 650,
+                fontFamily: 'inherit',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                transition: 'background 0.12s, color 0.12s',
+              }}
+            >
+              <IconUnlink size={15} />
+              Unlink
+            </button>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--c-text-lo)' }}>
-            <span>{relativeTime(wikiPreview.doc.updatedAt)}</span>
-            {wikiPreview.doc.tags && wikiPreview.doc.tags.length > 0 && (
-              <>
-                <span style={{ opacity: 0.4 }}>·</span>
-                <span>{wikiPreview.doc.tags.map((t) => `#${t}`).join(' ')}</span>
-              </>
-            )}
-          </div>
+        </div>
+      )}
+
+      {wikiRename && (
+        <input
+          ref={wikiRenameInputRef}
+          value={wikiRename.value}
+          onChange={(e) => setWikiRename((current) => current ? { ...current, value: e.target.value } : current)}
+          onBlur={() => {
+            if (suppressWikiRenameBlurRef.current) {
+              suppressWikiRenameBlurRef.current = false;
+              return;
+            }
+            commitWikiRename();
+          }}
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              commitWikiRename();
+            } else if (e.key === 'Escape') {
+              e.preventDefault();
+              cancelWikiRename();
+            }
+            e.stopPropagation();
+          }}
+          style={{
+            position: 'fixed',
+            left: Math.max(8, wikiRename.rect.left - 3),
+            top: Math.max(8, wikiRename.rect.top - 2),
+            width: Math.max(120, Math.min(360, wikiRename.rect.width + 36)),
+            height: Math.max(28, wikiRename.rect.height + 6),
+            zIndex: 10001,
+            border: '1px solid rgba(184,119,80,0.55)',
+            borderRadius: 6,
+            outline: 'none',
+            background: 'var(--c-panel)',
+            color: 'var(--c-line)',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.24)',
+            fontFamily: "'Plus Jakarta Sans', sans-serif",
+            fontSize: 16,
+            fontWeight: 560,
+            lineHeight: 1.2,
+            padding: '2px 6px',
+          }}
+        />
+      )}
+
+      {wikiContextMenu && (
+        <div
+          onPointerDown={(e) => e.stopPropagation()}
+          style={{
+            position: 'fixed',
+            left: wikiContextMenu.x,
+            top: wikiContextMenu.y,
+            width: 220,
+            padding: 6,
+            background: 'var(--c-panel)',
+            border: '1px solid var(--c-border)',
+            borderRadius: 10,
+            boxShadow: '0 10px 32px rgba(0,0,0,0.35)',
+            zIndex: 10000,
+          }}
+        >
+          <button
+            type="button"
+            onClick={openWikiContextDoc}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'var(--c-hover)';
+              e.currentTarget.style.color = 'var(--c-text-hi)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.color = 'var(--c-text-hi)';
+            }}
+            style={{
+              width: '100%',
+              border: 0,
+              background: 'transparent',
+              color: 'var(--c-text-hi)',
+              borderRadius: 7,
+              padding: '8px 9px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 9,
+              fontFamily: 'inherit',
+              fontSize: 13,
+              fontWeight: 650,
+              textAlign: 'left',
+              cursor: 'pointer',
+            }}
+          >
+            <IconArrowRight size={14} />
+            Open
+          </button>
+          <button
+            type="button"
+            onClick={startWikiContextRename}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'var(--c-hover)';
+              e.currentTarget.style.color = 'var(--c-text-hi)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.color = 'var(--c-text-hi)';
+            }}
+            style={{
+              width: '100%',
+              border: 0,
+              background: 'transparent',
+              color: 'var(--c-text-hi)',
+              borderRadius: 7,
+              padding: '8px 9px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 9,
+              fontFamily: 'inherit',
+              fontSize: 13,
+              fontWeight: 650,
+              textAlign: 'left',
+              cursor: 'pointer',
+            }}
+          >
+            <IconTextWrap />
+            Rename
+          </button>
+          <button
+            type="button"
+            onClick={() => void copyWikiContextLink()}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'var(--c-hover)';
+              e.currentTarget.style.color = 'var(--c-text-hi)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.color = 'var(--c-text-hi)';
+            }}
+            style={{
+              width: '100%',
+              border: 0,
+              background: 'transparent',
+              color: 'var(--c-text-hi)',
+              borderRadius: 7,
+              padding: '8px 9px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 9,
+              fontFamily: 'inherit',
+              fontSize: 13,
+              fontWeight: 650,
+              textAlign: 'left',
+              cursor: 'pointer',
+            }}
+          >
+            <IconCopy />
+            Copy link
+          </button>
+          <div style={{ height: 1, background: 'var(--c-border)', margin: '5px 2px' }} />
+          <button
+            type="button"
+            onClick={removeWikiContextLink}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(248,113,113,0.12)';
+              e.currentTarget.style.color = '#f87171';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.color = '#f87171';
+            }}
+            style={{
+              width: '100%',
+              border: 0,
+              background: 'transparent',
+              color: '#f87171',
+              borderRadius: 7,
+              padding: '8px 9px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 9,
+              fontFamily: 'inherit',
+              fontSize: 13,
+              fontWeight: 650,
+              textAlign: 'left',
+              cursor: 'pointer',
+            }}
+          >
+            <IconUnlink size={14} />
+            Unlink
+          </button>
         </div>
       )}
 
@@ -3701,6 +4544,7 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
           pos={wikilinkPicker}
           documents={documents}
           activeDocId={activeDocId}
+          initialQuery={wikilinkPicker.initialQuery}
           onSelect={insertWikiChip}
           onCreate={handleCreateAndLink}
           onClose={() => setWikilinkPicker(null)}

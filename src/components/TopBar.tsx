@@ -6,7 +6,7 @@ import { TEMPLATES } from '../templates';
 import ConfirmDialog from './ConfirmDialog';
 import CloudModal from './CloudModal';
 import { saveBoard, saveBoardAs, clearFileHandle } from '../utils/fileSave';
-import { openWorkspace, createWorkspace, saveWorkspace, loadImageAsset, findImageInWorkspace, hasWorkspaceHandle, clearWorkspaceHandle, IS_TAURI } from '../utils/workspaceManager';
+import { openWorkspace, createWorkspace, saveWorkspace, loadImageAsset, findImageInWorkspace, hasWorkspaceHandle, clearWorkspaceHandle, getWorkspacePathHint, IS_TAURI } from '../utils/workspaceManager';
 import { toast } from '../utils/toast';
 import { exportDocumentsAsMarkdown, generateMarkdownFilename } from '../utils/exportMarkdown';
 import exportSound from '../assets/get1.mp3';
@@ -183,6 +183,16 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
   const missingImages = nodes.filter(
     (n) => n.type === 'image' && (n as import('../types').ImageNode).assetName && !(n as import('../types').ImageNode).src
   ) as import('../types').ImageNode[];
+  const workspacePathHint = getWorkspacePathHint();
+  const workspaceFolderLabel = workspaceName ?? workspacePathHint?.replace(/\\/g, '/').split('/').pop() ?? null;
+  const reopenWorkspaceLabel = workspaceFolderLabel
+    ? `Re-open "${workspaceFolderLabel}" folder`
+    : 'Re-open workspace folder';
+  const reopenWorkspaceTitle = workspacePathHint
+    ? `Re-open workspace folder: ${workspacePathHint}`
+    : workspaceFolderLabel
+      ? `Re-open workspace folder: ${workspaceFolderLabel}`
+      : 'Re-open the workspace folder';
 
   // Track fullscreen changes (e.g. user presses Esc)
   useEffect(() => {
@@ -558,20 +568,30 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
     ?? 'Account';
   const avatarUrl = typeof user?.user_metadata?.avatar_url === 'string' ? user.user_metadata.avatar_url : null;
   const accountInitial = accountLabel.trim().charAt(0).toUpperCase() || 'A';
-  const hasUnsyncedSyncChanges = !!cloudBoardId && !!lastLocalSavedAt && !!cloudSyncedAt && lastLocalSavedAt > cloudSyncedAt + 1000;
+  const isLinkedSyncSignedOut = !user && !!cloudBoardId;
+  const hasUnsyncedSyncChanges = !!user && !!cloudBoardId && !!lastLocalSavedAt && !!cloudSyncedAt && lastLocalSavedAt > cloudSyncedAt + 1000;
+  const isCloudOnlyWorkspace = !!cloudBoardId && !workspaceFolderLabel;
   const syncBadgeLabel = hasUnsyncedSyncChanges
     ? 'Unsynced changes'
-    : cloudBoardId
-      ? 'Synced'
+    : isLinkedSyncSignedOut
+      ? 'Sync paused'
+      : cloudBoardId
+      ? (isCloudOnlyWorkspace ? 'Saved to cloud' : 'Synced')
       : user
         ? 'Sync available'
-        : 'Local';
-  const syncBadgeTitle = user
+        : 'Local only';
+  const syncBadgeTitle = user && isCloudOnlyWorkspace
+    ? 'Saved to cloud. No local workspace folder is attached.'
+    : user
     ? 'Open Workspace Sync'
-    : 'Sign in to use optional Workspace Sync';
+    : isLinkedSyncSignedOut
+      ? 'Signed out. Sign in to resume Workspace Sync.'
+      : 'Sign in to use optional Workspace Sync';
   const syncBadgeClass = hasUnsyncedSyncChanges
     ? 'border-[#f59e0b]/50 text-[#b45309] bg-[#f59e0b]/10 hover:bg-[#f59e0b]/15'
-    : cloudBoardId
+    : isLinkedSyncSignedOut
+      ? 'border-[#f59e0b]/35 text-[#92400e] bg-[#f59e0b]/10 hover:bg-[#f59e0b]/15'
+      : cloudBoardId
       ? 'border-[rgba(120,167,145,0.45)] text-[rgb(72,112,92)] bg-[rgba(120,167,145,0.12)] hover:bg-[rgba(120,167,145,0.18)]'
       : user
         ? 'border-[var(--c-line)] text-[var(--c-line)] hover:bg-[rgba(184,119,80,0.12)]'
@@ -600,7 +620,7 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
         >
           {/* Header */}
           <div className="flex items-center justify-between px-5 py-3.5 border-b border-[var(--c-border)] shrink-0">
-            <span className="font-sans text-[13px] font-semibold text-[var(--c-text-hi)] tracking-wide">Templates</span>
+            <span className="font-sans text-[13px] font-semibold text-[var(--c-text-hi)] tracking-wide">Starter Workspaces</span>
             <button
               onClick={() => setTemplatesModalOpen(false)}
               className="w-6 h-6 flex items-center justify-center rounded text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
@@ -629,9 +649,9 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
         </div>
       </div>
     )}
-    <div className="absolute top-0 left-0 right-0 z-[190] flex items-center justify-between px-4 h-11 bg-[var(--c-panel)] border-b border-[var(--c-border)] font-sans">
+    <div className="absolute top-0 left-0 right-0 z-[190] flex items-center gap-3 px-4 h-11 bg-[var(--c-panel)] border-b border-[var(--c-border)] font-sans overflow-visible">
       {/* Left: Logo + dropdown + title */}
-      <div className="flex items-center gap-3 min-w-0">
+      <div className="flex flex-1 items-center gap-2.5 min-w-0 overflow-visible">
 
         {/* Logo + chevron */}
         <div className="relative flex items-center shrink-0" ref={menuRef}>
@@ -671,7 +691,7 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
                 <MenuItem onClick={() => menuAction(handleSaveJSON)} icon={<IconJson />} badge="⌘S">Save workspace</MenuItem>
                 <MenuItem onClick={() => menuAction(handleSaveAsJSON)} icon={<IconJson />}>Save workspace as…</MenuItem>
                 <MenuDivider />
-                <MenuLabel>Templates</MenuLabel>
+                <MenuLabel>Starter Workspaces</MenuLabel>
                 {TEMPLATES.slice(0, 3).map((t) => (
                   <MenuItem key={t.id} onClick={() => handleLoadTemplate(t.id)} icon={<IconTemplate />}>
                     {t.name}
@@ -819,10 +839,10 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
                   {pages.length}
                 </span>
               </span>
-              <span className="font-sans text-[10px] tracking-wide max-w-[120px] sm:max-w-[100px] truncate">
-                {activePage?.name ?? 'Page 1'}
-              </span>
-            </button>
+                <span className="font-sans text-[10px] tracking-wide max-w-[88px] md:max-w-[120px] truncate">
+                  {activePage?.name ?? 'Page 1'}
+                </span>
+              </button>
           );
         })()}
 
@@ -847,7 +867,7 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
                 }}
               >
                 {mode === 'freeform' ? <IconFreeformPage /> : <IconStackPage />}
-                <span className="hidden sm:inline">{mode === 'freeform' ? 'Freeform' : 'Stack'}</span>
+                <span className="hidden lg:inline">{mode === 'freeform' ? 'Freeform' : 'Stack'}</span>
               </button>
             );
           })}
@@ -899,10 +919,11 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
                   {hasWorkspaceHandle() && (
                     <button
                       onClick={() => { setMissingWarningOpen(false); handleOpenFolder(); }}
+                      title={reopenWorkspaceTitle}
                       className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--c-hover)] hover:bg-[#f59e0b]/15 text-[var(--c-text-lo)] hover:text-[#f59e0b] font-sans text-[10px] transition-colors"
                     >
                       <IconFolder />
-                      Re-open workspace folder
+                      <span className="truncate">{reopenWorkspaceLabel}</span>
                     </button>
                   )}
                   <DefaultFolderRow folder={imageAssetFolder} onChange={setImageAssetFolder} />
@@ -914,29 +935,29 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
       </div>
 
       {/* Right: Actions */}
-      <div className="flex items-center gap-1">
+      <div className="flex shrink-0 items-center gap-1 whitespace-nowrap">
         {isConfigured && (
           <>
             <button
               onClick={handleGitHubSignIn}
               title={syncBadgeTitle}
               className={[
-                'mr-1 flex items-center gap-1.5 px-2.5 h-7 rounded border font-sans text-[11px] transition-colors',
+                'mr-1 flex shrink-0 items-center gap-1.5 px-2.5 h-7 rounded border font-sans text-[11px] leading-none transition-colors whitespace-nowrap',
                 authLoading ? 'border-[var(--c-border)] text-[var(--c-text-off)] cursor-default' : syncBadgeClass,
               ].join(' ')}
               disabled={authLoading}
             >
               <IconGitHub />
-              <span>{authLoading ? 'Checking...' : syncBadgeLabel}</span>
+              <span className="hidden lg:inline">{authLoading ? 'Checking...' : syncBadgeLabel}</span>
             </button>
 
             {user && (
-              <div className="relative mr-1" ref={accountRef}>
+              <div className="relative mr-1 shrink-0" ref={accountRef}>
                 <button
                   onClick={() => setAccountOpen((v) => !v)}
                   title={user.email ?? 'Signed in'}
                   className={[
-                    'flex items-center gap-2 px-2 h-7 rounded border font-sans text-[11px] transition-colors',
+                    'flex max-w-[180px] items-center gap-2 px-2 h-7 rounded border font-sans text-[11px] leading-none transition-colors',
                     accountOpen
                       ? 'border-[var(--c-line)] bg-[var(--c-hover)] text-[var(--c-text-hi)]'
                       : 'border-[var(--c-border)] text-[var(--c-text-md)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
@@ -953,7 +974,7 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
                       {accountInitial}
                     </span>
                   )}
-                  <span className="hidden sm:inline max-w-[120px] truncate">{accountLabel}</span>
+                  <span className="hidden md:inline min-w-0 max-w-[110px] truncate">{accountLabel}</span>
                   <IconChevronDown />
                 </button>
                 {accountOpen && (
@@ -974,13 +995,13 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
         )}
 
         {/* Export dropdown */}
-        <div className="relative" ref={exportRef}>
+        <div className="relative shrink-0" ref={exportRef}>
           <Tooltip label="Save or export your workspace">
           <button
             onClick={() => setExportOpen((v) => !v)}
             title="Save Workspace / Export"
             className={[
-              'flex items-center gap-1 px-2.5 h-7 rounded font-sans text-[11px] tracking-wide transition-colors',
+              'flex items-center gap-1 px-2.5 h-7 rounded font-sans text-[11px] leading-none tracking-wide transition-colors whitespace-nowrap',
               exportOpen
                 ? 'bg-[var(--c-line)] opacity-90 text-white'
                 : 'bg-[var(--c-line)] text-white hover:opacity-80',

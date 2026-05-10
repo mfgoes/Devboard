@@ -136,6 +136,53 @@ export function htmlToMarkdown(html: string): string {
   return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
+// ── Document title/body normalization ────────────────────────────────────────
+
+function normalizeHeadingText(text: string): string {
+  return text.trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+export function titleFromMarkdown(filename: string, content: string): string {
+  const heading = content.match(/^#\s+(.+)$/m)?.[1]?.trim();
+  if (heading) return heading;
+  const stem = filename.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ').trim();
+  return stem ? stem.replace(/\b\w/g, (ch) => ch.toUpperCase()) : 'Untitled note';
+}
+
+export function stripLeadingMarkdownTitle(content: string, title?: string): string {
+  const lines = content.replace(/\r\n?/g, '\n').split('\n');
+  let firstContentIndex = lines.findIndex((line) => line.trim() !== '');
+  if (firstContentIndex < 0) return '';
+
+  const firstHeading = lines[firstContentIndex].match(/^#\s+(.+?)\s*$/);
+  if (!firstHeading) return content;
+
+  const expectedHeadingText = normalizeHeadingText(title ?? firstHeading[1]);
+  while (firstContentIndex >= 0) {
+    const heading = lines[firstContentIndex]?.match(/^#\s+(.+?)\s*$/);
+    if (!heading || normalizeHeadingText(heading[1]) !== expectedHeadingText) break;
+    lines.splice(firstContentIndex, 1);
+    while (lines[firstContentIndex]?.trim() === '') lines.splice(firstContentIndex, 1);
+    firstContentIndex = lines.findIndex((line) => line.trim() !== '');
+  }
+  return lines.join('\n').trim();
+}
+
+export function documentMarkdownFromParts(title: string | undefined, htmlContent: string | undefined): string {
+  const body = htmlContent ? stripLeadingMarkdownTitle(htmlToMarkdown(htmlContent), title) : '';
+  const parts: string[] = [];
+  if (title?.trim()) {
+    parts.push(`# ${title.trim()}`);
+    parts.push('');
+  }
+  if (body) parts.push(body);
+  return parts.join('\n').trimEnd();
+}
+
+export function markdownBodyToHtml(content: string, title?: string): string {
+  return markdownToHtml(stripLeadingMarkdownTitle(content, title));
+}
+
 // ── Markdown → HTML ───────────────────────────────────────────────────────────
 
 function escapeHtml(s: string): string {
@@ -276,10 +323,7 @@ export function documentToMarkdown(node: DocumentNode, documents: Document[] = [
   const doc = node.docId ? documents.find((d) => d.id === node.docId) : undefined;
   const title = doc?.title ?? node.title;
   const content = doc?.content ?? node.content;
-  const parts: string[] = [];
-  if (title) { parts.push(`# ${title}`); parts.push(''); }
-  if (content) parts.push(htmlToMarkdown(content));
-  return parts.join('\n');
+  return documentMarkdownFromParts(title, content);
 }
 
 /**

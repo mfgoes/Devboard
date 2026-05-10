@@ -43,6 +43,109 @@ export function textToHtml(text: string): string {
   );
 }
 
+function isSafeClipboardHref(href: string): boolean {
+  return /^(https?:|mailto:)/i.test(href);
+}
+
+function applyInlineSemantics(source: HTMLElement, child: Node): Node {
+  let wrapped = child;
+  const fontWeight = source.style.fontWeight;
+  const textDecoration = source.style.textDecoration || source.style.textDecorationLine;
+
+  if (source.style.fontStyle === 'italic') {
+    const em = document.createElement('em');
+    em.appendChild(wrapped);
+    wrapped = em;
+  }
+  if (fontWeight === 'bold' || fontWeight === '700' || Number(fontWeight) >= 600) {
+    const strong = document.createElement('strong');
+    strong.appendChild(wrapped);
+    wrapped = strong;
+  }
+  if (textDecoration.includes('underline')) {
+    const underline = document.createElement('u');
+    underline.appendChild(wrapped);
+    wrapped = underline;
+  }
+  if (textDecoration.includes('line-through')) {
+    const strike = document.createElement('s');
+    strike.appendChild(wrapped);
+    wrapped = strike;
+  }
+
+  return wrapped;
+}
+
+function appendSanitizedChildren(source: Node, target: Node): void {
+  for (const child of Array.from(source.childNodes)) {
+    const clean = sanitizeClipboardNode(child);
+    if (clean) target.appendChild(clean);
+  }
+}
+
+function sanitizeClipboardNode(node: Node): Node | null {
+  if (node.nodeType === Node.TEXT_NODE) return document.createTextNode(node.textContent ?? '');
+  if (node.nodeType !== Node.ELEMENT_NODE) return null;
+
+  const el = node as HTMLElement;
+  const tag = el.tagName.toLowerCase();
+
+  if (['script', 'style', 'meta', 'link', 'svg', 'canvas', 'iframe', 'object', 'embed'].includes(tag)) return null;
+  if (tag === 'html' || tag === 'body') {
+    const fragment = document.createDocumentFragment();
+    appendSanitizedChildren(el, fragment);
+    return fragment;
+  }
+
+  const outputTag = tag === 'b'
+    ? 'strong'
+    : tag === 'i'
+      ? 'em'
+      : tag === 'strike'
+        ? 's'
+        : tag;
+
+  if (outputTag === 'span') {
+    const fragment = document.createDocumentFragment();
+    appendSanitizedChildren(el, fragment);
+    return applyInlineSemantics(el, fragment);
+  }
+
+  const allowedTags = new Set([
+    'a', 'blockquote', 'br', 'code', 'del', 'div', 'em', 'h1', 'h2', 'h3',
+    'hr', 'li', 'ol', 'p', 'pre', 's', 'strong', 'u', 'ul',
+  ]);
+
+  if (!allowedTags.has(outputTag)) {
+    const fragment = document.createDocumentFragment();
+    appendSanitizedChildren(el, fragment);
+    return fragment;
+  }
+
+  const clean = document.createElement(outputTag);
+  if (outputTag === 'a') {
+    const href = (el as HTMLAnchorElement).getAttribute('href') ?? '';
+    if (isSafeClipboardHref(href)) clean.setAttribute('href', href);
+  }
+  appendSanitizedChildren(el, clean);
+  return clean;
+}
+
+/** Sanitize clipboard HTML so pasted content keeps structure but not source app styling. */
+export function sanitizeClipboardHtml(html: string, plainText = ''): string {
+  if (!html.trim()) return textToHtml(plainText);
+
+  const source = document.createElement('div');
+  source.innerHTML = html;
+  const target = document.createElement('div');
+  appendSanitizedChildren(source, target);
+
+  const cleaned = target.innerHTML
+    .replace(/<(?:div|p)><br><\/(?:div|p)>/gi, '<div><br></div>')
+    .trim();
+  return cleaned || textToHtml(plainText);
+}
+
 /** Strip all HTML tags and return plain text */
 export function htmlToPlainText(html: string): string {
   const div = document.createElement('div');

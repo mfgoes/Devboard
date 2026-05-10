@@ -1,4 +1,4 @@
-import { BoardData } from '../types';
+import { BoardData, Document } from '../types';
 import { resolveCssColor } from '../utils/palette';
 
 export interface Template {
@@ -59,6 +59,29 @@ function yStack(
     y += stickyHeight(item.text, item.width, item.fontSize ?? 13) + gap;
   }
   return ys;
+}
+
+const TEMPLATE_TIME = 1_704_067_200_000;
+const templateCamera = { x: 0, y: 0, scale: 1 };
+
+function templateDoc(
+  id: string,
+  pageId: string,
+  orderIndex: number,
+  title: string,
+  content: string,
+  tags?: string[],
+): Document {
+  return {
+    id,
+    title,
+    content,
+    pageId,
+    orderIndex,
+    tags,
+    createdAt: TEMPLATE_TIME + orderIndex,
+    updatedAt: TEMPLATE_TIME + orderIndex,
+  };
 }
 
 // ── Template 1: Core Gameplay Loop ───────────────────────────────────────────
@@ -1013,6 +1036,103 @@ const SC_ST3 = 'Share & export\n\nSave as PNG or a shareable link. Offline. No a
 
 const SC_SH = stickyHeight(SC_ST1, SC_SW, 13);
 
+const writingStack: Template = {
+  id: 'writing-stack',
+  name: 'Writing Stack',
+  description: 'A stack-first note workspace with inbox, draft, and reference notes',
+  data: {
+    boardTitle: 'Writing Stack',
+    nodes: [],
+    pages: [
+      { id: 'writing-stack-page', name: 'Writing Stack', layoutMode: 'stack', noteSort: 'custom', nodes: [], camera: templateCamera },
+    ],
+    activePageId: 'writing-stack-page',
+    documents: [
+      templateDoc(
+        'writing-inbox',
+        'writing-stack-page',
+        0,
+        'Inbox',
+        '<p>Capture loose ideas here before sorting them.</p><ul><li>Question to explore</li><li>Line worth keeping</li><li>Reference to follow up</li></ul>',
+        ['capture'],
+      ),
+      templateDoc(
+        'writing-draft',
+        'writing-stack-page',
+        1,
+        'Draft',
+        '<h2>Working thesis</h2><p>Write the rough version here. Keep it moving, then split supporting ideas into their own notes.</p>',
+        ['draft'],
+      ),
+      templateDoc(
+        'writing-reference',
+        'writing-stack-page',
+        2,
+        'Reference Notes',
+        '<p>Store sources, quotes, links, and context. Link back to the draft with wikilinks when something becomes useful.</p>',
+        ['reference'],
+      ),
+    ],
+    schemaVersion: 3,
+  },
+};
+
+const projectWorkspace: Template = {
+  id: 'project-workspace',
+  name: 'Project Workspace',
+  description: 'Stack notes for planning plus a freeform project map page',
+  data: {
+    boardTitle: 'Project Workspace',
+    nodes: [],
+    pages: [
+      { id: 'project-notes-page', name: 'Project Notes', layoutMode: 'stack', noteSort: 'custom', nodes: [], camera: templateCamera },
+      {
+        id: 'project-map-page',
+        name: 'Project Map',
+        layoutMode: 'freeform',
+        noteSort: 'updated',
+        camera: { x: 60, y: 40, scale: 1 },
+        nodes: [
+          { id: 'pw-title', type: 'textblock', x: 40, y: 30, width: 620, text: 'Project Map', fontSize: 26, color: 'auto', bold: true, italic: false, underline: false },
+          { id: 'pw-s1', type: 'sticky', x: 60, y: 120, width: 220, height: 120, color: '#FFF9C4', fontSize: 13, text: 'Problem\n\nWhat user pain are we solving?', fontSizeMode: 'fixed' },
+          { id: 'pw-s2', type: 'sticky', x: 360, y: 120, width: 220, height: 120, color: '#BBDEFB', fontSize: 13, text: 'Shape\n\nWhat does the smallest useful version include?', fontSizeMode: 'fixed' },
+          { id: 'pw-s3', type: 'sticky', x: 660, y: 120, width: 220, height: 120, color: '#C8E6C9', fontSize: 13, text: 'Ship\n\nWhat proves this is ready?', fontSizeMode: 'fixed' },
+          { id: 'pw-c1', type: 'connector', fromNodeId: 'pw-s1', fromAnchor: 'right', fromX: 280, fromY: 180, toNodeId: 'pw-s2', toAnchor: 'left', toX: 360, toY: 180, color: resolveCssColor('--c-line-default'), strokeWidth: 2, lineStyle: 'curved', strokeStyle: 'solid', arrowHeadStart: 'none', arrowHeadEnd: 'arrow' },
+          { id: 'pw-c2', type: 'connector', fromNodeId: 'pw-s2', fromAnchor: 'right', fromX: 580, fromY: 180, toNodeId: 'pw-s3', toAnchor: 'left', toX: 660, toY: 180, color: resolveCssColor('--c-line-default'), strokeWidth: 2, lineStyle: 'curved', strokeStyle: 'solid', arrowHeadStart: 'none', arrowHeadEnd: 'arrow' },
+        ],
+      },
+    ],
+    activePageId: 'project-notes-page',
+    documents: [
+      templateDoc('project-brief', 'project-notes-page', 0, 'Project Brief', '<h2>Outcome</h2><p>Define the result this project should create.</p><h2>Non-goals</h2><p>Name what is deliberately out of scope.</p>', ['plan']),
+      templateDoc('project-decisions', 'project-notes-page', 1, 'Decision Log', '<p>Record decisions as they happen.</p><ul><li>Decision</li><li>Reason</li><li>Date</li></ul>', ['decisions']),
+      templateDoc('project-launch', 'project-notes-page', 2, 'Launch Checklist', '<ul><li>Core flow tested</li><li>Export/save checked</li><li>Known risks written down</li><li>Release note drafted</li></ul>', ['ship']),
+    ],
+    schemaVersion: 3,
+  },
+};
+
+const researchNotebook: Template = {
+  id: 'research-notebook',
+  name: 'Research Notebook',
+  description: 'Stack page for questions, sources, findings, and next steps',
+  data: {
+    boardTitle: 'Research Notebook',
+    nodes: [],
+    pages: [
+      { id: 'research-stack-page', name: 'Research Notes', layoutMode: 'stack', noteSort: 'custom', nodes: [], camera: templateCamera },
+    ],
+    activePageId: 'research-stack-page',
+    documents: [
+      templateDoc('research-questions', 'research-stack-page', 0, 'Questions', '<ul><li>What do we need to know?</li><li>What would change our decision?</li><li>What evidence would be strong enough?</li></ul>', ['questions']),
+      templateDoc('research-sources', 'research-stack-page', 1, 'Sources', '<p>Collect links, files, interviews, and notes. Keep each source short enough to scan.</p>', ['sources']),
+      templateDoc('research-findings', 'research-stack-page', 2, 'Findings', '<h2>Patterns</h2><p>Summarize what keeps showing up.</p><h2>Contradictions</h2><p>Call out evidence that does not fit.</p>', ['findings']),
+      templateDoc('research-next', 'research-stack-page', 3, 'Next Steps', '<ul><li>Decision to make</li><li>Follow-up question</li><li>Person or source to check next</li></ul>', ['next']),
+    ],
+    schemaVersion: 3,
+  },
+};
+
 const startFromScratch: Template = {
   id: 'scratch',
   name: 'Start from Scratch',
@@ -1064,4 +1184,4 @@ const startFromScratch: Template = {
   },
 };
 
-export const TEMPLATES: Template[] = [startFromScratch, gameplayLoop, levelFlow, mechanicDesign, kanbanBoard, timeline, dataEngineerFlow];
+export const TEMPLATES: Template[] = [writingStack, projectWorkspace, researchNotebook, startFromScratch, gameplayLoop, levelFlow, mechanicDesign, kanbanBoard, timeline, dataEngineerFlow];

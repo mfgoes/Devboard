@@ -52,7 +52,8 @@ import JiraPanel from './components/JiraPanel';
 import SearchBar from './components/SearchBar';
 import { useBoardStore } from './store/boardStore';
 
-const EXPLORER_COLLAPSED_WIDTH = 28;
+const EXPLORER_COLLAPSED_WIDTH = 44;
+const EXPLORER_EXPAND_HIT_WIDTH = 64;
 const DESKTOP_EXPLORER_BREAKPOINT = 1024;
 const MOBILE_NOTE_BREAKPOINT = 768;
 const IS_WINDOWS = typeof navigator !== 'undefined' && navigator.userAgent.includes('Windows');
@@ -120,6 +121,7 @@ export default function App() {
   const contentTop = 44 + activeNoticeCount * 40;
   const [explorerWidth, setExplorerWidth] = useState(WORKSPACE_EXPLORER_WIDTH);
   const [explorerCollapsed, setExplorerCollapsed] = useState(false);
+  const [explorerPreviewOpen, setExplorerPreviewOpen] = useState(false);
   const [desktopExplorerPinned, setDesktopExplorerPinned] = useState(() => (
     typeof window !== 'undefined' ? window.innerWidth >= DESKTOP_EXPLORER_BREAKPOINT : true
   ));
@@ -130,6 +132,7 @@ export default function App() {
   const explorerOffset = explorerVisible ? (explorerCollapsed ? EXPLORER_COLLAPSED_WIDTH : explorerWidth) : 0;
   const documentFrameOffset = isMobileViewport ? 0 : explorerOffset;
   const explorerDragRef = useRef(false);
+  const explorerPreviewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sidePanelDragRef = useRef(false);
   const [docPanelWidth, setDocPanelWidth] = useState(() => (
     typeof window !== 'undefined'
@@ -250,6 +253,32 @@ export default function App() {
       setMorphRectOverride(null);
     }, MORPH_MS);
   }, [getPanelRect, setDocViewMode]);
+
+  const openExplorerPreview = useCallback(() => {
+    if (!explorerCollapsed) return;
+    if (explorerPreviewTimerRef.current) {
+      clearTimeout(explorerPreviewTimerRef.current);
+      explorerPreviewTimerRef.current = null;
+    }
+    setExplorerPreviewOpen(true);
+  }, [explorerCollapsed]);
+
+  const scheduleExplorerPreviewClose = useCallback(() => {
+    if (explorerPreviewTimerRef.current) clearTimeout(explorerPreviewTimerRef.current);
+    explorerPreviewTimerRef.current = setTimeout(() => {
+      setExplorerPreviewOpen(false);
+      explorerPreviewTimerRef.current = null;
+    }, 120);
+  }, []);
+
+  useEffect(() => () => {
+    if (explorerPreviewTimerRef.current) clearTimeout(explorerPreviewTimerRef.current);
+  }, []);
+
+  useEffect(() => {
+    if (explorerVisible && explorerCollapsed) return;
+    setExplorerPreviewOpen(false);
+  }, [explorerCollapsed, explorerVisible]);
 
   const dismissSidePanelFromCanvas = useCallback(() => {
     if (appMode === 'document' && effectiveDocViewMode === 'panel' && !isStackPage && panelPhase === 'open') {
@@ -862,82 +891,130 @@ export default function App() {
           </button>
         </div>
       )}
-      {explorerVisible && !explorerCollapsed && (
+      {explorerVisible && (
         <div
+          className={`workspace-explorer-shell ${explorerCollapsed ? 'is-collapsed' : 'is-expanded'}`}
           style={{
             position: 'absolute',
             top: contentTop,
             left: 0,
             bottom: 0,
-            width: explorerWidth,
+            width: explorerCollapsed ? EXPLORER_COLLAPSED_WIDTH : explorerWidth,
             zIndex: 180,
             borderRight: '1px solid var(--c-border)',
             background: 'var(--c-panel)',
-            boxShadow: '8px 0 24px rgba(0,0,0,0.08)',
+            boxShadow: explorerCollapsed ? '6px 0 18px rgba(0,0,0,0.06)' : '8px 0 24px rgba(0,0,0,0.08)',
+            overflow: 'hidden',
           }}
         >
-          <WorkspaceExplorer onClose={() => setExplorerOpen(false)} onCollapse={() => setExplorerCollapsed(true)} canClose={!desktopExplorerPinned} />
-          {/* Resize handle */}
-          <div
-            style={{
-              position: 'absolute',
-              top: 0,
-              right: -3,
-              width: 6,
-              bottom: 0,
-              cursor: 'col-resize',
-              zIndex: 10,
-            }}
-            onMouseDown={(e) => {
-              e.preventDefault();
-              explorerDragRef.current = true;
-              const startX = e.clientX;
-              const startW = explorerWidth;
-              const onMove = (ev: MouseEvent) => {
-                if (!explorerDragRef.current) return;
-                const next = Math.max(180, Math.min(560, startW + ev.clientX - startX));
-                setExplorerWidth(next);
-              };
-              const onUp = () => {
-                explorerDragRef.current = false;
-                window.removeEventListener('mousemove', onMove);
-                window.removeEventListener('mouseup', onUp);
-              };
-              window.addEventListener('mousemove', onMove);
-              window.addEventListener('mouseup', onUp);
-            }}
-          />
+          {explorerCollapsed ? (
+            <button
+              type="button"
+              onMouseEnter={openExplorerPreview}
+              onClick={() => {
+                setExplorerPreviewOpen(false);
+                setExplorerCollapsed(false);
+              }}
+              title="Open sidebar"
+              aria-label="Open sidebar"
+              className="workspace-explorer-collapsed-button"
+            >
+              <span className="w-8 h-8 flex items-center justify-center rounded-lg text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors">
+                <svg width="16" height="16" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+                  <path d="M3 4h9M3 7.5h9M3 11h9" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" />
+                </svg>
+              </span>
+            </button>
+          ) : (
+            <>
+              <WorkspaceExplorer onClose={() => setExplorerOpen(false)} onCollapse={() => setExplorerCollapsed(true)} canClose={!desktopExplorerPinned} />
+              {/* Resize handle */}
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  right: -3,
+                  width: 6,
+                  bottom: 0,
+                  cursor: 'col-resize',
+                  zIndex: 10,
+                }}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  explorerDragRef.current = true;
+                  const startX = e.clientX;
+                  const startW = explorerWidth;
+                  const onMove = (ev: MouseEvent) => {
+                    if (!explorerDragRef.current) return;
+                    const next = Math.max(180, Math.min(560, startW + ev.clientX - startX));
+                    setExplorerWidth(next);
+                  };
+                  const onUp = () => {
+                    explorerDragRef.current = false;
+                    window.removeEventListener('mousemove', onMove);
+                    window.removeEventListener('mouseup', onUp);
+                  };
+                  window.addEventListener('mousemove', onMove);
+                  window.addEventListener('mouseup', onUp);
+                }}
+              />
+            </>
+          )}
         </div>
       )}
       {explorerVisible && explorerCollapsed && (
         <div
+          onClick={() => {
+            setExplorerPreviewOpen(false);
+            setExplorerCollapsed(false);
+          }}
           style={{
             position: 'absolute',
             top: contentTop,
             left: 0,
             bottom: 0,
-            width: EXPLORER_COLLAPSED_WIDTH,
-            zIndex: 180,
-            borderRight: '1px solid var(--c-border)',
+            width: EXPLORER_EXPAND_HIT_WIDTH,
+            zIndex: 175,
+            border: 'none',
+            padding: 0,
+            background: 'transparent',
+            cursor: 'pointer',
+          }}
+        />
+      )}
+      {explorerVisible && explorerCollapsed && explorerPreviewOpen && (
+        <div
+          onMouseEnter={openExplorerPreview}
+          onMouseLeave={scheduleExplorerPreviewClose}
+          className="animate-sidebar-preview-in"
+          style={{
+            position: 'absolute',
+            top: contentTop + 8,
+            left: 0,
+            bottom: 12,
+            width: Math.min(300, explorerWidth, WORKSPACE_EXPLORER_WIDTH),
+            zIndex: 230,
+            border: '1px solid var(--c-border)',
+            borderLeft: 'none',
+            borderRadius: '0 14px 14px 0',
             background: 'var(--c-panel)',
-            boxShadow: '6px 0 18px rgba(0,0,0,0.06)',
-            display: 'flex',
-            alignItems: 'flex-start',
-            justifyContent: 'center',
-            paddingTop: 10,
+            boxShadow: '18px 0 44px rgba(0,0,0,0.22)',
+            overflow: 'hidden',
+            transformOrigin: 'left center',
           }}
         >
-          <button
-            onClick={() => setExplorerCollapsed(false)}
-            title="Expand explorer"
-            className="w-7 h-7 flex items-center justify-center rounded-lg text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
-            style={{ border: 'none', background: 'transparent', cursor: 'pointer' }}
-          >
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-              <path d="M4.25 2.25 8 6l-3.75 3.75" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" strokeLinejoin="round" />
-              <path d="M2 2.25 5.75 6 2 9.75" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
+          <WorkspaceExplorer
+            onClose={() => {
+              setExplorerPreviewOpen(false);
+              setExplorerOpen(false);
+            }}
+            onCollapse={() => {
+              setExplorerPreviewOpen(false);
+              setExplorerCollapsed(false);
+            }}
+            canClose={!desktopExplorerPinned}
+            collapseIcon="open"
+          />
         </div>
       )}
       <div
@@ -947,6 +1024,7 @@ export default function App() {
           right: 0,
           bottom: 0,
           left: explorerOffset,
+          transition: 'left 190ms cubic-bezier(0.22, 1, 0.36, 1)',
         }}
       >
         {isStackPage ? (
@@ -963,7 +1041,14 @@ export default function App() {
           onClose={() => setShowOnboarding(false)}
           onStartWriting={() => {
             setShowOnboarding(false);
+            const state = useBoardStore.getState();
+            state.setPageLayoutMode(state.activePageId, 'stack');
             handleNewNote();
+          }}
+          onStartMapping={() => {
+            setShowOnboarding(false);
+            const state = useBoardStore.getState();
+            state.setPageLayoutMode(state.activePageId, 'freeform');
           }}
           onShowTemplates={() => {
             setShowOnboarding(false);

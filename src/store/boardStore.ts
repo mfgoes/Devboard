@@ -193,6 +193,7 @@ interface BoardState {
   // ── Document entity actions ───────────────────────────────────────────────
   addDocument: (partial: Partial<Document>) => string;
   updateDocument: (id: string, patch: Partial<Document>) => void;
+  toggleFavoriteDocument: (id: string) => void;
   deleteDocument: (id: string) => void;
   openDocument: (id: string) => void;
   openDocumentWithMorph: (id: string, rect?: { left: number; top: number; width: number; height: number }) => void;
@@ -668,6 +669,7 @@ export const useBoardStore = create<BoardState>()(
           pageId: partial.pageId ?? get().activePageId,
           linkedFile: partial.linkedFile,
           orderIndex: partial.orderIndex,
+          isFavorite: partial.isFavorite,
           createdAt: partial.createdAt ?? now,
           updatedAt: partial.updatedAt ?? now,
           tags: partial.tags,
@@ -684,6 +686,13 @@ export const useBoardStore = create<BoardState>()(
         set((state) => ({
           documents: state.documents.map((d) =>
             d.id === id ? { ...d, ...patch, updatedAt: Date.now() } : d
+          ),
+        })),
+
+      toggleFavoriteDocument: (id) =>
+        set((state) => ({
+          documents: state.documents.map((d) =>
+            d.id === id ? { ...d, isFavorite: !d.isFavorite } : d
           ),
         })),
 

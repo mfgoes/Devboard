@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Note Links in DevBoard</title>
+  <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <meta name="description" content="Turn loose Notepad, .txt, and document notes into connected notes. Link ideas with [[double brackets]], see automatic mentioned-in lists, and keep everything local." />
+  <meta property="og:title" content="DevBoard - Stop losing related notes" />
+  <meta property="og:description" content="Link one note to another with [[double brackets]]. DevBoard shows every place an idea is mentioned, while your notes stay local." />
+  <meta property="og:image" content="assets_landing/steps.png" />
+
+  <link rel="stylesheet" href="site.css" />
+  <link rel="stylesheet" href="landing.css" />
+</head>
+<body>
+
+<div class="wrap">
+
+  <nav class="site-nav" data-mobile-nav-open="false">
+    <a class="logo" href="./index.html">
+      <img src="assets_landing/devboard_icon.png" alt="DevBoard" class="logo-mark" />
+      DEVBOARD
+    </a>
+    <button
+      class="nav-toggle"
+      type="button"
+      aria-expanded="false"
+      aria-controls="site-nav-links"
+      aria-label="Open navigation menu"
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <path d="M4 7h16M4 12h16M4 17h16"></path>
+      </svg>
+    </button>
+    <ul class="nav-links" id="site-nav-links">
+      <li class="hide-mobile"><a href="./index.html">Home</a></li>
+      <li class="hide-mobile"><a href="./download.html">Download</a></li>
+      <li class="hide-mobile"><a href="https://github.com/mfgoes/Devboard" target="_blank" rel="noopener">GitHub</a></li>
+      <li><a class="nav-cta" href="./app.html" target="_blank" rel="noopener">Try in browser</a></li>
+    </ul>
+  </nav>
+
+  <div class="hero usecase-hero">
+    <h1>Stop losing<br><em>related notes.</em></h1>
+
+    <p class="hero-sub">
+      If your ideas live in Notepad, loose <code>.txt</code> files, Apple Notes, or random documents, DevBoard gives them simple links. Type <code>[[Project Atlas]]</code>, connect one note to another, and see every place an idea is mentioned.
+    </p>
+
+    <ul class="hero-checks">
+      <li>Link notes with <code>[[double brackets]]</code></li>
+      <li>See automatic mentioned-in lists</li>
+      <li>Keep your notes local and portable</li>
+    </ul>
+
+    <div class="cta-row">
+      <a class="btn btn-primary" href="./app.html" target="_blank" rel="noopener">Try in browser</a>
+      <a class="btn btn-ghost" href="./download.html">Download desktop</a>
+    </div>
+  </div>
+
+  <div class="hero-shot">
+    <div class="hero-shot-inner">
+      <img src="assets_landing/steps.png" alt="DevBoard showing linked notes and a backlinks panel" width="1000" height="563" />
+    </div>
+  </div>
+
+  <section class="usecase-section">
+    <div class="section-header section-header--center">
+      <div class="section-eyebrow">The usual problem</div>
+      <h2>A folder full of notes works until ideas start repeating</h2>
+      <p>
+        A person, project, decision, location, todo, or research snippet shows up in five different places. You remember writing it down somewhere, but not where.
+      </p>
+    </div>
+
+    <div class="usecase-grid">
+      <article class="usecase-card">
+        <span>1</span>
+        <h3>Loose notes pile up</h3>
+        <p>Meeting notes, project ideas, names, drafts, and reminders all live in separate files or apps.</p>
+      </article>
+      <article class="usecase-card">
+        <span>2</span>
+        <h3>Related details drift apart</h3>
+        <p>The same idea appears again, but there is no easy way to jump between the notes that mention it.</p>
+      </article>
+      <article class="usecase-card">
+        <span>3</span>
+        <h3>Search is too broad</h3>
+        <p>Finding a word is not the same as seeing why that word mattered across your notes.</p>
+      </article>
+    </div>
+  </section>
+
+  <hr class="divider" />
+
+  <section class="usecase-section">
+    <div class="feature-strip">
+      <div class="feature-text">
+        <div class="feature-eyebrow">A simple link</div>
+        <h2>Type the note name inside double brackets</h2>
+        <p>
+          Write naturally, then link the important bit. DevBoard turns <code>[[Project Atlas]]</code> into a note you can open, revisit, and connect from anywhere else.
+        </p>
+        <div class="feature-pills">
+          <span class="pill">No plugin setup</span>
+          <span class="pill">No special vocabulary</span>
+          <span class="pill">Just linked notes</span>
+        </div>
+      </div>
+      <div class="note-demo">
+        <div class="note-demo-title">planning.txt</div>
+        <p>Ask Maya about <mark>[[Project Atlas]]</mark> before Friday.</p>
+        <p>The budget note and research note both point back to the same project now.</p>
+      </div>
+    </div>
+
+    <div class="feature-strip flip usecase-tight-strip">
+      <div class="feature-text">
+        <div class="feature-eyebrow">Automatic context</div>
+        <h2>Backlinks are just "mentioned in" lists</h2>
+        <p>
+          Open a note and DevBoard shows where it was mentioned. That means every project, person, character, place, or decision can collect its own context without manual folders.
+        </p>
+        <div class="feature-pills">
+          <span class="pill">Mentioned in</span>
+          <span class="pill">Jump back instantly</span>
+          <span class="pill">Keep the thread</span>
+        </div>
+      </div>
+      <div class="backlink-demo">
+        <div class="backlink-demo-title">Mentioned in</div>
+        <span>planning.txt</span>
+        <span>meeting-notes.txt</span>
+        <span>research-summary.txt</span>
+      </div>
+    </div>
+  </section>
+
+  <hr class="divider" />
+
+  <section class="usecase-section">
+    <div class="feature-strip">
+      <div class="feature-text">
+        <div class="feature-eyebrow">Still your files</div>
+        <h2>Your notes stay local and familiar</h2>
+        <p>
+          DevBoard works with a folder you choose. Notes are plain Markdown files, so you can move them, back them up, open them elsewhere, or keep working without an account.
+        </p>
+        <div class="feature-pills">
+          <span class="pill">Local folder</span>
+          <span class="pill">Plain files</span>
+          <span class="pill">No account required</span>
+        </div>
+      </div>
+      <div class="feature-img">
+        <img src="assets_landing/img feature.png" alt="DevBoard workspace folder and file explorer" />
+      </div>
+    </div>
+
+    <div class="feature-strip flip usecase-tight-strip">
+      <div class="feature-text">
+        <div class="feature-eyebrow">When notes get bigger</div>
+        <h2>Open the canvas and map the structure</h2>
+        <p>
+          Links help you move through the details. The canvas helps when the whole thing needs to be visible at once: projects, plots, decisions, systems, people, and how they connect.
+        </p>
+        <div class="feature-pills">
+          <span class="pill">Sticky notes</span>
+          <span class="pill">Connectors</span>
+          <span class="pill">Visual maps</span>
+        </div>
+      </div>
+      <div class="feature-img">
+        <img src="assets_landing/main_board.png" alt="DevBoard canvas showing connected ideas" />
+      </div>
+    </div>
+  </section>
+
+  <div class="end-cta">
+    <h2>Try linked notes without changing how you think</h2>
+    <p>Start with a simple note. Add one link. Let DevBoard show what connects.</p>
+    <div class="cta-row">
+      <a class="btn btn-primary" href="./app.html" target="_blank" rel="noopener">Try in browser</a>
+      <a class="btn btn-ghost" href="./download.html">Download desktop</a>
+      <a class="btn btn-ghost" href="./index.html">See the full DevBoard page</a>
+    </div>
+  </div>
+
+  <footer>
+    <p>Created by <a href="https://mfgoes.github.io/portfolio-2026/" target="_blank" rel="noopener">Mischa</a></p>
+    <div class="footer-links">
+      <a href="./index.html">Home</a>
+      <a href="./download.html">Download</a>
+      <a href="https://github.com/mfgoes/Devboard" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://ko-fi.com/devboardapp" target="_blank" rel="noopener">Ko-fi</a>
+      <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" aria-label="Toggle dark mode">
+        <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+        <span id="themeLabel">Dark mode</span>
+      </button>
+    </div>
+  </footer>
+
+</div>
+
+<script>
+  (function() {
+    const nav = document.querySelector('.site-nav');
+    const toggle = nav && nav.querySelector('.nav-toggle');
+    if (nav && toggle) {
+      const closeMenu = function() {
+        nav.dataset.mobileNavOpen = 'false';
+        toggle.setAttribute('aria-expanded', 'false');
+        toggle.setAttribute('aria-label', 'Open navigation menu');
+      };
+      const toggleMenu = function() {
+        const isOpen = nav.dataset.mobileNavOpen === 'true';
+        nav.dataset.mobileNavOpen = isOpen ? 'false' : 'true';
+        toggle.setAttribute('aria-expanded', String(!isOpen));
+        toggle.setAttribute('aria-label', isOpen ? 'Open navigation menu' : 'Close navigation menu');
+      };
+      toggle.addEventListener('click', toggleMenu);
+      nav.querySelectorAll('.nav-links a').forEach(function(link) {
+        link.addEventListener('click', closeMenu);
+      });
+      window.addEventListener('resize', function() {
+        if (window.innerWidth > 720) closeMenu();
+      });
+    }
+  })();
+
+  function toggleTheme() {
+    const isLight = document.documentElement.dataset.theme === 'light';
+    document.documentElement.dataset.theme = isLight ? '' : 'light';
+    const dark = document.documentElement.dataset.theme !== 'light';
+    document.getElementById('themeIcon').innerHTML = dark
+      ? '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>'
+      : '<path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>';
+    document.getElementById('themeLabel').textContent = dark ? 'Light mode' : 'Dark mode';
+  }
+</script>
+</body>
+</html>

@@ -4,7 +4,7 @@
 import { useBoardStore } from '../store/boardStore';
 import { CODE_EXTS, CODE_EXTS as codeExts, ext, generateId } from '../components/explorer/fileTreeUtils';
 import { readWorkspaceFile, readWorkspaceFileAsUrl, saveWorkspace } from './workspaceManager';
-import { markdownToHtml } from './exportMarkdown';
+import { markdownBodyToHtml, titleFromMarkdown } from './exportMarkdown';
 import { CodeBlockNode, DocumentNode, ImageNode } from '../types';
 
 export function canvasCenter() {
@@ -50,10 +50,8 @@ export async function placeDocumentFileAt(pathParts: string[], worldX: number, w
   const content = await readWorkspaceFile(relativePath);
   if (content === null) return;
   const { addDocument, addNode, documents } = useBoardStore.getState();
-  const htmlContent = markdownToHtml(content);
-  const titleMatch = content.match(/^#\s+(.+)/m);
-  const stem = pathParts[pathParts.length - 1].replace(/\.md$/i, '');
-  const title = titleMatch ? titleMatch[1].trim() : stem;
+  const title = titleFromMarkdown(pathParts[pathParts.length - 1], content);
+  const htmlContent = markdownBodyToHtml(content, title);
   const docId = documents.find((d) => d.linkedFile === relativePath)?.id
     ?? addDocument({ title, content: htmlContent, linkedFile: relativePath });
   addNode({
@@ -77,10 +75,8 @@ export async function openDocumentFile(pathParts: string[]) {
 
   const content = await readWorkspaceFile(relativePath);
   if (content === null) return;
-  const htmlContent = markdownToHtml(content);
-  const titleMatch = content.match(/^#\s+(.+)/m);
-  const stem = pathParts[pathParts.length - 1].replace(/\.md$/i, '');
-  const title = titleMatch ? titleMatch[1].trim() : stem;
+  const title = titleFromMarkdown(pathParts[pathParts.length - 1], content);
+  const htmlContent = markdownBodyToHtml(content, title);
   const docId = useBoardStore.getState().addDocument({ title, content: htmlContent, linkedFile: relativePath });
   useBoardStore.getState().openDocumentWithMorph(docId);
 }

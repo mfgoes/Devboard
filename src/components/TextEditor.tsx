@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useBoardStore } from '../store/boardStore';
 import { StickyNoteNode, TextBlockNode, ShapeNode, SectionNode } from '../types';
 import { useTheme } from '../theme';
-import { isRichText, textToHtml } from '../utils/richText';
+import { isRichText, sanitizeClipboardHtml, textToHtml } from '../utils/richText';
 import { calculateDynamicFontSize } from '../utils/dynamicFontSize';
 
 function getEffectiveFontSize(node: StickyNoteNode): number {
@@ -280,16 +280,24 @@ export default function TextEditor() {
     };
 
     const handleTextBlockPaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
-      const text = e.clipboardData.getData('text/plain').trim();
-      if (text && /^https?:\/\/\S+$/i.test(text)) {
+      const text = e.clipboardData.getData('text/plain');
+      const trimmedText = text.trim();
+      if (trimmedText && /^https?:\/\/\S+$/i.test(trimmedText)) {
         e.preventDefault();
-        const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const escaped = trimmedText.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         document.execCommand(
           'insertHTML', false,
           `<a href="${escaped}" style="color:#60a5fa;text-decoration:underline;word-break:break-all">${escaped}</a>`,
         );
         syncTextBlockContent();
+        return;
       }
+
+      const html = e.clipboardData.getData('text/html');
+      if (!html && !text) return;
+      e.preventDefault();
+      document.execCommand('insertHTML', false, sanitizeClipboardHtml(html, text));
+      syncTextBlockContent();
     };
 
     return (
@@ -358,17 +366,25 @@ export default function TextEditor() {
   };
 
   const handleStickyPaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
-    const text = e.clipboardData.getData('text/plain').trim();
-    if (text && /^https?:\/\/\S+$/i.test(text)) {
+    const text = e.clipboardData.getData('text/plain');
+    const trimmedText = text.trim();
+    if (trimmedText && /^https?:\/\/\S+$/i.test(trimmedText)) {
       e.preventDefault();
-      const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const escaped = trimmedText.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
       document.execCommand(
         'insertHTML',
         false,
         `<a href="${escaped}" style="color:#60a5fa;text-decoration:underline;word-break:break-all">${escaped}</a>`,
       );
       syncStickyContent();
+      return;
     }
+
+    const html = e.clipboardData.getData('text/html');
+    if (!html && !text) return;
+    e.preventDefault();
+    document.execCommand('insertHTML', false, sanitizeClipboardHtml(html, text));
+    syncStickyContent();
   };
 
   const handleStickyKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {

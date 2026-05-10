@@ -11,7 +11,7 @@
  */
 import { BoardData, CanvasNode, Document } from '../types';
 import { toast } from './toast';
-import { generateMarkdownFilename, htmlToMarkdown, markdownToHtml } from './exportMarkdown';
+import { documentMarkdownFromParts, generateMarkdownFilename, markdownBodyToHtml, titleFromMarkdown } from './exportMarkdown';
 import { getDeviceId, getDeviceLabel } from './deviceIdentity';
 
 type FSAWindow = Window & typeof globalThis & {
@@ -32,6 +32,8 @@ export interface SaveWorkspaceResult {
 }
 
 export interface WorkspaceSyncMetadata {
+  workspaceId?: string | null;
+  localInstanceId?: string | null;
   cloudBoardId?: string | null;
   cloudBoardTitle?: string | null;
   cloudWorkspaceId?: string | null;
@@ -66,6 +68,7 @@ export interface DownloadCloudWorkspaceOptions {
     boardId: string;
     title: string;
     workspaceId: string;
+    logicalWorkspaceId?: string | null;
     updatedAt: string;
   };
   data: BoardData;
@@ -88,6 +91,8 @@ export interface LocalRecentWorkspace {
   localPathHint: string | null;
   lastOpenedAt: number;
   lastSavedAt?: number | null;
+  workspaceId?: string | null;
+  localInstanceId?: string | null;
   cloudBoardId?: string | null;
   cloudBoardTitle?: string | null;
   cloudWorkspaceId?: string | null;
@@ -165,6 +170,13 @@ export function getWorkspaceSyncMetadata(): WorkspaceSyncMetadata | null {
   return workspaceSyncMetadata;
 }
 
+function newWorkspaceIdentityId(prefix: 'workspace' | 'local'): string {
+  const random = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  return `${prefix}:${random}`;
+}
+
 export function setWorkspaceSyncMetadata(metadata: Partial<WorkspaceSyncMetadata> | null): WorkspaceSyncMetadata | null {
   if (metadata === null) {
     workspaceSyncMetadata = null;
@@ -190,6 +202,8 @@ export function setWorkspaceSyncMetadata(metadata: Partial<WorkspaceSyncMetadata
   workspaceSyncMetadata = {
     ...(workspaceSyncMetadata ?? {}),
     ...metadata,
+    workspaceId: metadata.workspaceId ?? workspaceSyncMetadata?.workspaceId ?? newWorkspaceIdentityId('workspace'),
+    localInstanceId: metadata.localInstanceId ?? workspaceSyncMetadata?.localInstanceId ?? newWorkspaceIdentityId('local'),
     deviceId,
     deviceLabel,
     lastLocalPath: path,
@@ -360,6 +374,8 @@ export async function recordCurrentWorkspaceRecent(title?: string, options: { sa
     localPathHint: path,
     lastOpenedAt: options.openedAt ?? existing?.lastOpenedAt ?? now,
     lastSavedAt: options.savedAt ?? existing?.lastSavedAt ?? null,
+    workspaceId: workspaceSyncMetadata?.workspaceId ?? existing?.workspaceId ?? null,
+    localInstanceId: workspaceSyncMetadata?.localInstanceId ?? existing?.localInstanceId ?? null,
     cloudBoardId: workspaceSyncMetadata?.cloudBoardId ?? existing?.cloudBoardId ?? null,
     cloudBoardTitle: workspaceSyncMetadata?.cloudBoardTitle ?? existing?.cloudBoardTitle ?? null,
     cloudWorkspaceId: workspaceSyncMetadata?.cloudWorkspaceId ?? existing?.cloudWorkspaceId ?? null,
@@ -515,13 +531,6 @@ type WorkspacePageData = {
   camera: { x: number; y: number; scale: number };
 };
 
-function noteTitleFromContent(filename: string, content: string): string {
-  const heading = content.match(/^#\s+(.+)$/m)?.[1]?.trim();
-  if (heading) return heading;
-  const stem = filename.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ').trim();
-  return stem ? stem.replace(/\b\w/g, (ch) => ch.toUpperCase()) : 'Untitled note';
-}
-
 function stableDocumentId(linkedFile: string): string {
   const safe = linkedFile.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
   return `doc_${safe || 'note'}`.slice(0, 72);
@@ -529,10 +538,11 @@ function stableDocumentId(linkedFile: string): string {
 
 function documentFromNoteFile(filename: string, content: string, pageId: string, modifiedAt = Date.now()): Document {
   const linkedFile = `notes/${filename}`;
+  const title = titleFromMarkdown(filename, content);
   return {
     id: stableDocumentId(linkedFile),
-    title: noteTitleFromContent(filename, content),
-    content: markdownToHtml(content),
+    title,
+    content: markdownBodyToHtml(content, title),
     linkedFile,
     pageId,
     createdAt: modifiedAt,
@@ -950,13 +960,7 @@ function uniqueWorkspacePath(preferredPath: string, usedPaths: Set<string>): str
 }
 
 function documentMarkdown(doc: Document): string {
-  const parts: string[] = [];
-  if (doc.title.trim()) {
-    parts.push(`# ${doc.title.trim()}`);
-    parts.push('');
-  }
-  if (doc.content) parts.push(htmlToMarkdown(doc.content));
-  return `${parts.join('\n').trimEnd()}\n`;
+  return `${documentMarkdownFromParts(doc.title, doc.content)}\n`;
 }
 
 function materializeDocuments(documents: Document[] | undefined): { documents: Document[]; notes: Array<{ path: string; content: string }> } {
@@ -1433,6 +1437,7 @@ export async function downloadCloudWorkspaceToFolder({
   };
 
   const sync: WorkspaceSyncMetadata = {
+    workspaceId: data.workspaceIdentity?.workspaceId ?? cloud.logicalWorkspaceId ?? `cloud-board:${cloud.boardId}`,
     cloudBoardId: cloud.boardId,
     cloudBoardTitle: selectedTitle,
     cloudWorkspaceId: cloud.workspaceId,
@@ -1611,6 +1616,7 @@ export async function saveTextFileToWorkspace(
 /** Saves all board data to the open workspace folder. Images stay in assets/. */
 export async function saveWorkspace(data: BoardData, options: SaveWorkspaceOptions = {}): Promise<SaveWorkspaceResult> {
   const shouldNotify = options.notify !== false;
+  const { documents, notes } = materializeDocuments(data.documents);
 
   if (IS_TAURI) {
     if (!tauriWorkspacePath) return { saved: false };
@@ -1618,7 +1624,7 @@ export async function saveWorkspace(data: BoardData, options: SaveWorkspaceOptio
       title: data.boardTitle,
       pages: (data.pages ?? []).map((p) => ({ id: p.id, name: p.name, layoutMode: p.layoutMode, noteSort: p.noteSort })),
       activePageId: data.activePageId ?? '',
-      documents: data.documents ?? [],
+      documents,
       sync: setWorkspaceSyncMetadata(workspaceSyncMetadata ?? {}) ?? undefined,
     };
     await tauriFsWriteText(joinPath(tauriWorkspacePath, 'workspace.json'), JSON.stringify(manifest, null, 2));
@@ -1634,6 +1640,13 @@ export async function saveWorkspace(data: BoardData, options: SaveWorkspaceOptio
       };
       await tauriFsWriteText(joinPath(pagesDir, `${page.id}.json`), JSON.stringify(pageJson, null, 2));
     }
+    for (const note of notes) {
+      const path = safeRelativePath(note.path);
+      if (!path) continue;
+      const folder = path.split('/').slice(0, -1).join('/');
+      if (folder) await tauriFsMkdir(joinPath(tauriWorkspacePath, folder));
+      await tauriFsWriteText(joinPath(tauriWorkspacePath, path), note.content);
+    }
     const name = tauriWorkspacePath.replace(/\\/g, '/').split('/').pop() ?? 'workspace';
     if (shouldNotify) toast(`Saved workspace · ${name}`);
     onSavedCallback?.();
@@ -1647,7 +1660,7 @@ export async function saveWorkspace(data: BoardData, options: SaveWorkspaceOptio
     title: data.boardTitle,
     pages: (data.pages ?? []).map((p) => ({ id: p.id, name: p.name, layoutMode: p.layoutMode, noteSort: p.noteSort })),
     activePageId: data.activePageId ?? '',
-    documents: data.documents ?? [],
+    documents,
     sync: setWorkspaceSyncMetadata(workspaceSyncMetadata ?? {}) ?? undefined,
   };
   await writeTextFile(workspaceHandle, 'workspace.json', JSON.stringify(manifest, null, 2));
@@ -1662,6 +1675,9 @@ export async function saveWorkspace(data: BoardData, options: SaveWorkspaceOptio
       camera: page.camera,
     };
     await writeTextFile(pagesDir, `${page.id}.json`, JSON.stringify(pageJson, null, 2));
+  }
+  for (const note of notes) {
+    await writeBrowserTextAt(workspaceHandle, note.path, note.content);
   }
 
   if (shouldNotify) toast(`Saved workspace · ${workspaceHandle.name}`);
