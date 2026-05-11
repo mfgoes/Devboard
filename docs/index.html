@@ -12,6 +12,7 @@
 
   <link rel="stylesheet" href="site.css" />
   <link rel="stylesheet" href="landing.css" />
+  <link rel="stylesheet" href="visual-examples.css" />
 
 </head>
 <body>
@@ -85,7 +86,65 @@
   <!-- hero screenshot -->
   <div class="hero-shot">
     <div class="hero-shot-inner">
+      <!-- Existing pure screenshot implementation, kept for rollback:
       <img src="assets_landing/main_board.png" alt="DevBoard app showing connected sticky notes and toolbar" width="1000" height="563" />
+      -->
+      <div class="note-link-demo" role="img" aria-label="Animated example of creating wikilinks inside a Markdown note">
+        <div class="note-link-demo-topbar">
+          <span></span>
+          <span></span>
+          <span></span>
+          <div class="note-link-demo-brand">DEVBOARD</div>
+          <div class="note-link-demo-path">Main docs / Arrival scene</div>
+          <div class="note-link-demo-sync">Saved to cloud</div>
+        </div>
+
+        <div class="note-link-demo-body">
+          <aside class="note-link-demo-stack">
+            <div class="note-link-demo-stack-title">Pages</div>
+            <div class="note-link-demo-stack-item is-active">Arrival scene</div>
+            <div class="note-link-demo-stack-item is-linked">Harbor district</div>
+            <div class="note-link-demo-stack-item">Market witnesses</div>
+            <div class="note-link-demo-stack-item is-linked">Arrival timeline</div>
+            <div class="note-link-demo-stack-item">Open questions</div>
+          </aside>
+
+          <main class="note-link-demo-editor">
+            <div class="note-link-demo-doc-title">Arrival scene</div>
+            <div class="note-link-demo-line">The courier reaches the city at dusk.</div>
+            <div class="note-link-demo-line">
+              They enter through the
+              <span class="note-link-demo-token">[[harbor district]]</span><span class="note-link-demo-caret"></span>
+              before the bells ring.
+            </div>
+            <div class="note-link-demo-line">A witness waits beside the old clock tower.</div>
+            <div class="note-link-demo-line">
+              The feature sticky
+              <span class="note-link-demo-token note-link-demo-token--node">sticky-shipping</span>
+              tracks the export clue.
+            </div>
+            <div class="note-link-demo-line">
+              Check
+              <span class="note-link-demo-token note-link-demo-token--second">[[arrival timeline]]</span>
+              before revising chapter two.
+            </div>
+
+            <div class="note-link-demo-suggest">
+              <div class="note-link-demo-suggest-kicker">Link note</div>
+              <div class="note-link-demo-suggest-row is-selected">harbor district</div>
+              <div class="note-link-demo-suggest-row">harbor routes</div>
+            </div>
+
+            <div class="note-link-demo-cursor" aria-hidden="true"></div>
+          </main>
+
+          <aside class="note-link-demo-backlinks">
+            <div class="note-link-demo-panel-title">Backlinks</div>
+            <div class="note-link-demo-backlink">Harbor district</div>
+            <div class="note-link-demo-backlink">Arrival timeline</div>
+          </aside>
+        </div>
+      </div>
     </div>
   </div>
 

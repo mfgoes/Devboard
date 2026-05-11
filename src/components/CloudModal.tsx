@@ -43,6 +43,12 @@ import {
   type WorkspaceOpenResult,
 } from '../utils/workspaceManager';
 import { applyWorkspaceSyncFromOpenResult } from '../utils/applyWorkspaceSync';
+import {
+  buildRecentWorkspaceRows,
+  findCurrentLocalRecent,
+  resolveWorkspaceLink,
+  type RecentWorkspaceRow,
+} from '../utils/workspaceSyncModel';
 
 const SYNC_WORKSPACE_LIMIT = 3;
 const LOCAL_SYNC_LINKS_KEY = 'devboard:cloud-workspace-links';
@@ -60,15 +66,6 @@ type WorkspaceDisplayLocation = {
   lastLocalSavedAt?: number | null;
   updatedAt?: string | number | null;
 };
-type RecentWorkspaceRow = {
-  id: string;
-  title: string;
-  local?: LocalRecentWorkspace;
-  cloud?: CloudWorkspaceSummary;
-  isCurrent: boolean;
-  sortTime: number;
-};
-
 function syncLinkKey(userId: string, workspaceName: string): string {
   return `${userId}:${workspaceName.trim().toLowerCase()}`;
 }
@@ -395,7 +392,6 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
   const currentSyncMetadata = getWorkspaceSyncMetadata();
   const currentWorkspaceId = currentSyncMetadata?.workspaceId ?? null;
   const localSyncLink = user ? getLocalSyncLink(user.id, currentWorkspaceName) : null;
-  const localSyncDisabled = localSyncLink?.disabled === true;
   const localPathHint = getWorkspacePathHint();
   const currentLocationLabel = localPathHint
     ? formatWorkspaceLocationLabel({ deviceId: getDeviceId(), deviceLabel: getDeviceLabel(), localPathHint })
@@ -404,31 +400,32 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
     () => workspaces.find((workspace) => workspace.id === selectedWorkspaceId) ?? null,
     [workspaces, selectedWorkspaceId]
   );
-  const linkedCloudWorkspace = useMemo(
-    () => workspaces.find((workspace) => workspace.id === cloudBoardId) ?? null,
-    [workspaces, cloudBoardId]
+  const workspaceLink = useMemo(
+    () => resolveWorkspaceLink({
+      cloudBoardId,
+      cloudSyncedAt,
+      currentWorkspaceId,
+      currentWorkspaceName,
+      localSyncLink,
+      workspaces,
+    }),
+    [cloudBoardId, cloudSyncedAt, currentWorkspaceId, currentWorkspaceName, localSyncLink, workspaces],
   );
-  const exactTitleMatches = useMemo(
-    () => workspaces.filter((workspace) => workspace.title.trim().toLowerCase() === currentWorkspaceName.trim().toLowerCase()),
-    [currentWorkspaceName, workspaces]
-  );
-  const identityCloudWorkspace = useMemo(
-    () => currentWorkspaceId
-      ? workspaces.find((workspace) => workspace.logicalWorkspaceId === currentWorkspaceId) ?? null
-      : null,
-    [currentWorkspaceId, workspaces]
-  );
-  const inferredCloudWorkspace = linkedCloudWorkspace ?? identityCloudWorkspace ?? (!localSyncDisabled && exactTitleMatches.length === 1 ? exactTitleMatches[0] : null);
-  const effectiveCloudBoardId = cloudBoardId ?? inferredCloudWorkspace?.id ?? null;
-  const effectiveCloudUpdatedAt = inferredCloudWorkspace ? cloudTimestamp(inferredCloudWorkspace.updatedAt) : cloudSyncedAt;
-  const syncEnabled = !!effectiveCloudBoardId;
+  const {
+    exactTitleMatches,
+    identityCloudWorkspace,
+    inferredCloudWorkspace,
+    effectiveCloudBoardId,
+    effectiveCloudUpdatedAt,
+    syncEnabled,
+  } = workspaceLink;
   const currentLocalRecent = useMemo(
-    () => localRecents.find((recent) => (
-      (!!currentWorkspaceId && recent.workspaceId === currentWorkspaceId)
-      ||
-      (!!effectiveCloudBoardId && recent.cloudBoardId === effectiveCloudBoardId)
-      || recent.title.trim().toLowerCase() === currentWorkspaceName.trim().toLowerCase()
-    )) ?? null,
+    () => findCurrentLocalRecent({
+      currentWorkspaceId,
+      currentWorkspaceName,
+      effectiveCloudBoardId,
+      localRecents,
+    }),
     [currentWorkspaceId, currentWorkspaceName, effectiveCloudBoardId, localRecents]
   );
   const currentRememberedLocationLabel = !currentLocationLabel && currentLocalRecent?.localPathHint
@@ -443,59 +440,11 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
     ? `Reconnect ${currentRememberedLocationLabel.folderName ?? 'folder'}...`
     : 'Reconnect folder...';
   const recentRows = useMemo<RecentWorkspaceRow[]>(() => {
-    const rows = new Map<string, RecentWorkspaceRow>();
-
-    for (const recent of localRecents) {
-      const cloudById = recent.cloudBoardId ? workspaces.find((workspace) => workspace.id === recent.cloudBoardId) : undefined;
-      const cloudByWorkspaceId = recent.workspaceId ? workspaces.find((workspace) => workspace.logicalWorkspaceId === recent.workspaceId) : undefined;
-      const sameTitleMatches = workspaces.filter((workspace) => workspace.title.trim().toLowerCase() === recent.title.trim().toLowerCase());
-      const cloud = cloudById ?? cloudByWorkspaceId ?? (sameTitleMatches.length === 1 ? sameTitleMatches[0] : undefined);
-      const id = cloud ? `cloud:${cloud.id}` : `local:${recent.id}`;
-      const sortTime = Math.max(
-        recent.lastSavedAt ?? 0,
-        recent.lastOpenedAt,
-        cloud?.lastOpenedAt ? cloudTimestamp(cloud.lastOpenedAt) : 0,
-        cloud ? cloudTimestamp(cloud.updatedAt) : 0,
-      );
-      rows.set(id, {
-        id,
-        title: cloud?.title ?? recent.cloudBoardTitle ?? recent.title,
-        local: recent,
-        cloud,
-        isCurrent: (!!cloud && cloud.id === effectiveCloudBoardId) || (!!recent.localPathHint && recent.localPathHint === localPathHint),
-        sortTime,
-      });
-    }
-
-    for (const cloud of workspaces) {
-      const id = `cloud:${cloud.id}`;
-      if (rows.has(id)) {
-        const existing = rows.get(id)!;
-        rows.set(id, {
-          ...existing,
-          cloud,
-          title: cloud.title,
-          isCurrent: existing.isCurrent || cloud.id === effectiveCloudBoardId,
-          sortTime: Math.max(
-            existing.sortTime,
-            cloud.lastOpenedAt ? cloudTimestamp(cloud.lastOpenedAt) : 0,
-            cloudTimestamp(cloud.updatedAt),
-          ),
-        });
-        continue;
-      }
-      rows.set(id, {
-        id,
-        title: cloud.title,
-        cloud,
-        isCurrent: cloud.id === effectiveCloudBoardId,
-        sortTime: Math.max(cloud.lastOpenedAt ? cloudTimestamp(cloud.lastOpenedAt) : 0, cloudTimestamp(cloud.updatedAt)),
-      });
-    }
-
-    return Array.from(rows.values()).sort((a, b) => {
-      if (a.isCurrent !== b.isCurrent) return a.isCurrent ? -1 : 1;
-      return b.sortTime - a.sortTime;
+    return buildRecentWorkspaceRows({
+      effectiveCloudBoardId,
+      localPathHint,
+      localRecents,
+      workspaces,
     });
   }, [effectiveCloudBoardId, localPathHint, localRecents, workspaces]);
   const linkedCloudUpdatedAt = effectiveCloudUpdatedAt;

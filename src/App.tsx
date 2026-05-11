@@ -101,6 +101,7 @@ export default function App() {
   const pages = useBoardStore((s) => s.pages);
   const activePageId = useBoardStore((s) => s.activePageId);
   const morphSourceRect = useBoardStore((s) => s.morphSourceRect);
+  const documentOpenTransition = useBoardStore((s) => s.documentOpenTransition);
   const closeDocument = useBoardStore((s) => s.closeDocument);
   const addDocument = useBoardStore((s) => s.addDocument);
   const openDocumentWithMorph = useBoardStore((s) => s.openDocumentWithMorph);
@@ -165,8 +166,12 @@ export default function App() {
   useEffect(() => {
     if (appMode === 'document' && prevPresentation.current.appMode !== 'document') {
       if (effectiveDocViewMode === 'fullscreen') {
-        setMorphPhase('opening');
-        requestAnimationFrame(() => requestAnimationFrame(() => setMorphPhase('open')));
+        if (documentOpenTransition === 'instant') {
+          setMorphPhase('open');
+        } else {
+          setMorphPhase('opening');
+          requestAnimationFrame(() => requestAnimationFrame(() => setMorphPhase('open')));
+        }
       } else {
         setPanelPhase('open');
       }
@@ -187,7 +192,7 @@ export default function App() {
       }
     }
     prevPresentation.current = { appMode, docViewMode: effectiveDocViewMode };
-  }, [appMode, effectiveDocViewMode, getPanelRect]);
+  }, [appMode, documentOpenTransition, effectiveDocViewMode, getPanelRect]);
 
   const closeDoc = useCallback(() => {
     if (effectiveDocViewMode === 'fullscreen') {

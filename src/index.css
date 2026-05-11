@@ -109,6 +109,47 @@ textarea::placeholder {
   opacity: 0.5;
 }
 
+.stack-new-note-mobile {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .stack-new-note-top {
+    display: none !important;
+  }
+
+  .stack-new-note-mobile {
+    position: fixed;
+    left: 50%;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 18px);
+    transform: translateX(-50%);
+    z-index: 120;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-width: 148px;
+    height: 48px;
+    padding: 0 20px;
+    border: 1px solid rgba(184,119,80,0.42);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--c-line) 88%, var(--c-panel));
+    color: #fff;
+    box-shadow: 0 14px 36px rgba(0,0,0,0.28);
+    font-family: var(--font-ui);
+    font-size: 13px;
+    font-weight: 800;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .stack-new-note-mobile:active {
+    transform: translateX(-50%) translateY(1px);
+    box-shadow: 0 10px 26px rgba(0,0,0,0.24);
+  }
+}
+
 /* Suppress Konva canvas outline */
 canvas:focus {
   outline: none;
@@ -251,46 +292,102 @@ canvas:focus {
 }
 
 /* ── Inline doc chips (wikilinks, node links, hashtags) ────────────────────── */
+.doc-content a {
+  display: inline;
+  padding: 0;
+  border-radius: 999px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  color: color-mix(in srgb, var(--c-text-md) 84%, var(--c-text-hi));
+  font-weight: 560;
+  text-decoration-line: underline;
+  text-decoration-style: solid;
+  text-decoration-color: color-mix(in srgb, var(--c-text-lo) 72%, transparent);
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 0.18em;
+  cursor: pointer;
+  transition:
+    background 120ms,
+    color 120ms,
+    padding 120ms,
+    text-decoration-color 120ms;
+}
+.doc-content a:hover {
+  color: color-mix(in srgb, var(--c-text-md) 72%, var(--c-text-hi));
+  background: color-mix(in srgb, var(--c-panel) 82%, var(--c-text-hi));
+  padding: 0.07em 0.4em;
+  text-decoration-color: transparent;
+}
+
 .chip-wiki {
   display: inline;
-  padding: 0 2px;
-  border-radius: 4px;
+  padding: 0;
+  border-radius: 999px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
   background: transparent;
   border: 0;
   color: var(--c-line);
   font-size: 1em;
   font-weight: 560;
+  text-decoration-line: underline;
+  text-decoration-style: solid;
+  text-decoration-color: currentColor;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 0.18em;
   cursor: pointer;
   user-select: text;
   white-space: normal;
   vertical-align: baseline;
-  transition: background 120ms, border-color 120ms;
+  transition:
+    background 120ms,
+    color 120ms,
+    padding 120ms,
+    text-decoration-color 120ms;
   line-height: inherit;
 }
-.chip-wiki:hover { background: rgba(184,119,80,0.14); }
-.light .chip-wiki:hover { background: rgba(184,119,80,0.1); }
+.chip-wiki:hover {
+  color: var(--c-line);
+  background: color-mix(in srgb, var(--c-line) 14%, var(--c-panel));
+  padding: 0.07em 0.4em;
+  text-decoration-color: transparent;
+}
 
 .chip-node {
-  display: inline-flex;
-  align-items: center;
-  padding: 1px 8px 1px 5px;
-  border-radius: 100px;
-  background: rgba(52,211,153,0.1);
-  border: 1px solid rgba(52,211,153,0.3);
-  color: #34d399;
-  font-size: 0.82em;
-  font-weight: 500;
+  display: inline;
+  padding: 0;
+  border-radius: 999px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  background: transparent;
+  border: 0;
+  color: #2b8eb5;
+  font-size: 1em;
+  font-weight: 560;
+  text-decoration-line: underline;
+  text-decoration-style: dashed;
+  text-decoration-color: currentColor;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 0.18em;
   cursor: pointer;
-  user-select: none;
-  font-family: monospace;
-  white-space: nowrap;
+  user-select: text;
+  font-family: inherit;
+  white-space: normal;
   vertical-align: baseline;
-  transition: background 120ms;
-  line-height: 1.5;
+  transition:
+    background 120ms,
+    color 120ms,
+    padding 120ms,
+    text-decoration-color 120ms;
+  line-height: inherit;
 }
-.chip-node:hover { background: rgba(52,211,153,0.18); }
-.light .chip-node { color: #059669; background: rgba(5,150,105,0.08); border-color: rgba(5,150,105,0.25); }
-.light .chip-node:hover { background: rgba(5,150,105,0.14); }
+.chip-node:hover {
+  color: #1f7fa6;
+  background: color-mix(in srgb, #2b8eb5 14%, var(--c-panel));
+  padding: 0.07em 0.4em;
+  text-decoration-color: transparent;
+}
+.light .chip-node { color: #247fa3; }
 
 .chip-tag {
   display: inline;

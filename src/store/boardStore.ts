@@ -119,6 +119,7 @@ interface BoardState {
   activeDocId: string | null;       // not persisted
   recentDocIds: string[];           // not persisted
   morphSourceRect: { left: number; top: number; width: number; height: number } | null; // not persisted
+  documentOpenTransition: 'instant' | 'morph'; // not persisted
   docViewMode: 'panel' | 'fullscreen'; // not persisted — defaults to 'panel'
   clipboard: CanvasNode[];
   past: BoardHistorySnapshot[];
@@ -221,6 +222,7 @@ export const useBoardStore = create<BoardState>()(
       activeDocId: null,
       recentDocIds: [],
       morphSourceRect: null,
+      documentOpenTransition: 'instant',
       docViewMode: 'panel',
       clipboard: [],
       past: [],
@@ -743,6 +745,7 @@ export const useBoardStore = create<BoardState>()(
           activeDocId: id,
           focusDocumentId: id,
           morphSourceRect: null,
+          documentOpenTransition: 'instant',
           recentDocIds: [id, ...state.recentDocIds.filter((r) => r !== id)].slice(0, 10),
         })),
 
@@ -752,11 +755,12 @@ export const useBoardStore = create<BoardState>()(
           activeDocId: id,
           focusDocumentId: id,
           morphSourceRect: rect ?? null,
+          documentOpenTransition: 'morph',
           recentDocIds: [id, ...state.recentDocIds.filter((r) => r !== id)].slice(0, 10),
         })),
 
       closeDocument: () =>
-        set({ appMode: 'canvas', focusDocumentId: null, activeDocId: null, morphSourceRect: null }),
+        set({ appMode: 'canvas', focusDocumentId: null, activeDocId: null, morphSourceRect: null, documentOpenTransition: 'instant' }),
 
       setDocViewMode: (mode) => set({ docViewMode: mode }),
 

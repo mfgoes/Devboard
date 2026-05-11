@@ -72,6 +72,7 @@ function applyChipsToDOM(container: HTMLElement): void {
   container.querySelectorAll<HTMLElement>('[data-chip="wiki"]').forEach((chip) => {
     chip.classList.add('chip-wiki');
     chip.removeAttribute('contenteditable');
+    chip.removeAttribute('title');
   });
 
   const textNodes: Text[] = [];
@@ -105,7 +106,6 @@ function applyChipsToDOM(container: HTMLElement): void {
         span.dataset.chip = 'wiki';
         span.dataset.title = title;
         if (alias) span.dataset.alias = alias;
-        if (alias) span.title = `Links to ${title}`;
         span.textContent = alias || title;
         frag.appendChild(span);
       } else if (match[2]) {
@@ -1457,9 +1457,10 @@ interface SelectionFormattingToolbarProps {
   anchor: SelectionToolbarAnchor | null;
   isWikiLinkActive: boolean;
   onWikilinkClick: (rect: DOMRect) => void;
+  onInteractionStart: () => void;
 }
 
-function SelectionFormattingToolbar({ anchor, isWikiLinkActive, onWikilinkClick }: SelectionFormattingToolbarProps) {
+function SelectionFormattingToolbar({ anchor, isWikiLinkActive, onWikilinkClick, onInteractionStart }: SelectionFormattingToolbarProps) {
   const [showColorMenu, setShowColorMenu] = useState(false);
   const [showLinkMenu, setShowLinkMenu] = useState(false);
   const [linkValue, setLinkValue] = useState('');
@@ -1604,6 +1605,7 @@ function SelectionFormattingToolbar({ anchor, isWikiLinkActive, onWikilinkClick 
     <>
       <div
         ref={floatingToolbarRef}
+        data-selection-toolbar="true"
         style={{
           position: 'fixed',
           left: anchor.left,
@@ -1623,6 +1625,7 @@ function SelectionFormattingToolbar({ anchor, isWikiLinkActive, onWikilinkClick 
           overflow: 'visible',
         }}
         onMouseDown={(e) => e.stopPropagation()}
+        onMouseDownCapture={onInteractionStart}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
           <button style={toolbarButtonStyle(document.queryCommandState('bold'), hoveredControl === 'bold')} onMouseDown={(e) => { e.preventDefault(); saveSelection(); execAndTick(() => document.execCommand('bold')); }} {...hoverHandlers('bold')} title="Bold"><b>B</b></button>
@@ -1686,7 +1689,7 @@ function SelectionFormattingToolbar({ anchor, isWikiLinkActive, onWikilinkClick 
       </div>
 
       {colorMenuRect && (
-        <div ref={colorMenuRef} style={{ ...menuShell(colorMenuRect, 220), padding: 8 }} onMouseDown={(e) => e.stopPropagation()}>
+        <div ref={colorMenuRef} data-selection-toolbar="true" style={{ ...menuShell(colorMenuRect, 220), padding: 8 }} onMouseDown={(e) => e.stopPropagation()} onMouseDownCapture={onInteractionStart}>
           <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--c-text-lo)', textTransform: 'uppercase', letterSpacing: '0.08em', padding: '2px 2px 8px' }}>
             Text color
           </div>
@@ -1774,7 +1777,7 @@ function SelectionFormattingToolbar({ anchor, isWikiLinkActive, onWikilinkClick 
       )}
 
       {linkMenuRect && (
-        <div ref={linkMenuRef} style={{ ...menuShell(linkMenuRect, 260), padding: 8 }} onMouseDown={(e) => e.stopPropagation()}>
+        <div ref={linkMenuRef} data-selection-toolbar="true" style={{ ...menuShell(linkMenuRect, 260), padding: 8 }} onMouseDown={(e) => e.stopPropagation()} onMouseDownCapture={onInteractionStart}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <input
               type="text"
@@ -2483,6 +2486,7 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
   const hydrationVersionRef = useRef(0);
   const imageResizeStateRef = useRef<{ imageId: string; startX: number; startWidth: number } | null>(null);
   const wikiPointerDownRef = useRef<{ chip: HTMLElement; x: number; y: number } | null>(null);
+  const selectionToolbarInteractingRef = useRef(false);
 
   const doc = documents.find((d) => d.id === activeDocId) as Document | undefined;
   const activePage = pages.find((p) => p.id === activePageId);
@@ -2762,6 +2766,11 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
       return;
     }
 
+    if (selectionToolbarInteractingRef.current) return;
+
+    const activeElement = document.activeElement as HTMLElement | null;
+    if (activeElement?.closest('[data-selection-toolbar="true"]')) return;
+
     const sel = window.getSelection();
     if (!sel || sel.rangeCount === 0) {
       setSelectionToolbarAnchor(null);
@@ -2808,6 +2817,13 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
       top,
     });
   }, [viewMode]);
+
+  const markSelectionToolbarInteraction = useCallback(() => {
+    selectionToolbarInteractingRef.current = true;
+    window.setTimeout(() => {
+      selectionToolbarInteractingRef.current = false;
+    }, 0);
+  }, []);
 
   useEffect(() => {
     const handleSelectionChange = () => {
@@ -3275,7 +3291,6 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
     span.dataset.title = title;
     if (alias && alias !== title) {
       span.dataset.alias = alias;
-      span.title = `Links to ${title}`;
     }
     span.textContent = alias || title;
     insertChipInEditor(span);
@@ -3806,6 +3821,7 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
               anchor={selectionToolbarAnchor}
               isWikiLinkActive={isWikiLinkActive}
               onWikilinkClick={handleWikilinkClick}
+              onInteractionStart={markSelectionToolbarInteraction}
             />
           )}
 

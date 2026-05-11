@@ -4,13 +4,13 @@
  * Lazy-loads directory contents; opens note files and places assets on canvas.
  */
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
-import { saveAs } from 'file-saver';
 import { useBoardStore } from '../store/boardStore';
 import type { Camera, CanvasNode, Document, PageMeta } from '../types';
 import { listDirectory, readWorkspaceFile, readWorkspaceFileAsUrl, readWorkspaceFileInfo, getWorkspaceName, openWorkspace, createWorkspace, renameEntry, createDirectory, deleteEntry, FSA_DIR_SUPPORTED, IN_IFRAME, IS_TAURI, revealInFinder, saveTextFileToWorkspace, saveWorkspace } from '../utils/workspaceManager';
 import { FONTS } from '../utils/fonts';
 import { placeCodeFile, placeImageFile, placeDocumentFile, openDocumentFile } from '../utils/canvasPlacement';
-import { documentMarkdownFromParts, generateMarkdownFilename, markdownBodyToHtml, titleFromMarkdown } from '../utils/exportMarkdown';
+import { markdownBodyToHtml, titleFromMarkdown } from '../utils/exportMarkdown';
+import { exportDocumentAsMarkdownFile, exportDocumentAsPdf, exportDocumentAsTextFile, stripHtmlPreview } from '../utils/documentExport';
 import { toast } from '../utils/toast';
 import { applyWorkspaceSyncFromOpenResult } from '../utils/applyWorkspaceSync';
 import { useFilePreview } from '../hooks/useFilePreview';
@@ -222,76 +222,6 @@ function buildVirtualCloudTree({
   }
 
   return sortTreeEntries(Array.from(roots.values()));
-}
-
-function stripHtmlPreview(html: string): string {
-  return html
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<\/(p|div|li|h[1-6])>/gi, '\n')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function generatePlainTextFilename(title?: string): string {
-  return generateMarkdownFilename(title).replace(/\.md$/i, '.txt');
-}
-
-function exportDocumentAsMarkdownFile(doc: Document): void {
-  const md = `${documentMarkdownFromParts(doc.title || 'Untitled note', doc.content)}\n`;
-  saveAs(new Blob([md], { type: 'text/markdown;charset=utf-8' }), generateMarkdownFilename(doc.title));
-}
-
-function exportDocumentAsTextFile(doc: Document): void {
-  const text = stripHtmlPreview(doc.content ?? '');
-  const body = text ? `${doc.title || 'Untitled note'}\n\n${text}\n` : `${doc.title || 'Untitled note'}\n`;
-  saveAs(new Blob([body], { type: 'text/plain;charset=utf-8' }), generatePlainTextFilename(doc.title));
-}
-
-function exportDocumentAsPdf(doc: Document): void {
-  const printWindow = window.open('', '_blank', 'noopener,noreferrer,width=900,height=720');
-  if (!printWindow) {
-    toast('Allow pop-ups to export as PDF');
-    return;
-  }
-
-  const safeTitle = doc.title || 'Untitled note';
-  const content = doc.content?.trim() || '<p></p>';
-  printWindow.document.write(`
-    <!doctype html>
-    <html>
-      <head>
-        <meta charset="utf-8" />
-        <title>${safeTitle.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</title>
-        <style>
-          body { font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 48px; color: #1f1a16; line-height: 1.65; }
-          h1 { font-size: 30px; margin: 0 0 24px; }
-          h2, h3 { margin-top: 24px; }
-          p, li, blockquote, pre { font-size: 14px; }
-          blockquote { margin: 16px 0; padding: 10px 16px; border-left: 3px solid #b87750; background: #f5ede3; border-radius: 10px; }
-          pre { background: #f6f1ea; padding: 14px 16px; border-radius: 10px; overflow: auto; white-space: pre-wrap; }
-          code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-          hr { border: none; border-top: 1px solid #d7cdbf; margin: 24px 0; }
-          a { color: #8b4f2d; }
-          .doc-wrap { max-width: 760px; margin: 0 auto; }
-          @media print {
-            body { margin: 24px; }
-          }
-        </style>
-      </head>
-      <body>
-        <div class="doc-wrap">
-          <h1>${safeTitle.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</h1>
-          ${content}
-        </div>
-      </body>
-    </html>
-  `);
-  printWindow.document.close();
-  printWindow.focus();
-  printWindow.onload = () => {
-    printWindow.print();
-  };
 }
 
 function isVisibleInAssets(entry: TreeEntry): boolean {
@@ -1784,7 +1714,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
   const updateDocument = useBoardStore((s) => s.updateDocument);
   const toggleFavoriteDocument = useBoardStore((s) => s.toggleFavoriteDocument);
   const deleteDocument = useBoardStore((s) => s.deleteDocument);
-  const openDocumentWithMorph = useBoardStore((s) => s.openDocumentWithMorph);
+  const openDocument = useBoardStore((s) => s.openDocument);
   const storeNodes = useBoardStore((s) => s.nodes);
   const pageSnapshots = useBoardStore((s) => s.pageSnapshots);
   const isDark = useBoardStore((s) => s.theme) === 'dark';
@@ -2058,7 +1988,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
     const existingDoc = useBoardStore.getState().documents.find((doc) => doc.linkedFile === linkedFile);
     const noteTitle = titleFromMarkdown(filename, content);
     const docId = existingDoc?.id ?? addDocument({ title: noteTitle, content: markdownBodyToHtml(content, noteTitle), linkedFile });
-    openDocumentWithMorph(docId);
+    openDocument(docId);
     void saveWorkspace(useBoardStore.getState().exportData());
     try {
       const rawChildren = await listDirectory(['notes']);
@@ -2085,7 +2015,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
       // Keep existing expanded tree state even if the folder refresh fails.
     }
     toast(`Added note · ${linkedFile}`);
-  }, [addDocument, openDocumentWithMorph, setTree, updateEntry]);
+  }, [addDocument, openDocument, setTree, updateEntry]);
 
   const handleFileSingleClick = useCallback((entry: TreeEntry, clientY: number) => {
     const idx = visibleEntriesRef.current.findIndex((e) => e.path.join('/') === entry.path.join('/'));
@@ -2393,13 +2323,13 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
       orderIndex: (page?.noteSort ?? 'updated') === 'custom' ? pageDocList.length : undefined,
     });
     useBoardStore.getState().ensureDocumentNode(docId, pageId);
-    openDocumentWithMorph(docId);
-  }, [activePageId, addDocument, documents, openDocumentWithMorph, pages, switchPage]);
+    openDocument(docId);
+  }, [activePageId, addDocument, documents, openDocument, pages, switchPage]);
 
   const openDocumentFromShortcut = useCallback((doc: Document) => {
     if (doc.pageId && doc.pageId !== activePageId) switchPage(doc.pageId);
-    openDocumentWithMorph(doc.id);
-  }, [activePageId, openDocumentWithMorph, switchPage]);
+    openDocument(doc.id);
+  }, [activePageId, openDocument, switchPage]);
 
   const toggleFavoriteFromExplorer = useCallback((doc: Document) => {
     toggleFavoriteDocument(doc.id);
@@ -2640,7 +2570,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
       } else if (item.kind === 'doc') {
         clearPagePreview();
         if (item.pageId !== activePageId) switchPage(item.pageId);
-        openDocumentWithMorph(item.docId);
+        openDocument(item.docId);
       } else {
         const entry = assetVisibleEntries.find((candidate) => candidate.path.join('/') === item.path.join('/'));
         if (!entry) return;
@@ -2668,7 +2598,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
       clearPagePreview();
       clearPreview();
     }
-  }, [activePageId, assetVisibleEntries, clearPagePreview, clearPreview, focusedIdx, focusedItem, handleAssetToggle, keyboardItems, openDocumentWithMorph, openFile, placeFile, searchOpen, startDelete, startRename, switchPage]);
+  }, [activePageId, assetVisibleEntries, clearPagePreview, clearPreview, focusedIdx, focusedItem, handleAssetToggle, keyboardItems, openDocument, openFile, placeFile, searchOpen, startDelete, startRename, switchPage]);
 
   return (
     <div
@@ -3104,7 +3034,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
 	                    onCreateNote={() => createNoteForPage(page.id)}
 	                    onOpenDocument={(docId) => {
 	                      if (!isActive) switchPage(page.id);
-	                      openDocumentWithMorph(docId);
+	                      openDocument(docId);
 	                    }}
 	                    pageFocused={focusedPageId === page.id}
 	                    focusedDocId={focusedDocId}

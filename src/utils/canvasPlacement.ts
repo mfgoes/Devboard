@@ -69,7 +69,7 @@ export async function openDocumentFile(pathParts: string[]) {
   const relativePath = pathParts.join('/');
   const existing = useBoardStore.getState().documents.find((d) => d.linkedFile === relativePath);
   if (existing) {
-    useBoardStore.getState().openDocumentWithMorph(existing.id);
+    useBoardStore.getState().openDocument(existing.id);
     return;
   }
 
@@ -78,7 +78,7 @@ export async function openDocumentFile(pathParts: string[]) {
   const title = titleFromMarkdown(pathParts[pathParts.length - 1], content);
   const htmlContent = markdownBodyToHtml(content, title);
   const docId = useBoardStore.getState().addDocument({ title, content: htmlContent, linkedFile: relativePath });
-  useBoardStore.getState().openDocumentWithMorph(docId);
+  useBoardStore.getState().openDocument(docId);
 }
 
 export async function placeImageFile(pathParts: string[]) {
