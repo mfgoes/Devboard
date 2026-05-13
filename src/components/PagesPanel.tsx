@@ -1,19 +1,24 @@
 import { useRef, useState, useEffect } from 'react';
 import { useBoardStore } from '../store/boardStore';
+import { IconFreeformPage, IconStackPage } from './icons';
 
 interface Props {
   onClose: () => void;
 }
 
 export default function PagesPanel({ onClose }: Props) {
-  const { pages, activePageId, addPage, deletePage, renamePage, switchPage, duplicatePage } =
+  const { pages, activePageId, addPage, deletePage, renamePage, switchPage, duplicatePage, setPageLayoutMode } =
     useBoardStore();
 
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState('');
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
+  const [isMobile, setIsMobile] = useState(() => (
+    typeof window !== 'undefined' ? window.innerWidth < 768 : false
+  ));
   const panelRef = useRef<HTMLDivElement>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
+  const activePage = pages.find((page) => page.id === activePageId);
 
   // Close kebab menu on outside click
   useEffect(() => {
@@ -31,6 +36,12 @@ export default function PagesPanel({ onClose }: Props) {
   useEffect(() => {
     if (renamingId) renameInputRef.current?.focus();
   }, [renamingId]);
+
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   // Close panel on outside click — but not when clicking the toggle button itself
   // (the toggle button fires mousedown→close then click→reopen, so we skip it here)
@@ -60,37 +71,58 @@ export default function PagesPanel({ onClose }: Props) {
   };
 
   return (
+    <>
+    {isMobile && (
+      <div
+        style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 680,
+          background: 'rgba(22,14,10,0.22)',
+        }}
+        onMouseDown={onClose}
+      />
+    )}
     <div
       ref={panelRef}
       style={{
         position: 'fixed',
-        top: 52,
-        left: 8,
-        width: 'min(320px, calc(100vw - 16px))',
-        maxHeight: 'min(70vh, calc(100vh - 64px))',
+        top: isMobile ? 'auto' : 52,
+        left: isMobile ? 0 : 8,
+        right: isMobile ? 0 : 'auto',
+        bottom: isMobile ? 0 : 'auto',
+        width: isMobile ? '100vw' : 'min(320px, calc(100vw - 16px))',
+        maxHeight: isMobile ? 'min(72vh, calc(100vh - 56px))' : 'min(70vh, calc(100vh - 64px))',
         overflowY: 'auto',
-        zIndex: 185,
-        borderRadius: 12,
+        zIndex: isMobile ? 690 : 185,
+        borderRadius: isMobile ? '18px 18px 0 0' : 12,
         border: '1px solid var(--c-border)',
+        borderBottom: isMobile ? 'none' : '1px solid var(--c-border)',
         background: 'var(--c-panel)',
-        boxShadow: '0 8px 32px rgba(0,0,0,0.28)',
+        boxShadow: isMobile ? '0 -18px 54px rgba(22,14,10,0.28)' : '0 8px 32px rgba(0,0,0,0.28)',
+        paddingBottom: isMobile ? 'max(12px, env(safe-area-inset-bottom))' : 0,
       }}
       onMouseDown={(e) => e.stopPropagation()}
     >
+      {isMobile && (
+        <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 8 }}>
+          <div style={{ width: 38, height: 4, borderRadius: 999, background: 'var(--c-border)' }} />
+        </div>
+      )}
       {/* Header */}
       <div
         style={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: '10px 12px 8px',
+          padding: isMobile ? '12px 16px 10px' : '10px 12px 8px',
           borderBottom: '1px solid var(--c-border)',
         }}
       >
         <span
           style={{
             fontFamily: "'JetBrains Mono', monospace",
-            fontSize: 12,
+            fontSize: isMobile ? 13 : 12,
             fontWeight: 600,
             color: 'var(--c-text-hi)',
             letterSpacing: '0.04em',
@@ -98,36 +130,102 @@ export default function PagesPanel({ onClose }: Props) {
         >
           Pages
         </span>
-        <button
-          onClick={() => addPage()}
-          title="Add page"
-          style={{
-            width: 22,
-            height: 22,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            borderRadius: 6,
-            border: 'none',
-            background: 'transparent',
-            cursor: 'pointer',
-            color: 'var(--c-text-lo)',
-            fontSize: 18,
-            lineHeight: 1,
-          }}
-          onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--c-hover)')}
-          onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-        >
-          +
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <button
+            onClick={() => addPage()}
+            title="Add page"
+            style={{
+              width: isMobile ? 36 : 22,
+              height: isMobile ? 36 : 22,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderRadius: isMobile ? 10 : 6,
+              border: 'none',
+              background: isMobile ? 'var(--c-hover)' : 'transparent',
+              cursor: 'pointer',
+              color: isMobile ? 'var(--c-text-hi)' : 'var(--c-text-lo)',
+              fontSize: isMobile ? 22 : 18,
+              lineHeight: 1,
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--c-hover)')}
+            onMouseLeave={(e) => (e.currentTarget.style.background = isMobile ? 'var(--c-hover)' : 'transparent')}
+          >
+            +
+          </button>
+          {isMobile && (
+            <button
+              onClick={onClose}
+              title="Close pages"
+              style={{
+                width: 36,
+                height: 36,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: 10,
+                border: 'none',
+                background: 'transparent',
+                cursor: 'pointer',
+                color: 'var(--c-text-lo)',
+                fontSize: 20,
+                lineHeight: 1,
+              }}
+            >
+              ×
+            </button>
+          )}
+        </div>
       </div>
 
+      {isMobile && activePage && (
+        <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--c-border)' }}>
+          <div style={{ fontFamily: 'var(--font-ui)', fontSize: 11, color: 'var(--c-text-lo)', marginBottom: 8 }}>
+            Page view
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            {([
+              { mode: 'stack' as const, label: 'Notes', icon: <IconStackPage /> },
+              { mode: 'freeform' as const, label: 'Canvas', icon: <IconFreeformPage /> },
+            ]).map(({ mode, label, icon }) => {
+              const active = (activePage.layoutMode ?? 'freeform') === mode;
+              return (
+                <button
+                  key={mode}
+                  onClick={() => setPageLayoutMode(activePageId, mode)}
+                  title={label}
+                  style={{
+                    minHeight: 42,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                    borderRadius: 12,
+                    border: `1px solid ${active ? 'var(--c-line)' : 'var(--c-border)'}`,
+                    background: active ? 'rgba(var(--c-line-pre-rgb),0.16)' : 'var(--c-canvas)',
+                    color: active ? 'var(--c-text-hi)' : 'var(--c-text-md)',
+                    fontFamily: 'var(--font-ui)',
+                    fontSize: 13,
+                    fontWeight: 650,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {icon}
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Page list */}
-      <div style={{ padding: '4px 0' }}>
+      <div style={{ padding: isMobile ? '8px 10px' : '4px 0' }}>
         {pages.map((page) => {
           const isActive = page.id === activePageId;
           const isRenaming = renamingId === page.id;
           const isMenuOpen = menuOpenId === page.id;
+          const isStack = page.layoutMode === 'stack';
 
           return (
             <div
@@ -136,16 +234,19 @@ export default function PagesPanel({ onClose }: Props) {
                 position: 'relative',
                 display: 'flex',
                 alignItems: 'center',
-                height: 36,
-                padding: '0 8px',
-                margin: '0 4px',
-                borderRadius: 8,
-                background: isActive ? 'rgba(99,102,241,0.12)' : 'transparent',
+                minHeight: isMobile ? 48 : 36,
+                padding: isMobile ? '0 6px 0 12px' : '0 8px',
+                margin: isMobile ? '0 0 4px' : '0 4px',
+                borderRadius: isMobile ? 12 : 8,
+                background: isActive ? 'rgba(var(--c-line-pre-rgb),0.14)' : 'transparent',
                 cursor: 'pointer',
-                gap: 6,
+                gap: isMobile ? 10 : 6,
               }}
               onClick={() => {
-                if (!isRenaming) switchPage(page.id);
+                if (!isRenaming) {
+                  switchPage(page.id);
+                  if (isMobile) onClose();
+                }
               }}
               onDoubleClick={() => startRename(page.id, page.name)}
               onMouseEnter={(e) => {
@@ -155,24 +256,9 @@ export default function PagesPanel({ onClose }: Props) {
                 if (!isActive) (e.currentTarget as HTMLDivElement).style.background = 'transparent';
               }}
             >
-              {/* Page icon */}
-              <svg
-                width="13"
-                height="13"
-                viewBox="0 0 13 13"
-                fill="none"
-                style={{ flexShrink: 0, color: isActive ? 'var(--c-line)' : 'var(--c-text-lo)' }}
-              >
-                <rect
-                  x="1.5"
-                  y="1.5"
-                  width="10"
-                  height="10"
-                  rx="1.5"
-                  stroke="currentColor"
-                  strokeWidth="1.3"
-                />
-              </svg>
+              <span style={{ flexShrink: 0, color: isActive ? 'var(--c-line)' : 'var(--c-text-lo)', display: 'inline-flex' }}>
+                {isStack ? <IconStackPage /> : <IconFreeformPage />}
+              </span>
 
               {/* Name or rename input */}
               {isRenaming ? (
@@ -192,10 +278,10 @@ export default function PagesPanel({ onClose }: Props) {
                     minWidth: 0,
                     background: 'var(--c-panel)',
                     border: '1px solid var(--c-line)',
-                    borderRadius: 4,
-                    padding: '1px 4px',
-                    fontFamily: "'JetBrains Mono', monospace",
-                    fontSize: 12,
+                    borderRadius: isMobile ? 8 : 4,
+                    padding: isMobile ? '6px 8px' : '1px 4px',
+                    fontFamily: isMobile ? 'var(--font-ui)' : "'JetBrains Mono', monospace",
+                    fontSize: isMobile ? 14 : 12,
                     color: 'var(--c-text-hi)',
                     outline: 'none',
                   }}
@@ -205,8 +291,8 @@ export default function PagesPanel({ onClose }: Props) {
                   style={{
                     flex: 1,
                     minWidth: 0,
-                    fontFamily: "'JetBrains Mono', monospace",
-                    fontSize: 12,
+                    fontFamily: isMobile ? 'var(--font-ui)' : "'JetBrains Mono', monospace",
+                    fontSize: isMobile ? 14 : 12,
                     fontWeight: isActive ? 600 : 400,
                     color: isActive ? 'var(--c-line)' : 'var(--c-text-hi)',
                     overflow: 'hidden',
@@ -215,6 +301,22 @@ export default function PagesPanel({ onClose }: Props) {
                   }}
                 >
                   {page.name}
+                </span>
+              )}
+
+              {!isRenaming && isMobile && (
+                <span
+                  style={{
+                    flexShrink: 0,
+                    borderRadius: 999,
+                    padding: '3px 7px',
+                    border: '1px solid var(--c-border)',
+                    color: 'var(--c-text-lo)',
+                    fontFamily: 'var(--font-ui)',
+                    fontSize: 10,
+                  }}
+                >
+                  {isStack ? 'Notes' : 'Canvas'}
                 </span>
               )}
 
@@ -228,17 +330,17 @@ export default function PagesPanel({ onClose }: Props) {
                     }}
                     title="More options"
                     style={{
-                      width: 20,
-                      height: 20,
+                      width: isMobile ? 40 : 20,
+                      height: isMobile ? 40 : 20,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      borderRadius: 4,
+                      borderRadius: isMobile ? 10 : 4,
                       border: 'none',
                       background: 'transparent',
                       cursor: 'pointer',
                       color: 'var(--c-text-lo)',
-                      opacity: isMenuOpen ? 1 : 0.5,
+                      opacity: isMobile || isMenuOpen ? 1 : 0.5,
                       flexShrink: 0,
                     }}
                     onMouseEnter={(e) => {
@@ -247,7 +349,7 @@ export default function PagesPanel({ onClose }: Props) {
                     }}
                     onMouseLeave={(e) => {
                       if (!isMenuOpen) {
-                        (e.currentTarget as HTMLButtonElement).style.opacity = '0.5';
+                        (e.currentTarget as HTMLButtonElement).style.opacity = isMobile ? '1' : '0.5';
                         (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
                       }
                     }}
@@ -265,10 +367,10 @@ export default function PagesPanel({ onClose }: Props) {
                       onClick={(e) => e.stopPropagation()}
                       style={{
                         position: 'absolute',
-                        top: 22,
+                        top: isMobile ? 42 : 22,
                         right: 0,
-                        width: 140,
-                        borderRadius: 8,
+                        width: isMobile ? 164 : 140,
+                        borderRadius: isMobile ? 12 : 8,
                         border: '1px solid var(--c-border)',
                         background: 'var(--c-panel)',
                         boxShadow: '0 4px 16px rgba(0,0,0,0.24)',
@@ -298,12 +400,12 @@ export default function PagesPanel({ onClose }: Props) {
                           disabled={item.disabled}
                           style={{
                             width: '100%',
-                            padding: '6px 12px',
+                            padding: isMobile ? '11px 14px' : '6px 12px',
                             textAlign: 'left',
                             background: 'transparent',
                             border: 'none',
-                            fontFamily: "'JetBrains Mono', monospace",
-                            fontSize: 11,
+                            fontFamily: isMobile ? 'var(--font-ui)' : "'JetBrains Mono', monospace",
+                            fontSize: isMobile ? 13 : 11,
                             cursor: item.disabled ? 'not-allowed' : 'pointer',
                             color: item.danger
                               ? item.disabled ? 'var(--c-text-lo)' : '#f87171'
@@ -331,5 +433,6 @@ export default function PagesPanel({ onClose }: Props) {
         })}
       </div>
     </div>
+    </>
   );
 }

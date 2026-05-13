@@ -213,6 +213,16 @@ export function setWorkspaceSyncMetadata(metadata: Partial<WorkspaceSyncMetadata
   return workspaceSyncMetadata;
 }
 
+export function clearWorkspaceCloudSyncMetadata(): WorkspaceSyncMetadata | null {
+  if (!workspaceSyncMetadata) return null;
+  return setWorkspaceSyncMetadata({
+    cloudBoardId: null,
+    cloudBoardTitle: null,
+    cloudWorkspaceId: null,
+    lastSyncedAt: null,
+  });
+}
+
 export function clearWorkspaceHandle(): void {
   workspaceHandle = null;
   tauriWorkspacePath = null;
@@ -367,6 +377,7 @@ export async function recordCurrentWorkspaceRecent(title?: string, options: { sa
   const path = getWorkspacePathHint();
   const recents = await readRecentWorkspaceMetadata();
   const existing = recents.find((recent) => recent.id === id);
+  const syncMetadata = workspaceSyncMetadata;
   const next: LocalRecentWorkspace = {
     ...(existing ?? {}),
     id,
@@ -374,12 +385,12 @@ export async function recordCurrentWorkspaceRecent(title?: string, options: { sa
     localPathHint: path,
     lastOpenedAt: options.openedAt ?? existing?.lastOpenedAt ?? now,
     lastSavedAt: options.savedAt ?? existing?.lastSavedAt ?? null,
-    workspaceId: workspaceSyncMetadata?.workspaceId ?? existing?.workspaceId ?? null,
-    localInstanceId: workspaceSyncMetadata?.localInstanceId ?? existing?.localInstanceId ?? null,
-    cloudBoardId: workspaceSyncMetadata?.cloudBoardId ?? existing?.cloudBoardId ?? null,
-    cloudBoardTitle: workspaceSyncMetadata?.cloudBoardTitle ?? existing?.cloudBoardTitle ?? null,
-    cloudWorkspaceId: workspaceSyncMetadata?.cloudWorkspaceId ?? existing?.cloudWorkspaceId ?? null,
-    cloudSyncedAt: workspaceSyncMetadata?.lastSyncedAt ?? existing?.cloudSyncedAt ?? null,
+    workspaceId: syncMetadata ? syncMetadata.workspaceId ?? null : existing?.workspaceId ?? null,
+    localInstanceId: syncMetadata ? syncMetadata.localInstanceId ?? null : existing?.localInstanceId ?? null,
+    cloudBoardId: syncMetadata ? syncMetadata.cloudBoardId ?? null : existing?.cloudBoardId ?? null,
+    cloudBoardTitle: syncMetadata ? syncMetadata.cloudBoardTitle ?? null : existing?.cloudBoardTitle ?? null,
+    cloudWorkspaceId: syncMetadata ? syncMetadata.cloudWorkspaceId ?? null : existing?.cloudWorkspaceId ?? null,
+    cloudSyncedAt: syncMetadata ? syncMetadata.lastSyncedAt ?? null : existing?.cloudSyncedAt ?? null,
     source: IS_TAURI ? 'tauri' : 'browser',
     permissionState: existing?.permissionState,
     contentSummary: summarizeBoardContent(options.data) ?? existing?.contentSummary,

@@ -355,19 +355,19 @@ nav::-webkit-scrollbar-thumb { background: var(--c-border); border-radius: 4px; 
 <section id="overview">
   <div class="section-label">Getting Started</div>
   <h1>DevBoard Manual</h1>
-  <p class="page-meta">A FigJam-style whiteboard for solo devs &middot; v1.0</p>
+  <p class="page-meta">A local-first note app for connected thinking &middot; v1.0</p>
 
   <p>
-    <strong>DevBoard</strong> is a lightweight infinite canvas for developer thinking.
-    Use it for system design, sprint planning, debug flows, feature mapping, and anything else that benefits from visual, spatial organization.
+    <strong>DevBoard</strong> helps you write notes, connect related ideas, and map the bigger picture without leaving your local workspace.
+    Start in Markdown, link notes with <code>[[wikilinks]]</code>, then use the canvas when the idea needs a visible structure.
   </p>
   <p>
-    Everything runs in your browser. There are no accounts, no backend, and no data leaves your machine.
-    Boards are saved to <code>localStorage</code> and can be exported as JSON or PNG.
+    DevBoard works without an account. Your workspace is a folder of Markdown notes, canvas pages, assets, and metadata you control.
+    Optional cloud sync is a convenience layer for selected workspaces, not a requirement.
   </p>
 
   <div class="tip">
-    <strong>Tip:</strong> DevBoard builds to a single HTML file, so you can host it anywhere — including itch.io, a USB stick, or a local file.
+    <strong>Tip:</strong> A good first workflow is write, link, map: capture the note, connect it to related notes, then place the important pieces on the canvas.
   </div>
 
   <div class="warn">
@@ -383,15 +383,15 @@ nav::-webkit-scrollbar-thumb { background: var(--c-border); border-radius: 4px; 
 <section id="quick-start">
   <h2>Quick Start</h2>
   <ol>
-    <li>Open DevBoard in your browser.</li>
-    <li>Press <kbd>S</kbd> to activate the Sticky Note tool and click the canvas to place one.</li>
-    <li>Double-click the sticky to type inside it.</li>
-    <li>Press <kbd>V</kbd> to switch back to Select and drag nodes around.</li>
-    <li>Use <kbd>Ctrl</kbd>/<kbd>&#8984;</kbd> + <kbd>S</kbd> to save or go to <strong>Top Bar &rarr; Save JSON</strong> for a portable file.</li>
+    <li>Open DevBoard in your browser or desktop app.</li>
+    <li>Create or open a workspace folder so your Markdown notes and canvas pages stay local.</li>
+    <li>Write a note in document mode and use <code>[[double brackets]]</code> to link related ideas.</li>
+    <li>Open the canvas when you want to arrange notes, stickies, shapes, and connectors visually.</li>
+    <li>Use <kbd>Ctrl</kbd>/<kbd>&#8984;</kbd> + <kbd>S</kbd> to save the workspace, or export Markdown/JSON/PNG when you need a portable copy.</li>
   </ol>
 
   <div class="tip">
-    <strong>Tip:</strong> Hold <kbd>Space</kbd> and drag to pan the canvas at any time.
+    <strong>Tip:</strong> Hold <kbd>Space</kbd> and drag to pan the canvas whenever you are mapping connected notes.
   </div>
 </section>
 
@@ -678,14 +678,14 @@ nav::-webkit-scrollbar-thumb { background: var(--c-border); border-radius: 4px; 
     The export captures all visible nodes at the current zoom level.
   </p>
 
-  <h3 id="save-load">Save &amp; Load JSON</h3>
+  <h3 id="save-load">Save Workspace / Export JSON</h3>
   <p>
-    <strong>Save JSON</strong> exports your entire board (all pages, nodes, and settings) as a <code>.json</code> file.
-    Use <strong>Load JSON</strong> to restore a previously saved board.
+    <strong>Save Workspace</strong> writes your notes, canvas pages, assets, and workspace metadata back to the local folder you opened.
+    Use JSON export when you need a single portable snapshot of the whole workspace.
   </p>
   <p>
-    Your board is also automatically persisted to <code>localStorage</code> under the key <code>devboard-v1</code>,
-    so it survives page refreshes.
+    In browsers that support the File System Access API, DevBoard can remember recent workspace folders.
+    In the desktop app, workspace save/load uses the native filesystem through Tauri.
   </p>
 </section>
 

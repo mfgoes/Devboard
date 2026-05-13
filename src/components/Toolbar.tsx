@@ -20,6 +20,15 @@ function IconSelect() {
     </svg>
   );
 }
+function IconCanvasTools() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path d="M3 4h10M3 12h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <circle cx="6" cy="4" r="1.8" fill="var(--c-panel)" stroke="currentColor" strokeWidth="1.3" />
+      <circle cx="10" cy="12" r="1.8" fill="var(--c-panel)" stroke="currentColor" strokeWidth="1.3" />
+    </svg>
+  );
+}
 function IconPan() {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -250,11 +259,19 @@ const SHAPE_KINDS: ShapeKindDef[] = [
   },
 ];
 
-export default function Toolbar() {
+interface ToolbarProps {
+  onMobileExpandedChange?: (expanded: boolean) => void;
+}
+
+export default function Toolbar({ onMobileExpandedChange }: ToolbarProps) {
   const { activeTool, setActiveTool, activeShapeKind, setActiveShapeKind, focusDocumentId, appMode } = useBoardStore();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showGradient, setShowGradient] = useState(false);
   const [insertOpen, setInsertOpen] = useState(false);
+  const [mobileToolsOpen, setMobileToolsOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(() => (
+    typeof window !== 'undefined' ? window.innerWidth < 768 : false
+  ));
   const insertRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -267,6 +284,17 @@ export default function Toolbar() {
     el.addEventListener('scroll', check);
     return () => { ro.disconnect(); el.removeEventListener('scroll', check); };
   }, []);
+
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  useEffect(() => {
+    onMobileExpandedChange?.(isMobile && mobileToolsOpen);
+    return () => onMobileExpandedChange?.(false);
+  }, [isMobile, mobileToolsOpen, onMobileExpandedChange]);
 
   // Close insert panel when clicking outside
   useEffect(() => {
@@ -290,9 +318,19 @@ export default function Toolbar() {
   const handleInsertSelect = (id: Tool) => {
     setActiveTool(id);
     setInsertOpen(false);
+    if (isMobile) setMobileToolsOpen(false);
+  };
+
+  const handleToolSelect = (id: Tool) => {
+    setActiveTool(id);
+    if (isMobile) setMobileToolsOpen(false);
   };
 
   const insertActive = INSERT_ITEMS.some((i) => i.id === activeTool);
+  const activeMainTool = TOOLS.find((tool) => tool.id === activeTool);
+  const activeInsertTool = INSERT_ITEMS.find((tool) => tool.id === activeTool);
+  const activeLabel = activeMainTool?.label ?? activeInsertTool?.label ?? 'Tools';
+  const showExpandedTools = !isMobile || mobileToolsOpen;
 
   return (
     <div
@@ -303,7 +341,7 @@ export default function Toolbar() {
       }}
     >
       {/* Shape kind sub-picker */}
-      {activeTool === 'shape' && (
+      {showExpandedTools && activeTool === 'shape' && (
         <div className="pointer-events-auto flex items-center gap-0.5 px-2 py-1.5 rounded-xl border border-[var(--c-border)] bg-[var(--c-panel)] shadow-lg">
           {SHAPE_KINDS.map(({ kind, label, icon }) => (
             <button
@@ -324,13 +362,34 @@ export default function Toolbar() {
       )}
 
       {/* Sticker picker */}
-      {activeTool === 'sticker' && <StickerPicker />}
+      {showExpandedTools && activeTool === 'sticker' && <StickerPicker />}
+
+      {isMobile && !mobileToolsOpen && (
+        <div className="pointer-events-auto w-full flex justify-start px-4">
+          <button
+            type="button"
+            title="Canvas tools"
+            onClick={() => setMobileToolsOpen(true)}
+            className="flex items-center gap-3 h-12 px-3.5 rounded-2xl border border-[var(--c-border)] bg-[var(--c-panel)] text-[var(--c-text-hi)] shadow-2xl font-sans"
+          >
+            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[var(--c-hover)] text-[var(--c-line)]">
+              <IconCanvasTools />
+            </span>
+            <span className="flex flex-col items-start leading-none">
+              <span className="text-[12px] font-semibold text-[var(--c-text-hi)]">Canvas tools</span>
+              <span className="mt-1 text-[10px] font-medium text-[var(--c-text-lo)]">Current: {activeLabel}</span>
+            </span>
+          </button>
+        </div>
+      )}
 
       {/* ── Toolbar row ─────────────────────────────────────────────────────── */}
       {/* Outer flex row: scroll area + insert button sit side-by-side.
           The insert button MUST be outside the overflow-x-auto container,
           otherwise the popup panel gets clipped. */}
-      <div className="pointer-events-auto w-full flex sm:justify-center">
+      {showExpandedTools && (
+      <div className="pointer-events-auto w-full flex md:justify-center">
+        <div className="relative flex max-w-[calc(100vw-32px)] md:max-w-none ml-4 md:ml-0 mr-4 md:mr-0 rounded-2xl md:rounded-xl border border-[var(--c-border)] bg-[var(--c-panel)] shadow-2xl overflow-visible">
 
         {/* Scrollable tools pill */}
         <div
@@ -338,7 +397,7 @@ export default function Toolbar() {
           className="overflow-x-auto flex"
           style={{ WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' } as React.CSSProperties}
         >
-          <div className="flex items-center gap-0 rounded-xl sm:rounded-r-none border sm:border-r-0 border-[var(--c-border)] bg-[var(--c-panel)] shadow-2xl ml-4 sm:ml-0 mr-4 sm:mr-0 shrink-0">
+          <div className="flex items-center gap-0 shrink-0">
             <div className="flex items-center px-1 py-1 gap-0.5">
               {TOOLS.map((tool) => {
                 const isActive = activeTool === tool.id;
@@ -347,11 +406,11 @@ export default function Toolbar() {
                   <button
                     key={tool.id}
                     title={`${tool.label}${tool.shortcut ? ` (${tool.shortcut})` : ''}${isComingSoon ? ' — coming soon' : ''}`}
-                    onClick={() => !isComingSoon && setActiveTool(tool.id)}
+                    onClick={() => !isComingSoon && handleToolSelect(tool.id)}
                     className={[
-                      tool.mobileHidden ? 'hidden sm:flex' : 'flex',
+                      tool.mobileHidden ? 'hidden md:flex' : 'flex',
                       'relative flex-col items-center justify-center rounded-lg transition-all duration-100 font-sans text-[10px] gap-0.5',
-                      'w-12 h-12 sm:w-10 sm:h-10 focus:outline-none',
+                      'w-12 h-12 md:w-10 md:h-10 focus:outline-none',
                       isActive
                         ? 'bg-[var(--c-line)] text-white shadow-sm'
                         : isComingSoon
@@ -369,21 +428,21 @@ export default function Toolbar() {
           </div>
 
           {/* Right-side padding spacer — gives the pill breathing room on mobile */}
-          <div className="sm:hidden w-4 shrink-0" />
+          <div className="md:hidden w-4 shrink-0" />
 
           {/* Sticky gradient — stays at right viewport edge, exactly as tall as the pill.
               Lives inside the scroll container so it never bleeds outside. */}
           {showGradient && (
             <div
-              className="sm:hidden sticky right-0 self-stretch w-14 shrink-0 -ml-14 pointer-events-none"
+              className="md:hidden sticky right-0 self-stretch w-14 shrink-0 -ml-14 pointer-events-none"
               style={{ background: 'linear-gradient(to right, transparent, var(--c-panel) 80%)' }}
             />
           )}
         </div>
 
         {/* + Insert button — kept OUTSIDE overflow-x-auto so the popup is never clipped */}
-        <div ref={insertRef} className="relative hidden sm:flex items-stretch mr-4">
-          <div className="flex items-center rounded-r-xl border-t border-r border-b border-[var(--c-border)] bg-[var(--c-panel)] shadow-2xl px-1 py-1 gap-0.5">
+        <div ref={insertRef} className="relative flex items-stretch shrink-0">
+          <div className="flex items-center px-1 py-1 gap-0.5">
             <div className="w-px h-6 bg-[var(--c-border)]" />
             <button
               title="Insert (Task, Code, Image…)"
@@ -472,7 +531,9 @@ export default function Toolbar() {
             </div>
           )}
         </div>
+        </div>
       </div>
+      )}
     </div>
   );
 }

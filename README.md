@@ -1,7 +1,7 @@
 # DevBoard
 
 **The note app that thinks visually.**  
-A focused Markdown editor with Obsidian-style `[[wikilinks]]`, backlinks, favorites, and a real infinite canvas — now with optional cloud sync.
+Write notes, connect ideas, and map the bigger picture in one local-first workspace — with Markdown, `[[wikilinks]]`, backlinks, favorites, and a real infinite canvas.
 
 [Open in browser](https://mfgoes.github.io/Devboard/) · [Download](https://mfgoes.github.io/Devboard/download.html) · [Manual](https://mfgoes.github.io/Devboard/manual.html)
 
@@ -9,20 +9,18 @@ A focused Markdown editor with Obsidian-style `[[wikilinks]]`, backlinks, favori
 
 ## Why DevBoard exists
 
-Some ideas do not fit in a linear document.
+DevBoard starts with a simple goal: help you clear your head by writing things down, then connect those notes when the shape of the idea starts to appear.
 
-Writers need character maps next to chapters. Developers need architecture diagrams next to technical notes. Researchers and PKM users need backlinks, references, and visual structure in the same place.
+Most note apps are good at pages. Most whiteboard tools are good at diagrams. But real thinking moves between both: a quick note becomes a related note, a backlink reveals a pattern, and eventually the pieces need a visual map.
 
-Most tools force that work across two apps: one for writing, another for diagrams. That breaks the thread — your notes lose the map, and your map loses the context.
-
-DevBoard brings both modes into one local-first workspace:
+DevBoard keeps that flow in one local-first workspace:
 
 - **Write** in Markdown with `[[wikilinks]]`, backlinks, and focus mode
-- **Find** important notes quickly with favorites, recents, stack view, and `⌘K`
-- **Map** ideas on an infinite canvas with notes, shapes, connectors, and code blocks
-- **Connect** documents and canvas nodes with `@node:` references
+- **Link** notes together so one thought can lead naturally to the next
+- **Map** connected notes on an infinite canvas with stickies, shapes, sections, connectors, images, and code blocks
+- **Reference** canvas nodes from documents with `@node:` mentions
 
-It is the place for ideas that start as notes, become systems, and need to stay connected.
+It is for ideas that start as messy notes, grow through links and backlinks, and eventually need to become a visible system.
 
 ---
 
@@ -170,7 +168,7 @@ macOS · Windows · Linux
 | [Manual](https://mfgoes.github.io/Devboard/manual.html) | Full feature guide |
 | [Download page](https://mfgoes.github.io/Devboard/download.html) | Desktop builds |
 | [Self-hosting](https://mfgoes.github.io/Devboard/self-hosting.html) | Run your own instance |
-| [Development guide](DEVELOPMENT.md) | Project structure, roadmap |
+| [Development guide](DEVELOPMENT.md) | Tech stack, architecture, project structure, roadmap |
 | [Build & release guide](BUILD.md) | Packaging & deployment |
 
 ---
@@ -179,8 +177,9 @@ macOS · Windows · Linux
 
 DevBoard isn’t trying to be “another SaaS note app.”
 
-It’s a **local-first thinking tool** — with optional cloud convenience.
+It’s a **local-first note app for connected thinking** — with optional cloud convenience.
 
-- Your files stay yours  
-- Your workflow stays flexible  
-- Your ideas stay connected  
+- Write first, before the thought disappears
+- Link notes when ideas start to connect
+- Map the bigger picture when the page is not enough
+- Keep your files yours

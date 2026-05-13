@@ -1136,7 +1136,7 @@ const researchNotebook: Template = {
 const startFromScratch: Template = {
   id: 'scratch',
   name: 'Start from Scratch',
-  description: 'Blank canvas with a quick intro to DevBoard',
+  description: 'Blank workspace with a quick note-to-map intro',
   data: {
     boardTitle: 'New Board',
     nodes: [
@@ -1150,7 +1150,7 @@ const startFromScratch: Template = {
       {
         id: 'sc-sub', type: 'textblock',
         x: SC_X1, y: 72, width: SC_X3 + SC_SW - SC_X1,
-        text: 'A thinking canvas for solo devs. Drop ideas, connect them, ship faster.',
+        text: 'Write a note, connect the idea, then map what it becomes.',
         fontSize: 13, color: 'auto', bold: false, italic: true, underline: false,
       },
 

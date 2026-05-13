@@ -96,6 +96,7 @@ export default function App() {
   const [jiraOpen, setJiraOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [updateBusy, setUpdateBusy] = useState(false);
+  const [mobileCanvasToolsExpanded, setMobileCanvasToolsExpanded] = useState(false);
   const explorerOpen = useBoardStore((s) => s.explorerOpen);
   const setExplorerOpen = useBoardStore((s) => s.setExplorerOpen);
   const appMode = useBoardStore((s) => s.appMode);
@@ -1034,8 +1035,8 @@ export default function App() {
           <Canvas onBackgroundInteract={dismissSidePanelFromCanvas} />
         )}
       </div>
-      {!isStackPage && appMode !== 'document' && <Toolbar />}
-      {!isStackPage && appMode !== 'document' && <ZoomToolbar />}
+      {!isStackPage && appMode !== 'document' && <Toolbar onMobileExpandedChange={setMobileCanvasToolsExpanded} />}
+      {!isStackPage && appMode !== 'document' && <ZoomToolbar hideOnMobile={mobileCanvasToolsExpanded} />}
       {appMode !== 'document' && <FocusMode />}
       {showOnboarding && (
         <OnboardingModal

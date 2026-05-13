@@ -2,7 +2,11 @@ import { useBoardStore } from '../store/boardStore';
 
 const ZOOM_PRESETS = [0.25, 0.5, 0.75, 1, 1.5, 2];
 
-export default function ZoomToolbar() {
+interface ZoomToolbarProps {
+  hideOnMobile?: boolean;
+}
+
+export default function ZoomToolbar({ hideOnMobile = false }: ZoomToolbarProps) {
   const { camera, setCamera } = useBoardStore();
 
   const zoomIn = () => {
@@ -18,7 +22,7 @@ export default function ZoomToolbar() {
   const zoomPct = Math.round(camera.scale * 100);
 
   return (
-    <div className="absolute bottom-20 right-4 sm:bottom-5 sm:right-5 z-[500] pointer-events-none">
+    <div className={['absolute bottom-20 right-4 sm:bottom-5 sm:right-5 z-[500] pointer-events-none', hideOnMobile ? 'hidden md:block' : ''].join(' ')}>
       <div className="pointer-events-auto flex items-center gap-0.5 px-1 py-1 rounded-xl border border-[var(--c-border)] bg-[var(--c-panel)] shadow-2xl">
         <button
           title="Zoom out"

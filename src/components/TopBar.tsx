@@ -649,9 +649,9 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
         </div>
       </div>
     )}
-    <div className="absolute top-0 left-0 right-0 z-[190] flex items-center gap-3 px-4 h-11 bg-[var(--c-panel)] border-b border-[var(--c-border)] font-sans overflow-visible">
+    <div className="absolute top-0 left-0 right-0 z-[190] flex items-center gap-1.5 sm:gap-3 px-2 sm:px-4 h-11 bg-[var(--c-panel)] border-b border-[var(--c-border)] font-sans overflow-visible">
       {/* Left: Logo + dropdown + title */}
-      <div className="flex flex-1 items-center gap-2.5 min-w-0 overflow-visible">
+      <div className="flex flex-1 items-center gap-1.5 sm:gap-2.5 min-w-0 overflow-visible">
 
         {/* Logo + chevron */}
         <div className="relative flex items-center shrink-0" ref={menuRef}>
@@ -761,6 +761,35 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
                 </MenuItem>
               </MenuItemSub>
 
+              {isConfigured && (
+                <>
+                  <MenuDivider />
+                  <div className="md:hidden">
+                    <MenuLabel>Sync</MenuLabel>
+                    <MenuItem
+                      onClick={() => menuAction(handleGitHubSignIn)}
+                      icon={<IconGitHub />}
+                    >
+                      Workspace Sync
+                      <span className="ml-auto text-[9px] text-[var(--c-text-lo)] font-sans truncate max-w-[76px]">
+                        {authLoading ? 'Checking...' : syncBadgeLabel}
+                      </span>
+                    </MenuItem>
+                    {user && (
+                      <MenuItem
+                        onClick={() => menuAction(handleSignOut)}
+                        icon={<IconGitHub />}
+                      >
+                        Sign out
+                        <span className="ml-auto text-[9px] text-[var(--c-text-lo)] font-sans truncate max-w-[76px]">
+                          {accountLabel}
+                        </span>
+                      </MenuItem>
+                    )}
+                  </div>
+                </>
+              )}
+
               <MenuDivider />
               <MenuItemSub label="Settings" icon={<IconSettings />}>
                 <MenuItem
@@ -808,13 +837,14 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
         {/* Pages toggle */}
         {(() => {
           const activePage = pages.find((p) => p.id === activePageId);
+          const activeMode = activePage?.layoutMode ?? 'freeform';
           return (
             <button
               onClick={onTogglePages}
               data-pages-toggle="true"
               title="Pages"
               className={[
-                'flex items-center gap-1.5 h-7 px-2 rounded transition-colors shrink-0 min-w-0',
+                'flex flex-1 md:flex-none items-center gap-2 h-8 md:h-7 px-2.5 md:px-2 rounded-lg md:rounded transition-colors min-w-0',
                 pagesOpen
                   ? 'bg-[var(--c-line)] text-white'
                   : 'text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
@@ -839,15 +869,18 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
                   {pages.length}
                 </span>
               </span>
-                <span className="font-sans text-[10px] tracking-wide max-w-[88px] md:max-w-[120px] truncate">
+                <span className="font-sans text-[12px] md:text-[10px] tracking-wide truncate">
                   {activePage?.name ?? 'Page 1'}
+                </span>
+                <span className="ml-auto md:hidden flex shrink-0 items-center opacity-80" title={activeMode === 'stack' ? 'Notes' : 'Canvas'}>
+                  {activeMode === 'stack' ? <IconStackPage /> : <IconFreeformPage />}
                 </span>
               </button>
           );
         })()}
 
         {/* Layout mode switcher */}
-        <div className="flex items-center shrink-0" style={{ padding: 2, background: 'var(--c-hover)', border: '1px solid var(--c-border)', borderRadius: 7, height: 28 }}>
+        <div className="hidden md:flex items-center shrink-0" style={{ padding: 2, background: 'var(--c-hover)', border: '1px solid var(--c-border)', borderRadius: 7, height: 28 }}>
           {(['freeform', 'stack'] as const).map((mode) => {
             const active = (activePage?.layoutMode ?? 'freeform') === mode;
             return (
@@ -935,14 +968,14 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
       </div>
 
       {/* Right: Actions */}
-      <div className="flex shrink-0 items-center gap-1 whitespace-nowrap">
+      <div className="flex shrink-0 items-center gap-0.5 sm:gap-1 whitespace-nowrap">
         {isConfigured && (
           <>
             <button
               onClick={handleGitHubSignIn}
               title={syncBadgeTitle}
               className={[
-                'mr-1 flex shrink-0 items-center gap-1.5 px-2.5 h-7 rounded border font-sans text-[11px] leading-none transition-colors whitespace-nowrap',
+                'sm:mr-1 hidden md:flex shrink-0 items-center justify-center md:justify-start gap-0 md:gap-1.5 w-9 md:w-auto px-0 md:px-2.5 h-8 sm:h-7 rounded border font-sans text-[11px] leading-none transition-colors whitespace-nowrap',
                 authLoading ? 'border-[var(--c-border)] text-[var(--c-text-off)] cursor-default' : syncBadgeClass,
               ].join(' ')}
               disabled={authLoading}
@@ -952,12 +985,12 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
             </button>
 
             {user && (
-              <div className="relative mr-1 shrink-0" ref={accountRef}>
+              <div className="relative mr-1 hidden md:block shrink-0" ref={accountRef}>
                 <button
                   onClick={() => setAccountOpen((v) => !v)}
                   title={user.email ?? 'Signed in'}
                   className={[
-                    'flex max-w-[180px] items-center gap-2 px-2 h-7 rounded border font-sans text-[11px] leading-none transition-colors',
+                    'flex max-w-[180px] items-center justify-center md:justify-start gap-1 md:gap-2 w-10 md:w-auto px-1 md:px-2 h-8 sm:h-7 rounded border font-sans text-[11px] leading-none transition-colors',
                     accountOpen
                       ? 'border-[var(--c-line)] bg-[var(--c-hover)] text-[var(--c-text-hi)]'
                       : 'border-[var(--c-border)] text-[var(--c-text-md)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
@@ -1001,13 +1034,13 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
             onClick={() => setExportOpen((v) => !v)}
             title="Save Workspace / Export"
             className={[
-              'flex items-center gap-1 px-2.5 h-7 rounded font-sans text-[11px] leading-none tracking-wide transition-colors whitespace-nowrap',
+              'flex items-center justify-center gap-1 px-2 sm:px-2.5 h-8 sm:h-7 rounded font-sans text-[11px] leading-none tracking-wide transition-colors whitespace-nowrap',
               exportOpen
-                ? 'bg-[var(--c-line)] opacity-90 text-white'
-                : 'bg-[var(--c-line)] text-white hover:opacity-80',
+                ? 'border border-[var(--c-line)] bg-[var(--c-hover)] text-[var(--c-line)]'
+                : 'border border-[var(--c-border)] bg-transparent text-[var(--c-text-lo)] hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]',
             ].join(' ')}
           >
-            <span className="hidden sm:inline">Save Workspace</span>
+            <span className="hidden sm:inline">Save</span>
             <IconJson />
             <IconChevronDown />
           </button>

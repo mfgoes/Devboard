@@ -26,6 +26,7 @@ import {
 import {
   getWorkspacePathHint,
   getWorkspaceSyncMetadata,
+  clearWorkspaceCloudSyncMetadata,
   clearWorkspaceHandle,
   createWorkspace,
   downloadCloudWorkspaceToFolder,
@@ -579,11 +580,40 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
     void rememberCloudSyncContext(workspace.id, syncContext(eventType, metadata));
   };
 
+  const keepCurrentWorkspaceLocalOnly = () => {
+    clearCloudBoardState();
+    clearWorkspaceCloudSyncMetadata();
+    if (user) {
+      writeLocalSyncLink(user.id, currentWorkspaceName, {
+        cloudBoardId: null,
+        title: currentWorkspaceName,
+        syncedAt: Date.now(),
+        disabled: true,
+      });
+    }
+    void saveWorkspace(useBoardStore.getState().exportData(), { notify: false });
+  };
+
   useEffect(() => {
     if (!open) return;
     void reloadLocalRecents();
     if (user) void reloadWorkspaces();
   }, [open, user]);
+
+  useEffect(() => {
+    if (open) return;
+    setConfirmingFirstSync(false);
+    setAddMenuOpen(false);
+    setAccountMenuOpen(false);
+    setWorkspaceMenuId(null);
+    setDeleteConfirmId(null);
+    setReplaceConfirmId(null);
+    setRenamingWorkspaceId(null);
+    setRenameDraft('');
+    setDetailsRowId(null);
+    setDownloadChoiceRowId(null);
+    setAuthMessage(null);
+  }, [open]);
 
   useEffect(() => {
     if (!open || !user || cloudBoardId || workspaces.length === 0) return;
@@ -593,7 +623,14 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
       if (stored.disabled) return;
       const linked = workspaces.find((workspace) => workspace.id === stored.cloudBoardId);
       if (linked) {
-        setCloudBoardState({ boardId: linked.id, title: linked.title, syncedAt: cloudTimestamp(linked.updatedAt) });
+        const syncedAt = cloudTimestamp(linked.updatedAt);
+        setWorkspaceSyncMetadata({
+          cloudBoardId: linked.id,
+          cloudBoardTitle: linked.title,
+          cloudWorkspaceId: linked.workspaceId,
+          lastSyncedAt: syncedAt,
+        });
+        setCloudBoardState({ boardId: linked.id, title: linked.title, syncedAt });
         setSelectedWorkspaceId(linked.id);
         return;
       }
@@ -604,12 +641,19 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
 
     if (linkedByIdentityOrTitle) {
       const linked = linkedByIdentityOrTitle;
-      setCloudBoardState({ boardId: linked.id, title: linked.title, syncedAt: cloudTimestamp(linked.updatedAt) });
+      const syncedAt = cloudTimestamp(linked.updatedAt);
+      setWorkspaceSyncMetadata({
+        cloudBoardId: linked.id,
+        cloudBoardTitle: linked.title,
+        cloudWorkspaceId: linked.workspaceId,
+        lastSyncedAt: syncedAt,
+      });
+      setCloudBoardState({ boardId: linked.id, title: linked.title, syncedAt });
       setSelectedWorkspaceId(linked.id);
       writeLocalSyncLink(user.id, currentWorkspaceName, {
         cloudBoardId: linked.id,
         title: linked.title,
-        syncedAt: cloudTimestamp(linked.updatedAt),
+        syncedAt,
       });
     }
   }, [cloudBoardId, currentWorkspaceName, exactTitleMatches, identityCloudWorkspace, open, setCloudBoardState, user, workspaces]);
@@ -880,15 +924,23 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
       const renamed = await renameCloudWorkspaceSnapshot(workspace.id, nextTitle);
       rememberCloudEvent(renamed, 'rename');
       if (workspace.id === cloudBoardId) {
-        setCloudBoardState({ boardId: renamed.id, title: renamed.title, syncedAt: cloudSyncedAt ?? cloudTimestamp(renamed.updatedAt) });
+        const syncedAt = cloudSyncedAt ?? cloudTimestamp(renamed.updatedAt);
+        setWorkspaceSyncMetadata({
+          cloudBoardId: renamed.id,
+          cloudBoardTitle: renamed.title,
+          cloudWorkspaceId: renamed.workspaceId,
+          lastSyncedAt: syncedAt,
+        });
+        setCloudBoardState({ boardId: renamed.id, title: renamed.title, syncedAt });
         setBoardTitle(renamed.title);
         if (user) {
           writeLocalSyncLink(user.id, renamed.title, {
             cloudBoardId: renamed.id,
             title: renamed.title,
-            syncedAt: cloudSyncedAt ?? cloudTimestamp(renamed.updatedAt),
+            syncedAt,
           });
         }
+        void saveWorkspace(useBoardStore.getState().exportData(), { notify: false });
       }
       setWorkspaces((current) => current.map((item) => item.id === renamed.id ? renamed : item));
       cancelRenameWorkspace();
@@ -1167,7 +1219,7 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
       await deleteCloudWorkspaceSnapshot(workspace.id);
       rememberCloudEvent(workspace, 'delete');
       if (workspace.id === effectiveCloudBoardId) {
-        clearCloudBoardState();
+        keepCurrentWorkspaceLocalOnly();
         if (user) clearLocalSyncLink(user.id, currentWorkspaceName);
       }
       setWorkspaceMenuId(null);
@@ -1635,15 +1687,7 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
                     aria-checked={syncEnabled || confirmingFirstSync}
                     onClick={() => {
                       if (syncEnabled) {
-                        clearCloudBoardState();
-                        if (user) {
-                          writeLocalSyncLink(user.id, currentWorkspaceName, {
-                            cloudBoardId: null,
-                            title: currentWorkspaceName,
-                            syncedAt: Date.now(),
-                            disabled: true,
-                          });
-                        }
+                        keepCurrentWorkspaceLocalOnly();
                         if (inferredCloudWorkspace) rememberCloudEvent(inferredCloudWorkspace, 'unlink');
                         setConfirmingFirstSync(false);
                         toast('Workspace kept local-only. The cloud copy was not deleted.');
