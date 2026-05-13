@@ -1,18 +1,28 @@
 import { useRef, useEffect, useState } from 'react';
+import { saveAs } from 'file-saver';
 import { useBoardStore } from '../store/boardStore';
 import { DocumentNode } from '../types';
 import DocFormattingBar from './DocFormattingBar';
-import { htmlToMarkdown, markdownToHtml } from '../utils/exportMarkdown';
+import { documentToMarkdown, generateMarkdownFilename, htmlToMarkdown, markdownToHtml } from '../utils/exportMarkdown';
+import { hasWorkspaceHandle, saveTextFileToWorkspace } from '../utils/workspaceManager';
+import { toast } from '../utils/toast';
+import { describeNoteSaveStatus, saveLinkedWorkspaceToCloud } from '../utils/saveStatus';
+import { useDocumentAutoSave } from '../hooks/useDocumentAutoSave';
 import { IconCode, IconEye } from './icons';
 
 export default function FocusMode() {
-  const { nodes, focusDocumentId, setFocusDocument, updateNode, saveHistory } = useBoardStore();
+  const { nodes, focusDocumentId, setFocusDocument, updateNode, saveHistory, documents, noteAutosaveEnabled, cloudBoardId } = useBoardStore();
   const contentRef = useRef<HTMLDivElement>(null);
   const [, forceUpdate] = useState(0);
   const [viewMode, setViewMode] = useState<'edit' | 'source'>('edit');
   const [sourceText, setSourceText] = useState('');
 
   const editingNode = nodes.find(n => n.id === focusDocumentId) as DocumentNode | undefined;
+  const autosaveStatus = useDocumentAutoSave({
+    node: editingNode,
+    enabled: noteAutosaveEnabled,
+  });
+  const saveStatus = describeNoteSaveStatus(autosaveStatus, noteAutosaveEnabled);
 
   // Initialize contentEditable on mount/change
   useEffect(() => {
@@ -64,6 +74,48 @@ export default function FocusMode() {
 
   const handleContentFocus = () => {
     saveHistory();
+  };
+
+  const handleSave = async () => {
+    if (!editingNode) return;
+    const md = documentToMarkdown(editingNode, documents);
+    const filename = generateMarkdownFilename(editingNode.title);
+
+    if (hasWorkspaceHandle()) {
+      const linkedFile = editingNode.linkedFile ?? `notes/${filename}`;
+      const parts = linkedFile.split('/').filter(Boolean);
+      const file = parts.pop() ?? filename;
+      const folder = parts.join('/');
+      const ok = await saveTextFileToWorkspace(folder, file, md);
+      if (ok) {
+        if (!editingNode.linkedFile) {
+          updateNode(editingNode.id, { linkedFile } as Partial<DocumentNode>);
+        }
+        if (cloudBoardId) {
+          void saveLinkedWorkspaceToCloud('note', {
+            successMessage: `Saved ${linkedFile} and cloud copy.`,
+            failureMessage: `Saved ${linkedFile}. Cloud save failed.`,
+          });
+        } else {
+          toast(`Saved to ${linkedFile}`);
+        }
+      } else {
+        toast('Save failed');
+      }
+      return;
+    }
+
+    if (cloudBoardId) {
+      const ok = await saveLinkedWorkspaceToCloud('note', {
+        successMessage: 'Saved to cloud.',
+        failureMessage: 'Cloud save failed.',
+      });
+      if (!ok) return;
+      return;
+    }
+
+    saveAs(new Blob([md], { type: 'text/markdown;charset=utf-8' }), filename);
+    toast('Exported Markdown note.');
   };
 
   // Prev/Next navigation
@@ -194,6 +246,86 @@ export default function FocusMode() {
           onMouseDown={(e) => e.stopPropagation()}
         >
           {viewMode === 'edit' && <DocFormattingBar nodeId={editingNode.id} />}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              marginLeft: viewMode === 'edit' ? 8 : 0,
+              flexShrink: 0,
+            }}
+          >
+            <span
+              title={saveStatus.title}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                minHeight: 26,
+                padding: '0 10px',
+                borderRadius: 999,
+                border: '1px solid var(--c-border)',
+                background: 'rgba(255,255,255,0.03)',
+                color: 'var(--c-text-md)',
+                userSelect: 'none',
+                whiteSpace: 'nowrap',
+                fontSize: 11,
+                fontWeight: 500,
+              }}
+            >
+              <span
+                style={{
+                  width: 7,
+                  height: 7,
+                  borderRadius: 999,
+                  marginRight: 8,
+                  flexShrink: 0,
+                  background:
+                    saveStatus.tone === 'busy'
+                      ? '#d97706'
+                      : saveStatus.tone === 'success'
+                        ? '#4d7c5f'
+                        : saveStatus.tone === 'warning'
+                          ? '#f59e0b'
+                          : saveStatus.tone === 'danger'
+                            ? '#ef4444'
+                            : 'var(--c-text-lo)',
+                }}
+              />
+              {saveStatus.label}
+            </span>
+            <button
+              onClick={handleSave}
+              title="Save note"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 5,
+                padding: '5px 10px',
+                borderRadius: 7,
+                border: '1px solid var(--c-border)',
+                background: 'rgba(255,255,255,0.03)',
+                color: 'var(--c-text-lo)',
+                cursor: 'pointer',
+                fontSize: 11,
+                fontFamily: 'inherit',
+                fontWeight: 500,
+                flexShrink: 0,
+                transition: 'background 0.15s, color 0.15s, border-color 0.15s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'var(--c-hover)';
+                e.currentTarget.style.borderColor = 'rgba(184,119,80,0.28)';
+                e.currentTarget.style.color = 'var(--c-text-hi)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.03)';
+                e.currentTarget.style.borderColor = 'var(--c-border)';
+                e.currentTarget.style.color = 'var(--c-text-lo)';
+              }}
+            >
+              Save
+            </button>
+          </div>
           <div style={{ flex: 1 }} />
           {/* Edit / Source toggle */}
           <div style={{ display: 'flex', gap: 2, background: 'rgba(255,255,255,0.06)', borderRadius: 7, padding: 2, flexShrink: 0 }}>

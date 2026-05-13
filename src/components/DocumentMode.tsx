@@ -10,7 +10,7 @@ import { IconAlignCenter, IconAlignLeft, IconAlignRight, IconArrowRight, IconCod
 import { useDocumentAutoSave } from '../hooks/useDocumentAutoSave';
 import { type DocumentCommandDefinition, type DocumentCommandGroup, getDocumentCommandsForSurface, runDocumentCommand } from './documentCommands';
 import { sanitizeClipboardHtml } from '../utils/richText';
-import { saveLinkedWorkspaceToCloud } from '../utils/saveStatus';
+import { describeNoteSaveStatus, saveLinkedWorkspaceToCloud, type NoteSavePresentation } from '../utils/saveStatus';
 
 // ── Inline chip utilities ─────────────────────────────────────────────────────
 
@@ -720,7 +720,7 @@ interface FmtBarProps {
   sourceWrap: boolean;
   setSourceWrap: React.Dispatch<React.SetStateAction<boolean>>;
   onCopySource: () => void;
-  saveStatusText: string | null;
+  saveStatus: NoteSavePresentation;
   onOpenOutline: () => void;
   onOpenProperties: () => void;
   onFindReplace: () => void;
@@ -754,7 +754,7 @@ function FormattingBar({
   sourceWrap,
   setSourceWrap,
   onCopySource,
-  saveStatusText,
+  saveStatus,
   onOpenOutline,
   onOpenProperties,
   onFindReplace,
@@ -1238,52 +1238,75 @@ function FormattingBar({
           background: 'linear-gradient(90deg, rgba(246,241,234,0) 0%, var(--c-canvas) 18px)',
         }}
       >
-        {viewMode === 'edit' && (
-          <>
-            {saveStatusText && !hideSaveStatus && (
-              <span
-                style={{
-                  fontSize: 11,
-                  color: 'var(--c-text-lo)',
-                  userSelect: 'none',
-                  whiteSpace: 'nowrap',
-                  maxWidth: 180,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                }}
-                title={saveStatusText}
-              >
-                {saveStatusText}
-              </span>
-            )}
-            <button
-              style={btnStyle(false, hoveredControl === 'save')}
-              title="Save Note (Cmd+S)"
-              aria-label="Save Note (Command+S)"
-              onMouseDown={(e) => { e.preventDefault(); onSave(); }}
-              {...hoverHandlers('save')}
-            >
-              <IconSaveFile />
-            </button>
-            <button
-              ref={noteBtnRef}
-              style={btnStyle(showNoteMenu, hoveredControl === 'note')}
-              title="Note actions"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                setShowNoteMenu((v) => !v);
-                setShowFormatMenu(false);
-                setShowAlignMenu(false);
-                setShowToolsMenu(false);
+        {!hideSaveStatus && (
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              minHeight: 26,
+              padding: '0 10px',
+              borderRadius: 999,
+              border: '1px solid var(--c-border)',
+              background: 'rgba(255,255,255,0.03)',
+              color: 'var(--c-text-md)',
+              userSelect: 'none',
+              whiteSpace: 'nowrap',
+              maxWidth: 220,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              fontSize: 11,
+              fontWeight: 500,
+            }}
+            title={saveStatus.title}
+          >
+            <span
+              style={{
+                width: 7,
+                height: 7,
+                borderRadius: 999,
+                marginRight: 8,
+                flexShrink: 0,
+                background:
+                  saveStatus.tone === 'busy'
+                    ? '#d97706'
+                    : saveStatus.tone === 'success'
+                      ? '#4d7c5f'
+                      : saveStatus.tone === 'warning'
+                        ? '#f59e0b'
+                        : saveStatus.tone === 'danger'
+                          ? '#ef4444'
+                          : 'var(--c-text-lo)',
               }}
-              {...hoverHandlers('note')}
-            >
-              <span style={{ fontSize: 11 }}>Note</span>
-              <span style={{ fontSize: 9, opacity: 0.7 }}>▼</span>
-            </button>
-            <div style={{ width: 1, height: 18, background: 'rgba(255,255,255,0.12)', margin: '0 2px 0 2px', flexShrink: 0 }} />
-          </>
+            />
+            {saveStatus.label}
+          </span>
         )}
+        <button
+          style={btnStyle(false, hoveredControl === 'save')}
+          title="Save Note (Cmd+S)"
+          aria-label="Save Note (Command+S)"
+          onMouseDown={(e) => { e.preventDefault(); onSave(); }}
+          {...hoverHandlers('save')}
+        >
+          <IconSaveFile />
+        </button>
+        <button
+          ref={noteBtnRef}
+          style={btnStyle(showNoteMenu, hoveredControl === 'note')}
+          title="Note actions"
+          onMouseDown={(e) => {
+            e.preventDefault();
+            setShowNoteMenu((v) => !v);
+            setShowFormatMenu(false);
+            setShowAlignMenu(false);
+            setShowToolsMenu(false);
+          }}
+          {...hoverHandlers('note')}
+        >
+          <span style={{ fontSize: 11 }}>Note</span>
+          <span style={{ fontSize: 9, opacity: 0.7 }}>▼</span>
+        </button>
+        <div style={{ width: 1, height: 18, background: 'rgba(255,255,255,0.12)', margin: '0 2px 0 2px', flexShrink: 0 }} />
 
         <div
           style={{
@@ -2908,11 +2931,12 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
     setDirtySinceSave(false);
   }, []);
 
-  useDocumentAutoSave({
+  const autoSaveStatus = useDocumentAutoSave({
     docId: doc?.id ?? null,
     enabled: noteAutosaveEnabled && dirtySinceSave,
     onSaved: handleAutoSaveSuccess,
   });
+  const saveStatus = describeNoteSaveStatus(autoSaveStatus, noteAutosaveEnabled);
 
   const scheduleEditHistoryReset = useCallback(() => {
     if (editHistoryTimerRef.current !== null) window.clearTimeout(editHistoryTimerRef.current);
@@ -3147,12 +3171,6 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
     window.addEventListener('devboard:save-active-document', onSaveActiveDocument);
     return () => window.removeEventListener('devboard:save-active-document', onSaveActiveDocument);
   }, [handleSave]);
-
-  const saveStatusText = !hasEditedSinceOpen
-    ? null
-    : dirtySinceSave
-      ? (lastSavedAt ? `Unsaved changes, saved ${relativeTime(lastSavedAt)}` : 'Unsaved changes')
-      : (lastSavedAt ? `Last saved ${relativeTime(lastSavedAt)}` : null);
 
   const handleShowWordCount = useCallback(() => {
     toast(`${docWordCount} words · ${docReadingTime}`);
@@ -3851,7 +3869,7 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
             sourceWrap={sourceWrap}
             setSourceWrap={setSourceWrap}
             onCopySource={copySourceText}
-            saveStatusText={saveStatusText}
+            saveStatus={saveStatus}
             onOpenOutline={() => setSidebarPanel((current) => current === 'outline' ? null : 'outline')}
             onOpenProperties={() => setSidebarPanel((current) => current === 'properties' ? null : 'properties')}
             onFindReplace={handleFindReplace}
@@ -4376,7 +4394,7 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
               <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
                 <div>
                   <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--c-text-lo)', marginBottom: 6 }}>Status</div>
-                  <div style={{ fontSize: 12, color: 'var(--c-text-md)' }}>{dirtySinceSave ? 'Editing' : 'Saved'}</div>
+                  <div style={{ fontSize: 12, color: 'var(--c-text-md)' }}>{saveStatus.label}</div>
                 </div>
                 <div>
                   <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--c-text-lo)', marginBottom: 6 }}>Tags</div>

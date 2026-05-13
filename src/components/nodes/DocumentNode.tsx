@@ -104,7 +104,7 @@ function renderPreviewLine(line: PreviewLine, idx: number): React.ReactNode {
 }
 
 export default function DocumentNodeComponent({ node, isSelected, isDrawingLine, onAnchorDown, onAnchorEnter, onAnchorLeave, snapAnchor }: Props) {
-  const { camera, updateNode, selectIds, setFocusDocument, openDocument, openDocumentWithMorph, activeTool, documents, activeDocId, noteAutosaveEnabled } = useBoardStore();
+  const { camera, updateNode, selectIds, setFocusDocument, openDocument, openDocumentWithMorph, activeTool, documents, activeDocId, focusDocumentId, noteAutosaveEnabled } = useBoardStore();
 
   // Post-migration: read title/content from Document entity; fall back to inline fields
   const doc = node.docId ? documents.find((d) => d.id === node.docId) : undefined;
@@ -118,7 +118,7 @@ export default function DocumentNodeComponent({ node, isSelected, isDrawingLine,
   useDocumentAutoSave({
     node,
     enabled: noteAutosaveEnabled,
-    suspended: !!doc?.id && activeDocId === doc.id,
+    suspended: !!doc?.id && (activeDocId === doc.id || focusDocumentId === node.id),
   });
 
   const isLineTool  = activeTool === 'line';

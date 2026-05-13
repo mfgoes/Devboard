@@ -6,12 +6,8 @@
  * keeps focus while formatting is applied.
  */
 import { useState, useRef } from 'react';
-import { saveAs } from 'file-saver';
 import { useBoardStore } from '../store/boardStore';
 import { DocumentNode } from '../types';
-import { documentToMarkdown, generateMarkdownFilename } from '../utils/exportMarkdown';
-import { hasWorkspaceHandle, saveTextFileToWorkspace } from '../utils/workspaceManager';
-import { toast } from '../utils/toast';
 import { IconSaveFile, IconList, IconListOrdered, IconAlignLeft, IconAlignCenter, IconAlignRight } from './icons';
 
 // ── Shared colour palette ────────────────────────────────────────────────────
@@ -34,9 +30,8 @@ interface Props {
 }
 
 export default function DocFormattingBar({ nodeId }: Props) {
-  const { nodes, workspaceName, documents } = useBoardStore();
+  const { nodes } = useBoardStore();
   const node = nodes.find((n) => n.id === nodeId) as DocumentNode | undefined;
-  const doc = node?.docId ? documents.find((d) => d.id === node.docId) : undefined;
 
   const [showHeadings, setShowHeadings] = useState(false);
   const [showColors, setShowColors] = useState(false);
@@ -145,26 +140,6 @@ export default function DocFormattingBar({ nodeId }: Props) {
     else document.execCommand('foreColor', false, hex);
     closeAll();
   };
-
-  // ── Save ─────────────────────────────────────────────────────────────────
-  const handleSave = async () => {
-    const md       = documentToMarkdown(node, documents);
-    const filename = generateMarkdownFilename(doc?.title ?? node.title);
-    if (hasWorkspaceHandle()) {
-      const linkedFile = doc?.linkedFile ?? node.linkedFile ?? `notes/${filename}`;
-      const parts = linkedFile.split('/').filter(Boolean);
-      const file = parts.pop() ?? filename;
-      const folder = parts.join('/');
-      const ok = await saveTextFileToWorkspace(folder, file, md);
-      toast(ok ? `Saved to ${linkedFile}` : 'Failed to save to workspace');
-    } else {
-      saveAs(new Blob([md], { type: 'text/markdown;charset=utf-8' }), filename);
-    }
-  };
-
-  const saveTitle = hasWorkspaceHandle()
-    ? `Save to workspace/${doc?.linkedFile ?? node.linkedFile ?? `notes/${generateMarkdownFilename(doc?.title ?? node.title)}`}`
-    : 'Download as Markdown';
 
   return (
     <div style={{
@@ -354,19 +329,6 @@ export default function DocFormattingBar({ nodeId }: Props) {
         </button>
       </div>
 
-      <div className="w-px h-6 bg-[var(--c-border)]" />
-
-      {/* ── Save (workspace-aware) ───────────────────────────────────────── */}
-      <div className="px-1 py-1">
-        <button
-          onClick={handleSave}
-          title={saveTitle}
-          className="h-9 px-2.5 rounded-lg text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors flex items-center gap-1.5 text-[11px] font-medium"
-        >
-          <IconSaveFile />
-          {workspaceName ? 'Save' : 'Save .md'}
-        </button>
-      </div>
     </div>
   );
 }

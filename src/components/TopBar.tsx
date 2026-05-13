@@ -796,8 +796,9 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
                   onClick={() => menuAction(() => setNoteAutosaveEnabled(!noteAutosaveEnabled))}
                   icon={<IconDoc />}
                   checked={noteAutosaveEnabled}
+                  badge={noteAutosaveEnabled ? 'AUTO' : 'MANUAL'}
                 >
-                  Auto-save notes
+                  Autosave notes
                 </MenuItem>
                 <MenuItem onClick={() => menuAction(toggleTheme)} icon={<IconTheme isLight={theme === 'light'} />}>
                   {theme === 'light' ? 'Dark mode' : 'Light mode'}
