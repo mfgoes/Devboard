@@ -9,6 +9,7 @@ interface AuthContextValue {
   user: User | null;
   signInWithGoogle: () => Promise<void>;
   signInWithGitHub: () => Promise<void>;
+  signInWithMagicLink: (email: string) => Promise<void>;
   signInWithEmail: (email: string, password: string) => Promise<void>;
   signUpWithEmail: (email: string, password: string) => Promise<{ needsEmailConfirmation: boolean }>;
   signOut: () => Promise<void>;
@@ -53,10 +54,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     user: session?.user ?? null,
     signInWithGoogle: async () => {
       if (!supabase) throw new Error('Supabase is not configured.');
-      const redirectTo = `${window.location.origin}${window.location.pathname}`;
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: { redirectTo },
+        options: {
+          redirectTo: window.location.origin,
+        },
       });
       if (error) throw error;
     },
@@ -66,6 +68,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'github',
         options: { redirectTo },
+      });
+      if (error) throw error;
+    },
+    signInWithMagicLink: async (email) => {
+      if (!supabase) throw new Error('Supabase is not configured.');
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          emailRedirectTo: 'https://mfgoes.github.io/Devboard/',
+          shouldCreateUser: true,
+        },
       });
       if (error) throw error;
     },

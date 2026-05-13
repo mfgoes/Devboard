@@ -326,7 +326,7 @@ function IconMore() {
 }
 
 export default function CloudModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { isConfigured, isLoading: authLoading, user, signInWithGoogle, signInWithGitHub, signInWithEmail, signUpWithEmail, signOut } = useAuth();
+  const { isConfigured, isLoading: authLoading, user, signInWithGoogle, signInWithGitHub, signInWithMagicLink, signInWithEmail, signUpWithEmail, signOut } = useAuth();
   const exportData = useBoardStore((s) => s.exportData);
   const loadBoard = useBoardStore((s) => s.loadBoard);
   const boardTitle = useBoardStore((s) => s.boardTitle);
@@ -700,6 +700,27 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
     } catch (err) {
       console.warn('Email auth failed', err);
       const message = err instanceof Error ? err.message : 'Email authentication failed.';
+      setAuthMessage(message);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleMagicLinkSignIn = async () => {
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) {
+      setAuthMessage('Enter your email address first.');
+      return;
+    }
+
+    setActionLoading('auth-magic-link');
+    setAuthMessage(null);
+    try {
+      await signInWithMagicLink(trimmedEmail);
+      setAuthMessage('Magic link sent. Check your inbox to sign in.');
+    } catch (err) {
+      console.warn('Magic link sign-in failed', err);
+      const message = err instanceof Error ? err.message : 'Could not send magic link. Try again.';
       setAuthMessage(message);
     } finally {
       setActionLoading(null);
@@ -1435,6 +1456,16 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
                               ? 'Sign in with email'
                               : 'Create account'}
                       </button>
+                      {authMode === 'signin' && (
+                        <button
+                          type="button"
+                          onClick={() => void handleMagicLinkSignIn()}
+                          disabled={actionLoading === 'auth-magic-link'}
+                          className={authButtonGhostClass}
+                        >
+                          {actionLoading === 'auth-magic-link' ? 'Sending link...' : 'Email me a magic link'}
+                        </button>
+                      )}
                       {authMessage && <p className="font-sans text-[12px] leading-relaxed text-[var(--c-text-md)]">{authMessage}</p>}
                     </div>
                   </div>

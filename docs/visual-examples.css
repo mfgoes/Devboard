@@ -19,6 +19,8 @@
   --cursor-away-y: 150px;
   --cursor-hover-x: 2px;
   --cursor-hover-y: 0;
+  --linked-ref-bg: rgba(78, 132, 105, 0.08);
+  --linked-ref-text: #385a48;
   width: 100%;
   min-height: 430px;
   aspect-ratio: 1000 / 563;
@@ -146,7 +148,8 @@
 }
 
 .note-link-demo-stack-item.is-linked {
-  animation: linkedNoteGlow 5.4s ease-in-out infinite;
+  --linked-ref-rest-color: #6e6256;
+  animation: linkedReferenceReveal 5.4s ease-in-out infinite;
 }
 
 .note-link-demo-editor {
@@ -206,7 +209,13 @@
 }
 
 .note-link-demo-token--second {
-  animation: noteLinkIdle 11s ease-in-out infinite;
+  background: transparent;
+  box-shadow: none;
+  color: #a0643e;
+  margin: 0;
+  padding: 0;
+  text-decoration-color: currentColor;
+  animation: none;
 }
 
 .note-link-demo-token--node {
@@ -487,8 +496,24 @@
   color: #2c241e;
 }
 
+.note-link-demo-outline-item.is-heading {
+  margin-left: 12px;
+  padding-left: 24px;
+  color: #5f544b;
+  font-weight: 760;
+}
+
+.note-link-demo-outline-item.is-heading::before {
+  left: 13px;
+  width: 3px;
+  height: 3px;
+  opacity: 0.34;
+}
+
 .note-link-demo-outline-item.is-linked {
-  animation: outlineLinkReveal 11s ease-in-out infinite;
+  --linked-ref-rest-color: #706356;
+  --linked-ref-nudge: -2px;
+  animation: linkedReferenceReveal 11s ease-in-out infinite;
 }
 
 @keyframes cursorLinkMove {
@@ -578,23 +603,8 @@
     background: rgba(160, 100, 62, 0.14);
     box-shadow: 0 0 0 4px rgba(160, 100, 62, 0.14);
     color: #9c5f3b;
-    margin: 0 -0.42em;
-    padding: 0.06em 0.42em;
-    text-decoration-color: transparent;
-  }
-}
-
-@keyframes noteLinkIdle {
-  0%, 56%, 100% {
-    background: transparent;
-    box-shadow: none;
-    color: #a0643e;
-    text-decoration-color: currentColor;
-  }
-  72%, 90% {
-    background: rgba(160, 100, 62, 0.1);
-    box-shadow: 0 0 0 4px rgba(160, 100, 62, 0.1);
-    color: #9c5f3b;
+    margin: 0 0.12em;
+    padding: 0.06em 0.5em;
     text-decoration-color: transparent;
   }
 }
@@ -670,37 +680,27 @@
   }
 }
 
-@keyframes outlineLinkReveal {
+@keyframes linkedReferenceReveal {
   0%, 52%, 100% {
     border-color: transparent;
     background: transparent;
-    color: #706356;
+    color: var(--linked-ref-rest-color);
+    box-shadow: none;
     transform: translateX(0);
   }
-  62% {
-    border-color: #d3bda4;
-    background: #e0d4c5;
-    color: #2c241e;
-    transform: translateX(-2px);
-  }
-  72%, 88% {
-    border-color: #d3bda4;
-    background: #ded2c4;
-    color: #2c241e;
-    transform: translateX(0);
-  }
-}
-
-@keyframes linkedNoteGlow {
-  0%, 42%, 100% {
+  62%, 88% {
     border-color: transparent;
-    background: transparent;
-    color: #6e6256;
+    background: var(--linked-ref-bg);
+    color: var(--linked-ref-text);
+    box-shadow: none;
+    transform: translateX(var(--linked-ref-nudge, 0));
   }
-  56%, 84% {
-    border-color: #d3bda4;
-    background: #ded2c4;
-    color: #2c241e;
+  72% {
+    border-color: transparent;
+    background: rgba(78, 132, 105, 0.11);
+    color: #2f4f3f;
+    box-shadow: none;
+    transform: translateX(0);
   }
 }
 
@@ -833,14 +833,13 @@
   }
 
   .note-link-demo-outline-item {
-    display: inline-flex;
-    margin: 0 6px 6px 0;
-    max-width: calc(50% - 8px);
-    vertical-align: top;
+    display: block;
+    margin: 0 0 6px;
+    max-width: calc(100% - 18px);
   }
 
   .note-link-demo-outline-item + .note-link-demo-outline-item {
-    margin-top: 0;
+    margin-top: 5px;
   }
 
   .note-link-demo-cursor {

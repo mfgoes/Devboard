@@ -1,5 +1,7 @@
 import { useBoardStore } from './store/boardStore';
 
+export type ThemeName = 'dark' | 'light';
+
 export interface ThemeColors {
   canvasBg: string;
   dotColor: string;
@@ -38,6 +40,17 @@ const LIGHT: ThemeColors = {
   connectorPreview: '#b87848',
   sectionLabelColor: '#28201a',
 };
+
+export function applyTheme(theme: ThemeName) {
+  const isLight = theme === 'light';
+  document.documentElement.classList.toggle('light', isLight);
+  document.documentElement.dataset.theme = theme;
+  document.documentElement.style.setProperty('--initial-bg', isLight ? LIGHT.canvasBg : DARK.canvasBg);
+}
+
+export function applyStoredTheme() {
+  applyTheme(useBoardStore.getState().theme);
+}
 
 export function useTheme(): ThemeColors {
   const theme = useBoardStore((s) => s.theme);

@@ -1884,13 +1884,15 @@ function WikilinkPicker({ pos, documents, activeDocId, initialQuery = '', onSele
   }, [query, documents, activeDocId]);
 
   const exactMatch = documents.some((d) => d.title.toLowerCase() === query.toLowerCase().trim() && d.id !== activeDocId);
-  const left = Math.min(pos.x, window.innerWidth - PICKER_WIDTH - 12);
+  const width = Math.min(PICKER_WIDTH, Math.max(180, window.innerWidth - 24));
+  const left = Math.max(12, Math.min(pos.x, window.innerWidth - width - 12));
+  const top = Math.max(12, Math.min(pos.y, window.innerHeight - 280));
 
   return (
     <>
       <div style={{ position: 'fixed', inset: 0, zIndex: 9998 }} onMouseDown={onClose} />
       <div style={{
-        position: 'fixed', left, top: pos.y, width: PICKER_WIDTH, zIndex: 9999,
+        position: 'fixed', left, top, width, zIndex: 9999,
         background: 'var(--c-panel)', border: '1px solid var(--c-border)',
         borderRadius: 10, boxShadow: '0 8px 28px rgba(0,0,0,0.4)', overflow: 'hidden',
       }}>
@@ -1980,7 +1982,9 @@ function NodePicker({ pos, nodes, documents, onSelect, onClose }: NodePickerProp
       .slice(0, 10);
   }, [query, nodes, documents]);
 
-  const left = Math.min(pos.x, window.innerWidth - PICKER_WIDTH - 12);
+  const width = Math.min(PICKER_WIDTH, Math.max(180, window.innerWidth - 24));
+  const pickerLeft = Math.max(12, Math.min(pos.x, window.innerWidth - width - 12));
+  const pickerTop = Math.max(12, Math.min(pos.y, window.innerHeight - 280));
 
   const typeIcon = (type: string) => {
     if (type === 'sticky') return '📌';
@@ -1997,7 +2001,7 @@ function NodePicker({ pos, nodes, documents, onSelect, onClose }: NodePickerProp
     <>
       <div style={{ position: 'fixed', inset: 0, zIndex: 9998 }} onMouseDown={onClose} />
       <div style={{
-        position: 'fixed', left, top: pos.y, width: PICKER_WIDTH, zIndex: 9999,
+        position: 'fixed', left: pickerLeft, top: pickerTop, width, zIndex: 9999,
         background: 'var(--c-panel)', border: '1px solid var(--c-border)',
         borderRadius: 10, boxShadow: '0 8px 28px rgba(0,0,0,0.4)', overflow: 'hidden',
       }}>
@@ -2467,7 +2471,7 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
   const [wikiRename, setWikiRename] = useState<{ chip: HTMLElement; originalText: string; value: string; rect: DOMRect } | null>(null);
   const wikiPreviewTitle = useRef<string | null>(null);
   const wikiPreviewCloseTimerRef = useRef<number | null>(null);
-  const [wikilinkPicker, setWikilinkPicker] = useState<{ x: number; y: number; initialQuery?: string } | null>(null);
+  const [wikilinkPicker, setWikilinkPicker] = useState<{ x: number; y: number; initialQuery?: string; chip?: HTMLElement } | null>(null);
   const [nodePicker, setNodePicker] = useState<{ x: number; y: number } | null>(null);
   const [emojiPicker, setEmojiPicker] = useState<{ x: number; y: number } | null>(null);
   const [isHoveringDoc, setIsHoveringDoc] = useState(false);
@@ -3284,6 +3288,38 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
   }, []);
 
   const insertWikiChip = useCallback((title: string) => {
+    const editingChip = wikilinkPicker?.chip;
+    if (editingChip && contentRef.current?.contains(editingChip)) {
+      const previousTitle = editingChip.dataset.title ?? '';
+      const visibleText = editingChip.textContent?.trim() ?? '';
+      const hasAlias = !!editingChip.dataset.alias || (!!visibleText && !!previousTitle && visibleText !== previousTitle);
+
+      editingChip.dataset.title = title;
+      if (hasAlias && visibleText && visibleText !== title) {
+        editingChip.dataset.alias = visibleText;
+        editingChip.textContent = visibleText;
+      } else {
+        delete editingChip.dataset.alias;
+        editingChip.textContent = title;
+      }
+
+      contentRef.current.focus();
+      const range = document.createRange();
+      range.setStartAfter(editingChip);
+      range.collapse(true);
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+      savedSelectionRef.current = range.cloneRange();
+
+      contentRef.current.dispatchEvent(new Event('input', { bubbles: true }));
+      setSelectionToolbarAnchor(null);
+      setWikilinkPicker(null);
+      wikiPreviewTitle.current = null;
+      setWikiPreview(null);
+      return;
+    }
+
     const alias = savedSelectionRef.current?.toString().trim();
     const span = document.createElement('span');
     span.className = 'chip-wiki';
@@ -3295,7 +3331,7 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
     span.textContent = alias || title;
     insertChipInEditor(span);
     setWikilinkPicker(null);
-  }, [insertChipInEditor]);
+  }, [insertChipInEditor, wikilinkPicker]);
 
   const insertNodeChip = useCallback((nodeId: string, label: string) => {
     const span = document.createElement('span');
@@ -3344,10 +3380,6 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
     return true;
   }, []);
 
-  const unwrapActiveWikiLink = useCallback(() => {
-    return unwrapWikiChip(getActiveWikiChip());
-  }, [getActiveWikiChip, unwrapWikiChip]);
-
   // ── Toolbar callbacks ─────────────────────────────────────────────────────
 
   const handleWikilinkClick = useCallback((rect: DOMRect) => {
@@ -3355,10 +3387,23 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
     if (sel && sel.rangeCount > 0) {
       savedSelectionRef.current = sel.getRangeAt(0).cloneRange();
     }
-    if (unwrapActiveWikiLink()) return;
+    const activeChip = getActiveWikiChip();
+    if (activeChip) {
+      setWikiPreview(null);
+      wikiPreviewTitle.current = null;
+      setWikiContextMenu(null);
+      setNodePicker(null);
+      setWikilinkPicker({
+        x: rect.left,
+        y: rect.bottom + 6,
+        initialQuery: activeChip.dataset.title ?? activeChip.textContent ?? '',
+        chip: activeChip,
+      });
+      return;
+    }
     setNodePicker(null);
     setWikilinkPicker({ x: rect.left, y: rect.bottom + 6 });
-  }, [unwrapActiveWikiLink]);
+  }, [getActiveWikiChip]);
 
   const handleNodeLinkClick = useCallback((rect: DOMRect) => {
     const sel = window.getSelection();
@@ -3414,6 +3459,8 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
     setWikilinkPicker({
       x: Math.min(rect.left, window.innerWidth - PICKER_WIDTH - 12),
       y: rect.bottom + 6,
+      initialQuery: wikiPreview.chip.dataset.title ?? wikiPreview.chip.textContent ?? '',
+      chip: wikiPreview.chip,
     });
   }, [wikiPreview]);
 

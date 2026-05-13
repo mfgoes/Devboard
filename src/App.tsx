@@ -51,6 +51,7 @@ import WorkspaceExplorer, { WORKSPACE_EXPLORER_WIDTH } from './components/Worksp
 import JiraPanel from './components/JiraPanel';
 import SearchBar from './components/SearchBar';
 import { useBoardStore } from './store/boardStore';
+import { applyTheme } from './theme';
 
 const EXPLORER_COLLAPSED_WIDTH = 44;
 const EXPLORER_EXPAND_HIT_WIDTH = 64;
@@ -451,13 +452,8 @@ export default function App() {
 
   const theme = useBoardStore((s) => s.theme);
 
-  // Apply/remove light class on document root when theme changes
   useEffect(() => {
-    if (theme === 'light') {
-      document.documentElement.classList.add('light');
-    } else {
-      document.documentElement.classList.remove('light');
-    }
+    applyTheme(theme);
   }, [theme]);
 
   // Load from URL hash once on mount

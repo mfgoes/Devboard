@@ -342,14 +342,17 @@ canvas:focus {
   transition:
     background 120ms,
     color 120ms,
+    margin 120ms,
     padding 120ms,
     text-decoration-color 120ms;
   line-height: inherit;
 }
-.chip-wiki:hover {
+.chip-wiki:hover,
+.chip-wiki:focus-visible {
   color: var(--c-line);
   background: color-mix(in srgb, var(--c-line) 14%, var(--c-panel));
-  padding: 0.07em 0.4em;
+  margin: 0 0.1em;
+  padding: 0.07em 0.46em;
   text-decoration-color: transparent;
 }
 

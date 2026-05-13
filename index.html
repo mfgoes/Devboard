@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="light" data-theme="light">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-visual" />
@@ -22,9 +22,25 @@
       href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
+    <script>
+      (() => {
+        let theme = 'light';
+        try {
+          const stored = JSON.parse(localStorage.getItem('devboard-v2') || 'null');
+          const storedTheme = stored && stored.state && stored.state.theme;
+          if (storedTheme === 'dark' || storedTheme === 'light') theme = storedTheme;
+        } catch {
+          theme = 'light';
+        }
+        const root = document.documentElement;
+        root.classList.toggle('light', theme === 'light');
+        root.dataset.theme = theme;
+        root.style.setProperty('--initial-bg', theme === 'light' ? '#f6f1ea' : '#1c1916');
+      })();
+    </script>
     <style>
       * { box-sizing: border-box; margin: 0; padding: 0; }
-      html, body, #root { width: 100%; height: 100%; overflow: hidden; background: #111118; }
+      html, body, #root { width: 100%; height: 100%; overflow: hidden; background: var(--initial-bg, #f6f1ea); }
     </style>
   </head>
   <body>
