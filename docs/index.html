@@ -188,133 +188,193 @@
   </div>
 
   <!-- workflow feature section -->
-<div class="tabs-section" id="features">
-  <div class="tab-bar">
-    <button class="tab-btn active" data-tab="write">Write</button>
-    <button class="tab-btn" data-tab="link">Link</button>
-    <button class="tab-btn" data-tab="map">Map</button>
+<section class="feature-showcase" id="features" aria-labelledby="features-title">
+  <div class="feature-showcase-copy reveal-on-scroll">
+    <div class="feature-eyebrow">How it works</div>
+    <h2 id="features-title">Move from loose thought to visible system</h2>
+    <p>
+      DevBoard keeps notes, maps, and references in one local-first workspace, so you can change modes without losing the thread.
+    </p>
   </div>
 
-  <div class="tab-panel active" id="tab-write">
-    <div class="feature-strip">
-      <div class="feature-text">
-        <div class="feature-eyebrow">Start with words</div>
-        <h2>Write the thought before it disappears</h2>
-        <p>Open a note and write in Markdown. Capture the messy version, keep important notes close with favorites, and use focus mode when the page needs your full attention.</p>
-        <div class="feature-pills">
-          <span class="pill">Markdown</span>
-          <span class="pill">Favorites</span>
-          <span class="pill">Focus mode</span>
-          <span class="pill">Quick switcher</span>
-        </div>
-      </div>
-      <div class="feature-img">
-        <img src="assets_landing/steps.png" alt="Linked notes with wikilinks and a backlinks panel in DevBoard" />
-      </div>
-    </div>
-  </div>
+  <div class="feature-showcase-grid reveal-on-scroll">
+    <div class="feature-menu" role="tablist" aria-label="DevBoard feature tour">
+      <button class="feature-option active" type="button" role="tab" aria-selected="true" aria-controls="tab-write" data-tab="write">
+        <svg class="feature-option-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M7 4h10v16H7z" />
+          <path d="M10 8h4M10 11h4M10 14h3" />
+        </svg>
+        <span class="feature-option-kicker">Start with words</span>
+        <span class="feature-option-title">Write the thought before it disappears</span>
+        <span class="feature-option-body">Open a Markdown note, capture the messy version, and use focus mode when the page needs your full attention.</span>
+      </button>
 
-  <div class="tab-panel" id="tab-link">
-    <div class="feature-strip">
-      <div class="feature-text">
-        <div class="feature-eyebrow">Connect the pieces</div>
-        <h2>Let one note lead to the next</h2>
-        <p>Type <code>[[</code> to link notes together, then use backlinks to see where each idea appears. Reference canvas nodes with <code>@node:</code> so documents and diagrams stay part of the same thought.</p>
-        <div class="feature-pills">
-          <span class="pill">[[Wikilinks]]</span>
-          <span class="pill">Backlinks panel</span>
-          <span class="pill">@node mentions</span>
-          <span class="pill">Cross-references</span>
-        </div>
-      </div>
-      <div class="feature-img">
-        <img src="assets_landing/img feature.png" alt="Workspace folder and file explorer sidebar in DevBoard" />
-      </div>
-    </div>
-  </div>
+      <button class="feature-option" type="button" role="tab" aria-selected="false" aria-controls="tab-link" data-tab="link">
+        <svg class="feature-option-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M9.5 7.5h-2A4.5 4.5 0 0 0 3 12a4.5 4.5 0 0 0 4.5 4.5h2" />
+          <path d="M14.5 7.5h2A4.5 4.5 0 0 1 21 12a4.5 4.5 0 0 1-4.5 4.5h-2" />
+          <path d="M8.5 12h7" />
+        </svg>
+        <span class="feature-option-kicker">Connect the pieces</span>
+        <span class="feature-option-title">Let one note lead to the next</span>
+        <span class="feature-option-body">Use wikilinks, backlinks, and node references so documents and diagrams stay part of the same thought.</span>
+      </button>
 
-  <div class="tab-panel" id="tab-map">
-    <div class="feature-strip flip">
-      <div class="feature-text">
-        <div class="feature-eyebrow">Open the canvas</div>
-        <h2>Turn connected notes into a visible system</h2>
-        <p>
-          Switch to canvas mode for sticky notes, shapes, sections, images, code blocks, and connector arrows that stay attached as you rearrange. Your files stay local. Sync is optional and covered below.
-        </p>
-        <div class="feature-pills">
-          <span class="pill">Sticky notes &amp; shapes</span>
-          <span class="pill">Smart connectors</span>
-          <span class="pill">Sections &amp; grouping</span>
-          <span class="pill">Markdown + JSON</span>
+      <button class="feature-option" type="button" role="tab" aria-selected="false" aria-controls="tab-map" data-tab="map">
+        <svg class="feature-option-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M5 6h5v4H5zM14 5h5v5h-5zM6 15h5v4H6z" />
+          <path d="M10 8h4M16.5 10v4.5H11" />
+        </svg>
+        <span class="feature-option-kicker">Open the canvas</span>
+        <span class="feature-option-title">Turn connected notes into a visible system</span>
+        <span class="feature-option-body">Switch to sticky notes, shapes, sections, images, code blocks, and connector arrows when the idea needs space.</span>
+      </button>
+    </div>
+
+    <div class="feature-preview-shell">
+      <figure class="feature-preview active" id="tab-write" role="tabpanel">
+        <div class="feature-preview-chrome">
+          <span></span><span></span><span></span>
+          <strong>Focus note</strong>
+          <em>Saved locally</em>
         </div>
-      </div>
-      <div class="feature-img">
-        <img src="assets_landing/timeline.png" alt="Visual canvas with shapes, sections, and connectors in DevBoard" />
-      </div>
+        <img src="assets_landing/steps.png" alt="DevBoard note writing and focus mode screenshot" />
+        <figcaption>
+          <span>Markdown</span>
+          <span>Favorites</span>
+          <span>Focus mode</span>
+          <span>Quick switcher</span>
+        </figcaption>
+      </figure>
+
+      <figure class="feature-preview" id="tab-link" role="tabpanel" hidden>
+        <div class="feature-preview-chrome">
+          <span></span><span></span><span></span>
+          <strong>Linked workspace</strong>
+          <em>Backlinks open</em>
+        </div>
+        <img src="assets_landing/img feature.png" alt="DevBoard workspace folder and linked notes screenshot" />
+        <figcaption>
+          <span>[[Wikilinks]]</span>
+          <span>Backlinks</span>
+          <span>@node mentions</span>
+          <span>Cross-references</span>
+        </figcaption>
+      </figure>
+
+      <figure class="feature-preview" id="tab-map" role="tabpanel" hidden>
+        <div class="feature-preview-chrome">
+          <span></span><span></span><span></span>
+          <strong>Canvas map</strong>
+          <em>Local-first</em>
+        </div>
+        <img src="assets_landing/timeline.png" alt="DevBoard visual canvas with shapes and connectors screenshot" />
+        <figcaption>
+          <span>Sticky notes</span>
+          <span>Smart connectors</span>
+          <span>Sections</span>
+          <span>Markdown + JSON</span>
+        </figcaption>
+      </figure>
     </div>
   </div>
-</div>
+</section>
 
   <hr class="divider" />
 
   <div class="comparison">
-    <div class="section-header section-header--center">
+    <div class="section-header section-header--center reveal-on-scroll">
       <div class="section-eyebrow">Why DevBoard</div>
-      <h2>Built for people who think on the page<br>and on the canvas</h2>
-     
+      <h2>More than a notepad. Less fuss than a system.</h2>
     </div>
 
-    <div class="cmp-table">
+    <div class="cmp-table reveal-on-scroll">
       <div class="cmp-head">
         <div class="cmp-label">How it compares</div>
         <div class="cmp-col cmp-col--devboard">
           <span class="cmp-product-name">DevBoard</span>
+          <span class="cmp-product-note">Best fit</span>
+        </div>
+        <div class="cmp-col">
+          <span class="cmp-product-name">A notes file</span>
+          <span class="cmp-product-note">eg. Apple Notes</span>
         </div>
         <div class="cmp-col">
           <span class="cmp-product-name">Obsidian</span>
+          <span class="cmp-product-note">Linked notes</span>
         </div>
         <div class="cmp-col">
           <span class="cmp-product-name">Notion</span>
+          <span class="cmp-product-note">Full workspace</span>
         </div>
       </div>
 
       <div class="cmp-row">
-        <div class="cmp-label">Free to use, with no account required</div>
+        <div class="cmp-label">Quick notes without an account</div>
         <div class="cmp-col cmp-col--devboard"><span class="cmp-yes">✓</span></div>
+        <div class="cmp-col"><span class="cmp-yes">✓</span></div>
+        <div class="cmp-col"><span class="cmp-yes">✓</span></div>
+        <div class="cmp-col"><span class="cmp-ltd">Account</span></div>
+      </div>
+      <div class="cmp-row">
+        <div class="cmp-label">Works offline with local files</div>
+        <div class="cmp-col cmp-col--devboard"><span class="cmp-yes">✓</span></div>
+        <div class="cmp-col"><span class="cmp-yes">✓</span></div>
         <div class="cmp-col"><span class="cmp-yes">✓</span></div>
         <div class="cmp-col"><span class="cmp-no">-</span></div>
       </div>
       <div class="cmp-row">
-        <div class="cmp-label">Local-first and fully offline</div>
+        <div class="cmp-label">A visual board beside your notes</div>
         <div class="cmp-col cmp-col--devboard"><span class="cmp-yes">✓</span></div>
-        <div class="cmp-col"><span class="cmp-yes">✓</span></div>
         <div class="cmp-col"><span class="cmp-no">-</span></div>
-      </div>
-      <div class="cmp-row">
-        <div class="cmp-label">Notes and canvas in one workspace</div>
-        <div class="cmp-col cmp-col--devboard"><span class="cmp-yes">✓</span></div>
-        <div class="cmp-col"><span class="cmp-ltd">Plugin flow</span></div>
+        <div class="cmp-col"><span class="cmp-ltd">Plugin</span></div>
         <div class="cmp-col"><span class="cmp-ltd">Limited</span></div>
       </div>
       <div class="cmp-row">
-        <div class="cmp-label">Real Markdown notes, wikilinks, backlinks, and favorites</div>
+        <div class="cmp-label">Easy links between related ideas</div>
         <div class="cmp-col cmp-col--devboard"><span class="cmp-yes">✓</span></div>
+        <div class="cmp-col"><span class="cmp-no">-</span></div>
         <div class="cmp-col"><span class="cmp-yes">✓</span></div>
-        <div class="cmp-col"><span class="cmp-ltd">Limited</span></div>
+        <div class="cmp-col"><span class="cmp-ltd">Some</span></div>
       </div>
       <div class="cmp-row">
-        <div class="cmp-label">Cross-reference notes and canvas nodes with <code>@node:</code></div>
+        <div class="cmp-label">Simple enough to just start writing</div>
         <div class="cmp-col cmp-col--devboard"><span class="cmp-yes">✓</span></div>
-        <div class="cmp-col"><span class="cmp-no">-</span></div>
+        <div class="cmp-col"><span class="cmp-yes">✓</span></div>
+        <div class="cmp-col"><span class="cmp-ltd">Powerful</span></div>
         <div class="cmp-col"><span class="cmp-no">-</span></div>
       </div>
+    </div>
+
+    <div class="cmp-mobile-cards" aria-label="Mobile comparison summary">
+      <p class="cmp-mobile-context reveal-on-scroll">
+        The usual choice is a quick note file or a full workspace. DevBoard sits in the middle.
+      </p>
+
+      <article class="cmp-mobile-card cmp-mobile-card--option reveal-on-scroll">
+        <span>A notes file</span>
+        <h3>Fast to start</h3>
+        <p>Hits a ceiling when ideas need to connect.</p>
+      </article>
+
+      <article class="cmp-mobile-card cmp-mobile-card--option reveal-on-scroll">
+        <span>A project workspace</span>
+        <h3>Powerful once set up</h3>
+        <p>Often more system than the task needed.</p>
+      </article>
+
+      <article class="cmp-mobile-card cmp-mobile-card--devboard reveal-on-scroll">
+        <span>DevBoard <em>Best fit</em></span>
+        <h3>Structure on demand.</h3>
+        <p>Write quickly. Link ideas when they connect. Open the canvas when a thought needs more room.</p>
+      </article>
     </div>
   </div>
 
   <hr class="divider" />
 <!-- sync pricing -->
 <section class="sync-pricing-section" id="sync">
-  <div class="section-header section-header--center">
+  <div class="section-header section-header--center reveal-on-scroll">
     <div class="section-eyebrow">Optional sync</div>
     <h2>Local-first by default. Sync when you need it.</h2>
     <p>
@@ -323,7 +383,7 @@
     </p>
   </div>
 
-  <div class="pricing-cards">
+  <div class="pricing-cards reveal-on-scroll">
     <article class="pricing-card">
       <div class="pricing-card-top">
         <div>
@@ -502,14 +562,49 @@
     });
   }
 
-  document.querySelectorAll('.tab-btn').forEach(btn => {
+  document.querySelectorAll('.feature-option').forEach(btn => {
     btn.addEventListener('click', () => {
-      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      document.querySelectorAll('.feature-option').forEach(b => {
+        b.classList.remove('active');
+        b.setAttribute('aria-selected', 'false');
+      });
+      document.querySelectorAll('.feature-preview').forEach(p => {
+        p.classList.remove('active');
+        p.hidden = true;
+      });
       btn.classList.add('active');
-      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+      btn.setAttribute('aria-selected', 'true');
+      const panel = document.getElementById('tab-' + btn.dataset.tab);
+      panel.hidden = false;
+      panel.classList.add('active');
     });
   });
+
+  (function() {
+    document.documentElement.classList.add('reveal-ready');
+
+    const revealItems = document.querySelectorAll('.reveal-on-scroll');
+    if (!revealItems.length) return;
+
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduceMotion || !('IntersectionObserver' in window)) {
+      revealItems.forEach(item => item.classList.add('is-visible'));
+      return;
+    }
+
+    const observer = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        if (!entry.isIntersecting) return;
+        entry.target.classList.add('is-visible');
+        observer.unobserve(entry.target);
+      });
+    }, {
+      rootMargin: '0px 0px -8% 0px',
+      threshold: 0.14
+    });
+
+    revealItems.forEach(item => observer.observe(item));
+  })();
 </script>
 </body>
 </html>

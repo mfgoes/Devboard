@@ -375,6 +375,7 @@ export default function FocusMode() {
               flex: 1,
               padding: '32px',
               overflowY: 'auto',
+              overflowX: 'auto',
               color: 'var(--c-text-hi)',
               fontSize: '16px',
               lineHeight: 1.8,

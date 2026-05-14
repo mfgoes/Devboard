@@ -249,6 +249,42 @@ canvas:focus {
   white-space: pre;
 }
 .doc-content img { max-width: 100%; border-radius: 6px; margin: 0.4em 0; }
+.doc-content table {
+  width: 100%;
+  min-width: max-content;
+  border-collapse: collapse;
+  margin: 0.75em 0;
+  font-size: 0.95em;
+}
+.doc-content th,
+.doc-content td {
+  border: 1px solid var(--c-border);
+  padding: 0.5em 0.7em;
+  vertical-align: top;
+  text-align: left;
+}
+.doc-content th {
+  background: rgba(255,255,255,0.06);
+  color: var(--c-text-hi);
+  font-weight: 700;
+}
+.light .doc-content th {
+  background: rgba(0,0,0,0.05);
+}
+.doc-content tbody tr:nth-child(even) td {
+  background: rgba(255,255,255,0.02);
+}
+.light .doc-content tbody tr:nth-child(even) td {
+  background: rgba(0,0,0,0.02);
+}
+.doc-content td > :first-child,
+.doc-content th > :first-child {
+  margin-top: 0;
+}
+.doc-content td > :last-child,
+.doc-content th > :last-child {
+  margin-bottom: 0;
+}
 .doc-content figure[data-doc-image="true"] {
   position: relative;
   width: fit-content;

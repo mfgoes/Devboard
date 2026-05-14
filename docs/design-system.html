@@ -414,6 +414,136 @@
     .ds-card h3 { font-size: 0.85rem; font-weight: 600; margin-bottom: 5px; }
     .ds-card p  { font-size: 0.75rem; color: var(--c-text-lo); line-height: 1.6; }
 
+    /* ── comparison pattern ── */
+    .comparison-pattern {
+      border: 1px solid var(--c-border);
+      border-radius: 10px;
+      padding: 24px;
+      background: color-mix(in srgb, var(--c-canvas) 58%, var(--c-panel));
+      overflow: hidden;
+    }
+
+    .comparison-pattern h3 {
+      margin-bottom: 6px;
+      color: var(--c-text-hi);
+      font-size: 1.3rem;
+      line-height: 1.18;
+      letter-spacing: -0.01em;
+      text-align: center;
+    }
+
+    .comparison-pattern-intro {
+      max-width: 500px;
+      margin: 0 auto 22px;
+      color: var(--c-text-md);
+      font-size: 0.82rem;
+      line-height: 1.65;
+      text-align: center;
+    }
+
+    .comparison-example-table {
+      overflow: hidden;
+    }
+
+    .comparison-example-head,
+    .comparison-example-row {
+      display: grid;
+      grid-template-columns: minmax(190px, 1fr) repeat(4, minmax(88px, 112px));
+      align-items: stretch;
+    }
+
+    .comparison-example-head {
+      border-bottom: 1px solid var(--c-border);
+    }
+
+    .comparison-example-row {
+      border-bottom: 1px solid var(--c-border);
+    }
+
+    .comparison-example-row:last-child {
+      border-bottom: 0;
+    }
+
+    .comparison-example-label {
+      display: flex;
+      align-items: center;
+      padding: 14px 8px;
+      color: var(--c-text-md);
+      font-size: 0.78rem;
+      font-weight: 600;
+      line-height: 1.35;
+    }
+
+    .comparison-example-cell {
+      display: flex;
+      min-height: 64px;
+      align-items: center;
+      justify-content: center;
+      padding: 10px 8px;
+      color: var(--c-text-md);
+      text-align: center;
+    }
+
+    .comparison-example-devboard {
+      background: rgba(82, 138, 74, 0.08);
+      border-left: 1px solid rgba(82, 138, 74, 0.24);
+      border-right: 1px solid rgba(82, 138, 74, 0.24);
+    }
+
+    .comparison-example-head .comparison-example-devboard {
+      border-top: 3px solid var(--c-green);
+    }
+
+    .comparison-product {
+      display: block;
+      color: var(--c-text-hi);
+      font-size: 0.86rem;
+      font-weight: 800;
+      line-height: 1.15;
+    }
+
+    .comparison-example-devboard .comparison-product,
+    .comparison-example-devboard .comparison-note {
+      color: var(--c-green);
+    }
+
+    .comparison-note {
+      display: block;
+      margin-top: 5px;
+      color: var(--c-text-md);
+      font-size: 0.58rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      line-height: 1.2;
+      text-transform: uppercase;
+    }
+
+    .comparison-check {
+      color: var(--c-green);
+      font-size: 1.18rem;
+      font-weight: 800;
+      line-height: 1;
+    }
+
+    .comparison-dash {
+      color: var(--c-border);
+      font-size: 1rem;
+      font-weight: 700;
+    }
+
+    .comparison-soft-pill {
+      padding: 3px 9px;
+      border-radius: 999px;
+      background: rgba(74,58,41,0.1);
+      color: var(--c-text-md);
+      font-size: 0.62rem;
+      font-weight: 800;
+    }
+
+    .comparison-mobile-example {
+      display: none;
+    }
+
     /* ── kbd ── */
     kbd {
       background: var(--c-hover);
@@ -671,6 +801,94 @@
       main {
         padding: 32px 20px 48px;
       }
+
+      .comparison-pattern {
+        padding: 20px;
+      }
+
+      .comparison-pattern h3 {
+        font-size: 1.15rem;
+      }
+
+      .comparison-example-table {
+        display: none;
+      }
+
+      .comparison-mobile-example {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+      }
+
+      .comparison-mobile-context {
+        grid-column: 1 / -1;
+        margin: 0 0 8px;
+        color: var(--c-text-md);
+        font-size: 0.78rem;
+        line-height: 1.55;
+        text-align: center;
+      }
+
+      .comparison-mobile-card {
+        border: 1px solid var(--c-border);
+        border-radius: 10px;
+        padding: 14px;
+        background: color-mix(in srgb, var(--c-panel) 54%, transparent);
+      }
+
+      .comparison-mobile-card--devboard {
+        grid-column: 1 / -1;
+        border-width: 2px;
+        border-color: rgba(82, 138, 74, 0.78);
+        background:
+          linear-gradient(90deg, rgba(82, 138, 74, 0.1), transparent 72%),
+          color-mix(in srgb, var(--c-panel) 78%, transparent);
+      }
+
+      .comparison-mobile-card span {
+        display: block;
+        margin-bottom: 7px;
+        color: var(--c-accent2);
+        font-size: 0.6rem;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .comparison-mobile-card--devboard span {
+        color: var(--c-green);
+      }
+
+      .comparison-mobile-card em {
+        display: inline-flex;
+        margin-left: 6px;
+        padding: 2px 6px;
+        border-radius: 999px;
+        background: rgba(82, 138, 74, 0.12);
+        color: var(--c-green);
+        font-style: normal;
+        font-size: 0.54rem;
+        line-height: 1;
+      }
+
+      .comparison-mobile-card h4 {
+        color: var(--c-text-hi);
+        font-size: 0.88rem;
+        line-height: 1.3;
+        margin-bottom: 6px;
+      }
+
+      .comparison-mobile-card p {
+        color: var(--c-text-md);
+        font-size: 0.72rem;
+        line-height: 1.55;
+      }
+
+      @media (max-width: 520px) {
+        .comparison-mobile-example {
+          grid-template-columns: 1fr;
+        }
+      }
     }
   </style>
 </head>
@@ -709,6 +927,7 @@
     <a href="#buttons">Buttons</a>
     <a href="#badges">Badges &amp; pills</a>
     <a href="#cards">Cards</a>
+    <a href="#comparison">Comparison pattern</a>
     <a href="#inputs">Inputs</a>
     <a href="#keyboard">Keyboard</a>
     <a href="#icons">Icons</a>
@@ -1160,6 +1379,95 @@
           <h3>Sticky notes</h3>
           <p>Place, drag, resize, double-click to edit. Great for brainstorming game mechanics or story beats.</p>
         </div>
+      </div>
+    </section>
+
+    <hr class="ds-rule" />
+
+    <!-- ── Comparison pattern ── -->
+    <section class="ds-section" id="comparison">
+      <div class="ds-section-title">Components</div>
+      <h2>Comparison pattern</h2>
+      <p>Use this for landing-page comparisons where DevBoard is positioned between a basic notes file and heavier project tools. Desktop uses an open matrix. Mobile becomes two compact alternatives plus one full-width DevBoard recommendation.</p>
+
+      <div class="comparison-pattern">
+        <h3>More than a notepad. Less fuss than a system.</h3>
+        <p class="comparison-pattern-intro">The usual choice is a quick note file or a full workspace. DevBoard sits in the middle.</p>
+
+        <div class="comparison-example-table" aria-label="Comparison table example">
+          <div class="comparison-example-head">
+            <div class="comparison-example-label">How it compares</div>
+            <div class="comparison-example-cell comparison-example-devboard">
+              <div>
+                <span class="comparison-product">DevBoard</span>
+                <span class="comparison-note">Best fit</span>
+              </div>
+            </div>
+            <div class="comparison-example-cell">
+              <div>
+                <span class="comparison-product">A notes file</span>
+                <span class="comparison-note">eg. Apple Notes</span>
+              </div>
+            </div>
+            <div class="comparison-example-cell">
+              <div>
+                <span class="comparison-product">Obsidian</span>
+                <span class="comparison-note">Linked notes</span>
+              </div>
+            </div>
+            <div class="comparison-example-cell">
+              <div>
+                <span class="comparison-product">Notion</span>
+                <span class="comparison-note">Full workspace</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="comparison-example-row">
+            <div class="comparison-example-label">Quick notes without an account</div>
+            <div class="comparison-example-cell comparison-example-devboard"><span class="comparison-check">✓</span></div>
+            <div class="comparison-example-cell"><span class="comparison-check">✓</span></div>
+            <div class="comparison-example-cell"><span class="comparison-check">✓</span></div>
+            <div class="comparison-example-cell"><span class="comparison-soft-pill">Account</span></div>
+          </div>
+          <div class="comparison-example-row">
+            <div class="comparison-example-label">A visual canvas beside your notes</div>
+            <div class="comparison-example-cell comparison-example-devboard"><span class="comparison-check">✓</span></div>
+            <div class="comparison-example-cell"><span class="comparison-dash">-</span></div>
+            <div class="comparison-example-cell"><span class="comparison-soft-pill">Plugin</span></div>
+            <div class="comparison-example-cell"><span class="comparison-soft-pill">Limited</span></div>
+          </div>
+          <div class="comparison-example-row">
+            <div class="comparison-example-label">Simple enough to just start writing</div>
+            <div class="comparison-example-cell comparison-example-devboard"><span class="comparison-check">✓</span></div>
+            <div class="comparison-example-cell"><span class="comparison-check">✓</span></div>
+            <div class="comparison-example-cell"><span class="comparison-soft-pill">Steep</span></div>
+            <div class="comparison-example-cell"><span class="comparison-dash">-</span></div>
+          </div>
+        </div>
+
+        <div class="comparison-mobile-example" aria-label="Mobile comparison example">
+          <p class="comparison-mobile-context">The usual choice is a quick note file or a full workspace. DevBoard sits in the middle.</p>
+          <article class="comparison-mobile-card">
+            <span>A notes file</span>
+            <h4>Fast to start</h4>
+            <p>Hits a ceiling when ideas need to connect.</p>
+          </article>
+          <article class="comparison-mobile-card">
+            <span>A project workspace</span>
+            <h4>Powerful once set up</h4>
+            <p>Often more system than the task needed.</p>
+          </article>
+          <article class="comparison-mobile-card comparison-mobile-card--devboard">
+            <span>DevBoard <em>Best fit</em></span>
+            <h4>Structure on demand.</h4>
+            <p>Write quickly. Link ideas when they connect. Open the canvas when a thought needs more room.</p>
+          </article>
+        </div>
+      </div>
+
+      <div class="ds-notice" style="margin-top: 18px;">
+        Keep comparison language plain. Prefer “A notes file” and “A project workspace” over technical category labels. Use green only for the positive DevBoard recommendation; keep alternatives neutral.
       </div>
     </section>
 

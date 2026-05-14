@@ -112,8 +112,8 @@ function sanitizeClipboardNode(node: Node): Node | null {
   }
 
   const allowedTags = new Set([
-    'a', 'blockquote', 'br', 'code', 'del', 'div', 'em', 'h1', 'h2', 'h3',
-    'hr', 'li', 'ol', 'p', 'pre', 's', 'strong', 'u', 'ul',
+    'a', 'blockquote', 'br', 'code', 'caption', 'colgroup', 'del', 'div', 'em', 'h1', 'h2', 'h3',
+    'hr', 'li', 'ol', 'p', 'pre', 's', 'strong', 'table', 'tbody', 'td', 'tfoot', 'th', 'thead', 'tr', 'u', 'ul',
   ]);
 
   if (!allowedTags.has(outputTag)) {

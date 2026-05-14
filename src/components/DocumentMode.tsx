@@ -4139,6 +4139,7 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
                   lineHeight: 1.8,
                   fontFamily: "'Plus Jakarta Sans', sans-serif",
                   outline: 'none',
+                  overflowX: 'auto',
                   wordWrap: 'break-word',
                   minHeight: '100%',
                 }}
