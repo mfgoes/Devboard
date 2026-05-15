@@ -59,6 +59,23 @@ const DESKTOP_EXPLORER_BREAKPOINT = 1024;
 const MOBILE_NOTE_BREAKPOINT = 768;
 const IS_WINDOWS = typeof navigator !== 'undefined' && navigator.userAgent.includes('Windows');
 
+function shouldKeepSidePanelOpenForTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  return !!target.closest([
+    'button',
+    'a',
+    'input',
+    'textarea',
+    'select',
+    '[contenteditable="true"]',
+    '[data-side-panel-open-target="true"]',
+    '[data-native-clipboard="true"]',
+    '[role="button"]',
+    '[role="menu"]',
+    '[role="dialog"]',
+  ].join(','));
+}
+
 function loadFromHash() {
   const hash = window.location.hash;
   const match = hash.match(/^#board=(.+)$/);
@@ -137,6 +154,7 @@ export default function App() {
   const explorerDragRef = useRef(false);
   const explorerPreviewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sidePanelDragRef = useRef(false);
+  const docPanelRef = useRef<HTMLDivElement>(null);
   const [docPanelWidth, setDocPanelWidth] = useState(() => (
     typeof window !== 'undefined'
       ? Math.max(440, Math.min(760, Math.round(window.innerWidth * 0.44)))
@@ -225,6 +243,20 @@ export default function App() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [morphPhase, panelPhase, closeDoc]);
+
+  useEffect(() => {
+    if (appMode !== 'document' || effectiveDocViewMode !== 'panel' || panelPhase !== 'open') return;
+
+    const onPointerDown = (e: PointerEvent) => {
+      const target = e.target;
+      if (target instanceof Node && docPanelRef.current?.contains(target)) return;
+      if (shouldKeepSidePanelOpenForTarget(target)) return;
+      closeDoc();
+    };
+
+    window.addEventListener('pointerdown', onPointerDown);
+    return () => window.removeEventListener('pointerdown', onPointerDown);
+  }, [appMode, closeDoc, effectiveDocViewMode, panelPhase]);
 
   // Cmd+N on stack pages → new note
   const handleNewNote = useCallback(() => {
@@ -1090,18 +1122,21 @@ export default function App() {
       {effectiveDocViewMode === 'panel' && panelPhase !== 'idle' && (() => {
         const panelRect = getPanelRect();
         return (
-          <div style={{
-            position: 'fixed',
-            top: panelRect.top,
-            right: panelPhase === 'open' ? 0 : -panelRect.width,
-            width: panelRect.width,
-            bottom: 0,
-            zIndex: 170,
-            transition: `right ${PANEL_SLIDE_MS}ms cubic-bezier(0.22,1,0.36,1)`,
-            boxShadow: '-8px 0 32px rgba(0,0,0,0.3)',
-            borderLeft: '1px solid var(--c-border)',
-            overflow: 'hidden',
-          }}>
+          <div
+            ref={docPanelRef}
+            style={{
+              position: 'fixed',
+              top: panelRect.top,
+              right: panelPhase === 'open' ? 0 : -panelRect.width,
+              width: panelRect.width,
+              bottom: 0,
+              zIndex: 170,
+              transition: `right ${PANEL_SLIDE_MS}ms cubic-bezier(0.22,1,0.36,1)`,
+              boxShadow: '-8px 0 32px rgba(0,0,0,0.3)',
+              borderLeft: '1px solid var(--c-border)',
+              overflow: 'hidden',
+            }}
+          >
             <div
               style={{
                 position: 'absolute',

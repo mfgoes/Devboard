@@ -23,6 +23,17 @@ function parseWikiLink(raw: string): { title: string; alias: string } {
   return { title, alias };
 }
 
+function getWikiChipTitle(chip: HTMLElement): string {
+  return (chip.dataset.title ?? chip.textContent ?? '').trim();
+}
+
+function findDocumentByTitle(documents: Document[], title: string): Document | null {
+  const target = title.trim();
+  if (!target) return null;
+  const exactMatch = documents.find((doc) => normalizeTitleText(doc.title) === normalizeTitleText(target));
+  return exactMatch ?? null;
+}
+
 function wikiLinkRaw(title: string, alias?: string): string {
   const cleanTitle = title.trim();
   const cleanAlias = alias?.trim();
@@ -68,11 +79,35 @@ function copyPlainText(text: string): boolean {
   return ok && copied;
 }
 
-function applyChipsToDOM(container: HTMLElement): void {
+function syncWikiChipState(chip: HTMLElement, documents: Document[]): void {
+  const title = getWikiChipTitle(chip);
+  const linked = findDocumentByTitle(documents, title);
+  const isMissing = !linked;
+
+  chip.classList.add('chip-wiki');
+  chip.classList.toggle('chip-wiki--missing', isMissing);
+  chip.dataset.wikiStatus = isMissing ? 'missing' : 'resolved';
+  chip.removeAttribute('title');
+
+  if (isMissing) {
+    chip.setAttribute('aria-label', title ? `Unresolved note link: ${title}` : 'Unresolved note link');
+    chip.title = title ? `Create note: ${title}` : 'Create note';
+    if (!chip.textContent?.trim()) {
+      chip.dataset.missingLabel = 'Create note';
+    } else {
+      delete chip.dataset.missingLabel;
+    }
+  } else {
+    chip.setAttribute('aria-label', `Open note: ${title}`);
+    chip.title = title;
+    delete chip.dataset.missingLabel;
+  }
+}
+
+function applyChipsToDOM(container: HTMLElement, documents: Document[] = []): void {
   container.querySelectorAll<HTMLElement>('[data-chip="wiki"]').forEach((chip) => {
-    chip.classList.add('chip-wiki');
     chip.removeAttribute('contenteditable');
-    chip.removeAttribute('title');
+    syncWikiChipState(chip, documents);
   });
 
   const textNodes: Text[] = [];
@@ -107,6 +142,7 @@ function applyChipsToDOM(container: HTMLElement): void {
         span.dataset.title = title;
         if (alias) span.dataset.alias = alias;
         span.textContent = alias || title;
+        syncWikiChipState(span, documents);
         frag.appendChild(span);
       } else if (match[2]) {
         const nodeId = match[2].slice(6);
@@ -142,7 +178,12 @@ function stripChipsFromHTML(html: string): string {
     if (type === 'wiki') {
       const title = chip.dataset.title ?? chip.textContent ?? '';
       const text = chip.textContent ?? '';
-      raw = text.trim() ? wikiLinkRaw(title, text !== title ? text : '') : '';
+      const status = chip.dataset.wikiStatus;
+      raw = text.trim()
+        ? wikiLinkRaw(title, text !== title ? text : '')
+        : status === 'missing'
+          ? '[[ ]]'
+          : '';
     }
     else if (type === 'node') raw = `@node:${chip.dataset.nodeid ?? chip.textContent}`;
     else raw = chip.textContent ?? '';
@@ -2476,7 +2517,7 @@ interface DocumentModeProps {
 }
 
 export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, panelMode = false }: DocumentModeProps) {
-  const { documents, activeDocId, updateDocument, toggleFavoriteDocument, addDocument, closeDocument, openDocumentWithMorph, nodes, pages, activePageId, boardTitle, saveHistory, undo, redo, noteAutosaveEnabled, imageAssetFolder } = useBoardStore();
+  const { documents, activeDocId, updateDocument, toggleFavoriteDocument, addDocument, closeDocument, openDocumentWithMorph, nodes, activePageId, saveHistory, undo, redo, noteAutosaveEnabled, imageAssetFolder } = useBoardStore();
   const contentRef = useRef<HTMLDivElement>(null);
   const editorScrollRef = useRef<HTMLDivElement>(null);
   const sourceRef = useRef<HTMLTextAreaElement>(null);
@@ -2516,11 +2557,6 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
   const selectionToolbarInteractingRef = useRef(false);
 
   const doc = documents.find((d) => d.id === activeDocId) as Document | undefined;
-  const activePage = pages.find((p) => p.id === activePageId);
-  const pageBackLabel = activePage?.layoutMode === 'freeform' ? 'Back to canvas' : 'Back to page';
-  const pageBackTitle = activePage?.layoutMode === 'freeform'
-    ? `Return to ${activePage?.name ?? boardTitle} canvas`
-    : `Return to ${activePage?.name ?? boardTitle} page`;
   const handleClose = onClose ?? closeDocument;
 
   const panelNavBtn = (disabled: boolean): React.CSSProperties => ({
@@ -2529,7 +2565,7 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
     cursor: disabled ? 'default' : 'pointer',
     color: disabled ? 'var(--c-text-lo)' : 'var(--c-text-md)',
     opacity: disabled ? 0.35 : 1,
-    transition: 'background 0.1s',
+    transition: 'background 0.12s, color 0.12s, opacity 0.12s, transform 0.12s',
     flexShrink: 0,
   });
 
@@ -2559,6 +2595,11 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
       });
   }, [doc?.id, doc?.title, documents]);
 
+  const wikiResolutionSignature = useMemo(
+    () => documents.map((entry) => normalizeTitleText(entry.title)).sort().join('\u0000'),
+    [documents],
+  );
+
   // Canvas node mentions: @node:id patterns found in this doc
   const mentionedNodes = useMemo(() => {
     if (!doc?.content) return [];
@@ -2569,6 +2610,11 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
     while ((m = re.exec(text)) !== null) ids.add(m[1]);
     return nodes.filter((n) => ids.has(n.id));
   }, [doc?.id, doc?.content, nodes]);
+
+  useEffect(() => {
+    if (viewMode !== 'edit' || !contentRef.current) return;
+    applyChipsToDOM(contentRef.current, useBoardStore.getState().documents);
+  }, [viewMode, wikiResolutionSignature]);
 
   const docWordCount = useMemo(() => wordCountFromHtml(doc?.content ?? ''), [doc?.content]);
   const docReadingTime = useMemo(() => readingTimeLabel(docWordCount), [docWordCount]);
@@ -2773,7 +2819,7 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
       const hydrated = await hydrateDocumentImages(content);
       if (cancelled || !contentRef.current) return;
       contentRef.current.innerHTML = hydrated;
-      applyChipsToDOM(contentRef.current);
+      applyChipsToDOM(contentRef.current, documents);
       ensureDocImageIds(contentRef.current);
       ensureDocumentHeadingIds(contentRef.current);
       updatePlaceholderVisibility(contentRef.current);
@@ -2979,7 +3025,7 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
         const currentHtml = stripChipsFromHTML(contentRef.current.innerHTML);
         if (currentHtml !== hydrated) {
           contentRef.current.innerHTML = hydrated;
-          applyChipsToDOM(contentRef.current);
+          applyChipsToDOM(contentRef.current, documents);
           ensureDocImageIds(contentRef.current);
           ensureDocumentHeadingIds(contentRef.current);
           updatePlaceholderVisibility(contentRef.current);
@@ -3066,7 +3112,7 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
     requestAnimationFrame(() => {
       if (contentRef.current) {
         contentRef.current.innerHTML = html;
-        applyChipsToDOM(contentRef.current);
+        applyChipsToDOM(contentRef.current, documents);
         ensureDocImageIds(contentRef.current);
         ensureDocumentHeadingIds(contentRef.current);
         updatePlaceholderVisibility(contentRef.current);
@@ -3226,7 +3272,7 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
     checkpointDocumentHistory();
     markDirty();
     contentRef.current.innerHTML = nextHtml;
-    applyChipsToDOM(contentRef.current);
+    applyChipsToDOM(contentRef.current, documents);
     ensureDocImageIds(contentRef.current);
     ensureDocumentHeadingIds(contentRef.current);
     updatePlaceholderVisibility(contentRef.current);
@@ -3306,6 +3352,7 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
   }, []);
 
   const insertWikiChip = useCallback((title: string) => {
+    const currentDocuments = useBoardStore.getState().documents;
     const editingChip = wikilinkPicker?.chip;
     if (editingChip && contentRef.current?.contains(editingChip)) {
       const previousTitle = editingChip.dataset.title ?? '';
@@ -3320,6 +3367,7 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
         delete editingChip.dataset.alias;
         editingChip.textContent = title;
       }
+      syncWikiChipState(editingChip, currentDocuments);
 
       contentRef.current.focus();
       const range = document.createRange();
@@ -3347,6 +3395,7 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
       span.dataset.alias = alias;
     }
     span.textContent = alias || title;
+    syncWikiChipState(span, currentDocuments);
     insertChipInEditor(span);
     setWikilinkPicker(null);
   }, [insertChipInEditor, wikilinkPicker]);
@@ -3638,6 +3687,14 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
 
   const isWikiLinkActive = !!getActiveWikiChip();
   const wikiPreviewTitleText = wikiPreview?.doc.title || 'Untitled';
+  const showSidePanelControl = !!onCollapseToPanel && !panelMode;
+  const primaryNavTitle = panelMode
+    ? 'Collapse note'
+    : showSidePanelControl
+      ? 'Show as side panel'
+      : 'Close note';
+  const onPrimaryNav = showSidePanelControl ? onCollapseToPanel : handleClose;
+  const primaryNavDirection: 'left' | 'right' = panelMode ? 'right' : 'left';
 
   return (
     <div
@@ -3662,6 +3719,78 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
           flexShrink: 0,
         }}
       >
+        {/* Page controls */}
+        <div
+          className="doc-top-left-controls"
+          style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}
+        >
+          <button
+            onClick={onPrimaryNav}
+            title={primaryNavTitle}
+            style={panelNavBtn(false)}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--c-hover)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+          >
+            <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+              {primaryNavDirection === 'right' ? (
+                <>
+                  <path d="M5.2 3.1 9.6 7.5l-4.4 4.4" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M2 3.1 6.4 7.5 2 11.9" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round" />
+                </>
+              ) : (
+                <>
+                  <path d="M9.8 3.1 5.4 7.5l4.4 4.4" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M13 3.1 8.6 7.5 13 11.9" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round" />
+                </>
+              )}
+            </svg>
+          </button>
+          {(panelMode || onCollapseToPanel) && (
+            <>
+              {onExpand && panelMode && (
+                <button
+                  onClick={onExpand}
+                  title="Open in full page"
+                  style={panelNavBtn(false)}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--c-hover)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                >
+                  <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
+                    <path d="M2 8v3h3M11 5V2H8M2 5V2h3M11 8v3H8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </button>
+              )}
+              <div style={{ width: 1, height: 18, background: 'var(--c-border)', margin: '0 4px', opacity: 0.72 }} />
+              <button
+                className="doc-top-left-controls__step"
+                onClick={() => prevPageDoc && openDocumentWithMorph(prevPageDoc.id)}
+                disabled={!prevPageDoc}
+                title={prevPageDoc ? `Previous: ${prevPageDoc.title || 'Untitled'}` : 'No previous note'}
+                style={panelNavBtn(!prevPageDoc)}
+                onMouseEnter={(e) => { if (prevPageDoc) e.currentTarget.style.background = 'var(--c-hover)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+              >
+                <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
+                  <path d="M8 2.5 4.5 6.5 8 10.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+              <button
+                className="doc-top-left-controls__step"
+                onClick={() => nextPageDoc && openDocumentWithMorph(nextPageDoc.id)}
+                disabled={!nextPageDoc}
+                title={nextPageDoc ? `Next: ${nextPageDoc.title || 'Untitled'}` : 'No next note'}
+                style={panelNavBtn(!nextPageDoc)}
+                onMouseEnter={(e) => { if (nextPageDoc) e.currentTarget.style.background = 'var(--c-hover)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+              >
+                <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
+                  <path d="M5 2.5 8.5 6.5 5 10.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+            </>
+          )}
+        </div>
+
         {/* Back through wikilink history */}
         {docHistory.length > 0 && (() => {
           const prevDoc = documents.find((d) => d.id === docHistory[docHistory.length - 1]);
@@ -3693,27 +3822,6 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
           );
         })()}
 
-        {/* Breadcrumb */}
-        <button
-          onClick={handleClose}
-          title={pageBackTitle}
-          style={{
-            padding: 0,
-            background: 'transparent',
-            border: 'none',
-            fontSize: 12,
-            color: 'var(--c-text-lo)',
-            cursor: 'pointer',
-            userSelect: 'none',
-            flexShrink: 0,
-            transition: 'color 0.12s',
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--c-text-hi)'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--c-text-lo)'; }}
-        >
-          {activePage?.name ?? boardTitle}
-        </button>
-        <span style={{ fontSize: 12, color: 'var(--c-text-lo)', opacity: 0.4, flexShrink: 0 }}>›</span>
         <button
           type="button"
           onClick={() => toggleFavoriteDocument(doc.id)}
@@ -3768,80 +3876,6 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
           }}
         />
 
-        {/* Note view controls */}
-        {(panelMode || onCollapseToPanel) && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
-            <>
-              <button
-                onClick={() => prevPageDoc && openDocumentWithMorph(prevPageDoc.id)}
-                disabled={!prevPageDoc}
-                title={prevPageDoc ? `Previous: ${prevPageDoc.title || 'Untitled'}` : 'No previous note'}
-                style={panelNavBtn(!prevPageDoc)}
-                onMouseEnter={(e) => { if (prevPageDoc) e.currentTarget.style.background = 'var(--c-hover)'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
-              >
-                <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-                  <path d="M8 2.5 4.5 6.5 8 10.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </button>
-              <button
-                onClick={() => nextPageDoc && openDocumentWithMorph(nextPageDoc.id)}
-                disabled={!nextPageDoc}
-                title={nextPageDoc ? `Next: ${nextPageDoc.title || 'Untitled'}` : 'No next note'}
-                style={panelNavBtn(!nextPageDoc)}
-                onMouseEnter={(e) => { if (nextPageDoc) e.currentTarget.style.background = 'var(--c-hover)'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
-              >
-                <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-                  <path d="M5 2.5 8.5 6.5 5 10.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </button>
-            </>
-            {panelMode && (
-              <>
-              </>
-            )}
-            {onExpand && panelMode && (
-              <button
-                onClick={onExpand}
-                title="Open in full page"
-                style={panelNavBtn(false)}
-                onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--c-hover)'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
-              >
-                <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-                  <path d="M2 8v3h3M11 5V2H8M2 5V2h3M11 8v3H8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </button>
-            )}
-            {onCollapseToPanel && !panelMode && (
-              <button
-                onClick={onCollapseToPanel}
-                title="Show as side panel"
-                style={panelNavBtn(false)}
-                onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--c-hover)'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
-              >
-                <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-                  <rect x="2" y="2" width="9" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
-                  <path d="M8 2v9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-                </svg>
-              </button>
-            )}
-            <button
-              onClick={handleClose}
-              title={panelMode ? 'Close panel (Esc)' : 'Close note (Esc)'}
-              style={panelNavBtn(false)}
-              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--c-hover)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
-            >
-              <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-                <path d="M3 3L10 10" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-                <path d="M10 3L3 10" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-              </svg>
-            </button>
-          </div>
-        )}
       </div>
 
       {/* Body: editor */}
@@ -3903,8 +3937,8 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
               onContextMenu={(e) => {
                 const chip = (e.target as HTMLElement).closest?.('[data-chip="wiki"]') as HTMLElement | null;
                 if (!chip) return;
-                const title = chip.dataset.title ?? '';
-                const linked = documents.find((d) => d.title === title);
+                const title = getWikiChipTitle(chip);
+                const linked = findDocumentByTitle(documents, title);
                 if (!linked) return;
                 e.preventDefault();
                 e.stopPropagation();
@@ -3921,10 +3955,10 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
                 const chip = (e.target as HTMLElement).closest?.('[data-chip="wiki"]') as HTMLElement | null;
                 if (chip) {
                   keepWikiPreviewOpen();
-                  const title = chip.dataset.title ?? '';
+                  const title = getWikiChipTitle(chip);
                   if (wikiPreviewTitle.current !== title || wikiPreview?.chip !== chip) {
                     wikiPreviewTitle.current = title;
-                    const linked = documents.find((d) => d.title === title);
+                    const linked = findDocumentByTitle(documents, title);
                     if (linked) {
                       const rect = chip.getBoundingClientRect();
                       setWikiPreview({ x: Math.min(rect.left, window.innerWidth - 380), y: rect.bottom + 10, doc: linked, chip });
@@ -3961,11 +3995,23 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
                   const moved = pointerDown?.chip === chip && Math.hypot(e.clientX - pointerDown.x, e.clientY - pointerDown.y) > 4;
                   const selection = window.getSelection();
                   if (moved || (selection && !selection.isCollapsed)) return;
-                  const title = chip.dataset.title;
-                  const linked = documents.find((d) => d.title === title);
+                  const title = getWikiChipTitle(chip);
+                  const linked = findDocumentByTitle(documents, title);
                   if (linked && doc) {
                     setDocHistory((prev) => [...prev, doc.id]);
                     openDocumentWithMorph(linked.id);
+                  } else {
+                    const rect = chip.getBoundingClientRect();
+                    setWikiContextMenu(null);
+                    closeWikiPreview(0);
+                    setSelectionToolbarAnchor(null);
+                    setNodePicker(null);
+                    setWikilinkPicker({
+                      x: Math.min(rect.left, window.innerWidth - PICKER_WIDTH - 12),
+                      y: rect.bottom + 6,
+                      initialQuery: title,
+                      chip,
+                    });
                   }
                 } else if (type === 'node') {
                   const nodeId = chip.dataset.nodeid;
@@ -4117,7 +4163,7 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
                   if (!html && !text) return;
                   e.preventDefault();
                   document.execCommand('insertHTML', false, sanitizeClipboardHtml(html, text));
-                  if (contentRef.current) applyChipsToDOM(contentRef.current);
+                  if (contentRef.current) applyChipsToDOM(contentRef.current, documents);
                   handleInput();
                 }}
                 onDragOver={(e) => {

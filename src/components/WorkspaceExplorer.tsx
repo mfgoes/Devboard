@@ -1275,7 +1275,7 @@ function PageGroup({
                   setPageMenu(null);
                 }}
               >
-                <span>By updated date</span>
+                <span>Newest first</span>
                 {page.noteSort !== 'custom' && <span className="text-[10px] ml-3">✓</span>}
               </button>
               <button
@@ -2624,6 +2624,25 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
           flexShrink: 0,
         }}
       >
+        <button
+          onClick={onCollapse}
+          title={collapseIcon === 'open' ? 'Open sidebar' : 'Close sidebar'}
+          className="w-7 h-7 flex items-center justify-center rounded-lg text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
+          style={{ border: 'none', background: 'transparent', cursor: 'pointer', flexShrink: 0 }}
+        >
+          {collapseIcon === 'open' ? (
+            <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+              <path d="M5.2 3.1 9.6 7.5l-4.4 4.4" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M2 3.1 6.4 7.5 2 11.9" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          ) : (
+            <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+              <path d="M9.8 3.1 5.4 7.5l4.4 4.4" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M13 3.1 8.6 7.5 13 11.9" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          )}
+        </button>
+
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, flex: 1 }}>
           {!searchOpen ? (
             workspaceNameEditing ? (
@@ -2788,24 +2807,6 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
             </div>
           ) : (
             <>
-              <button
-                onClick={onCollapse}
-                title={collapseIcon === 'open' ? 'Open sidebar' : 'Close sidebar'}
-                className="w-7 h-7 flex items-center justify-center rounded-lg text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
-                style={{ border: 'none', background: 'transparent', cursor: 'pointer', flexShrink: 0 }}
-              >
-                {collapseIcon === 'open' ? (
-                  <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
-                    <path d="M5.2 3.1 9.6 7.5l-4.4 4.4" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round" />
-                    <path d="M2 3.1 6.4 7.5 2 11.9" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                ) : (
-                  <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
-                    <path d="M9.8 3.1 5.4 7.5l4.4 4.4" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round" />
-                    <path d="M13 3.1 8.6 7.5 13 11.9" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                )}
-              </button>
               <button
                 onClick={() => {
                   setSearchOpen((current) => {

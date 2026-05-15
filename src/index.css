@@ -391,6 +391,30 @@ canvas:focus {
   padding: 0.07em 0.46em;
   text-decoration-color: transparent;
 }
+.chip-wiki--missing {
+  color: color-mix(in srgb, var(--c-text-lo) 88%, var(--c-text-md));
+  background: color-mix(in srgb, var(--c-border) 24%, transparent);
+  border: 1px dashed color-mix(in srgb, var(--c-text-lo) 38%, var(--c-border));
+  padding: 0.08em 0.46em;
+  text-decoration-style: dotted;
+  text-decoration-color: color-mix(in srgb, var(--c-text-lo) 65%, transparent);
+}
+.chip-wiki--missing:hover,
+.chip-wiki--missing:focus-visible {
+  color: var(--c-text-md);
+  background: color-mix(in srgb, var(--c-border) 36%, var(--c-panel));
+  border-color: color-mix(in srgb, var(--c-text-lo) 55%, var(--c-border));
+  margin: 0 0.1em;
+  padding: 0.08em 0.5em;
+  text-decoration-color: transparent;
+}
+.chip-wiki--missing:empty::after {
+  content: attr(data-missing-label);
+  color: var(--c-text-lo);
+  font-size: 0.94em;
+  font-style: normal;
+  letter-spacing: 0.01em;
+}
 
 .chip-node {
   display: inline;
@@ -433,6 +457,22 @@ canvas:focus {
   color: var(--c-line);
   font-weight: 600;
   cursor: default;
+}
+
+.doc-top-left-controls__step {
+  opacity: 0 !important;
+  pointer-events: none;
+  transform: translateY(-1px);
+}
+.doc-top-left-controls:hover .doc-top-left-controls__step,
+.doc-top-left-controls:focus-within .doc-top-left-controls__step {
+  opacity: 1 !important;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+.doc-top-left-controls:hover .doc-top-left-controls__step:disabled,
+.doc-top-left-controls:focus-within .doc-top-left-controls__step:disabled {
+  opacity: 0.35 !important;
 }
 
 @keyframes download-progress-shimmer {

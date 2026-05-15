@@ -30,6 +30,8 @@ function sortDocumentsForPage(docs: Document[], sortMode: 'updated' | 'custom' =
   return [...docs].sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
+type StackSort = 'updated' | 'custom' | 'az' | 'tag';
+
 interface StackCardProps {
   doc: Document;
   onOpen: (rect: DOMRect) => void;
@@ -75,6 +77,7 @@ function StackCard({
   return (
     <div
       ref={cardRef}
+      data-side-panel-open-target="true"
       onClick={openFromCard}
       onDoubleClick={openFromCard}
       onContextMenu={(e) => {
@@ -242,9 +245,10 @@ export default function StackView({ pageId, pageName }: Props) {
   const ensureDocumentNode = useBoardStore((s) => s.ensureDocumentNode);
   const openDocumentWithMorph = useBoardStore((s) => s.openDocumentWithMorph);
   const setDocViewMode = useBoardStore((s) => s.setDocViewMode);
+  const setPageNoteSort = useBoardStore((s) => s.setPageNoteSort);
   const toggleFavoriteDocument = useBoardStore((s) => s.toggleFavoriteDocument);
   const page = pages.find((entry) => entry.id === pageId);
-  const [sort, setSort] = useState<'page' | 'az' | 'tag'>('page');
+  const [sort, setSort] = useState<StackSort>(() => page?.noteSort === 'custom' ? 'custom' : 'updated');
   const [noteMenu, setNoteMenu] = useState<StackNoteMenuState | null>(null);
   const [noteMenuExportOpen, setNoteMenuExportOpen] = useState(false);
   const [renamingDocId, setRenamingDocId] = useState<string | null>(null);
@@ -258,8 +262,35 @@ export default function StackView({ pageId, pageName }: Props) {
     const filtered = documents.filter((d) => d.pageId === pageId);
     if (sort === 'az') return [...filtered].sort((a, b) => a.title.localeCompare(b.title));
     if (sort === 'tag') return [...filtered].sort((a, b) => ((a.tags?.[0] ?? 'z').localeCompare(b.tags?.[0] ?? 'z')));
-    return sortDocumentsForPage(filtered, page?.noteSort ?? 'updated');
-  }, [documents, page?.noteSort, pageId, sort]);
+    return sortDocumentsForPage(filtered, sort);
+  }, [documents, pageId, sort]);
+
+  useEffect(() => {
+    setSort(page?.noteSort === 'custom' ? 'custom' : 'updated');
+  }, [page?.noteSort, pageId]);
+
+  const handleSortChange = (nextSort: StackSort) => {
+    if (!page) {
+      setSort(nextSort);
+      return;
+    }
+
+    if (nextSort === 'custom' && page.noteSort !== 'custom') {
+      sortDocumentsForPage(
+        documents.filter((doc) => doc.pageId === pageId),
+        'updated',
+      ).forEach((doc, index) => {
+        if (doc.orderIndex !== index) updateDocument(doc.id, { orderIndex: index });
+      });
+      setPageNoteSort(page.id, 'custom');
+    }
+
+    if (nextSort === 'updated' && page.noteSort === 'custom') {
+      setPageNoteSort(page.id, 'updated');
+    }
+
+    setSort(nextSort);
+  };
 
   const handleOpen = (docId: string, rect: DOMRect) => {
     openDocumentWithMorph(docId, { left: rect.left, top: rect.top, width: rect.width, height: rect.height });
@@ -341,8 +372,13 @@ export default function StackView({ pageId, pageName }: Props) {
       title: '',
       content: '',
       pageId,
-      orderIndex: page?.noteSort === 'custom' ? existingPageDocs.length : undefined,
+      orderIndex: page?.noteSort === 'custom' ? 0 : undefined,
     });
+    if (page?.noteSort === 'custom') {
+      existingPageDocs.forEach((doc, index) => {
+        updateDocument(doc.id, { orderIndex: index + 1 });
+      });
+    }
     ensureDocumentNode(id, pageId);
     const rect = sourceEl?.getBoundingClientRect();
     openDocumentWithMorph(id, rect ? { left: rect.left, top: rect.top, width: rect.width, height: rect.height } : undefined);
@@ -395,10 +431,15 @@ export default function StackView({ pageId, pageName }: Props) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, fontSize: 11, color: 'var(--c-text-md)' }}>
           <span>Sort</span>
           <div style={{ display: 'inline-flex', padding: 2, background: 'var(--c-panel)', border: '1px solid var(--c-border)', borderRadius: 6 }}>
-            {(['page', 'az', 'tag'] as const).map((s) => (
+            {([
+              { id: 'updated' as const, label: 'Newest' },
+              { id: 'custom' as const, label: 'Page order' },
+              { id: 'az' as const, label: 'A-Z' },
+              { id: 'tag' as const, label: 'Tag' },
+            ]).map(({ id, label }) => (
               <button
-                key={s}
-                onClick={() => setSort(s)}
+                key={id}
+                onClick={() => handleSortChange(id)}
                 style={{
                   padding: '3px 9px',
                   fontSize: 11,
@@ -406,13 +447,13 @@ export default function StackView({ pageId, pageName }: Props) {
                   borderRadius: 4,
                   border: 'none',
                   cursor: 'pointer',
-                  background: sort === s ? 'var(--c-canvas)' : 'transparent',
-                  color: sort === s ? 'var(--c-text-hi)' : 'var(--c-text-md)',
-                  boxShadow: sort === s ? '0 1px 2px rgba(40,32,26,.08)' : 'none',
+                  background: sort === id ? 'var(--c-canvas)' : 'transparent',
+                  color: sort === id ? 'var(--c-text-hi)' : 'var(--c-text-md)',
+                  boxShadow: sort === id ? '0 1px 2px rgba(40,32,26,.08)' : 'none',
                   transition: 'background 100ms',
                 }}
               >
-                {s === 'page' ? 'Page order' : s === 'az' ? 'A–Z' : 'Tag'}
+                {label}
               </button>
             ))}
           </div>
@@ -625,6 +666,7 @@ const NewNoteButton = forwardRef<HTMLDivElement, { onClick: () => void; classNam
     <div
       ref={ref}
       role="button"
+      data-side-panel-open-target="true"
       className={className}
       onClick={onClick}
       onMouseEnter={() => setHovered(true)}
@@ -632,27 +674,30 @@ const NewNoteButton = forwardRef<HTMLDivElement, { onClick: () => void; classNam
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: 8,
-        padding: '11px 14px',
-        marginBottom: 12,
-        background: hovered ? 'var(--c-hover)' : 'var(--c-panel)',
-        border: `1.5px dashed ${hovered ? 'rgba(184,119,80,0.4)' : 'var(--c-border)'}`,
+        justifyContent: 'center',
+        gap: 9,
+        minHeight: 48,
+        padding: '0 18px',
+        marginBottom: 18,
+        background: hovered
+          ? 'color-mix(in srgb, var(--c-line) 20%, var(--c-panel))'
+          : 'color-mix(in srgb, var(--c-line) 14%, var(--c-panel))',
+        border: '1px solid rgba(184,119,80,0.36)',
         borderRadius: 10,
-        color: hovered ? 'var(--c-text-md)' : 'var(--c-text-lo)',
+        boxShadow: hovered ? '0 10px 24px rgba(0,0,0,0.16)' : '0 6px 18px rgba(0,0,0,0.1)',
+        color: 'var(--c-line)',
         fontSize: 13,
+        fontWeight: 800,
         fontFamily: 'inherit',
-        cursor: 'text',
-        transition: 'background 120ms, border-color 120ms, color 120ms',
+        cursor: 'pointer',
+        transition: 'background 120ms, box-shadow 120ms, transform 120ms',
+        transform: hovered ? 'translateY(-1px)' : 'translateY(0)',
       }}
     >
       <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
         <path d="M6 1v10M1 6h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
       </svg>
-      <span>New note…</span>
-      <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 3, fontFamily: 'monospace', fontSize: 10, color: 'var(--c-text-lo)' }}>
-        <kbd style={{ padding: '1px 4px', border: '1px solid var(--c-border)', background: 'var(--c-canvas)', borderRadius: 3, fontSize: 9.5, lineHeight: '1.4' }}>⌘</kbd>
-        <kbd style={{ padding: '1px 4px', border: '1px solid var(--c-border)', background: 'var(--c-canvas)', borderRadius: 3, fontSize: 9.5, lineHeight: '1.4' }}>N</kbd>
-      </span>
+      <span>New note</span>
     </div>
   );
 });
