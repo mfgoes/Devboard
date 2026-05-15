@@ -67,7 +67,7 @@ export default function WelcomeModal({ onClose }: Props) {
             </div>
             <span className="text-[var(--c-line-pre)] text-[11px] font-semibold group-hover:translate-x-0.5 transition-transform">→</span>
           </a>
-          {/* Secondary links + start CTA */}
+          {/* Secondary links + close CTA */}
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-3 text-[11px] text-[var(--c-text-lo)]">
               <a
@@ -92,7 +92,7 @@ export default function WelcomeModal({ onClose }: Props) {
               onClick={onClose}
               className="px-4 py-1.5 bg-[var(--c-line)] hover:opacity-80 text-white text-xs rounded-lg transition-colors font-semibold"
             >
-              Start drawing
+              Close
             </button>
           </div>
         </div>

@@ -47,6 +47,7 @@
   },
   "plugins": {
     "updater": {
+      "pubkey": "",
       "endpoints": [
         "https://github.com/mfgoes/Devboard/releases/latest/download/latest.json"
       ],
