@@ -82,21 +82,27 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: |
           cp src-tauri/target/${{ matrix.target }}/release/bundle/appimage/DevBoard_*.AppImage DevBoard-Linux.AppImage
-          cp src-tauri/target/${{ matrix.target }}/release/bundle/appimage/DevBoard_*.AppImage.sig DevBoard-Linux.AppImage.sig
+          if [ -f src-tauri/target/${{ matrix.target }}/release/bundle/appimage/DevBoard_*.AppImage.sig ]; then
+            cp src-tauri/target/${{ matrix.target }}/release/bundle/appimage/DevBoard_*.AppImage.sig DevBoard-Linux.AppImage.sig
+          fi
 
       - name: Create fixed-name artifact (macOS)
         if: matrix.os == 'macos-latest'
         run: |
           cp "src-tauri/target/${{ matrix.target }}/release/bundle/dmg/DevBoard_"*.dmg "DevBoard-macOS.dmg"
           cp "src-tauri/target/${{ matrix.target }}/release/bundle/macos/"*.app.tar.gz "DevBoard-macOS.app.tar.gz"
-          cp "src-tauri/target/${{ matrix.target }}/release/bundle/macos/"*.app.tar.gz.sig "DevBoard-macOS.app.tar.gz.sig"
+          if [ -f src-tauri/target/${{ matrix.target }}/release/bundle/macos/DevBoard_*.app.tar.gz.sig ]; then
+            cp "src-tauri/target/${{ matrix.target }}/release/bundle/macos/"*.app.tar.gz.sig "DevBoard-macOS.app.tar.gz.sig"
+          fi
 
       - name: Create fixed-name artifact (Windows)
         if: matrix.os == 'windows-latest'
         shell: bash
         run: |
           cp src-tauri/target/${{ matrix.target }}/release/bundle/nsis/DevBoard_*-setup.exe DevBoard-Windows.exe
-          cp src-tauri/target/${{ matrix.target }}/release/bundle/nsis/DevBoard_*-setup.exe.sig DevBoard-Windows.exe.sig
+          if [ -f src-tauri/target/${{ matrix.target }}/release/bundle/nsis/DevBoard_*-setup.exe.sig ]; then
+            cp src-tauri/target/${{ matrix.target }}/release/bundle/nsis/DevBoard_*-setup.exe.sig DevBoard-Windows.exe.sig
+          fi
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
