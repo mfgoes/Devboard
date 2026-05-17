@@ -477,8 +477,16 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
     : currentStatus === 'Local changes not synced' || currentStatus === 'Cloud copy newer' || currentStatus === 'Sync paused' || currentStatus === 'Folder access needed'
       ? 'border border-[#f59e0b]/30 bg-[#f59e0b]/15 text-[#b45309]'
       : 'border border-[rgba(54,137,151,0.36)] bg-[rgba(54,137,151,0.15)] text-[rgb(38,103,116)]';
-  const primaryActionLabel = syncEnabled ? 'Sync now' : 'Sync this workspace';
-  const primaryBusyLabel = syncEnabled ? 'Syncing...' : 'Creating copy...';
+  const primaryActionLabel = !syncEnabled
+    ? 'Sync this workspace'
+    : hasNewerCloudCopy
+      ? 'Review cloud copy'
+      : 'Sync now';
+  const primaryBusyLabel = !syncEnabled
+    ? 'Creating copy...'
+    : hasNewerCloudCopy
+      ? 'Opening...'
+      : 'Syncing...';
   const allCanvasNodes = useMemo(
     () => [...nodes, ...Object.values(pageSnapshots).flatMap((snapshot) => snapshot.nodes)],
     [nodes, pageSnapshots]
@@ -956,6 +964,10 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
 
   const handlePrimaryAction = async () => {
     if (syncEnabled) {
+      if (hasNewerCloudCopy && inferredCloudWorkspace) {
+        await handleLoadWorkspace(inferredCloudWorkspace);
+        return;
+      }
       await handleUpdateLinkedWorkspace();
       return;
     }
@@ -1679,6 +1691,16 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
                     </p>
                   </div>
                 )}
+                {syncEnabled && hasNewerCloudCopy && inferredCloudWorkspace && (
+                  <div className="mt-4 rounded-xl border border-[#f59e0b]/30 bg-[#f59e0b]/10 px-4 py-3">
+                    <p className="font-sans text-[12px] font-semibold text-[var(--c-text-hi)]">
+                      A newer cloud copy is available
+                    </p>
+                    <p className="mt-1 font-sans text-[11px] leading-relaxed text-[var(--c-text-md)]">
+                      Review the online copy before uploading local changes, so cloud updates are not overwritten by accident.
+                    </p>
+                  </div>
+                )}
 
                 <div className="mt-4 flex flex-wrap items-center gap-2">
                   <button
@@ -1725,7 +1747,7 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
                   )}
                   {syncEnabled && (
                     <button
-                      onClick={() => void handleUpdateLinkedWorkspace()}
+                      onClick={() => void handlePrimaryAction()}
                       disabled={actionLoading !== null}
                       className="rounded-lg px-2 py-1.5 font-sans text-[11px] font-semibold text-[var(--c-text-lo)] transition-colors hover:bg-[rgba(184,119,80,0.1)] hover:text-[var(--c-line)] disabled:cursor-default disabled:opacity-60"
                     >

@@ -33,20 +33,6 @@ interface TopBarProps {
   onTemplatesOpenChange?: (open: boolean) => void;
 }
 
-function IconExpand() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-      <path d="M1 5V1h4M9 1h4v4M13 9v4H9M5 13H1V9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-function IconCompress() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-      <path d="M5 1v4H1M13 5H9V1M9 13v-4h4M1 9h4v4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
 function IconChevronDown() {
   return (
     <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
@@ -156,7 +142,6 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
   const isDocumentContext = appMode === 'document';
   const fileInputRef = useRef<HTMLInputElement>(null);
   const csvInputRef = useRef<HTMLInputElement>(null);
-  const [isFullscreen, setIsFullscreen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeSubMenu, setActiveSubMenu] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -176,8 +161,6 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
   }, [onTemplatesOpenChange]);
   const [missingWarningOpen, setMissingWarningOpen] = useState(false);
   const missingWarningRef = useRef<HTMLDivElement>(null);
-  const [accountOpen, setAccountOpen] = useState(false);
-  const accountRef = useRef<HTMLDivElement>(null);
   const [cloudOpen, setCloudOpen] = useState(false);
 
   const missingImages = nodes.filter(
@@ -193,13 +176,6 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
     : workspaceFolderLabel
       ? `Re-open workspace folder: ${workspaceFolderLabel}`
       : 'Re-open the workspace folder';
-
-  // Track fullscreen changes (e.g. user presses Esc)
-  useEffect(() => {
-    const onFsChange = () => setIsFullscreen(!!document.fullscreenElement);
-    document.addEventListener('fullscreenchange', onFsChange);
-    return () => document.removeEventListener('fullscreenchange', onFsChange);
-  }, []);
 
   // Close menu on outside click
   useEffect(() => {
@@ -230,27 +206,10 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
   }, [missingWarningOpen]);
 
   useEffect(() => {
-    if (!accountOpen) return;
-    const handler = (e: MouseEvent) => {
-      if (accountRef.current && !accountRef.current.contains(e.target as Node)) setAccountOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [accountOpen]);
-
-  useEffect(() => {
     const handler = () => setCloudOpen(true);
     window.addEventListener('devboard:open-cloud-modal', handler);
     return () => window.removeEventListener('devboard:open-cloud-modal', handler);
   }, []);
-
-  const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(() => {});
-    } else {
-      document.exitFullscreen().catch(() => {});
-    }
-  };
 
   const handleSaveJSON = () => {
     if (workspaceName) {
@@ -553,7 +512,6 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
   const handleSignOut = async () => {
     try {
       await signOut();
-      setAccountOpen(false);
       toast('Signed out.');
     } catch (err) {
       console.warn('Sign-out failed', err);
@@ -583,7 +541,7 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
   const syncBadgeTitle = user && isCloudOnlyWorkspace
     ? 'Saved to cloud. No local workspace folder is attached.'
     : user
-    ? 'Open Workspace Sync'
+    ? `Open Workspace Sync for ${accountLabel}`
     : isLinkedSyncSignedOut
       ? 'Signed out. Sign in to resume Workspace Sync.'
       : 'Sign in to use optional Workspace Sync';
@@ -981,50 +939,19 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
               ].join(' ')}
               disabled={authLoading}
             >
-              <IconGitHub />
+              {user ? (
+                <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[var(--c-border)] bg-[var(--c-hover)]">
+                  {avatarUrl ? (
+                    <img src={avatarUrl} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                  ) : (
+                    <span className="text-[9px] font-semibold leading-none text-[var(--c-text-hi)]">{accountInitial}</span>
+                  )}
+                </span>
+              ) : (
+                <IconGitHub />
+              )}
               <span className="hidden lg:inline">{authLoading ? 'Checking...' : syncBadgeLabel}</span>
             </button>
-
-            {user && (
-              <div className="relative mr-1 hidden md:block shrink-0" ref={accountRef}>
-                <button
-                  onClick={() => setAccountOpen((v) => !v)}
-                  title={user.email ?? 'Signed in'}
-                  className={[
-                    'flex max-w-[180px] items-center justify-center md:justify-start gap-1 md:gap-2 w-10 md:w-auto px-1 md:px-2 h-8 sm:h-7 rounded border font-sans text-[11px] leading-none transition-colors',
-                    accountOpen
-                      ? 'border-[var(--c-line)] bg-[var(--c-hover)] text-[var(--c-text-hi)]'
-                      : 'border-[var(--c-border)] text-[var(--c-text-md)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
-                  ].join(' ')}
-                >
-                  {avatarUrl ? (
-                    <img
-                      src={avatarUrl}
-                      alt=""
-                      className="w-4 h-4 rounded-full object-cover"
-                    />
-                  ) : (
-                    <span className="w-4 h-4 rounded-full bg-[var(--c-line)] text-white text-[9px] font-semibold inline-flex items-center justify-center">
-                      {accountInitial}
-                    </span>
-                  )}
-                  <span className="hidden md:inline min-w-0 max-w-[110px] truncate">{accountLabel}</span>
-                  <IconChevronDown />
-                </button>
-                {accountOpen && (
-                  <div className="absolute top-full right-0 mt-1.5 w-56 rounded-xl border border-[var(--c-border)] bg-[var(--c-panel)] shadow-2xl py-1.5 z-[220]">
-                    <div className="px-3 py-2">
-                      <p className="font-sans text-[11px] font-semibold text-[var(--c-text-hi)] truncate">{accountLabel}</p>
-                      {user.email && (
-                        <p className="font-sans text-[10px] text-[var(--c-text-lo)] truncate mt-0.5">{user.email}</p>
-                      )}
-                    </div>
-                    <MenuDivider />
-                    <MenuItem onClick={handleSignOut} icon={<IconGitHub />}>Sign out</MenuItem>
-                  </div>
-                )}
-              </div>
-            )}
           </>
         )}
 
@@ -1059,17 +986,6 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
             </div>
           )}
         </div>
-
-        <div className="hidden sm:block w-px h-5 bg-[var(--c-border)] mx-1" />
-
-        {/* Fullscreen — hidden on mobile */}
-        <button
-          onClick={toggleFullscreen}
-          title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
-          className="hidden sm:flex w-7 h-7 items-center justify-center rounded text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
-        >
-          {isFullscreen ? <IconCompress /> : <IconExpand />}
-        </button>
 
         <input
           ref={fileInputRef}

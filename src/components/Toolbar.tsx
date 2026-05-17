@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { useRef, useState, useEffect } from 'react';
 import { useBoardStore } from '../store/boardStore';
 import { Tool, ShapeKind } from '../types';
@@ -10,6 +11,81 @@ interface ToolDef {
   shortcut: string;
   icon: React.ReactNode;
   mobileHidden?: boolean;
+}
+
+function ToolbarTooltip({
+  label,
+  shortcut,
+  children,
+}: {
+  label: string;
+  shortcut?: string;
+  children: React.ReactNode;
+}) {
+  const anchorRef = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+
+  const updatePosition = () => {
+    const el = anchorRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    setPosition({
+      x: rect.left + rect.width / 2,
+      y: rect.top,
+    });
+  };
+
+  useEffect(() => {
+    if (!open) return;
+
+    updatePosition();
+    const handleMove = () => updatePosition();
+    window.addEventListener('resize', handleMove);
+    window.addEventListener('scroll', handleMove, true);
+    return () => {
+      window.removeEventListener('resize', handleMove);
+      window.removeEventListener('scroll', handleMove, true);
+    };
+  }, [open]);
+
+  return (
+    <div
+      ref={anchorRef}
+      className="relative inline-flex"
+      onMouseEnter={() => { updatePosition(); setOpen(true); }}
+      onMouseLeave={() => setOpen(false)}
+      onFocusCapture={() => { updatePosition(); setOpen(true); }}
+      onBlurCapture={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOpen(false);
+      }}
+    >
+      {children}
+      {open && typeof document !== 'undefined' && createPortal(
+        <div
+          className="pointer-events-none fixed z-[99999]"
+          style={{
+            left: position.x,
+            top: position.y,
+            transform: 'translate(-50%, calc(-100% - 10px))',
+          }}
+        >
+          <div className="relative whitespace-nowrap rounded-lg bg-[rgba(22,22,22,0.96)] px-3 py-1.5 text-[11px] font-sans font-medium text-white shadow-xl ring-1 ring-white/10">
+            <div className="flex items-center gap-2">
+              <span>{label}</span>
+              {shortcut && (
+                <span className="rounded border border-white/10 bg-white/10 px-1.5 py-0.5 text-[10px] leading-none text-white/80">
+                  {shortcut}
+                </span>
+              )}
+            </div>
+            <div className="absolute left-1/2 top-full -mt-1 h-2.5 w-2.5 -translate-x-1/2 rotate-45 rounded-[1px] bg-[rgba(22,22,22,0.96)] ring-1 ring-white/10" />
+          </div>
+        </div>,
+        document.body,
+      )}
+    </div>
+  );
 }
 
 // Minimal SVG icons — dev-tool aesthetic
@@ -69,14 +145,6 @@ function IconText() {
         strokeWidth="1.5"
         strokeLinecap="round"
       />
-    </svg>
-  );
-}
-function IconLine() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-      <line x1="3" y1="13" x2="13" y2="3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-      <path d="M11 3h2v2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -180,8 +248,6 @@ const TOOLS: ToolDef[] = [
   { id: 'document', label: 'Note', shortcut: 'D', icon: <IconDocument />, mobileHidden: true },
   { id: 'section',  label: 'Section',  shortcut: 'F', icon: <IconSection />, mobileHidden: true },
   { id: 'image',    label: 'Image',    shortcut: 'I', icon: <IconImage />,   mobileHidden: true },
-  { id: 'table',    label: 'Table',    shortcut: 'G', icon: <IconTable />,   mobileHidden: true },
-  { id: 'link',     label: 'Link',     shortcut: 'U', icon: <IconLink />,    mobileHidden: true },
 ];
 
 // Items in the + insert menu
@@ -216,6 +282,22 @@ const INSERT_ITEMS: InsertItem[] = [
     description: 'Emoji & icon stickers',
     icon: <IconSticker />,
     color: '#f59e0b',
+  },
+  {
+    id: 'table',
+    label: 'Table',
+    description: 'Structured rows and columns',
+    shortcut: 'G',
+    icon: <IconTable />,
+    color: '#8b5cf6',
+  },
+  {
+    id: 'link',
+    label: 'Link',
+    description: 'Attach a web URL',
+    shortcut: 'U',
+    icon: <IconLink />,
+    color: '#0ea5e9',
   },
 ];
 
@@ -308,13 +390,6 @@ export default function Toolbar({ onMobileExpandedChange }: ToolbarProps) {
     return () => document.removeEventListener('mousedown', handler);
   }, [insertOpen]);
 
-  // Close insert panel if a tool from it becomes active then user switches away
-  useEffect(() => {
-    if (!INSERT_ITEMS.some((i) => i.id === activeTool)) {
-      // don't close — user might be hovering; let them click again
-    }
-  }, [activeTool]);
-
   const handleInsertSelect = (id: Tool) => {
     setActiveTool(id);
     setInsertOpen(false);
@@ -323,6 +398,7 @@ export default function Toolbar({ onMobileExpandedChange }: ToolbarProps) {
 
   const handleToolSelect = (id: Tool) => {
     setActiveTool(id);
+    setInsertOpen(false);
     if (isMobile) setMobileToolsOpen(false);
   };
 
@@ -403,25 +479,29 @@ export default function Toolbar({ onMobileExpandedChange }: ToolbarProps) {
                 const isActive = activeTool === tool.id;
                 const isComingSoon = tool.id === 'pen';
                 return (
-                  <button
+                  <ToolbarTooltip
                     key={tool.id}
-                    title={`${tool.label}${tool.shortcut ? ` (${tool.shortcut})` : ''}${isComingSoon ? ' — coming soon' : ''}`}
-                    onClick={() => !isComingSoon && handleToolSelect(tool.id)}
-                    className={[
-                      tool.mobileHidden ? 'hidden md:flex' : 'flex',
-                      'relative flex-col items-center justify-center rounded-lg transition-all duration-100 font-sans text-[10px] gap-0.5',
-                      'w-12 h-12 md:w-10 md:h-10 focus:outline-none',
-                      isActive
-                        ? 'bg-[var(--c-line)] text-white shadow-sm'
-                        : isComingSoon
-                        ? 'text-[var(--c-text-off)] cursor-not-allowed'
-                        : 'text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
-                    ].join(' ')}
-                    disabled={isComingSoon}
+                    label={tool.label}
+                    shortcut={tool.shortcut ? `${tool.shortcut}${isComingSoon ? ' • soon' : ''}` : (isComingSoon ? 'Coming soon' : undefined)}
                   >
-                    {tool.icon}
-                    <span className="leading-none">{tool.label.slice(0, 3)}</span>
-                  </button>
+                    <button
+                      aria-label={`${tool.label}${tool.shortcut ? ` (${tool.shortcut})` : ''}`}
+                      onClick={() => !isComingSoon && handleToolSelect(tool.id)}
+                      className={[
+                        tool.mobileHidden ? 'hidden md:flex' : 'flex',
+                        'relative flex-col items-center justify-center rounded-lg transition-all duration-100 font-sans',
+                        'w-12 h-12 md:w-10 md:h-10 focus:outline-none',
+                        isActive
+                          ? 'bg-[var(--c-line)] text-white shadow-sm'
+                          : isComingSoon
+                          ? 'text-[var(--c-text-off)] cursor-not-allowed'
+                          : 'text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
+                      ].join(' ')}
+                      disabled={isComingSoon}
+                    >
+                      {tool.icon}
+                    </button>
+                  </ToolbarTooltip>
                 );
               })}
             </div>
@@ -444,28 +524,29 @@ export default function Toolbar({ onMobileExpandedChange }: ToolbarProps) {
         <div ref={insertRef} className="relative flex items-stretch shrink-0">
           <div className="flex items-center px-1 py-1 gap-0.5">
             <div className="w-px h-6 bg-[var(--c-border)]" />
-            <button
-              title="Insert (Task, Code, Image…)"
-              onClick={() => setInsertOpen((o) => !o)}
-              className={[
-                'flex flex-col items-center justify-center rounded-lg transition-all duration-100 font-sans text-[10px] gap-0.5',
-                'w-10 h-10 focus:outline-none',
-                insertOpen || insertActive
-                  ? 'bg-[var(--c-line)] text-white shadow-sm'
-                  : 'text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
-              ].join(' ')}
-            >
-              <svg
-                width="14" height="14" viewBox="0 0 14 14" fill="none"
-                style={{
-                  transform: insertOpen ? 'rotate(45deg)' : 'rotate(0deg)',
-                  transition: 'transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)',
-                }}
+            <ToolbarTooltip label="Add">
+              <button
+                aria-label="Add"
+                onClick={() => setInsertOpen((o) => !o)}
+                className={[
+                  'flex flex-col items-center justify-center rounded-lg transition-all duration-100 font-sans text-[10px] gap-0.5',
+                  'w-10 h-10 focus:outline-none',
+                  insertOpen || insertActive
+                    ? 'bg-[var(--c-line)] text-white shadow-sm'
+                    : 'text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
+                ].join(' ')}
               >
-                <path d="M7 1v12M1 7h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-              </svg>
-              <span className="leading-none">Add</span>
-            </button>
+                <svg
+                  width="14" height="14" viewBox="0 0 14 14" fill="none"
+                  style={{
+                    transform: insertOpen ? 'rotate(45deg)' : 'rotate(0deg)',
+                    transition: 'transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                  }}
+                >
+                  <path d="M7 1v12M1 7h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                </svg>
+              </button>
+            </ToolbarTooltip>
           </div>
 
           {/* Insert popup panel — renders above the button, unclipped */}
