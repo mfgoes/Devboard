@@ -37,6 +37,7 @@ interface Props {
   isSelected: boolean;
   isDrawingLine?: boolean;
   onAnchorDown?: (nodeId: string, side: AnchorSide, worldX: number, worldY: number) => void;
+  onAnchorUp?: (nodeId: string, side: AnchorSide) => void;
   onAnchorEnter?: (nodeId: string, side: AnchorSide) => void;
   onAnchorLeave?: () => void;
   snapAnchor?: AnchorSide | null;
@@ -103,7 +104,7 @@ function renderPreviewLine(line: PreviewLine, idx: number): React.ReactNode {
   );
 }
 
-export default function DocumentNodeComponent({ node, isSelected, isDrawingLine, onAnchorDown, onAnchorEnter, onAnchorLeave, snapAnchor }: Props) {
+export default function DocumentNodeComponent({ node, isSelected, isDrawingLine, onAnchorDown, onAnchorUp, onAnchorEnter, onAnchorLeave, snapAnchor }: Props) {
   const { camera, updateNode, selectIds, setFocusDocument, openDocument, openDocumentWithMorph, activeTool, documents, activeDocId, focusDocumentId, noteAutosaveEnabled } = useBoardStore();
 
   // Post-migration: read title/content from Document entity; fall back to inline fields
@@ -324,6 +325,10 @@ export default function DocumentNodeComponent({ node, isSelected, isDrawingLine,
             onMouseDown={(e) => {
               e.stopPropagation();
               onAnchorDown?.(node.id, side, node.x + sx(CARD_WIDTH), node.y + sy(CARD_HEIGHT));
+            }}
+            onMouseUp={(e) => {
+              e.stopPropagation();
+              onAnchorUp?.(node.id, side);
             }}
             onMouseEnter={() => { setHoveredAnchor(side); onAnchorEnter?.(node.id, side); }}
             onMouseLeave={() => { setHoveredAnchor(null); onAnchorLeave?.(); }}

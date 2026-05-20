@@ -106,6 +106,7 @@ export interface UseCanvasInteractionOptions {
   setCursorOverride: React.Dispatch<React.SetStateAction<string | null>>;
   imageInputRef: React.RefObject<HTMLInputElement | null>;
   pendingImagePos: React.MutableRefObject<{ x: number; y: number } | null>;
+  onRequestAssetDrawer?: (position: { x: number; y: number }) => void;
 }
 
 export function useCanvasInteraction({
@@ -114,6 +115,7 @@ export function useCanvasInteraction({
   setCursorOverride,
   imageInputRef,
   pendingImagePos,
+  onRequestAssetDrawer,
 }: UseCanvasInteractionOptions) {
   // ── Store subscriptions ──────────────────────────────────────────────────
   const camera          = useBoardStore((s) => s.camera);
@@ -411,7 +413,11 @@ export function useCanvasInteraction({
 
       if (activeTool === 'image' && clickedStage) {
         pendingImagePos.current = { x: worldX, y: worldY };
-        imageInputRef.current?.click();
+        if (onRequestAssetDrawer) {
+          onRequestAssetDrawer({ x: worldX, y: worldY });
+        } else {
+          imageInputRef.current?.click();
+        }
         return;
       }
 
@@ -438,7 +444,7 @@ export function useCanvasInteraction({
         setMarqueeDraw({ startScreenX: pos.x, startScreenY: pos.y, currentScreenX: pos.x, currentScreenY: pos.y });
       }
     },
-    [activeTool, camera, selectIds, drawingLine, placeNodeForTool]
+    [activeTool, camera, selectIds, drawingLine, onRequestAssetDrawer, placeNodeForTool]
   );
 
   // ── Mouse move ────────────────────────────────────────────────────────────
@@ -828,6 +834,42 @@ export function useCanvasInteraction({
     []
   );
 
+  const handleAnchorUp = useCallback((nodeId: string, side: AnchorSide) => {
+    const line = drawingLine;
+    if (!line || nodeId === line.fromNodeId) return;
+
+    const toNode = useBoardStore
+      .getState()
+      .nodes.find(
+        (n) => n.id === nodeId && isAnchorConnectableType(n.type)
+      ) as (StickyNoteNode | ShapeNode | TaskCardNode | ImageNode | DocumentNode | LinkNode | CodeBlockNode) | undefined;
+    const toCoords = toNode
+      ? anchorCoords(toAnchorRect(toNode), side)
+      : { x: line.toX, y: line.toY };
+
+    addNode({
+      id: generateId(),
+      type: 'connector',
+      fromNodeId: line.fromNodeId,
+      fromAnchor: line.fromAnchor,
+      fromX: line.fromX,
+      fromY: line.fromY,
+      toNodeId: nodeId,
+      toAnchor: side,
+      toX: toCoords.x,
+      toY: toCoords.y,
+      color: resolveCssColor('--c-line-default'),
+      strokeWidth: 2,
+      lineStyle: 'curved',
+      strokeStyle: 'solid',
+      arrowHeadStart: 'none',
+      arrowHeadEnd: 'arrow',
+    } satisfies ConnectorNode);
+
+    setDrawingLine(null);
+    setSnapTarget(null);
+  }, [addNode, drawingLine]);
+
   const handleAnchorEnter = useCallback((nodeId: string, side: AnchorSide) => {
     setSnapTarget({ nodeId, side });
   }, []);
@@ -862,6 +904,7 @@ export function useCanvasInteraction({
     handleTouchMove,
     handleTouchEnd,
     handleAnchorDown,
+    handleAnchorUp,
     handleAnchorEnter,
     handleAnchorLeave,
     computeSnap,

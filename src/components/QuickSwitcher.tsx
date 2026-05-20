@@ -47,7 +47,7 @@ export default function QuickSwitcher({ open, onClose, onPickPage, onPickDoc, on
       kind: 'page',
       id: p.id,
       label: p.name,
-      sub: p.layoutMode === 'stack' ? 'Stack' : 'Freeform',
+      sub: p.layoutMode === 'stack' ? 'Notes' : 'Canvas',
       layoutMode: p.layoutMode ?? 'freeform',
     }));
 
@@ -116,7 +116,7 @@ export default function QuickSwitcher({ open, onClose, onPickPage, onPickDoc, on
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={onKey}
-          placeholder="Jump to page, note, or canvas node…"
+          placeholder="Jump to folder, note, or canvas node…"
           style={{ height: 48, padding: '0 16px', border: 0, borderBottom: '1px solid var(--c-border)', background: 'transparent', fontSize: 15, color: 'var(--c-text-hi)', outline: 'none', fontFamily: 'inherit', flexShrink: 0 }}
         />
 
@@ -128,7 +128,7 @@ export default function QuickSwitcher({ open, onClose, onPickPage, onPickDoc, on
 
           {groups.page.length > 0 && (
             <>
-              <SectionLabel>Pages</SectionLabel>
+              <SectionLabel>Folders</SectionLabel>
               {groups.page.map((r) => (
                 <QSItem key={r.id} active={r.i === activeIdx} icon={r.layoutMode === 'stack' ? <IconStackPage /> : <IconFreeformPage />} label={r.label} sub={r.sub} onClick={() => pick(r)} onHover={() => setActiveIdx(r.i)} />
               ))}

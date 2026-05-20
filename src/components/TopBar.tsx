@@ -6,7 +6,7 @@ import { TEMPLATES } from '../templates';
 import ConfirmDialog from './ConfirmDialog';
 import CloudModal from './CloudModal';
 import { saveBoard, saveBoardAs, clearFileHandle } from '../utils/fileSave';
-import { openWorkspace, createWorkspace, saveWorkspace, loadImageAsset, findImageInWorkspace, hasWorkspaceHandle, clearWorkspaceHandle, getWorkspacePathHint, IS_TAURI } from '../utils/workspaceManager';
+import { openWorkspace, createWorkspace, saveWorkspace, hasWorkspaceHandle, clearWorkspaceHandle, getWorkspacePathHint, IS_TAURI } from '../utils/workspaceManager';
 import { toast } from '../utils/toast';
 import { exportDocumentsAsMarkdown, generateMarkdownFilename } from '../utils/exportMarkdown';
 import exportSound from '../assets/get1.mp3';
@@ -21,8 +21,6 @@ interface TopBarProps {
   onNewNote: () => void;
   timerVisible: boolean;
   onToggleTimer: () => void;
-  pagesOpen: boolean;
-  onTogglePages: () => void;
   explorerOpen: boolean;
   onToggleExplorer: () => void;
   onWorkspaceOpened: () => void;
@@ -94,49 +92,8 @@ function parseCSV(text: string): string[][] {
   return rows;
 }
 
-// ── Default save-folder row (used in the missing-images dropdown) ─────────────
-function DefaultFolderRow({ folder, onChange }: { folder: string; onChange: (f: string) => void }) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(folder);
-  const commit = () => {
-    const v = draft.trim().replace(/^\/|\/$/g, '') || 'assets';
-    onChange(v);
-    setEditing(false);
-  };
-  if (editing) {
-    return (
-      <div className="flex items-center gap-1">
-        <input
-          autoFocus
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') setEditing(false); e.stopPropagation(); }}
-          placeholder="assets"
-          className="flex-1 bg-[var(--c-canvas)] border border-[var(--c-border)] focus:border-[var(--c-line)] rounded px-2 py-0.5 font-sans text-[10px] text-[var(--c-text-hi)] outline-none"
-        />
-        <button onClick={commit} className="px-2 py-0.5 rounded bg-[var(--c-line)] text-white font-sans text-[9px]">OK</button>
-      </div>
-    );
-  }
-  return (
-    <button
-      onClick={() => { setDraft(folder); setEditing(true); }}
-      className="w-full flex items-center gap-1.5 text-left font-sans text-[9px] text-[var(--c-text-md)] hover:text-[var(--c-text-hi)] transition-colors"
-      title="Default folder for new images — click to change"
-    >
-      <svg width="9" height="9" viewBox="0 0 9 9" fill="none">
-        <path d="M1 2.5a.7.7 0 0 1 .7-.7h1.8l.7.7H7.3a.7.7 0 0 1 .7.7v3.5a.7.7 0 0 1-.7.7H1.7a.7.7 0 0 1-.7-.7V2.5z" stroke="currentColor" strokeWidth="0.9" strokeLinejoin="round" />
-      </svg>
-      Default: <span className="text-[var(--c-text-md)]">{folder}/</span>
-      <svg width="8" height="8" viewBox="0 0 8 8" fill="none" className="ml-auto">
-        <path d="M5.5 1.5l1 1-4 4H1.5v-1l4-4z" stroke="currentColor" strokeWidth="0.9" strokeLinejoin="round" />
-      </svg>
-    </button>
-  );
-}
-
-export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleTimer, pagesOpen, onTogglePages, explorerOpen, onToggleExplorer, onWorkspaceOpened, jiraOpen, onToggleJira, onToggleSearch, templatesOpen, onTemplatesOpenChange }: TopBarProps) {
-  const { boardTitle, exportData, loadBoard, setActiveTool, setActiveShapeKind, toggleTheme, theme, addNode, pages, activePageId, setPageLayoutMode, workspaceName, setWorkspaceName, nodes, updateNode, imageAssetFolder, setImageAssetFolder, appMode, noteAutosaveEnabled, setNoteAutosaveEnabled, cloudBoardId, cloudSyncedAt, lastLocalSavedAt } = useBoardStore();
+export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleTimer, explorerOpen, onToggleExplorer, onWorkspaceOpened, jiraOpen, onToggleJira, onToggleSearch, templatesOpen, onTemplatesOpenChange }: TopBarProps) {
+  const { boardTitle, exportData, loadBoard, setActiveTool, setActiveShapeKind, toggleTheme, theme, addNode, pages, activePageId, setPageLayoutMode, workspaceName, setWorkspaceName, nodes, appMode, noteAutosaveEnabled, setNoteAutosaveEnabled, cloudBoardId, cloudSyncedAt, lastLocalSavedAt } = useBoardStore();
   const { isConfigured, isLoading: authLoading, user, signInWithGitHub, signOut } = useAuth();
   const activePage = pages.find((p) => p.id === activePageId);
   const isDocumentContext = appMode === 'document';
@@ -145,8 +102,6 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeSubMenu, setActiveSubMenu] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const [exportOpen, setExportOpen] = useState(false);
-  const exportRef = useRef<HTMLDivElement>(null);
   const [confirmDialog, setConfirmDialog] = useState<{
     message: string;
     onConfirm: () => void;
@@ -159,23 +114,10 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
     if (onTemplatesOpenChange) onTemplatesOpenChange(open);
     else setTemplatesModalOpenInternal(open);
   }, [onTemplatesOpenChange]);
-  const [missingWarningOpen, setMissingWarningOpen] = useState(false);
-  const missingWarningRef = useRef<HTMLDivElement>(null);
   const [cloudOpen, setCloudOpen] = useState(false);
 
-  const missingImages = nodes.filter(
-    (n) => n.type === 'image' && (n as import('../types').ImageNode).assetName && !(n as import('../types').ImageNode).src
-  ) as import('../types').ImageNode[];
   const workspacePathHint = getWorkspacePathHint();
   const workspaceFolderLabel = workspaceName ?? workspacePathHint?.replace(/\\/g, '/').split('/').pop() ?? null;
-  const reopenWorkspaceLabel = workspaceFolderLabel
-    ? `Re-open "${workspaceFolderLabel}" folder`
-    : 'Re-open workspace folder';
-  const reopenWorkspaceTitle = workspacePathHint
-    ? `Re-open workspace folder: ${workspacePathHint}`
-    : workspaceFolderLabel
-      ? `Re-open workspace folder: ${workspaceFolderLabel}`
-      : 'Re-open the workspace folder';
 
   // Close menu on outside click
   useEffect(() => {
@@ -186,24 +128,6 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [menuOpen]);
-
-  useEffect(() => {
-    if (!exportOpen) return;
-    const handler = (e: MouseEvent) => {
-      if (exportRef.current && !exportRef.current.contains(e.target as Node)) setExportOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [exportOpen]);
-
-  useEffect(() => {
-    if (!missingWarningOpen) return;
-    const handler = (e: MouseEvent) => {
-      if (missingWarningRef.current && !missingWarningRef.current.contains(e.target as Node)) setMissingWarningOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [missingWarningOpen]);
 
   useEffect(() => {
     const handler = () => setCloudOpen(true);
@@ -250,40 +174,6 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
     setWorkspaceName(result.name);
     clearFileHandle();
     onWorkspaceOpened();
-  };
-
-  const handleAutoFix = async () => {
-    if (!hasWorkspaceHandle()) { handleOpenFolder(); return; }
-    let fixed = 0;
-    for (const img of missingImages) {
-      if (!img.assetName) continue;
-
-      // 1. Try stored folder first
-      let url: string | null = null;
-      const folder = img.assetFolder ?? '';
-      if (folder) url = await loadImageAsset(img.assetName, folder);
-
-      // 2. Fallback: scan workspace for the filename
-      if (!url) {
-        const found = await findImageInWorkspace(img.assetName);
-        if (found) {
-          url = found.url;
-          // Persist the corrected folder so future reloads work
-          updateNode(img.id, { assetFolder: found.folder } as Parameters<typeof updateNode>[1]);
-        }
-      }
-
-      if (url) {
-        updateNode(img.id, { src: url } as Parameters<typeof updateNode>[1]);
-        fixed++;
-      }
-    }
-    // Persist corrected assetFolder values to workspace JSON
-    if (fixed > 0) {
-      setTimeout(() => saveWorkspace(useBoardStore.getState().exportData()), 0);
-    }
-    toast(fixed > 0 ? `Reloaded ${fixed} image${fixed > 1 ? 's' : ''}` : 'Images not found — try re-opening the folder');
-    if (fixed > 0) setMissingWarningOpen(false);
   };
 
   const handleExportAllPages = () => {
@@ -524,8 +414,6 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
     ?? user?.user_metadata?.name
     ?? user?.email
     ?? 'Account';
-  const avatarUrl = typeof user?.user_metadata?.avatar_url === 'string' ? user.user_metadata.avatar_url : null;
-  const accountInitial = accountLabel.trim().charAt(0).toUpperCase() || 'A';
   const isLinkedSyncSignedOut = !user && !!cloudBoardId;
   const hasUnsyncedSyncChanges = !!user && !!cloudBoardId && !!lastLocalSavedAt && !!cloudSyncedAt && lastLocalSavedAt > cloudSyncedAt + 1000;
   const isCloudOnlyWorkspace = !!cloudBoardId && !workspaceFolderLabel;
@@ -538,23 +426,6 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
       : user
         ? 'Sync available'
         : 'Local only';
-  const syncBadgeTitle = user && isCloudOnlyWorkspace
-    ? 'Saved to cloud. No local workspace folder is attached.'
-    : user
-    ? `Open Workspace Sync for ${accountLabel}`
-    : isLinkedSyncSignedOut
-      ? 'Signed out. Sign in to resume Workspace Sync.'
-      : 'Sign in to use optional Workspace Sync';
-  const syncBadgeClass = hasUnsyncedSyncChanges
-    ? 'border-[#f59e0b]/50 text-[#b45309] bg-[#f59e0b]/10 hover:bg-[#f59e0b]/15'
-    : isLinkedSyncSignedOut
-      ? 'border-[#f59e0b]/35 text-[#92400e] bg-[#f59e0b]/10 hover:bg-[#f59e0b]/15'
-      : cloudBoardId
-      ? 'border-[rgba(120,167,145,0.45)] text-[rgb(72,112,92)] bg-[rgba(120,167,145,0.12)] hover:bg-[rgba(120,167,145,0.18)]'
-      : user
-        ? 'border-[var(--c-line)] text-[var(--c-line)] hover:bg-[rgba(184,119,80,0.12)]'
-        : 'border-[var(--c-border)] text-[var(--c-text-md)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]';
-
   return (
     <>
     {confirmDialog && (
@@ -607,9 +478,10 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
         </div>
       </div>
     )}
-    <div className="absolute top-0 left-0 right-0 z-[190] flex items-center gap-1.5 sm:gap-3 px-2 sm:px-4 h-11 bg-[var(--c-panel)] border-b border-[var(--c-border)] font-sans overflow-visible">
-      {/* Left: Logo + dropdown + title */}
-      <div className="flex flex-1 items-center gap-1.5 sm:gap-2.5 min-w-0 overflow-visible">
+    <div className="pointer-events-none absolute top-0 left-0 right-0 z-[190] h-11 font-sans overflow-visible">
+      {/* Left: Logo + dropdown */}
+      {!explorerOpen && (
+      <div className="pointer-events-auto absolute left-2 sm:left-4 top-1/2 flex max-w-[calc(50vw-132px)] -translate-y-1/2 items-center gap-1.5 sm:gap-2.5 min-w-0 overflow-visible">
 
         {/* Logo + chevron */}
         <div className="relative flex items-center shrink-0" ref={menuRef}>
@@ -792,201 +664,49 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
             </ActiveSubMenuCtx.Provider>
           )}
         </div>
+      </div>
+      )}
 
-        {/* Pages toggle */}
-        {(() => {
-          const activePage = pages.find((p) => p.id === activePageId);
-          const activeMode = activePage?.layoutMode ?? 'freeform';
+      {/* Center: Layout mode switcher */}
+      <div
+        className="pointer-events-auto absolute left-1/2 top-1/2 hidden -translate-x-1/2 -translate-y-1/2 md:flex items-center shrink-0"
+        style={{
+          padding: 2,
+          background: 'color-mix(in srgb, var(--c-panel) 82%, transparent)',
+          border: '1px solid color-mix(in srgb, var(--c-border) 86%, transparent)',
+          borderRadius: 9,
+          height: 28,
+          boxShadow: '0 6px 18px rgba(40,32,26,0.08)',
+          backdropFilter: 'blur(10px)',
+        }}
+      >
+        {(['freeform', 'stack'] as const).map((mode) => {
+          const active = (activePage?.layoutMode ?? 'freeform') === mode;
           return (
             <button
-              onClick={onTogglePages}
-              data-pages-toggle="true"
-              title="Pages"
-              className={[
-                'flex flex-1 md:flex-none items-center gap-2 h-8 md:h-7 px-2.5 md:px-2 rounded-lg md:rounded transition-colors min-w-0',
-                pagesOpen
-                  ? 'bg-[var(--c-line)] text-white'
-                  : 'text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
-              ].join(' ')}
+              key={mode}
+              onClick={() => setPageLayoutMode(activePageId, mode)}
+              title={mode === 'freeform' ? 'Canvas' : 'Notes'}
+              className="font-sans px-2 sm:px-3"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                height: 24, borderRadius: 6, border: 'none',
+                cursor: 'pointer', fontSize: 11, fontWeight: 650,
+                background: active ? 'var(--c-canvas)' : 'transparent',
+                color: active ? 'var(--c-text-hi)' : 'var(--c-text-lo)',
+                boxShadow: active ? '0 1px 2px rgba(40,32,26,.08)' : 'none',
+                transition: 'background 120ms, color 120ms',
+              }}
             >
-              {/* Stacked pages icon with page count */}
-              <span className="relative flex items-center justify-center w-[18px] h-[18px]">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                  <rect x="1" y="3" width="14" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.3" />
-                  <path d="M4 3V2.5A1.5 1.5 0 0 1 5.5 1h5A1.5 1.5 0 0 1 12 2.5V3" stroke="currentColor" strokeWidth="1.3" />
-                </svg>
-                <span
-                  className="absolute bottom-[-3px] right-[-4px] flex items-center justify-center rounded-full text-[8px] font-bold leading-none"
-                  style={{
-                    minWidth: 12,
-                    height: 12,
-                    padding: '0 2px',
-                    background: pagesOpen ? 'rgba(255,255,255,0.25)' : 'var(--c-line)',
-                    color: pagesOpen ? 'white' : 'white',
-                  }}
-                >
-                  {pages.length}
-                </span>
-              </span>
-                <span className="font-sans text-[12px] md:text-[10px] tracking-wide truncate">
-                  {activePage?.name ?? 'Page 1'}
-                </span>
-                <span className="ml-auto md:hidden flex shrink-0 items-center opacity-80" title={activeMode === 'stack' ? 'Notes' : 'Canvas'}>
-                  {activeMode === 'stack' ? <IconStackPage /> : <IconFreeformPage />}
-                </span>
-              </button>
-          );
-        })()}
-
-        {/* Layout mode switcher */}
-        <div className="hidden md:flex items-center shrink-0" style={{ padding: 2, background: 'var(--c-hover)', border: '1px solid var(--c-border)', borderRadius: 7, height: 28 }}>
-          {(['freeform', 'stack'] as const).map((mode) => {
-            const active = (activePage?.layoutMode ?? 'freeform') === mode;
-            return (
-              <button
-                key={mode}
-                onClick={() => setPageLayoutMode(activePageId, mode)}
-                title={mode === 'freeform' ? 'Freeform canvas' : 'Stack — writing list'}
-                className="font-sans px-1.5 sm:px-[9px]"
-                style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 4,
-                  height: 22, borderRadius: 5, border: 'none',
-                  cursor: 'pointer', fontSize: 11, fontWeight: 500,
-                  background: active ? 'var(--c-panel)' : 'transparent',
-                  color: active ? 'var(--c-text-hi)' : 'var(--c-text-lo)',
-                  boxShadow: active ? '0 1px 2px rgba(40,32,26,.08)' : 'none',
-                  transition: 'background 120ms, color 120ms',
-                }}
-              >
-                {mode === 'freeform' ? <IconFreeformPage /> : <IconStackPage />}
-                <span className="hidden lg:inline">{mode === 'freeform' ? 'Freeform' : 'Stack'}</span>
-              </button>
-            );
-          })}
-        </div>
-        {/* Missing images warning */}
-        {missingImages.length > 0 && (
-          <div ref={missingWarningRef} className="relative ml-1">
-            <button
-              onClick={() => setMissingWarningOpen((v) => !v)}
-              title={`${missingImages.length} missing image${missingImages.length > 1 ? 's' : ''}`}
-              className="hidden sm:flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-sans text-[#f59e0b] border border-[#f59e0b]/40 bg-[#f59e0b]/10 hover:bg-[#f59e0b]/20 transition-colors"
-            >
-              <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                <path d="M5 1L9.5 9H0.5L5 1Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
-                <path d="M5 4.5v2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-                <circle cx="5" cy="7.5" r="0.5" fill="currentColor" />
-              </svg>
-              {missingImages.length} missing
+              {mode === 'freeform' ? <IconFreeformPage /> : <IconStackPage />}
+              <span>{mode === 'freeform' ? 'Canvas' : 'Notes'}</span>
             </button>
-            {missingWarningOpen && (
-              <div className="absolute top-full left-0 mt-1.5 z-[300] bg-[var(--c-panel)] border border-[#f59e0b]/40 rounded-xl shadow-2xl min-w-[220px] overflow-hidden">
-                <div className="px-3 py-2 border-b border-[var(--c-border)]">
-                  <p className="font-sans text-[10px] text-[#f59e0b] font-semibold uppercase tracking-wider">Missing images</p>
-                  <p className="font-sans text-[9px] text-[var(--c-text-lo)] mt-0.5">Re-open the workspace folder to reload.</p>
-                </div>
-                <ul className="max-h-[160px] overflow-y-auto py-1">
-                  {missingImages.map((img) => (
-                    <li key={img.id} className="flex items-center gap-2 px-3 py-1.5">
-                      <svg width="11" height="11" viewBox="0 0 11 11" fill="none" className="shrink-0 text-[#f59e0b]">
-                        <rect x="1" y="1" width="9" height="9" rx="1" stroke="currentColor" strokeWidth="1.1" />
-                        <path d="M1 8L3.5 5.5l2 2L8 5l2 2.5" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
-                        <line x1="1" y1="1" x2="10" y2="10" stroke="currentColor" strokeWidth="1" opacity="0.5" />
-                      </svg>
-                      <span className="font-sans text-[10px] text-[var(--c-text-md)] truncate" title={img.assetName}>{img.assetName}</span>
-                    </li>
-                  ))}
-                </ul>
-                <div className="px-3 py-2 border-t border-[var(--c-border)] flex flex-col gap-1.5">
-                  <button
-                    onClick={handleAutoFix}
-                    className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--c-line)] hover:opacity-80 text-white font-sans text-[10px] font-semibold transition-colors"
-                  >
-                    <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
-                      <path d="M5.5 1a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9z" stroke="currentColor" strokeWidth="1.1"/>
-                      <path d="M3.5 5.5l1.5 1.5 2.5-2.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                    {hasWorkspaceHandle() ? 'Auto-fix all' : 'Re-open workspace to fix'}
-                  </button>
-                  {hasWorkspaceHandle() && (
-                    <button
-                      onClick={() => { setMissingWarningOpen(false); handleOpenFolder(); }}
-                      title={reopenWorkspaceTitle}
-                      className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--c-hover)] hover:bg-[#f59e0b]/15 text-[var(--c-text-lo)] hover:text-[#f59e0b] font-sans text-[10px] transition-colors"
-                    >
-                      <IconFolder />
-                      <span className="truncate">{reopenWorkspaceLabel}</span>
-                    </button>
-                  )}
-                  <DefaultFolderRow folder={imageAssetFolder} onChange={setImageAssetFolder} />
-                </div>
-              </div>
-            )}
-          </div>
-        )}
+          );
+        })}
       </div>
 
       {/* Right: Actions */}
-      <div className="flex shrink-0 items-center gap-0.5 sm:gap-1 whitespace-nowrap">
-        {isConfigured && (
-          <>
-            <button
-              onClick={handleGitHubSignIn}
-              title={syncBadgeTitle}
-              className={[
-                'sm:mr-1 hidden md:flex shrink-0 items-center justify-center md:justify-start gap-0 md:gap-1.5 w-9 md:w-auto px-0 md:px-2.5 h-8 sm:h-7 rounded border font-sans text-[11px] leading-none transition-colors whitespace-nowrap',
-                authLoading ? 'border-[var(--c-border)] text-[var(--c-text-off)] cursor-default' : syncBadgeClass,
-              ].join(' ')}
-              disabled={authLoading}
-            >
-              {user ? (
-                <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[var(--c-border)] bg-[var(--c-hover)]">
-                  {avatarUrl ? (
-                    <img src={avatarUrl} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
-                  ) : (
-                    <span className="text-[9px] font-semibold leading-none text-[var(--c-text-hi)]">{accountInitial}</span>
-                  )}
-                </span>
-              ) : (
-                <IconGitHub />
-              )}
-              <span className="hidden lg:inline">{authLoading ? 'Checking...' : syncBadgeLabel}</span>
-            </button>
-          </>
-        )}
-
-        {/* Export dropdown */}
-        <div className="relative shrink-0" ref={exportRef}>
-          <Tooltip label="Save or export your workspace">
-          <button
-            onClick={() => setExportOpen((v) => !v)}
-            title="Save Workspace / Export"
-            className={[
-              'flex items-center justify-center gap-1 px-2 sm:px-2.5 h-8 sm:h-7 rounded font-sans text-[11px] leading-none tracking-wide transition-colors whitespace-nowrap',
-              exportOpen
-                ? 'border border-[var(--c-line)] bg-[var(--c-hover)] text-[var(--c-line)]'
-                : 'border border-[var(--c-border)] bg-transparent text-[var(--c-text-lo)] hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]',
-            ].join(' ')}
-          >
-            <span className="hidden sm:inline">Save</span>
-            <IconJson />
-            <IconChevronDown />
-          </button>
-          </Tooltip>
-          {exportOpen && (
-            <div className="absolute top-full right-0 mt-1.5 w-48 rounded-xl border border-[var(--c-border)] bg-[var(--c-panel)] shadow-2xl py-1.5 z-[220]">
-              <MenuItem onClick={() => { setExportOpen(false); handleSaveJSON(); }} icon={<IconJson />} badge="⌘S">Save workspace</MenuItem>
-              <MenuItem onClick={() => { setExportOpen(false); handleSaveAsJSON(); }} icon={<IconLoad />}>Save workspace as…</MenuItem>
-              {pages.length > 1 && (
-                <MenuItem onClick={() => { setExportOpen(false); handleExportAllPages(); }} icon={<IconJson />}>Board JSON (all pages)</MenuItem>
-              )}
-              <MenuDivider />
-              <MenuItem onClick={() => { setExportOpen(false); handleExportPNG(); }} icon={<IconImg />}>Board image (.png)</MenuItem>
-              {/* Share link disabled — not fully working yet */}
-            </div>
-          )}
-        </div>
-
+      <div className="pointer-events-auto absolute right-2 sm:right-4 top-1/2 flex -translate-y-1/2 shrink-0 items-center gap-0.5 sm:gap-1 whitespace-nowrap">
         <input
           ref={fileInputRef}
           type="file"

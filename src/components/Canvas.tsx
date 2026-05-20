@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback, useState } from 'react';
+import { useRef, useEffect, useCallback, useMemo, useState } from 'react';
 import { Stage, Layer, Line } from 'react-konva';
 import Konva from 'konva';
 import { useBoardStore } from '../store/boardStore';
@@ -18,6 +18,7 @@ import { hasSeenImageNotice, markImageNoticeSeen } from './ImageFirstUseModal';
 import ImageFirstUseModal from './ImageFirstUseModal';
 import CanvasToolPreviews from './CanvasToolPreviews';
 import CanvasToolbars from './CanvasToolbars';
+import AssetDrawer from './AssetDrawer';
 import { AnchorSide, StickyNoteNode, ShapeNode, TaskCardNode, ImageNode, DocumentNode, LinkNode, CodeBlockNode } from '../types';
 import { getWorkspaceName, openWorkspace } from '../utils/workspaceManager';
 import { applyWorkspaceSyncFromOpenResult } from '../utils/applyWorkspaceSync';
@@ -26,6 +27,7 @@ import { resolveCssColor } from '../utils/palette';
 import { useCanvasInteraction } from '../hooks/useCanvasInteraction';
 import { useCanvasKeyboard } from '../hooks/useCanvasKeyboard';
 import { useCanvasImageDrop } from '../hooks/useCanvasImageDrop';
+import { placeImageFileAt } from '../utils/canvasPlacement';
 
 function toAnchorRect(node: StickyNoteNode | ShapeNode | TaskCardNode | ImageNode | DocumentNode | LinkNode | CodeBlockNode) {
   if (node.type === 'taskcard') {
@@ -51,8 +53,19 @@ export default function Canvas({ onBackgroundInteract }: CanvasProps) {
   const pendingImageFile = useRef<{ file: File; worldX: number; worldY: number } | null>(null);
   const imageInputRef    = useRef<HTMLInputElement>(null);
   const [showImageNotice, setShowImageNotice] = useState(false);
+  const [assetDrawerTarget, setAssetDrawerTarget] = useState<{ x: number; y: number } | null>(null);
 
   const { nodes, camera, activeTool, selectedIds, editingId, setCamera, addNode, setActiveTool } = useBoardStore();
+  const currentPageAssetPaths = useMemo(
+    () => nodes
+      .filter((node) => node.type === 'image' && node.assetName)
+      .map((node) => {
+        const imageNode = node as ImageNode;
+        return imageNode.assetFolder ? `${imageNode.assetFolder}/${imageNode.assetName}` : imageNode.assetName ?? '';
+      })
+      .filter(Boolean),
+    [nodes],
+  );
 
   // ── Interaction hook (mouse/touch handlers + draw states) ──────────────────
   const interaction = useCanvasInteraction({
@@ -61,6 +74,7 @@ export default function Canvas({ onBackgroundInteract }: CanvasProps) {
     setCursorOverride,
     imageInputRef: imageInputRef as React.RefObject<HTMLInputElement | null>,
     pendingImagePos,
+    onRequestAssetDrawer: (position) => setAssetDrawerTarget(position),
   });
 
   // ── Keyboard hook ──────────────────────────────────────────────────────────
@@ -199,7 +213,7 @@ export default function Canvas({ onBackgroundInteract }: CanvasProps) {
     snapGuides, contextMenu, setContextMenu,
     handleMouseDown, handleMouseMove, handleMouseUp,
     handleTouchStart, handleTouchMove, handleTouchEnd,
-    handleAnchorDown, handleAnchorEnter, handleAnchorLeave,
+    handleAnchorDown, handleAnchorUp, handleAnchorEnter, handleAnchorLeave,
     computeSnap, clearSnap,
     handleAltDragStart, handleAltDragEnd,
     handleMultiDragStart, handleMultiDragMove, handleMultiDragEnd,
@@ -305,6 +319,7 @@ export default function Canvas({ onBackgroundInteract }: CanvasProps) {
                   isEditing={editingId === n.id}
                   isDrawingLine={drawingLine !== null}
                   onAnchorDown={handleAnchorDown}
+                  onAnchorUp={handleAnchorUp}
                   onAnchorEnter={handleAnchorEnter}
                   onAnchorLeave={handleAnchorLeave}
                   snapAnchor={snapTarget?.nodeId === n.id ? snapTarget.side : null}
@@ -523,6 +538,7 @@ export default function Canvas({ onBackgroundInteract }: CanvasProps) {
           isSelected={selectedIds.includes(n.id)}
           isDrawingLine={drawingLine !== null}
           onAnchorDown={handleAnchorDown}
+          onAnchorUp={handleAnchorUp}
           onAnchorEnter={handleAnchorEnter}
           onAnchorLeave={handleAnchorLeave}
           snapAnchor={snapTarget?.nodeId === n.id ? snapTarget.side : null}
@@ -609,6 +625,31 @@ export default function Canvas({ onBackgroundInteract }: CanvasProps) {
           }}
         />
       )}
+
+      <AssetDrawer
+        open={assetDrawerTarget !== null}
+        title="Assets"
+        pageAssetPaths={currentPageAssetPaths}
+        onClose={() => {
+          setAssetDrawerTarget(null);
+          if (activeTool === 'image') setActiveTool('select');
+        }}
+        onSelectAsset={async (asset) => {
+          const target = assetDrawerTarget;
+          if (!target) return;
+          await placeImageFileAt(asset.path.split('/'), target.x, target.y);
+          setActiveTool('select');
+          setAssetDrawerTarget(null);
+        }}
+        onUploadFiles={async (files) => {
+          const target = assetDrawerTarget;
+          const first = files[0];
+          if (!target || !first) return;
+          placeImage(first, target.x, target.y);
+          setActiveTool('select');
+          setAssetDrawerTarget(null);
+        }}
+      />
     </div>
   );
 }

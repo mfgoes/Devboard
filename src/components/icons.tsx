@@ -2,11 +2,11 @@
 // Import all icons from here, not directly from lucide-react.
 
 import {
-  GripVertical, Maximize2, FileText, Save,
+  GripVertical, Maximize2, FileText, Save, Folder,
   List, ListOrdered,
   AlignLeft, AlignCenter, AlignRight,
   Code, Eye, CircleDot, Copy, TextWrap,
-  Quote, Code2, Minus,
+  Quote, Code2, Minus, Cloud,
   Link2, Star, ArrowRight, Unlink, Brackets,
 } from 'lucide-react';
 
@@ -14,6 +14,8 @@ export function IconGrip()         { return <GripVertical  size={12} />; }
 export function IconExpand()       { return <Maximize2     size={13} />; }
 export function IconDoc()          { return <FileText      size={11} />; }
 export function IconSaveFile()     { return <Save          size={13} />; }
+export function IconFolder({ size = 13 }: { size?: number }) { return <Folder size={size} />; }
+export function IconCloud({ size = 15 }: { size?: number }) { return <Cloud size={size} />; }
 export function IconList()         { return <List          size={14} />; }
 export function IconListOrdered()  { return <ListOrdered   size={14} />; }
 export function IconAlignLeft()    { return <AlignLeft     size={13} />; }

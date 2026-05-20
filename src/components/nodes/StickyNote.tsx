@@ -76,6 +76,7 @@ interface Props {
   isEditing: boolean;
   isDrawingLine?: boolean;
   onAnchorDown?: (nodeId: string, side: AnchorSide, worldX: number, worldY: number) => void;
+  onAnchorUp?: (nodeId: string, side: AnchorSide) => void;
   onAnchorEnter?: (nodeId: string, side: AnchorSide) => void;
   onAnchorLeave?: () => void;
   snapAnchor?: AnchorSide | null;
@@ -132,6 +133,7 @@ export default function StickyNote({
   isEditing,
   isDrawingLine,
   onAnchorDown,
+  onAnchorUp,
   onAnchorEnter,
   onAnchorLeave,
   snapAnchor,
@@ -482,6 +484,10 @@ export default function StickyNote({
                 onMouseDown={(e) => {
                   e.cancelBubble = true;
                   onAnchorDown?.(node.id, side, bx, by);
+                }}
+                onMouseUp={(e) => {
+                  e.cancelBubble = true;
+                  onAnchorUp?.(node.id, side);
                 }}
                 onMouseEnter={() => {
                   setHoveredAnchor(side);

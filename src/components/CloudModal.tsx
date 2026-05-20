@@ -51,7 +51,7 @@ import {
   type RecentWorkspaceRow,
 } from '../utils/workspaceSyncModel';
 
-const SYNC_WORKSPACE_LIMIT = 3;
+const SYNC_WORKSPACE_LIMIT = 10;
 const LOCAL_SYNC_LINKS_KEY = 'devboard:cloud-workspace-links';
 const CURRENT_WORKSPACE_DOWNLOAD_ROW_ID = 'current-workspace';
 
@@ -67,8 +67,87 @@ type WorkspaceDisplayLocation = {
   lastLocalSavedAt?: number | null;
   updatedAt?: string | number | null;
 };
+type WorkspaceConflictGroup = {
+  key: string;
+  reason: string;
+  workspaces: CloudWorkspaceSummary[];
+};
+
 function syncLinkKey(userId: string, workspaceName: string): string {
   return `${userId}:${workspaceName.trim().toLowerCase()}`;
+}
+
+function normalizedConflictTitle(value: string): string {
+  return value.trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+function contentSignature(workspace: CloudWorkspaceSummary): string | null {
+  const summary = workspace.contentSummary;
+  if (!summary) return null;
+  return [
+    summary.pages,
+    summary.notes,
+    summary.canvasItems,
+    summary.images,
+  ].join(':');
+}
+
+function buildWorkspaceConflictGroups(workspaces: CloudWorkspaceSummary[]): WorkspaceConflictGroup[] {
+  const groups = new Map<string, WorkspaceConflictGroup>();
+  const coveredSets = new Set<string>();
+
+  const addGroup = (key: string, reason: string, items: CloudWorkspaceSummary[]) => {
+    const unique = Array.from(new Map(items.map((workspace) => [workspace.id, workspace])).values());
+    const setKey = unique.map((workspace) => workspace.id).sort().join('|');
+    if (unique.length < 2 || groups.has(key) || coveredSets.has(setKey)) return;
+    coveredSets.add(setKey);
+    groups.set(key, {
+      key,
+      reason,
+      workspaces: unique.sort((a, b) => cloudTimestamp(b.updatedAt) - cloudTimestamp(a.updatedAt)),
+    });
+  };
+
+  const byIdentity = new Map<string, CloudWorkspaceSummary[]>();
+  const byTitle = new Map<string, CloudWorkspaceSummary[]>();
+  const byTitleAndContent = new Map<string, CloudWorkspaceSummary[]>();
+
+  for (const workspace of workspaces) {
+    if (workspace.logicalWorkspaceId) {
+      const key = workspace.logicalWorkspaceId;
+      byIdentity.set(key, [...(byIdentity.get(key) ?? []), workspace]);
+    }
+
+    const titleKey = normalizedConflictTitle(workspace.title);
+    if (titleKey) {
+      byTitle.set(titleKey, [...(byTitle.get(titleKey) ?? []), workspace]);
+      const signature = contentSignature(workspace);
+      if (signature) {
+        const contentKey = `${titleKey}:${signature}`;
+        byTitleAndContent.set(contentKey, [...(byTitleAndContent.get(contentKey) ?? []), workspace]);
+      }
+    }
+  }
+
+  for (const [key, items] of byIdentity) addGroup(`identity:${key}`, 'Same workspace identity', items);
+  for (const [key, items] of byTitleAndContent) addGroup(`content:${key}`, 'Same name and matching contents', items);
+  for (const [key, items] of byTitle) addGroup(`title:${key}`, 'Same name', items);
+
+  return Array.from(groups.values()).sort((a, b) => {
+    const newestA = cloudTimestamp(a.workspaces[0]?.updatedAt ?? '');
+    const newestB = cloudTimestamp(b.workspaces[0]?.updatedAt ?? '');
+    return newestB - newestA;
+  });
+}
+
+function mapWorkspaceConflicts(groups: WorkspaceConflictGroup[]): Record<string, WorkspaceConflictGroup[]> {
+  const byId: Record<string, WorkspaceConflictGroup[]> = {};
+  for (const group of groups) {
+    for (const workspace of group.workspaces) {
+      byId[workspace.id] = [...(byId[workspace.id] ?? []), group];
+    }
+  }
+  return byId;
 }
 
 function readLocalSyncLinks(): Record<string, LocalSyncLink> {
@@ -448,6 +527,24 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
       workspaces,
     });
   }, [effectiveCloudBoardId, localPathHint, localRecents, workspaces]);
+  const cloudWorkspaceRows = useMemo(
+    () => workspaces
+      .map((workspace) => recentRows.find((row) => row.cloud?.id === workspace.id))
+      .filter((row): row is RecentWorkspaceRow => !!row),
+    [recentRows, workspaces],
+  );
+  const localRecentRows = useMemo(
+    () => recentRows.filter((row) => !row.cloud),
+    [recentRows],
+  );
+  const workspaceConflictGroups = useMemo(
+    () => buildWorkspaceConflictGroups(workspaces),
+    [workspaces],
+  );
+  const workspaceConflictsById = useMemo(
+    () => mapWorkspaceConflicts(workspaceConflictGroups),
+    [workspaceConflictGroups],
+  );
   const linkedCloudUpdatedAt = effectiveCloudUpdatedAt;
   const effectiveCloudSyncedAt = effectiveCloudBoardId
     ? Math.max(cloudSyncedAt ?? 0, syncedBaselines[effectiveCloudBoardId] ?? 0) || null
@@ -1271,6 +1368,314 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
     onClose();
   };
 
+  const renderWorkspaceRow = (row: RecentWorkspaceRow, options: { cloudShelf?: boolean } = {}) => {
+    const workspace = row.cloud;
+    const recent = row.local;
+    const selected = workspace ? workspace.id === selectedWorkspaceId : workspaceMenuId === row.id;
+    const localUnavailable = recent?.permissionState === 'denied' || recent?.permissionState === 'missing';
+    const cloudUpdatedAt = workspace ? cloudTimestamp(workspace.updatedAt) : null;
+    const localUpdatedAt = recent ? Math.max(recent.lastSavedAt ?? 0, recent.lastOpenedAt) : null;
+    const optimisticSyncedAt = workspace ? syncedBaselines[workspace.id] ?? null : null;
+    const recentMatchesWorkspace = !!workspace && !!recent && (
+      recent.cloudBoardId === workspace.id
+      || (!!workspace.logicalWorkspaceId && recent.workspaceId === workspace.logicalWorkspaceId)
+    );
+    const syncedLocalBaseline = workspace && recentMatchesWorkspace
+      ? Math.max(
+          recent.cloudSyncedAt ?? 0,
+          optimisticSyncedAt ?? 0,
+          row.isCurrent && workspace.id === effectiveCloudBoardId ? cloudSyncedAt ?? 0 : 0,
+          localUpdatedAt ?? 0,
+        )
+      : localUpdatedAt;
+    const cloudNewer = !!cloudUpdatedAt && !!syncedLocalBaseline && cloudUpdatedAt > syncedLocalBaseline + 1000;
+    const localChanges = !!cloudUpdatedAt
+      && !!recent?.lastSavedAt
+      && recent.lastSavedAt > cloudUpdatedAt + 1000
+      && (!syncedLocalBaseline || syncedLocalBaseline < recent.lastSavedAt - 1000);
+    const downloading = workspace && actionLoading === `download:${workspace.id}`;
+    const busy = (workspace && actionLoading === `load:${workspace.id}`) || (recent && actionLoading === `open-local:${recent.id}`) || downloading;
+    const deleting = workspace && actionLoading === `delete:${workspace.id}`;
+    const replacing = workspace && actionLoading === `replace:${workspace.id}`;
+    const renaming = !!workspace && renamingWorkspaceId === workspace.id;
+    const renameBusy = workspace && actionLoading === `rename:${workspace.id}`;
+    const menuOpen = workspaceMenuId === row.id;
+    const detailsOpen = detailsRowId === row.id;
+    const confirmingDelete = !!workspace && deleteConfirmId === workspace.id;
+    const confirmingReplace = !!workspace && replaceConfirmId === workspace.id;
+    const canRemoveRecent = !!recent && (!workspace || localUnavailable);
+    const primaryLabel = localUnavailable && recent
+      ? 'Relocate'
+      : cloudNewer
+        ? 'Review cloud copy'
+        : workspace && !recent
+          ? 'Open cloud'
+          : 'Open';
+    const contentSummary = workspace?.contentSummary ?? recent?.contentSummary;
+    const cloudOnly = !!workspace && !recent;
+    const workspaceConflicts = workspace ? workspaceConflictsById[workspace.id] ?? [] : [];
+    const conflictPeers = workspaceConflicts
+      .flatMap((group) => group.workspaces)
+      .filter((candidate, index, all) => candidate.id !== workspace?.id && all.findIndex((item) => item.id === candidate.id) === index);
+    const choiceOpen = cloudOnly && downloadChoiceRowId === row.id;
+    const displayLocations = mergeWorkspaceLocations(recent, workspace ? cloudLocations[workspace.id] ?? [] : []);
+    const primaryLocation = displayLocations[0] ?? null;
+    const primaryLocationLabel = primaryLocation ? formatWorkspaceLocationLabel(primaryLocation) : null;
+    const rowDownloadProgress = downloadProgress?.rowId === row.id ? downloadProgress.progress : null;
+    const progressPercent = rowDownloadProgress
+      ? Math.round((rowDownloadProgress.completedSteps / Math.max(rowDownloadProgress.totalSteps, 1)) * 100)
+      : 0;
+    const timingLabel = options.cloudShelf && workspace
+      ? `Cloud ${formatExactDate(workspace.updatedAt)}${recent ? ` · Local ${formatExactDate(localUpdatedAt)}` : ''}`
+      : `${recent ? `Local ${formatExactDate(localUpdatedAt)}` : `Updated ${formatExactDate(workspace?.updatedAt ?? null)}`}${workspace && recent ? ` · Cloud ${formatExactDate(workspace.updatedAt)}` : ''}`;
+
+    return (
+      <div
+        key={row.id}
+        className={[
+          'relative w-full overflow-visible rounded-xl border px-3 py-2.5 transition-colors',
+          selected
+            ? 'border-[var(--c-text-lo)] bg-[var(--c-hover)]'
+            : options.cloudShelf
+              ? 'border-[rgba(120,167,145,0.34)] bg-[rgba(120,167,145,0.08)] hover:bg-[rgba(120,167,145,0.12)]'
+              : 'border-[var(--c-border)] bg-[var(--c-panel)] hover:bg-[var(--c-hover)]',
+        ].join(' ')}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <button
+            onClick={() => {
+              if (workspace) setSelectedWorkspaceId(workspace.id);
+              setWorkspaceMenuId(null);
+            }}
+            className="min-w-0 flex-1 text-left"
+          >
+            <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+              <p className="truncate font-sans text-[12px] font-semibold text-[var(--c-text-hi)]">{row.title}</p>
+              {row.isCurrent && <span className="shrink-0 rounded-md border border-[var(--c-border)] bg-[var(--c-panel)] px-1.5 py-0.5 font-sans text-[10px] font-semibold text-[var(--c-text-md)]">Current</span>}
+              {workspace && <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[rgba(120,167,145,0.18)] px-2 py-0.5 font-sans text-[10px] font-semibold text-[rgb(72,112,92)]"><IconCheck /> Synced</span>}
+              {!workspace && <span className="shrink-0 rounded-full bg-[var(--c-hover)] px-2 py-0.5 font-sans text-[10px] font-semibold text-[var(--c-text-md)]">Local only</span>}
+              {workspace && !recent && <span className="shrink-0 rounded-full bg-[var(--c-hover)] px-2 py-0.5 font-sans text-[10px] font-semibold text-[var(--c-text-md)]">Cloud only</span>}
+              {workspaceConflicts.length > 0 && <span className="shrink-0 rounded-full bg-[#f59e0b]/15 px-2 py-0.5 font-sans text-[10px] font-semibold text-[#b45309]">Merge candidate</span>}
+              {localUnavailable && <span className="shrink-0 rounded-full bg-[#f59e0b]/15 px-2 py-0.5 font-sans text-[10px] font-semibold text-[#b45309]">Needs folder access</span>}
+              {cloudNewer && <span className="shrink-0 rounded-full bg-[#f59e0b]/15 px-2 py-0.5 font-sans text-[10px] font-semibold text-[#b45309]">Cloud newer</span>}
+              {localChanges && <span className="shrink-0 rounded-full bg-[#f59e0b]/15 px-2 py-0.5 font-sans text-[10px] font-semibold text-[#b45309]">Local changes</span>}
+            </div>
+            <p className="mt-0.5 font-sans text-[10px] text-[var(--c-text-lo)]">
+              {timingLabel}
+            </p>
+            {(primaryLocationLabel || workspace) && (
+              <p className="mt-0.5 flex min-w-0 items-center gap-1 truncate font-sans text-[10px] text-[var(--c-text-lo)]" title={primaryLocationLabel?.fullPath ?? undefined}>
+                {primaryLocationLabel && <IconDevice kind={primaryLocationLabel.deviceKind} />}
+                <span className="truncate">
+                  {primaryLocationLabel ? primaryLocationLabel.label : 'Available from DevBoard Sync'}
+                </span>
+              </p>
+            )}
+          </button>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <button
+              onClick={() => localUnavailable && recent ? void handleRelocateRecent(recent) : void handleOpenRecentRow(row)}
+              disabled={actionLoading !== null}
+              className="rounded-lg border border-[var(--c-border)] bg-[var(--c-panel)] px-2.5 py-1.5 font-sans text-[10px] text-[var(--c-text-md)] transition-colors hover:bg-[var(--c-canvas)] hover:text-[var(--c-text-hi)] disabled:cursor-default disabled:opacity-50"
+            >
+              {downloading ? 'Downloading...' : busy ? 'Opening...' : primaryLabel}
+            </button>
+            <button
+              onClick={() => {
+                if (workspace) setSelectedWorkspaceId(workspace.id);
+                setWorkspaceMenuId((current) => current === row.id ? null : row.id);
+                setDeleteConfirmId(null);
+                setReplaceConfirmId(null);
+                setDetailsRowId(null);
+                setDownloadChoiceRowId(null);
+                cancelRenameWorkspace();
+              }}
+              disabled={actionLoading !== null}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--c-text-lo)] transition-colors hover:bg-[var(--c-canvas)] hover:text-[var(--c-text-hi)] disabled:cursor-default disabled:opacity-50"
+              aria-label={`More actions for ${row.title}`}
+            >
+              <IconMore />
+            </button>
+          </div>
+        </div>
+
+        {workspace && choiceOpen && !rowDownloadProgress && (
+          <div className="mt-3 rounded-lg border border-[var(--c-border)] px-3 py-2" style={secondSurface}>
+            <p className="font-sans text-[12px] font-semibold text-[var(--c-text-hi)]">Open this synced workspace?</p>
+            <p className="mt-1 font-sans text-[11px] leading-relaxed text-[var(--c-text-md)]">
+              Open the online snapshot now, or download it into an empty local folder for normal workspace saves.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button onClick={() => void handleDownloadWorkspace(workspace, row.id)} disabled={actionLoading !== null} className="rounded-lg bg-[var(--c-line)] px-2.5 py-1.5 font-sans text-[11px] font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-default disabled:opacity-60">
+                Download to folder...
+              </button>
+              <button onClick={() => void handleLoadWorkspace(workspace)} disabled={actionLoading !== null} className="rounded-lg border border-[var(--c-border)] px-2.5 py-1.5 font-sans text-[11px] font-semibold text-[var(--c-text-md)] transition-colors hover:bg-[var(--c-canvas)] hover:text-[var(--c-text-hi)] disabled:cursor-default disabled:opacity-60">
+                Open cloud
+              </button>
+              <button onClick={() => setDownloadChoiceRowId(null)} disabled={actionLoading !== null} className="px-1 py-1.5 font-sans text-[11px] text-[var(--c-text-lo)] transition-colors hover:text-[var(--c-text-hi)] disabled:cursor-default disabled:opacity-60">
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        {rowDownloadProgress && (
+          <div className="mt-3 rounded-lg border border-[rgba(54,137,151,0.26)] bg-[rgba(54,137,151,0.08)] px-3 py-2">
+            <div className="flex items-center justify-between gap-3">
+              <p className="truncate font-sans text-[11px] font-semibold text-[var(--c-text-hi)]">{rowDownloadProgress.label}</p>
+              <span className="shrink-0 font-sans text-[11px] font-semibold text-[rgb(38,103,116)]">{progressPercent}%</span>
+            </div>
+            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[var(--c-border)]/60">
+              <div className="h-full rounded-full bg-[var(--c-line)] transition-[width] duration-200" style={{ width: `${progressPercent}%` }} />
+            </div>
+            {rowDownloadProgress.warning && (
+              <p className="mt-2 font-sans text-[11px] leading-relaxed text-[#b45309]">{rowDownloadProgress.warning}</p>
+            )}
+          </div>
+        )}
+
+        {workspace && renaming && (
+          <div className="mt-3 rounded-lg border border-[var(--c-border)] px-3 py-2" style={secondSurface}>
+            <p className="font-sans text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--c-text-lo)]">Rename synced workspace</p>
+            <input
+              autoFocus
+              value={renameDraft}
+              onChange={(e) => setRenameDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void handleRenameWorkspace(workspace);
+                if (e.key === 'Escape') cancelRenameWorkspace();
+                e.stopPropagation();
+              }}
+              className="mt-2 w-full rounded-lg border border-[var(--c-border)] bg-[var(--c-panel)] px-3 py-2 font-sans text-[12px] text-[var(--c-text-hi)] outline-none focus:border-[var(--c-line)]"
+            />
+            <div className="mt-2 flex flex-wrap gap-2">
+              <button onClick={() => void handleRenameWorkspace(workspace)} disabled={actionLoading !== null} className="rounded-lg bg-[var(--c-line)] px-2.5 py-1.5 font-sans text-[11px] font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-default disabled:opacity-60">
+                {renameBusy ? 'Renaming...' : 'Rename'}
+              </button>
+              <button onClick={cancelRenameWorkspace} disabled={actionLoading !== null} className="px-1 py-1.5 font-sans text-[11px] text-[var(--c-text-lo)] transition-colors hover:text-[var(--c-text-hi)] disabled:cursor-default disabled:opacity-60">
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        {menuOpen && !confirmingDelete && !confirmingReplace && !renaming && (
+          <div className="absolute right-4 top-12 z-30 w-52 rounded-xl border border-[var(--c-border)] bg-[var(--c-panel)] p-1.5 shadow-2xl" onMouseDown={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => {
+                setDetailsRowId((current) => current === row.id ? null : row.id);
+                setWorkspaceMenuId(null);
+              }}
+              className="w-full rounded-lg px-2.5 py-2 text-left font-sans text-[11px] font-semibold text-[var(--c-text-md)] transition-colors hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]"
+            >
+              {detailsOpen ? 'Hide details' : 'See details'}
+            </button>
+            {workspace && (
+              <>
+                <button onClick={() => startRenameWorkspace(workspace)} className="w-full rounded-lg px-2.5 py-2 text-left font-sans text-[11px] font-semibold text-[var(--c-text-md)] transition-colors hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]">Rename</button>
+                <button onClick={() => setReplaceConfirmId(workspace.id)} className="w-full rounded-lg px-2.5 py-2 text-left font-sans text-[11px] font-semibold text-[var(--c-text-md)] transition-colors hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]">Replace with current</button>
+                <button onClick={() => void handleDownloadWorkspace(workspace, row.id)} className="w-full rounded-lg px-2.5 py-2 text-left font-sans text-[11px] font-semibold text-[var(--c-text-md)] transition-colors hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]">Download to folder...</button>
+                <button onClick={() => setDeleteConfirmId(workspace.id)} className="w-full rounded-lg px-2.5 py-2 text-left font-sans text-[11px] font-semibold text-[#b45309] transition-colors hover:bg-[#f59e0b]/10 hover:text-[#92400e]">Delete synced copy</button>
+              </>
+            )}
+            {recent && localUnavailable && (
+              <button onClick={() => void handleRelocateRecent(recent)} className="w-full rounded-lg px-2.5 py-2 text-left font-sans text-[11px] font-semibold text-[var(--c-text-md)] transition-colors hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]">Relocate folder</button>
+            )}
+            {canRemoveRecent && (
+              <button onClick={() => void handleRemoveRecent(recent)} className="w-full rounded-lg px-2.5 py-2 text-left font-sans text-[11px] font-semibold text-[#b45309] transition-colors hover:bg-[#f59e0b]/10 hover:text-[#92400e]">Remove from recents</button>
+            )}
+          </div>
+        )}
+
+        {detailsOpen && (
+          <div className="mt-3 rounded-lg border border-[var(--c-border)] px-3 py-2" style={secondSurface}>
+            <p className="font-sans text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--c-text-lo)]">Workspace details</p>
+            {contentSummary ? (
+              <p className="mt-2 font-sans text-[12px] leading-relaxed text-[var(--c-text-hi)]">
+                Pages: {contentSummary.pages} &middot; Notes: {contentSummary.notes} &middot; Canvas items: {contentSummary.canvasItems} &middot; Images: {contentSummary.images}
+              </p>
+            ) : (
+              <p className="mt-2 font-sans text-[12px] leading-relaxed text-[var(--c-text-md)]">
+                Content details will appear after this workspace is opened or synced again.
+              </p>
+            )}
+            <div className="mt-2 grid gap-1 font-sans text-[11px] text-[var(--c-text-lo)]">
+              {recent && <p>Local: <span className="text-[var(--c-text-md)]">{formatExactDate(localUpdatedAt)}</span></p>}
+              {workspace && <p>Cloud: <span className="text-[var(--c-text-md)]">{formatExactDate(workspace.updatedAt)}</span></p>}
+            </div>
+            {workspaceConflicts.length > 0 && (
+              <div className="mt-3 rounded-lg border border-[#f59e0b]/25 bg-[#f59e0b]/10 px-3 py-2">
+                <p className="font-sans text-[11px] font-semibold text-[#92400e]">Possible merge conflict</p>
+                <p className="mt-1 font-sans text-[11px] leading-relaxed text-[#b45309]">
+                  {workspaceConflicts.map((group) => group.reason).join(', ')} with {conflictPeers.length} other cloud {conflictPeers.length === 1 ? 'copy' : 'copies'}.
+                </p>
+                {conflictPeers.length > 0 && (
+                  <p className="mt-1 truncate font-sans text-[10px] text-[var(--c-text-lo)]" title={conflictPeers.map((peer) => peer.title).join(', ')}>
+                    Also found: {conflictPeers.map((peer) => peer.title).join(', ')}
+                  </p>
+                )}
+              </div>
+            )}
+            {displayLocations.length > 0 && (
+              <div className="mt-3 border-t border-[var(--c-border)]/70 pt-2">
+                <p className="font-sans text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--c-text-lo)]">Locations</p>
+                <div className="mt-2 grid gap-2">
+                  {displayLocations.map((location) => {
+                    const label = formatWorkspaceLocationLabel(location);
+                    const lastLabel = location.lastLocalSavedAt
+                      ? 'Last edited'
+                      : location.lastSyncedAt
+                        ? 'Last synced'
+                        : 'Last opened';
+                    const lastValue = location.lastLocalSavedAt ?? location.lastSyncedAt ?? location.lastOpenedAt ?? null;
+                    return (
+                      <div key={location.key} className="rounded-lg border border-[var(--c-border)]/70 px-2.5 py-2" style={quietSurface}>
+                        <div className="flex min-w-0 items-center gap-1.5">
+                          <IconDevice kind={label.deviceKind} />
+                          <p className="truncate font-sans text-[11px] font-semibold text-[var(--c-text-hi)]" title={label.fullPath ?? undefined}>{label.label}</p>
+                        </div>
+                        <div className="mt-1 grid gap-0.5 font-sans text-[10px] text-[var(--c-text-lo)]">
+                          <p>{lastLabel}: <span className="text-[var(--c-text-md)]">{formatExactDate(lastValue)}</span></p>
+                          {label.fullPath && <p className="truncate" title={label.fullPath}>Path: <span className="text-[var(--c-text-md)]">{label.fullPath}</span></p>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {workspace && confirmingReplace && (
+          <div className="mt-3 rounded-lg border border-[var(--c-line)]/25 bg-[rgba(184,119,80,0.10)] px-3 py-2">
+            <p className="font-sans text-[12px] font-semibold text-[var(--c-text-hi)]">Replace this synced copy?</p>
+            <p className="mt-1 font-sans text-[11px] leading-relaxed text-[var(--c-text-md)]">This overwrites the online copy with the workspace currently open here.</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button onClick={() => void handleReplaceWorkspace(workspace)} disabled={actionLoading !== null} className="rounded-lg bg-[var(--c-line)] px-2.5 py-1.5 font-sans text-[11px] font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-default disabled:opacity-60">
+                {replacing ? 'Replacing...' : 'Replace'}
+              </button>
+              <button onClick={() => { setReplaceConfirmId(null); setWorkspaceMenuId(null); }} disabled={actionLoading !== null} className="px-1 py-1.5 font-sans text-[11px] text-[var(--c-text-lo)] transition-colors hover:text-[var(--c-text-hi)] disabled:cursor-default disabled:opacity-60">Cancel</button>
+            </div>
+          </div>
+        )}
+
+        {workspace && confirmingDelete && (
+          <div className="absolute right-4 top-12 z-30 w-64 rounded-xl border border-[#f59e0b]/25 bg-[var(--c-panel)] px-3 py-3 shadow-2xl" onMouseDown={(e) => e.stopPropagation()}>
+            <p className="font-sans text-[12px] font-semibold text-[var(--c-text-hi)]">Delete synced copy?</p>
+            <p className="mt-1 font-sans text-[11px] leading-relaxed text-[var(--c-text-md)]">This removes the online copy only. Your local workspace stays on this device.</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button onClick={() => void handleDeleteWorkspace(workspace)} disabled={actionLoading !== null} className="rounded-lg bg-[#b45309] px-2.5 py-1.5 font-sans text-[11px] font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-default disabled:opacity-60">
+                {deleting ? 'Deleting...' : 'Delete'}
+              </button>
+              <button onClick={() => { setDeleteConfirmId(null); setWorkspaceMenuId(null); }} disabled={actionLoading !== null} className="px-1 py-1.5 font-sans text-[11px] text-[var(--c-text-lo)] transition-colors hover:text-[var(--c-text-hi)] disabled:cursor-default disabled:opacity-60">Cancel</button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div
       data-native-clipboard="true"
@@ -1780,16 +2185,10 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
               <div className="mb-3 flex items-start justify-between gap-3">
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="font-sans text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--c-text-lo)]">Recent workspaces</p>
-                    <span className={[
-                      'font-sans text-[10px] font-semibold',
-                      workspaces.length >= SYNC_WORKSPACE_LIMIT ? 'text-[#b45309]' : 'text-[var(--c-text-lo)]',
-                    ].join(' ')}>
-                      {workspaces.length}/{SYNC_WORKSPACE_LIMIT} synced
-                    </span>
+                    <p className="font-sans text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--c-text-lo)]">Workspace library</p>
                   </div>
                   <p className="mt-0.5 max-w-[38ch] font-sans text-[11px] leading-snug text-[var(--c-text-md)]">
-                    Open local folders and synced copies you have used recently.
+                    See what is safely on cloud, then reopen local folders when you need them.
                   </p>
                 </div>
                 <div className="relative flex shrink-0 items-center gap-1.5">
@@ -1853,23 +2252,110 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
                 </div>
               </div>
 
-              {workspaces.length >= SYNC_WORKSPACE_LIMIT && (
-                <div className="mb-3 rounded-lg border border-[#f59e0b]/30 bg-[#f59e0b]/10 px-3 py-2">
-                  <p className="font-sans text-[11px] font-semibold text-[#92400e]">
-                    Sync limit reached
-                  </p>
-                  <p className="mt-0.5 font-sans text-[10px] leading-snug text-[#b45309]">
-                    {workspaces.length}/{SYNC_WORKSPACE_LIMIT} cloud copies used. Move a workspace offline or delete a synced copy to make room.
-                  </p>
+              <section className="mb-4 rounded-2xl border border-[rgba(120,167,145,0.22)] bg-[rgba(120,167,145,0.06)] p-3">
+                <div className="mb-2 flex items-start justify-between gap-3">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-sans text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--c-text-lo)]">On cloud</p>
+                      <span className={[
+                        'rounded-full px-2 py-0.5 font-sans text-[10px] font-semibold',
+                        workspaces.length >= SYNC_WORKSPACE_LIMIT ? 'bg-[#f59e0b]/15 text-[#b45309]' : 'bg-[rgba(120,167,145,0.16)] text-[rgb(72,112,92)]',
+                      ].join(' ')}>
+                        {workspaces.length}/{SYNC_WORKSPACE_LIMIT}
+                      </span>
+                    </div>
+                    <p className="mt-0.5 font-sans text-[11px] leading-snug text-[var(--c-text-md)]">
+                      These are the workspaces stored in DevBoard Sync for this account.
+                    </p>
+                  </div>
                 </div>
-              )}
 
-              <div className="space-y-1.5 overflow-y-auto pb-20 pr-1" style={{ maxHeight: '420px' }}>
-                {workspacesLoading && recentRows.length === 0 ? (
+                {workspaces.length >= SYNC_WORKSPACE_LIMIT && (
+                  <div className="mb-2 rounded-lg border border-[#f59e0b]/30 bg-[#f59e0b]/10 px-3 py-2">
+                    <p className="font-sans text-[11px] font-semibold text-[#92400e]">
+                      Sync limit reached
+                    </p>
+                    <p className="mt-0.5 font-sans text-[10px] leading-snug text-[#b45309]">
+                      {workspaces.length}/{SYNC_WORKSPACE_LIMIT} cloud copies used. Move a workspace offline or delete a synced copy to make room.
+                    </p>
+                  </div>
+                )}
+
+                {workspaceConflictGroups.length > 0 && (
+                  <div className="mb-2 rounded-lg border border-[#f59e0b]/30 bg-[#f59e0b]/10 px-3 py-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="font-sans text-[11px] font-semibold text-[#92400e]">
+                        Possible merge candidates
+                      </p>
+                      <span className="rounded-full bg-[#f59e0b]/15 px-2 py-0.5 font-sans text-[10px] font-semibold text-[#b45309]">
+                        {workspaceConflictGroups.length} {workspaceConflictGroups.length === 1 ? 'group' : 'groups'}
+                      </span>
+                    </div>
+                    <p className="mt-1 font-sans text-[10px] leading-snug text-[#b45309]">
+                      Some cloud copies share a name, workspace identity, or matching content counts. Review details before replacing or deleting.
+                    </p>
+                    <div className="mt-2 space-y-1">
+                      {workspaceConflictGroups.slice(0, 3).map((group) => (
+                        <button
+                          key={group.key}
+                          type="button"
+                          onClick={() => {
+                            setSelectedWorkspaceId(group.workspaces[0]?.id ?? null);
+                            setDetailsRowId(`cloud:${group.workspaces[0]?.id}`);
+                            setWorkspaceMenuId(null);
+                          }}
+                          className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-1 text-left font-sans text-[10px] text-[#92400e] transition-colors hover:bg-[#f59e0b]/10"
+                        >
+                          <span className="min-w-0 truncate">
+                            {group.workspaces[0]?.title ?? 'Untitled workspace'}
+                          </span>
+                          <span className="shrink-0 text-[#b45309]">
+                            {group.workspaces.length} copies · {group.reason}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="space-y-1.5 overflow-y-auto pr-1" style={{ maxHeight: '205px' }}>
+                  {workspacesLoading && cloudWorkspaceRows.length === 0 ? (
+                    <div className="rounded-xl border border-[var(--c-border)] px-4 py-4 font-sans text-[12px] text-[var(--c-text-md)]" style={secondSurface}>
+                      Loading cloud workspaces...
+                    </div>
+                  ) : cloudWorkspaceRows.length === 0 ? (
+                    <div className="rounded-xl border border-[var(--c-border)] px-4 py-4" style={secondSurface}>
+                      <div className="flex items-start gap-3">
+                        <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[rgba(120,167,145,0.14)] text-[rgb(72,112,92)]">
+                          <IconEmptyCloud />
+                        </span>
+                        <div>
+                          <p className="font-sans text-[13px] font-semibold text-[var(--c-text-hi)]">Nothing on cloud yet</p>
+                          <p className="mt-1 font-sans text-[11px] leading-relaxed text-[var(--c-text-md)]">
+                            Turn on sync for a workspace and it will appear here.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    cloudWorkspaceRows.map((row) => renderWorkspaceRow(row, { cloudShelf: true }))
+                  )}
+                </div>
+              </section>
+
+              <div className="mb-2">
+                <p className="font-sans text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--c-text-lo)]">Local & recent</p>
+                <p className="mt-0.5 font-sans text-[11px] leading-snug text-[var(--c-text-md)]">
+                  Local folders and remembered workspaces on this device.
+                </p>
+              </div>
+
+              <div className="space-y-1.5 overflow-y-auto pb-20 pr-1" style={{ maxHeight: '255px' }}>
+                {workspacesLoading && localRecentRows.length === 0 ? (
                   <div className="rounded-xl border border-[var(--c-border)] px-4 py-4 font-sans text-[12px] text-[var(--c-text-md)]" style={secondSurface}>
                     Loading recent workspaces...
                   </div>
-                ) : recentRows.length === 0 ? (
+                ) : localRecentRows.length === 0 ? (
                   <div className="rounded-2xl border border-[var(--c-border)] px-4 py-5 text-[var(--c-text-lo)]" style={secondSurface}>
                     <div className="flex items-start gap-3">
                       <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[rgba(120,167,145,0.14)] text-[rgb(72,112,92)]">
@@ -1880,12 +2366,12 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
                           No recent workspaces yet
                         </p>
                         <p className="mt-1 font-sans text-[12px] leading-relaxed text-[var(--c-text-md)]">
-                          Open a workspace folder or sync this workspace to keep it one click away.
+                          Open a local folder or download a cloud workspace to make it one click away here.
                         </p>
                       </div>
                     </div>
                   </div>
-                ) : recentRows.map((row) => {
+                ) : localRecentRows.map((row) => {
                   const workspace = row.cloud;
                   const recent = row.local;
                   const selected = workspace ? workspace.id === selectedWorkspaceId : workspaceMenuId === row.id;
@@ -1921,7 +2407,13 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
                   const confirmingDelete = !!workspace && deleteConfirmId === workspace.id;
                   const confirmingReplace = !!workspace && replaceConfirmId === workspace.id;
                   const canRemoveRecent = !!recent && (!workspace || localUnavailable);
-                  const primaryLabel = localUnavailable && recent ? 'Relocate' : workspace && !recent ? 'Open cloud' : 'Open';
+                  const primaryLabel = localUnavailable && recent
+                    ? 'Relocate'
+                    : cloudNewer
+                      ? 'Review cloud copy'
+                      : workspace && !recent
+                        ? 'Open cloud'
+                        : 'Open';
                   const contentSummary = workspace?.contentSummary ?? recent?.contentSummary;
                   const cloudOnly = !!workspace && !recent;
                   const choiceOpen = cloudOnly && downloadChoiceRowId === row.id;

@@ -45,12 +45,12 @@ import FocusMode from './components/FocusMode';
 import DocumentMode from './components/DocumentMode';
 import StackView from './components/StackView';
 import QuickSwitcher from './components/QuickSwitcher';
-import PagesPanel from './components/PagesPanel';
 import TimerWidget from './components/TimerWidget';
 import WorkspaceExplorer, { WORKSPACE_EXPLORER_WIDTH } from './components/WorkspaceExplorer';
 import JiraPanel from './components/JiraPanel';
 import SearchBar from './components/SearchBar';
 import { useBoardStore } from './store/boardStore';
+import { useAuth } from './contexts/AuthContext';
 import { applyTheme } from './theme';
 
 const EXPLORER_COLLAPSED_WIDTH = 44;
@@ -100,6 +100,7 @@ async function isBraveBrowser(): Promise<boolean> {
 function generateId() { return Math.random().toString(36).slice(2, 11); }
 
 export default function App() {
+  const { user } = useAuth();
   // Only show welcome modal when explicitly triggered (logo click)
   const [showWelcome, setShowWelcome] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -109,7 +110,6 @@ export default function App() {
   const [toastData, setToastData] = useState<ToastPayload | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout>>();
   const [showTimer, setShowTimer] = useState(false);
-  const [pagesOpen, setPagesOpen] = useState(false);
   const [jiraOpen, setJiraOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [updateBusy, setUpdateBusy] = useState(false);
@@ -129,6 +129,21 @@ export default function App() {
 
   const boardTitle = useBoardStore((s) => s.boardTitle);
   const workspaceName = useBoardStore((s) => s.workspaceName);
+  const accountLabel = String(user?.user_metadata?.user_name
+    ?? user?.user_metadata?.preferred_username
+    ?? user?.user_metadata?.name
+    ?? user?.email
+    ?? 'Workspace Sync');
+  const accountInitials = accountLabel
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join('') || 'DB';
+  const avatarUrl = typeof user?.user_metadata?.avatar_url === 'string' ? user.user_metadata.avatar_url : null;
+  const openCloudModal = useCallback(() => {
+    window.dispatchEvent(new CustomEvent('devboard:open-cloud-modal'));
+  }, []);
 
   const activePage = pages.find((p) => p.id === activePageId);
   const isStackPage = activePage?.layoutMode === 'stack';
@@ -154,13 +169,14 @@ export default function App() {
   const explorerDragRef = useRef(false);
   const explorerPreviewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sidePanelDragRef = useRef(false);
+  const documentTransitionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const docPanelRef = useRef<HTMLDivElement>(null);
   const [docPanelWidth, setDocPanelWidth] = useState(() => (
     typeof window !== 'undefined'
       ? Math.max(440, Math.min(760, Math.round(window.innerWidth * 0.44)))
       : 560
   ));
-  const effectiveDocViewMode = isMobileViewport ? 'fullscreen' : docViewMode;
+  const effectiveDocViewMode = isMobileViewport || isStackPage ? 'fullscreen' : docViewMode;
 
   // ── Zoom-morph state machine ─────────────────────────────────────────────
   const MORPH_MS = 380;
@@ -184,6 +200,10 @@ export default function App() {
   }, [contentTop, docPanelWidth, documentFrameOffset]);
 
   useEffect(() => {
+    if (appMode === 'document' && documentTransitionTimerRef.current) {
+      clearTimeout(documentTransitionTimerRef.current);
+      documentTransitionTimerRef.current = null;
+    }
     if (appMode === 'document' && prevPresentation.current.appMode !== 'document') {
       if (effectiveDocViewMode === 'fullscreen') {
         if (documentOpenTransition === 'instant') {
@@ -215,22 +235,35 @@ export default function App() {
   }, [appMode, documentOpenTransition, effectiveDocViewMode, getPanelRect]);
 
   const closeDoc = useCallback(() => {
+    if (documentTransitionTimerRef.current) {
+      clearTimeout(documentTransitionTimerRef.current);
+      documentTransitionTimerRef.current = null;
+    }
     if (effectiveDocViewMode === 'fullscreen') {
       setMorphPhase('closing');
-      setTimeout(() => {
+      documentTransitionTimerRef.current = setTimeout(() => {
         closeDocument();
         setMorphPhase('idle');
         setMorphRectOverride(null);
+        documentTransitionTimerRef.current = null;
       }, MORPH_MS);
     } else {
       setPanelPhase('closing');
-      setTimeout(() => {
+      documentTransitionTimerRef.current = setTimeout(() => {
         closeDocument();
         setPanelPhase('idle');
         setMorphRectOverride(null);
+        documentTransitionTimerRef.current = null;
       }, PANEL_SLIDE_MS);
     }
   }, [closeDocument, effectiveDocViewMode]);
+
+  useEffect(() => () => {
+    if (documentTransitionTimerRef.current) {
+      clearTimeout(documentTransitionTimerRef.current);
+      documentTransitionTimerRef.current = null;
+    }
+  }, []);
 
   // Esc closes document
   useEffect(() => {
@@ -283,13 +316,18 @@ export default function App() {
   }, [getPanelRect, setDocViewMode]);
 
   const collapseToPanel = useCallback(() => {
+    if (documentTransitionTimerRef.current) {
+      clearTimeout(documentTransitionTimerRef.current);
+      documentTransitionTimerRef.current = null;
+    }
     setMorphRectOverride(getPanelRect());
     setMorphPhase('closing');
-    setTimeout(() => {
+    documentTransitionTimerRef.current = setTimeout(() => {
       setDocViewMode('panel');
       setMorphPhase('idle');
       setPanelPhase('open');
       setMorphRectOverride(null);
+      documentTransitionTimerRef.current = null;
     }, MORPH_MS);
   }, [getPanelRect, setDocViewMode]);
 
@@ -438,6 +476,12 @@ export default function App() {
 
   // Cmd+K quick switcher
   const [qsOpen, setQsOpen] = useState(false);
+
+  useEffect(() => {
+    const openQuickSwitcher = () => setQsOpen(true);
+    window.addEventListener('devboard:open-quick-switcher', openQuickSwitcher);
+    return () => window.removeEventListener('devboard:open-quick-switcher', openQuickSwitcher);
+  }, []);
 
   useEffect(() => {
     setToastListener((payload) => {
@@ -869,8 +913,6 @@ export default function App() {
         onNewNote={handleNewNote}
         timerVisible={showTimer}
         onToggleTimer={() => setShowTimer((v) => !v)}
-        pagesOpen={pagesOpen}
-        onTogglePages={() => setPagesOpen((v) => !v)}
         explorerOpen={explorerVisible}
         onToggleExplorer={() => {
           if (desktopExplorerPinned) {
@@ -893,7 +935,6 @@ export default function App() {
         onTemplatesOpenChange={setTemplatesOpen}
       />
       {showTimer && <TimerWidget onClose={() => setShowTimer(false)} />}
-      {pagesOpen && <PagesPanel onClose={() => setPagesOpen(false)} />}
       {jiraOpen && <JiraPanel onClose={() => setJiraOpen(false)} />}
       {searchOpen && <SearchBar onClose={() => setSearchOpen(false)} />}
       {showBraveNotice && (
@@ -930,7 +971,7 @@ export default function App() {
           className={`workspace-explorer-shell ${explorerCollapsed ? 'is-collapsed' : 'is-expanded'}`}
           style={{
             position: 'absolute',
-            top: contentTop,
+            top: 0,
             left: 0,
             bottom: 0,
             width: explorerCollapsed ? EXPLORER_COLLAPSED_WIDTH : explorerWidth,
@@ -942,23 +983,75 @@ export default function App() {
           }}
         >
           {explorerCollapsed ? (
-            <button
-              type="button"
-              onMouseEnter={openExplorerPreview}
-              onClick={() => {
-                setExplorerPreviewOpen(false);
-                setExplorerCollapsed(false);
+            <div
+              style={{
+                width: '100%',
+                height: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                padding: '10px 0',
               }}
-              title="Open sidebar"
-              aria-label="Open sidebar"
-              className="workspace-explorer-collapsed-button"
             >
-              <span className="w-8 h-8 flex items-center justify-center rounded-lg text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors">
+              <button
+                type="button"
+                onMouseEnter={openExplorerPreview}
+                onClick={() => {
+                  setExplorerPreviewOpen(false);
+                  setExplorerCollapsed(false);
+                }}
+                title="Open sidebar"
+                aria-label="Open sidebar"
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
+                style={{ border: 'none', background: 'transparent', cursor: 'pointer' }}
+              >
                 <svg width="16" height="16" viewBox="0 0 15 15" fill="none" aria-hidden="true">
                   <path d="M3 4h9M3 7.5h9M3 11h9" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" />
                 </svg>
-              </span>
-            </button>
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openCloudModal();
+                }}
+                title={accountLabel}
+                aria-label="Open Workspace Sync"
+                className="mt-auto flex items-center justify-center rounded-full transition-colors hover:bg-[var(--c-hover)]"
+                style={{
+                  width: 34,
+                  height: 34,
+                  padding: 3,
+                  border: 'none',
+                  background: 'transparent',
+                  cursor: 'pointer',
+                }}
+              >
+                <span
+                  style={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: 999,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    overflow: 'hidden',
+                    background: 'var(--c-line)',
+                    color: '#fff',
+                    fontFamily: 'var(--font-ui)',
+                    fontSize: 10,
+                    fontWeight: 800,
+                    lineHeight: 1,
+                  }}
+                >
+                  {avatarUrl ? (
+                    <img src={avatarUrl} alt="" referrerPolicy="no-referrer" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    accountInitials
+                  )}
+                </span>
+              </button>
+            </div>
           ) : (
             <>
               <WorkspaceExplorer onClose={() => setExplorerOpen(false)} onCollapse={() => setExplorerCollapsed(true)} canClose={!desktopExplorerPinned} />
@@ -1004,7 +1097,7 @@ export default function App() {
           }}
           style={{
             position: 'absolute',
-            top: contentTop,
+            top: 0,
             left: 0,
             bottom: 0,
             width: EXPLORER_EXPAND_HIT_WIDTH,
@@ -1023,7 +1116,7 @@ export default function App() {
           className="animate-sidebar-preview-in"
           style={{
             position: 'absolute',
-            top: contentTop + 8,
+            top: 8,
             left: 0,
             bottom: 12,
             width: Math.min(300, explorerWidth, WORKSPACE_EXPLORER_WIDTH),
@@ -1204,7 +1297,7 @@ export default function App() {
             <div style={{ ...frameStyle, pointerEvents: 'auto' }}>
               <DocumentMode
                 onClose={closeDoc}
-                onCollapseToPanel={isMobileViewport ? undefined : collapseToPanel}
+                onCollapseToPanel={isMobileViewport || isStackPage ? undefined : collapseToPanel}
               />
             </div>
           </div>

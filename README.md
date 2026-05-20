@@ -28,7 +28,7 @@ It is for ideas that start as messy notes, grow through links and backlinks, and
 
 DevBoard works without an account. Your workspace is a folder of Markdown and JSON files on your machine.
 
-When you want backup or multi-device access, you can sign in with GitHub or Google and sync up to 3 selected workspaces through EU-hosted Supabase storage.
+When you want backup or multi-device access, you can sign in with GitHub or Google and sync up to 10 selected workspaces through EU-hosted Supabase storage.
 
 Cloud sync is optional. Local ownership stays the default.
 
@@ -71,7 +71,7 @@ For people who want backup and access across devices.
 
 Includes:
 
-- Cloud sync for up to 3 workspaces
+- Cloud sync for up to 10 workspaces
 - GitHub or Google login
 - EU-hosted cloud storage
 - Automatic backup
@@ -135,7 +135,7 @@ Keep architecture diagrams, planning boards, and notes next to your project file
 - Favorites, recents, and quick switcher (`⌘K`)  
 
 ### ☁️ Sync (optional)
-- Cloud backup & sync (up to 3 workspaces)  
+- Cloud backup & sync (up to 10 workspaces)  
 - GitHub / Google login  
 - Hosted in EU (NL) infrastructure  
 - Built on Supabase → AWS (EU region)  

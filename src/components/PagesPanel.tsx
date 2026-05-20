@@ -128,12 +128,12 @@ export default function PagesPanel({ onClose }: Props) {
             letterSpacing: '0.04em',
           }}
         >
-          Pages
+          Folders
         </span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <button
             onClick={() => addPage()}
-            title="Add page"
+            title="Add folder"
             style={{
               width: isMobile ? 36 : 22,
               height: isMobile ? 36 : 22,
@@ -156,7 +156,7 @@ export default function PagesPanel({ onClose }: Props) {
           {isMobile && (
             <button
               onClick={onClose}
-              title="Close pages"
+              title="Close folders"
               style={{
                 width: 36,
                 height: 36,
@@ -181,7 +181,7 @@ export default function PagesPanel({ onClose }: Props) {
       {isMobile && activePage && (
         <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--c-border)' }}>
           <div style={{ fontFamily: 'var(--font-ui)', fontSize: 11, color: 'var(--c-text-lo)', marginBottom: 8 }}>
-            Page view
+            Folder view
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
             {([
@@ -219,14 +219,13 @@ export default function PagesPanel({ onClose }: Props) {
         </div>
       )}
 
-      {/* Page list */}
+      {/* Folder list */}
       <div style={{ padding: isMobile ? '8px 10px' : '4px 0' }}>
         {pages.map((page) => {
           const isActive = page.id === activePageId;
           const isRenaming = renamingId === page.id;
           const isMenuOpen = menuOpenId === page.id;
           const isStack = page.layoutMode === 'stack';
-
           return (
             <div
               key={page.id}

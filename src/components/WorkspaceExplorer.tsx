@@ -5,17 +5,19 @@
  */
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useBoardStore } from '../store/boardStore';
-import type { Camera, CanvasNode, Document, PageMeta } from '../types';
-import { listDirectory, readWorkspaceFile, readWorkspaceFileAsUrl, readWorkspaceFileInfo, getWorkspaceName, openWorkspace, createWorkspace, renameEntry, createDirectory, deleteEntry, FSA_DIR_SUPPORTED, IN_IFRAME, IS_TAURI, revealInFinder, saveTextFileToWorkspace, saveWorkspace } from '../utils/workspaceManager';
+import { useAuth } from '../contexts/AuthContext';
+import type { Camera, CanvasNode, Document, ImageNode, PageMeta } from '../types';
+import { listDirectory, readWorkspaceFile, readWorkspaceFileAsUrl, readWorkspaceFileInfo, getWorkspaceName, openWorkspace, createWorkspace, renameEntry, createDirectory, deleteEntry, FSA_DIR_SUPPORTED, IN_IFRAME, IS_TAURI, revealInFinder, saveTextFileToWorkspace, saveWorkspace, loadImageAsset, findImageInWorkspace, hasWorkspaceHandle } from '../utils/workspaceManager';
 import { FONTS } from '../utils/fonts';
 import { placeCodeFile, placeImageFile, placeDocumentFile, openDocumentFile } from '../utils/canvasPlacement';
 import { markdownBodyToHtml, titleFromMarkdown } from '../utils/exportMarkdown';
 import { exportDocumentAsMarkdownFile, exportDocumentAsPdf, exportDocumentAsTextFile, stripHtmlPreview } from '../utils/documentExport';
 import { toast } from '../utils/toast';
 import { applyWorkspaceSyncFromOpenResult } from '../utils/applyWorkspaceSync';
+import devboardIconUrl from '../assets/devboard_icon.png';
 import { useFilePreview } from '../hooks/useFilePreview';
 import { useTreeState } from '../hooks/useTreeState';
-import { IconFreeformPage, IconStackPage, IconStar } from './icons';
+import { IconCloud, IconFolder, IconStar } from './icons';
 import {
   SKIP_DIRS,
   IMAGE_EXTS,
@@ -42,11 +44,10 @@ function relativeTime(ms: number): string {
 
 const explorerSectionHeaderStyle: React.CSSProperties = {
   fontFamily: FONTS.ui,
-  fontSize: 10.5,
-  fontWeight: 800,
-  letterSpacing: '0.08em',
-  textTransform: 'uppercase',
-  color: 'var(--c-text-hi)',
+  fontSize: 9.5,
+  fontWeight: 650,
+  letterSpacing: '0.02em',
+  color: 'var(--c-text-md)',
 };
 
 const explorerFocusedRowStyle: React.CSSProperties = {
@@ -54,6 +55,8 @@ const explorerFocusedRowStyle: React.CSSProperties = {
   outline: '1px solid rgba(184,119,80,0.26)',
   outlineOffset: -1,
 };
+
+const SIDEBAR_SELECTABLE_ROW_HEIGHT = 32;
 
 function SectionChevron({ open }: { open: boolean }) {
   return (
@@ -90,34 +93,161 @@ function SectionChevron({ open }: { open: boolean }) {
   );
 }
 
-function CloudOnlyBadge() {
+function DevBoardMark() {
   return (
-    <span
-      title="Cloud workspace"
-      aria-label="Cloud workspace"
+    <img
+      src={devboardIconUrl}
+      alt=""
+      aria-hidden="true"
+      draggable={false}
       style={{
-        width: 16,
-        height: 16,
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        color: 'var(--c-text-lo)',
-        opacity: 0.82,
-        flexShrink: 0,
+        width: 23,
+        height: 23,
+        borderRadius: 6,
+        display: 'block',
       }}
-    >
-      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-        <path
-          d="M5.2 12.5H12a2.45 2.45 0 0 0 .35-4.88 4.15 4.15 0 0 0-7.95-1.1A3.02 3.02 0 0 0 5.2 12.5Z"
-          stroke="currentColor"
-          strokeWidth="1.35"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
-    </span>
+    />
   );
 }
+
+function CommandChevronDown() {
+  return (
+    <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
+      <path d="M2.4 3.8 5 6.4l2.6-2.6" stroke="currentColor" strokeWidth="1.45" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function CommandIcon({ kind }: { kind: 'search' | 'folder' | 'file' | 'edit' | 'view' | 'export' | 'settings' | 'download' | 'help' }) {
+  if (kind === 'search') {
+    return (
+      <svg width="13" height="13" viewBox="0 0 17 17" fill="none" aria-hidden="true">
+        <circle cx="7.2" cy="7.2" r="4.8" stroke="currentColor" strokeWidth="1.8" />
+        <path d="M10.8 10.8 14.3 14.3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      </svg>
+    );
+  }
+  if (kind === 'folder') return <IconFolder size={13} />;
+  if (kind === 'file') {
+    return (
+      <svg width="13" height="13" viewBox="0 0 17 17" fill="none" aria-hidden="true">
+        <path d="M4.2 2.5h5.1l3.5 3.5v8.5H4.2V2.5Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+        <path d="M9.2 2.8v3.5h3.3" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+      </svg>
+    );
+  }
+  if (kind === 'edit') {
+    return (
+      <svg width="13" height="13" viewBox="0 0 17 17" fill="none" aria-hidden="true">
+        <path d="M4 12.3 4.6 9.5l6.8-6.8 2.2 2.2-6.8 6.8-2.8.6Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+        <path d="M10.5 3.6 12.7 5.8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+    );
+  }
+  if (kind === 'view') {
+    return (
+      <svg width="13" height="13" viewBox="0 0 17 17" fill="none" aria-hidden="true">
+        <path d="M2.2 8.5s2.3-4 6.3-4 6.3 4 6.3 4-2.3 4-6.3 4-6.3-4-6.3-4Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+        <circle cx="8.5" cy="8.5" r="1.8" stroke="currentColor" strokeWidth="1.5" />
+      </svg>
+    );
+  }
+  if (kind === 'export') {
+    return (
+      <svg width="13" height="13" viewBox="0 0 17 17" fill="none" aria-hidden="true">
+        <path d="M8.5 3v7" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+        <path d="M5.8 7.8 8.5 10.5l2.7-2.7" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M3.5 13.5h10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      </svg>
+    );
+  }
+  if (kind === 'settings') {
+    return (
+      <svg width="13" height="13" viewBox="0 0 17 17" fill="none" aria-hidden="true">
+        <path d="M8.5 5.8a2.7 2.7 0 1 1 0 5.4 2.7 2.7 0 0 1 0-5.4Z" stroke="currentColor" strokeWidth="1.5" />
+        <path d="M8.5 2.2v1.7M8.5 13.1v1.7M2.2 8.5h1.7M13.1 8.5h1.7M4.1 4.1l1.2 1.2M11.7 11.7l1.2 1.2M4.1 12.9l1.2-1.2M11.7 5.3l1.2-1.2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      </svg>
+    );
+  }
+  if (kind === 'download') {
+    return (
+      <svg width="13" height="13" viewBox="0 0 17 17" fill="none" aria-hidden="true">
+        <path d="M8.5 2.5v8M5.6 7.9l2.9 2.9 2.9-2.9" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M3.2 14.2h10.6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      </svg>
+    );
+  }
+  return (
+    <svg width="13" height="13" viewBox="0 0 17 17" fill="none" aria-hidden="true">
+      <circle cx="8.5" cy="8.5" r="6.2" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M6.8 6.5a1.8 1.8 0 0 1 3.4.8c0 1.7-1.8 1.7-1.8 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <circle cx="8.5" cy="12.6" r=".6" fill="currentColor" />
+    </svg>
+  );
+}
+
+function CommandMenuItem({
+  icon,
+  label,
+  shortcut,
+  hasSubmenu,
+  active,
+  onHover,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  shortcut?: string;
+  hasSubmenu?: boolean;
+  active?: boolean;
+  onHover?: (e: React.MouseEvent<HTMLButtonElement>) => void;
+  onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        width: '100%',
+        minHeight: 31,
+        display: 'grid',
+        gridTemplateColumns: '17px minmax(0, 1fr) auto',
+        alignItems: 'center',
+        gap: 10,
+        padding: '0 12px',
+        border: 'none',
+        background: active ? 'color-mix(in srgb, var(--c-hover) 72%, transparent)' : 'transparent',
+        color: active ? 'var(--c-text-hi)' : 'var(--c-text-md)',
+        cursor: 'pointer',
+        textAlign: 'left',
+        fontFamily: FONTS.ui,
+      }}
+      onMouseEnter={(e) => {
+        onHover?.(e);
+        e.currentTarget.style.background = 'color-mix(in srgb, var(--c-hover) 72%, transparent)';
+        e.currentTarget.style.color = 'var(--c-text-hi)';
+      }}
+      onMouseLeave={(e) => {
+        if (active) return;
+        e.currentTarget.style.background = 'transparent';
+        e.currentTarget.style.color = 'var(--c-text-md)';
+      }}
+    >
+      <span style={{ display: 'inline-flex', color: 'var(--c-text-lo)' }}>{icon}</span>
+      <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12, fontWeight: 560 }}>{label}</span>
+      <span style={{ display: 'inline-flex', alignItems: 'center', color: 'var(--c-text-lo)', fontSize: 11, fontWeight: 650 }}>
+        {shortcut ?? (hasSubmenu ? '›' : '')}
+      </span>
+    </button>
+  );
+}
+
+function CommandMenuDivider() {
+  return <div style={{ height: 1, margin: '4px 10px', background: 'var(--c-border)' }} />;
+}
+
+type CommandSubmenuId = 'file' | 'edit' | 'view' | 'export' | 'preferences';
+type CommandSubmenuAction = { label: string; shortcut?: string; onClick: () => void };
 
 const ADVANCED_FILES_STORAGE_KEY = 'devboard-advanced-files-visible';
 
@@ -326,21 +456,6 @@ function sortDocumentsForExplorer(docs: Document[], sortMode: PageMeta['noteSort
   });
 }
 
-function NoteRowIcon({ doc, active }: { doc: Document; active: boolean }) {
-  return (
-    <span style={{ width: 14, display: 'flex', justifyContent: 'center', flexShrink: 0, color: active ? 'var(--c-line)' : 'var(--c-text-lo)' }}>
-      {doc.emoji ? (
-        <span style={{ fontSize: 12, lineHeight: 1 }}>{doc.emoji}</span>
-      ) : (
-        <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-          <rect x="1.5" y="1.5" width="9" height="9" rx="1.4" stroke="currentColor" strokeWidth="1.1" />
-          <path d="M3.5 4h5M3.5 6h5M3.5 8h3" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
-        </svg>
-      )}
-    </span>
-  );
-}
-
 function NoteHoverThumbnail({ doc }: { doc: Document }) {
   const plain = stripHtmlPreview(doc.content);
 
@@ -416,13 +531,14 @@ function NoteShortcutRow({
       title={doc.title || 'Untitled note'}
       style={{
         width: '100%',
-        minHeight: 24,
+        minHeight: SIDEBAR_SELECTABLE_ROW_HEIGHT,
         display: 'flex',
         alignItems: 'center',
-        gap: 7,
+        gap: 6,
         padding: '4px 8px',
+        marginTop: 2,
         border: 'none',
-        borderRadius: 6,
+        borderRadius: 5,
         background: active ? 'rgba(184,119,80,0.14)' : hovered ? 'rgba(184,119,80,0.08)' : 'transparent',
         outline: active ? '1px solid rgba(184,119,80,0.26)' : hovered ? '1px solid rgba(184,119,80,0.16)' : 'none',
         outlineOffset: -1,
@@ -430,22 +546,6 @@ function NoteShortcutRow({
         textAlign: 'left',
       }}
     >
-      <NoteRowIcon doc={doc} active={active} />
-      <span
-        style={{
-          flex: 1,
-          minWidth: 0,
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-          fontFamily: FONTS.ui,
-          fontSize: 9.5,
-          fontWeight: active ? 650 : 550,
-          color: active ? 'var(--c-text-hi)' : 'var(--c-text-md)',
-        }}
-      >
-        {doc.title || 'Untitled note'}
-      </span>
       <span
         role="button"
         tabIndex={0}
@@ -488,6 +588,21 @@ function NoteShortcutRow({
         }}
       >
         <IconStar filled={favorite} size={12} />
+      </span>
+      <span
+        style={{
+          flex: 1,
+          minWidth: 0,
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+          fontFamily: FONTS.ui,
+          fontSize: 10,
+          fontWeight: active ? 650 : 550,
+          color: active ? 'var(--c-text-hi)' : 'var(--c-text-md)',
+        }}
+      >
+        {doc.title || 'Untitled note'}
       </span>
     </button>
   );
@@ -889,6 +1004,7 @@ function PageGroup({
   onEnsureCustomSort,
   onToggleCollapsed,
   onOpenPageOverview,
+  onCreateFolder,
   onCreateNote,
   onOpenDocument,
   pageFocused,
@@ -918,6 +1034,7 @@ function PageGroup({
   onEnsureCustomSort: (page: PageMeta) => void;
   onToggleCollapsed: () => void;
   onOpenPageOverview: () => void;
+  onCreateFolder: () => void;
   onCreateNote: () => void;
   onOpenDocument: (docId: string) => void;
   pageFocused: boolean;
@@ -1011,7 +1128,7 @@ function PageGroup({
   }, []);
 
   return (
-    <div style={{ marginBottom: 4 }}>
+    <div style={{ marginBottom: 2 }}>
       <div
         onMouseEnter={(e) => {
           setPageHovered(true);
@@ -1027,12 +1144,12 @@ function PageGroup({
         }}
         style={{
           width: '100%',
-          minHeight: 24,
+          minHeight: SIDEBAR_SELECTABLE_ROW_HEIGHT,
           display: 'flex',
           alignItems: 'center',
-          gap: 6,
-          padding: '4px 8px',
-          borderRadius: 6,
+          gap: 5,
+          padding: '3px 8px',
+          borderRadius: 5,
           ...(isActive ? explorerFocusedRowStyle : {}),
           ...(pageFocused ? {
             background: 'rgba(184,119,80,0.16)',
@@ -1052,8 +1169,8 @@ function PageGroup({
           onClick={onToggleCollapsed}
           title={isCollapsed ? `Expand "${page.name}"` : `Collapse "${page.name}"`}
             style={{
-              width: 14,
-              height: 14,
+              width: 12,
+              height: 12,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -1087,26 +1204,22 @@ function PageGroup({
             onFocusPage(page.id);
             setPageMenu({ x: e.clientX, y: e.clientY });
           }}
-          title={`Open "${page.name}" page overview`}
-          style={{
-            flex: 1,
-            minWidth: 0,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 7,
-            padding: 0,
+          title={`Open "${page.name}" folder overview`}
+            style={{
+              flex: 1,
+              minWidth: 0,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: 0,
             background: 'transparent',
             border: 'none',
             cursor: 'pointer',
             textAlign: 'left',
           }}
         >
-          <span style={{ width: 16, display: 'flex', justifyContent: 'center', flexShrink: 0, color: isActive ? 'var(--c-line)' : 'var(--c-text-lo)' }}>
-            {page.layoutMode === 'stack' ? (
-              <IconStackPage />
-            ) : (
-              <IconFreeformPage />
-            )}
+          <span style={{ width: 14, display: 'flex', justifyContent: 'center', flexShrink: 0, color: isActive ? 'var(--c-line)' : 'var(--c-text-lo)' }}>
+            <IconFolder size={12} />
           </span>
           {renamingPage ? (
             <input
@@ -1136,20 +1249,20 @@ function PageGroup({
               style={{
                 flex: 1,
                 minWidth: 0,
-                height: 22,
+                height: 20,
                 padding: '0 6px',
                 background: 'var(--c-canvas)',
                 border: '1px solid rgba(184,119,80,0.28)',
                 borderRadius: 5,
                 outline: 'none',
                 fontFamily: FONTS.ui,
-                fontSize: 10.5,
+                fontSize: 10,
                 color: 'var(--c-text-hi)',
               }}
             />
           ) : (
             <span style={{
-              fontFamily: FONTS.ui, fontSize: 10, fontWeight: isActive ? 600 : 500,
+              fontFamily: FONTS.ui, fontSize: 10.5, fontWeight: isActive ? 600 : 500,
               color: isActive ? 'var(--c-text-hi)' : 'var(--c-text-lo)',
               overflow: 'hidden', textOverflow: 'ellipsis',
               whiteSpace: 'nowrap', flex: 1,
@@ -1159,7 +1272,7 @@ function PageGroup({
           )}
           <span style={{
             fontFamily: FONTS.ui,
-            fontSize: 9,
+            fontSize: 8.5,
             color: isActive ? 'var(--c-text-md)' : 'var(--c-text-lo)',
             flexShrink: 0,
             lineHeight: 1,
@@ -1178,8 +1291,8 @@ function PageGroup({
             }}
             title={`New note in ${page.name}`}
             style={{
-              width: 18,
-              height: 18,
+              width: 16,
+              height: 16,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -1208,7 +1321,7 @@ function PageGroup({
             <span
               style={{
                 display: 'block',
-                fontSize: 14,
+                fontSize: 12,
                 lineHeight: 1,
                 transform: 'translateY(-1px)',
               }}
@@ -1226,8 +1339,8 @@ function PageGroup({
             }}
             title={`${page.name} menu`}
             style={{
-              width: 18,
-              height: 18,
+              width: 16,
+              height: 16,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -1252,6 +1365,17 @@ function PageGroup({
               className="py-1.5 rounded-xl border border-[var(--c-border)] bg-[var(--c-panel)] shadow-2xl"
               onMouseDown={(e) => e.stopPropagation()}
             >
+              <button
+                className="w-full flex items-center justify-between px-3 py-1.5 text-[12px] rounded transition-colors text-left text-[var(--c-text-md)] hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]"
+                style={{ fontFamily: FONTS.ui }}
+                onClick={() => {
+                  onCreateFolder();
+                  setPageMenu(null);
+                }}
+              >
+                <span>New folder</span>
+                <span className="text-[10px] ml-3 text-[var(--c-text-off)]">+</span>
+              </button>
               <button
                 className="w-full flex items-center justify-between px-3 py-1.5 text-[12px] rounded transition-colors text-left text-[var(--c-text-md)] hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]"
                 style={{ fontFamily: FONTS.ui }}
@@ -1310,7 +1434,7 @@ function PageGroup({
                   setPageMenu(null);
                 }}
               >
-                <span>Rename page</span>
+                <span>Rename folder</span>
               </button>
               <button
                 className="w-full flex items-center justify-between px-3 py-1.5 text-[12px] rounded transition-colors text-left hover:bg-[rgba(239,68,68,0.12)]"
@@ -1320,7 +1444,7 @@ function PageGroup({
                   setPageMenu(null);
                 }}
               >
-                <span>Delete page</span>
+                <span>Delete folder</span>
               </button>
             </div>
             );
@@ -1332,8 +1456,8 @@ function PageGroup({
         <div
               style={{
             marginTop: 2,
-            marginLeft: 22,
-            paddingLeft: 8,
+            marginLeft: 18,
+            paddingLeft: 10,
             borderLeft: '1px solid rgba(184,119,80,0.18)',
             maxHeight: 520,
             opacity: 1,
@@ -1344,7 +1468,7 @@ function PageGroup({
         >
           {docs.length === 0 ? (
             <div style={{ padding: '6px 8px 2px', fontSize: 9.5, color: 'var(--c-text-lo)', fontFamily: FONTS.ui, fontStyle: 'italic' }}>
-              No notes on this page
+              No notes in this folder
             </div>
           ) : (
 	            docs.map((doc) => {
@@ -1381,10 +1505,11 @@ function PageGroup({
 	                  }}
 	                  style={{
                     width: '100%',
-                    minHeight: 24,
-                    display: 'flex',
+                    minHeight: SIDEBAR_SELECTABLE_ROW_HEIGHT,
+                    display: 'grid',
+                    gridTemplateColumns: 'minmax(0,1fr) auto',
                     alignItems: 'center',
-                    gap: 7,
+                    columnGap: 10,
                     marginTop: 2,
                     padding: '4px 8px',
 	                    background: isDragged
@@ -1403,7 +1528,7 @@ function PageGroup({
                             ? '1px solid rgba(184,119,80,0.16)'
 	                        : 'none',
                     outlineOffset: -1,
-                    borderRadius: 6,
+                    borderRadius: 5,
                     cursor: isRenaming ? 'text' : 'pointer',
                     textAlign: 'left',
                     boxShadow: isDropTarget ? 'inset 0 2px 0 rgba(184,119,80,0.55)' : 'none',
@@ -1427,9 +1552,6 @@ function PageGroup({
                       'position:fixed',
                       'top:-999px',
                       'left:-999px',
-                      'display:flex',
-                      'align-items:center',
-                      'gap:8px',
                       'min-width:180px',
                       'max-width:280px',
                       'padding:8px 10px',
@@ -1442,11 +1564,6 @@ function PageGroup({
                       'pointer-events:none',
                       'white-space:nowrap',
                     ].join(';');
-
-                    const grip = document.createElement('span');
-                    grip.textContent = '⋮⋮';
-                    grip.style.cssText = 'font-size:10px;color:#8a755f;flex-shrink:0;';
-                    ghost.appendChild(grip);
 
                     const textWrap = document.createElement('div');
                     textWrap.style.cssText = 'display:flex;flex-direction:column;min-width:0;';
@@ -1486,24 +1603,6 @@ function PageGroup({
                     handleDropOnDoc(doc.id);
                   }}
                 >
-                  <span
-                    title="Drag note to reorder"
-                    style={{
-                      width: 10,
-                      display: 'flex',
-                      justifyContent: 'center',
-                      color: isDropTarget || isDragged ? 'var(--c-line)' : 'var(--c-text-off)',
-                      cursor: isRenaming ? 'text' : 'grab',
-                      flexShrink: 0,
-                      fontSize: 10,
-                      lineHeight: 1,
-                      opacity: isDragged ? 1 : 0.72,
-                      transition: 'color 0.12s ease, opacity 0.12s ease',
-                    }}
-                  >
-                    ⋮⋮
-                  </span>
-                  <NoteRowIcon doc={doc} active={isSelected} />
                   {isRenaming ? (
                     <input
                       autoFocus
@@ -1523,22 +1622,21 @@ function PageGroup({
                         e.stopPropagation();
                       }}
                       style={{
-                        flex: 1,
                         minWidth: 0,
-                        height: 22,
+                        height: 20,
                         padding: '0 6px',
                         background: 'var(--c-canvas)',
                         border: '1px solid rgba(184,119,80,0.28)',
                         borderRadius: 5,
                         outline: 'none',
                         fontFamily: FONTS.ui,
-                        fontSize: 10,
+                        fontSize: 10.25,
                         color: 'var(--c-text-hi)',
                       }}
                     />
                   ) : (
                     <span style={{
-                      fontFamily: FONTS.ui, fontSize: 9.5, fontWeight: isSelected ? 600 : 500,
+                      fontFamily: FONTS.ui, fontSize: 10.25, fontWeight: isSelected ? 600 : 500,
                       color: 'var(--c-text-hi)',
                       overflow: 'hidden', textOverflow: 'ellipsis',
                       whiteSpace: 'nowrap', flex: 1,
@@ -1546,7 +1644,7 @@ function PageGroup({
                       {doc.title || 'Untitled note'}
                     </span>
                   )}
-                  <span style={{ fontFamily: FONTS.ui, fontSize: 9, color: isSelected ? 'var(--c-text-md)' : 'var(--c-text-lo)', flexShrink: 0 }}>
+                  <span style={{ fontFamily: FONTS.ui, fontSize: 8.75, color: isSelected ? 'var(--c-text-md)' : 'var(--c-text-lo)', flexShrink: 0, minWidth: 26, textAlign: 'right' }}>
                     {relativeTime(doc.updatedAt)}
                   </span>
                 </button>
@@ -1692,32 +1790,38 @@ interface Props {
 }
 
 export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true, collapseIcon = 'close' }: Props) {
+  const { isConfigured: authConfigured, isLoading: authLoading, user } = useAuth();
   const imageAssetFolder = useBoardStore((s) => s.imageAssetFolder);
   const boardTitle = useBoardStore((s) => s.boardTitle);
-  const setBoardTitle = useBoardStore((s) => s.setBoardTitle);
   const exportData = useBoardStore((s) => s.exportData);
   const setWorkspaceName = useBoardStore((s) => s.setWorkspaceName);
   const cloudBoardId = useBoardStore((s) => s.cloudBoardId);
   const cloudBoardTitle = useBoardStore((s) => s.cloudBoardTitle);
-  const markLocalSaved = useBoardStore((s) => s.markLocalSaved);
+  const cloudSyncedAt = useBoardStore((s) => s.cloudSyncedAt);
+  const lastLocalSavedAt = useBoardStore((s) => s.lastLocalSavedAt);
   const pages = useBoardStore((s) => s.pages);
   const addPage = useBoardStore((s) => s.addPage);
   const deletePage = useBoardStore((s) => s.deletePage);
   const renamePage = useBoardStore((s) => s.renamePage);
   const setPageNoteSort = useBoardStore((s) => s.setPageNoteSort);
+  const setPageLayoutMode = useBoardStore((s) => s.setPageLayoutMode);
   const activePageId = useBoardStore((s) => s.activePageId);
   const activeDocId = useBoardStore((s) => s.activeDocId);
   const switchPage = useBoardStore((s) => s.switchPage);
   const documents = useBoardStore((s) => s.documents);
-  const recentDocIds = useBoardStore((s) => s.recentDocIds);
   const addDocument = useBoardStore((s) => s.addDocument);
+  const updateNode = useBoardStore((s) => s.updateNode);
   const updateDocument = useBoardStore((s) => s.updateDocument);
   const toggleFavoriteDocument = useBoardStore((s) => s.toggleFavoriteDocument);
   const deleteDocument = useBoardStore((s) => s.deleteDocument);
   const openDocument = useBoardStore((s) => s.openDocument);
   const storeNodes = useBoardStore((s) => s.nodes);
   const pageSnapshots = useBoardStore((s) => s.pageSnapshots);
-  const isDark = useBoardStore((s) => s.theme) === 'dark';
+  const theme = useBoardStore((s) => s.theme);
+  const toggleTheme = useBoardStore((s) => s.toggleTheme);
+  const noteAutosaveEnabled = useBoardStore((s) => s.noteAutosaveEnabled);
+  const setNoteAutosaveEnabled = useBoardStore((s) => s.setNoteAutosaveEnabled);
+  const isDark = theme === 'dark';
 
   const panelRef = useRef<HTMLDivElement>(null);
   const { filePreview, showFilePreview, handleFileHover, clearPreview } = useFilePreview(panelRef);
@@ -1760,8 +1864,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
   // Local state
   const [pagesSectionOpen, setPagesSectionOpen] = useState(true);
   const [favoritesSectionOpen, setFavoritesSectionOpen] = useState(true);
-  const [recentsSectionOpen, setRecentsSectionOpen] = useState(true);
-  const [assetsSectionOpen, setAssetsSectionOpen] = useState(true);
+  const [assetsSectionOpen] = useState(false);
   const [cloudExpandedPaths, setCloudExpandedPaths] = useState<Record<string, boolean>>({
     assets: true,
     notes: true,
@@ -1772,17 +1875,17 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
     return window.localStorage.getItem(ADVANCED_FILES_STORAGE_KEY) === '1';
   });
   const [collapsedPageIds, setCollapsedPageIds] = useState<Record<string, boolean>>({});
-  const [pageSectionHeight, setPageSectionHeight] = useState(320);
   const [confirmingClose, setConfirmingClose] = useState(false);
   const confirmCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [commandMenuOpen, setCommandMenuOpen] = useState(false);
+  const [commandMenuAnchor, setCommandMenuAnchor] = useState<{ left: number; top: number } | null>(null);
+  const [commandSubmenu, setCommandSubmenu] = useState<CommandSubmenuId | null>(null);
+  const [commandSubmenuTop, setCommandSubmenuTop] = useState(0);
+  const commandMenuRef = useRef<HTMLDivElement>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [coarsePointer, setCoarsePointer] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const workspaceNameInputRef = useRef<HTMLInputElement>(null);
-  const workspaceNameBlurCancelledRef = useRef(false);
-  const [workspaceNameEditing, setWorkspaceNameEditing] = useState(false);
-  const [workspaceNameDraft, setWorkspaceNameDraft] = useState('');
   const [focusedIdx, setFocusedIdx] = useState<number | null>(null);
   const [pagePreview, setPagePreview] = useState<PagePreview | null>(null);
   const [notePreview, setNotePreview] = useState<NotePreview | null>(null);
@@ -1800,6 +1903,9 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
   const [deleteConfirm, setDeleteConfirm] = useState<TreeEntry | null>(null);
   const [deletePageConfirm, setDeletePageConfirm] = useState<{ id: string; name: string } | null>(null);
   const [deleteNoteConfirm, setDeleteNoteConfirm] = useState<Document | null>(null);
+  const [missingImagesOpen, setMissingImagesOpen] = useState(false);
+  const [missingImagesFixing, setMissingImagesFixing] = useState(false);
+  const missingImagesPopoverRef = useRef<HTMLDivElement>(null);
   // Explorer context menu (right-click)
   type ExplorerMenu = { entry: TreeEntry; x: number; y: number };
   const [explorerMenu, setExplorerMenu] = useState<ExplorerMenu | null>(null);
@@ -1807,56 +1913,68 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
   const [filesSectionMenu, setFilesSectionMenu] = useState<{ x: number; y: number } | null>(null);
   const filesSectionMenuRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const resizeStateRef = useRef<{ startY: number; startHeight: number } | null>(null);
   const workspaceDisplayName = useMemo(() => {
     const title = boardTitle.trim();
     return title || cloudBoardTitle || storeWorkspaceName || getWorkspaceName() || 'Untitled Workspace';
   }, [boardTitle, cloudBoardTitle, storeWorkspaceName]);
+  const activeDocument = useMemo(
+    () => documents.find((doc) => doc.id === activeDocId) ?? null,
+    [activeDocId, documents]
+  );
   const hasLocalWorkspace = !!getWorkspaceName();
   const hasWorkspaceContext = hasLocalWorkspace || !!cloudBoardId;
   const cloudOnlyWorkspace = !hasLocalWorkspace && !!cloudBoardId;
-
-  const startWorkspaceNameEdit = useCallback(() => {
-    workspaceNameBlurCancelledRef.current = false;
-    setWorkspaceNameDraft(workspaceDisplayName);
-    setWorkspaceNameEditing(true);
-  }, [workspaceDisplayName]);
-
-  const cancelWorkspaceNameEdit = useCallback(() => {
-    workspaceNameBlurCancelledRef.current = true;
-    setWorkspaceNameDraft('');
-    setWorkspaceNameEditing(false);
+  const missingImages = useMemo(
+    () => storeNodes.filter((node): node is ImageNode => node.type === 'image' && !!node.assetName && !node.src),
+    [storeNodes]
+  );
+  const accountLabel = String(user?.user_metadata?.user_name
+    ?? user?.user_metadata?.preferred_username
+    ?? user?.user_metadata?.name
+    ?? user?.email
+    ?? 'Local workspace');
+  const accountInitials = accountLabel
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join('') || 'DB';
+  const avatarUrl = typeof user?.user_metadata?.avatar_url === 'string' ? user.user_metadata.avatar_url : null;
+  const hasUnsyncedSyncChanges = !!user && !!cloudBoardId && !!lastLocalSavedAt && !!cloudSyncedAt && lastLocalSavedAt > cloudSyncedAt + 1000;
+  const accountStatus = authLoading
+    ? 'Checking...'
+    : missingImages.length > 0
+      ? `${missingImages.length} missing image${missingImages.length === 1 ? '' : 's'}`
+    : hasUnsyncedSyncChanges
+      ? 'Unsynced'
+      : cloudBoardId
+        ? 'Saved'
+        : 'Saved';
+  const openCloudModal = useCallback(() => {
+    window.dispatchEvent(new CustomEvent('devboard:open-cloud-modal'));
   }, []);
 
-  const commitWorkspaceNameEdit = useCallback(() => {
-    workspaceNameBlurCancelledRef.current = false;
-    const nextName = workspaceNameDraft.trim() || workspaceDisplayName;
-    setWorkspaceNameEditing(false);
-    setWorkspaceNameDraft('');
-    if (nextName === workspaceDisplayName) return;
-
-    setBoardTitle(nextName);
-    if (cloudBoardId) markLocalSaved();
-
-    const data = { ...useBoardStore.getState().exportData(), boardTitle: nextName };
-    void saveWorkspace(data, { notify: false })
-      .then((result) => {
-        if (result.saved) {
-          toast(`Renamed workspace · ${nextName}`);
-        } else if (cloudBoardId) {
-          toast('Workspace renamed locally. Sync to update the online copy.');
-        }
-      })
-      .catch((err) => {
-        console.warn('Workspace rename save failed:', err);
-        toast('Workspace renamed locally. Save again to update the folder.');
-      });
-  }, [cloudBoardId, markLocalSaved, setBoardTitle, workspaceDisplayName, workspaceNameDraft]);
+  const missingImagePath = useCallback((image: ImageNode): string => {
+    const folder = image.assetFolder ?? imageAssetFolder ?? 'assets';
+    return folder ? `${folder}/${image.assetName}` : image.assetName ?? 'missing image';
+  }, [imageAssetFolder]);
 
   // Cleanup on unmount
   useEffect(() => () => {
     if (confirmCloseTimerRef.current) clearTimeout(confirmCloseTimerRef.current);
   }, []);
+
+  useEffect(() => {
+    if (!commandMenuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (commandMenuRef.current && !commandMenuRef.current.contains(e.target as Node)) {
+        setCommandMenuOpen(false);
+        setCommandSubmenu(null);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [commandMenuOpen]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -1870,13 +1988,25 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
   }, [searchOpen]);
 
   useEffect(() => {
-    if (!workspaceNameEditing) return;
-    const raf = window.requestAnimationFrame(() => {
-      workspaceNameInputRef.current?.focus();
-      workspaceNameInputRef.current?.select();
-    });
-    return () => window.cancelAnimationFrame(raf);
-  }, [workspaceNameEditing]);
+    if (!missingImagesOpen) return;
+    const onMouseDown = (e: MouseEvent) => {
+      if (missingImagesPopoverRef.current?.contains(e.target as Node)) return;
+      setMissingImagesOpen(false);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMissingImagesOpen(false);
+    };
+    window.addEventListener('mousedown', onMouseDown);
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('mousedown', onMouseDown);
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [missingImagesOpen]);
+
+  useEffect(() => {
+    if (missingImages.length === 0) setMissingImagesOpen(false);
+  }, [missingImages.length]);
 
   useEffect(() => {
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
@@ -1890,32 +2020,6 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
     media.addListener(sync);
     return () => media.removeListener(sync);
   }, []);
-
-  useEffect(() => {
-    const onPointerMove = (e: PointerEvent) => {
-      const resizeState = resizeStateRef.current;
-      if (!resizeState) return;
-      const panelHeight = panelRef.current?.getBoundingClientRect().height ?? window.innerHeight;
-      const minHeight = 120;
-      const maxHeight = Math.max(minHeight, Math.min(520, panelHeight * 0.62));
-      const nextHeight = resizeState.startHeight + (e.clientY - resizeState.startY);
-      setPageSectionHeight(Math.max(minHeight, Math.min(maxHeight, nextHeight)));
-    };
-
-    const onPointerUp = () => {
-      resizeStateRef.current = null;
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
-    };
-
-    window.addEventListener('pointermove', onPointerMove);
-    window.addEventListener('pointerup', onPointerUp);
-    return () => {
-      window.removeEventListener('pointermove', onPointerMove);
-      window.removeEventListener('pointerup', onPointerUp);
-    };
-  }, []);
-
 
   // ── File actions ─────────────────────────────────────────────────────────
   const placeFile = useCallback(async (entry: TreeEntry) => {
@@ -1933,7 +2037,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
     const e = ext(entry.name);
     if (DOC_EXTS.has(e)) {
       if (isWorkspaceManagedEntry(entry)) {
-        toast('Opening from Pages. Notes are read-only in Asset files; edit them from the Pages section above.');
+        toast('Opening from Folders. Notes are read-only in Asset files; edit them from the Folders section above.');
       }
       await openDocumentFile(entry.path);
     } else {
@@ -2070,6 +2174,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
   const handleOpenFolder = useCallback(async () => {
     const result = await openWorkspace();
     if (result) {
+      setMissingImagesOpen(false);
       useBoardStore.getState().setWorkspaceName?.(result.name);
       if (result.data) useBoardStore.getState().loadBoard(result.data);
       applyWorkspaceSyncFromOpenResult(result);
@@ -2088,6 +2193,45 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
         });
     }
   }, []);
+
+  const handleFindMissingImages = useCallback(async () => {
+    if (missingImagesFixing || missingImages.length === 0) return;
+    setMissingImagesFixing(true);
+    let restored = 0;
+
+    try {
+      for (const image of missingImages) {
+        if (!image.assetName) continue;
+        let src = await loadImageAsset(image.assetName, image.assetFolder);
+        let assetFolder = image.assetFolder;
+
+        if (!src) {
+          const found = await findImageInWorkspace(image.assetName);
+          if (found) {
+            src = found.url;
+            assetFolder = found.folder;
+          }
+        }
+
+        if (src) {
+          updateNode(image.id, { src, assetFolder } as Partial<ImageNode>);
+          restored += 1;
+        }
+      }
+
+      const remaining = missingImages.length - restored;
+      if (restored === missingImages.length) {
+        toast(`Restored ${restored} image${restored === 1 ? '' : 's'}`);
+        setMissingImagesOpen(false);
+      } else if (restored > 0) {
+        toast(`Restored ${restored} image${restored === 1 ? '' : 's'}. ${remaining} still missing.`);
+      } else {
+        toast('Could not find the missing image files. Reopen the workspace folder or place them back in assets/.');
+      }
+    } finally {
+      setMissingImagesFixing(false);
+    }
+  }, [missingImages, missingImagesFixing, updateNode]);
 
   // ── Rename ───────────────────────────────────────────────────────────────
   const [renameExtWarning, setRenameExtWarning] = useState<{ entry: TreeEntry; newName: string } | null>(null);
@@ -2294,18 +2438,6 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
   );
   const visibleFavoriteDocs = useMemo(() => favoriteDocs.slice(0, 5), [favoriteDocs]);
 
-  const recentDocs = useMemo(() => {
-    const byId = new Map(documents.map((doc) => [doc.id, doc]));
-    const opened = recentDocIds
-      .map((id) => byId.get(id))
-      .filter((doc): doc is Document => !!doc && !doc.isFavorite);
-    if (opened.length > 0) return opened;
-    return [...documents]
-      .filter((doc) => !doc.isFavorite)
-      .sort((a, b) => b.updatedAt - a.updatedAt)
-      .slice(0, 6);
-  }, [documents, recentDocIds]);
-
   const getPageNodes = useCallback((pageId: string) => {
     if (pageId === activePageId) return storeNodes;
     return pageSnapshots[pageId]?.nodes ?? [];
@@ -2417,17 +2549,80 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
     showNotePreview(page, doc, anchorY);
   }, [activePageId, pages, showNotePreview]);
 
-  const startPageSectionResize = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    resizeStateRef.current = { startY: e.clientY, startHeight: pageSectionHeight };
-    document.body.style.cursor = 'ns-resize';
-    document.body.style.userSelect = 'none';
-  }, [pageSectionHeight]);
-
   const handleCreateWorkspace = useCallback(async () => {
     const result = await createWorkspace(exportData(), boardTitle.trim() || 'DevBoard Workspace');
     if (!result) return;
     setWorkspaceName(result.name);
   }, [boardTitle, exportData, setWorkspaceName]);
+
+  const closeCommandMenu = useCallback(() => {
+    setCommandMenuOpen(false);
+    setCommandSubmenu(null);
+  }, []);
+
+  const openCommandSubmenu = useCallback((id: CommandSubmenuId, target: HTMLElement) => {
+    const rect = target.getBoundingClientRect();
+    setCommandSubmenu(id);
+    setCommandSubmenuTop(rect.top);
+  }, []);
+
+  const runCommandAction = useCallback((action: () => void | Promise<void>) => {
+    closeCommandMenu();
+    void action();
+  }, [closeCommandMenu]);
+
+  const saveCurrentWorkspace = useCallback(async () => {
+    const result = await saveWorkspace(useBoardStore.getState().exportData(), { notify: false });
+    toast(result.saved ? 'Saved workspace' : 'Choose a workspace folder to save');
+  }, []);
+
+  const exportActiveDocument = useCallback((format: 'markdown' | 'text' | 'pdf') => {
+    const doc = useBoardStore.getState().documents.find((entry) => entry.id === useBoardStore.getState().activeDocId);
+    if (!doc) {
+      toast('Open a note before exporting it');
+      return;
+    }
+    if (format === 'markdown') exportDocumentAsMarkdownFile(doc);
+    else if (format === 'text') exportDocumentAsTextFile(doc);
+    else exportDocumentAsPdf(doc);
+  }, []);
+
+  const commandSubmenuItems = useMemo<Record<CommandSubmenuId, CommandSubmenuAction[]>>(() => {
+    const store = () => useBoardStore.getState();
+    return {
+      file: [
+        { label: 'New note', shortcut: '⌘N', onClick: () => createNoteForPage(activePageId) },
+        { label: 'New folder', onClick: () => addPage() },
+        { label: 'Open workspace...', onClick: () => { void handleOpenFolder(); } },
+        ...(IS_TAURI ? [{ label: 'Create workspace...', onClick: () => { void handleCreateWorkspace(); } }] : []),
+        { label: 'Save workspace', shortcut: '⌘S', onClick: () => { void saveCurrentWorkspace(); } },
+      ],
+      edit: [
+        { label: 'Undo', shortcut: '⌘Z', onClick: () => store().undo() },
+        { label: 'Redo', shortcut: '⇧⌘Z', onClick: () => store().redo() },
+        { label: 'Copy', shortcut: '⌘C', onClick: () => store().copySelected() },
+        { label: 'Paste', shortcut: '⌘V', onClick: () => store().paste() },
+        { label: 'Duplicate', shortcut: '⌘D', onClick: () => store().duplicate() },
+        { label: 'Delete selection', onClick: () => store().deleteSelected() },
+      ],
+      view: [
+        { label: 'Canvas mode', onClick: () => setPageLayoutMode(activePageId, 'freeform') },
+        { label: 'Notes mode', onClick: () => setPageLayoutMode(activePageId, 'stack') },
+        { label: 'Reset zoom', onClick: () => store().setCamera({ scale: 1, x: 0, y: 0 }) },
+        { label: 'Quick switcher', shortcut: '⌘K', onClick: () => { window.dispatchEvent(new CustomEvent('devboard:open-quick-switcher')); } },
+      ],
+      export: [
+        { label: 'Current note (.md)', onClick: () => exportActiveDocument('markdown') },
+        { label: 'Current note (.txt)', onClick: () => exportActiveDocument('text') },
+        { label: 'Current note (.pdf)', onClick: () => exportActiveDocument('pdf') },
+      ],
+      preferences: [
+        { label: theme === 'light' ? 'Dark mode' : 'Light mode', onClick: () => toggleTheme() },
+        { label: noteAutosaveEnabled ? 'Disable note autosave' : 'Enable note autosave', onClick: () => setNoteAutosaveEnabled(!noteAutosaveEnabled) },
+        { label: 'Workspace Sync...', onClick: openCloudModal },
+      ],
+    };
+  }, [activePageId, addPage, createNoteForPage, exportActiveDocument, handleCreateWorkspace, handleOpenFolder, noteAutosaveEnabled, openCloudModal, saveCurrentWorkspace, setNoteAutosaveEnabled, setPageLayoutMode, theme, toggleTheme]);
 
   const cloudTree = useMemo(() => buildVirtualCloudTree({
     pages,
@@ -2614,21 +2809,264 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
       tabIndex={0}
       onKeyDown={handleKeyDown}
     >
-      {/* Header */}
+      {/* Workspace selector */}
       <div
         style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          display: 'grid',
+          gridTemplateColumns: '52px minmax(0, 1fr) 32px',
+          alignItems: 'center',
           gap: 8,
-          padding: '8px 10px',
-          borderBottom: '1px solid var(--c-border)',
+          minHeight: 46,
+          padding: '8px 10px 7px',
           flexShrink: 0,
+          borderBottom: '1px solid var(--c-border)',
         }}
       >
+        <div ref={commandMenuRef} style={{ position: 'relative', width: 52, height: 32 }}>
+          <button
+            type="button"
+            aria-label="DevBoard command center"
+            title="DevBoard command center"
+            onClick={(e) => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              setCommandMenuAnchor({ left: rect.left, top: rect.bottom + 8 });
+              setCommandMenuOpen((open) => {
+                if (open) setCommandSubmenu(null);
+                return !open;
+              });
+            }}
+            className="flex items-center justify-center transition-colors"
+            style={{
+              width: 52,
+              height: 32,
+              gap: 3,
+              border: commandMenuOpen ? '1.5px solid var(--c-line)' : '1px solid var(--c-border)',
+              borderRadius: 9,
+              background: commandMenuOpen ? 'var(--c-canvas)' : 'color-mix(in srgb, var(--c-canvas) 48%, transparent)',
+              cursor: 'pointer',
+              boxShadow: commandMenuOpen ? '0 0 0 2px color-mix(in srgb, var(--c-line) 18%, transparent)' : 'none',
+            }}
+          >
+            <DevBoardMark />
+            <span style={{ display: 'inline-flex', color: 'var(--c-text-md)' }}>
+              <CommandChevronDown />
+            </span>
+          </button>
+          {commandMenuOpen && (
+            <div
+              style={{
+                position: 'fixed',
+                top: commandMenuAnchor?.top ?? 64,
+                left: commandMenuAnchor?.left ?? 10,
+                zIndex: 9300,
+                width: 224,
+                maxWidth: 'calc(100vw - 24px)',
+                padding: '6px 0',
+                border: '1px solid var(--c-border)',
+                borderRadius: 10,
+                background: 'var(--c-panel)',
+                boxShadow: '0 14px 36px rgba(40,32,26,0.18)',
+                overflow: 'hidden',
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  closeCommandMenu();
+                  window.dispatchEvent(new CustomEvent('devboard:open-quick-switcher'));
+                }}
+                style={{
+                  width: 'calc(100% - 12px)',
+                  margin: '0 6px 5px',
+                  minHeight: 30,
+                  display: 'grid',
+                  gridTemplateColumns: '17px minmax(0,1fr) auto',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '0 9px',
+                  borderRadius: 7,
+                  background: 'color-mix(in srgb, var(--c-hover) 64%, transparent)',
+                  color: 'var(--c-text-lo)',
+                  fontFamily: FONTS.ui,
+                  border: 'none',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'var(--c-hover)';
+                  e.currentTarget.style.color = 'var(--c-text-hi)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'color-mix(in srgb, var(--c-hover) 64%, transparent)';
+                  e.currentTarget.style.color = 'var(--c-text-lo)';
+                }}
+              >
+                <CommandIcon kind="search" />
+                <span style={{ fontSize: 12, fontWeight: 560 }}>Actions...</span>
+                <span style={{ fontSize: 10.5, fontWeight: 700, opacity: 0.72 }}>⌘K</span>
+              </button>
+              <CommandMenuItem
+                icon={<CommandIcon kind="folder" />}
+                label="Back to workspaces"
+                onClick={() => {
+                  closeCommandMenu();
+                  void handleOpenFolder();
+                }}
+              />
+              <CommandMenuDivider />
+              <CommandMenuItem
+                icon={<CommandIcon kind="file" />}
+                label="File"
+                hasSubmenu
+                active={commandSubmenu === 'file'}
+                onHover={(e) => openCommandSubmenu('file', e.currentTarget)}
+                onClick={(e) => openCommandSubmenu('file', e.currentTarget)}
+              />
+              <CommandMenuItem
+                icon={<CommandIcon kind="edit" />}
+                label="Edit"
+                hasSubmenu
+                active={commandSubmenu === 'edit'}
+                onHover={(e) => openCommandSubmenu('edit', e.currentTarget)}
+                onClick={(e) => openCommandSubmenu('edit', e.currentTarget)}
+              />
+              <CommandMenuItem
+                icon={<CommandIcon kind="view" />}
+                label="View"
+                hasSubmenu
+                active={commandSubmenu === 'view'}
+                onHover={(e) => openCommandSubmenu('view', e.currentTarget)}
+                onClick={(e) => openCommandSubmenu('view', e.currentTarget)}
+              />
+              <CommandMenuDivider />
+              <CommandMenuItem
+                icon={<CommandIcon kind="export" />}
+                label="Export"
+                hasSubmenu
+                active={commandSubmenu === 'export'}
+                onHover={(e) => openCommandSubmenu('export', e.currentTarget)}
+                onClick={(e) => openCommandSubmenu('export', e.currentTarget)}
+              />
+              <CommandMenuItem
+                icon={<CommandIcon kind="settings" />}
+                label="Preferences"
+                hasSubmenu
+                active={commandSubmenu === 'preferences'}
+                onHover={(e) => openCommandSubmenu('preferences', e.currentTarget)}
+                onClick={(e) => openCommandSubmenu('preferences', e.currentTarget)}
+              />
+              <CommandMenuDivider />
+              <CommandMenuItem
+                icon={<CommandIcon kind="download" />}
+                label="Download desktop app"
+                onClick={() => {
+                  setCommandMenuOpen(false);
+                  window.open('https://mischa.itch.io/devboard', '_blank', 'noopener');
+                }}
+              />
+              <CommandMenuItem
+                icon={<CommandIcon kind="help" />}
+                label="Help & about"
+                onClick={() => {
+                  setCommandMenuOpen(false);
+                  window.open('/manual.html', '_blank', 'noopener');
+                }}
+              />
+            </div>
+          )}
+          {commandMenuOpen && commandSubmenu && commandMenuAnchor && (
+            <div
+              style={{
+                position: 'fixed',
+                top: commandSubmenuTop,
+                left: Math.min(commandMenuAnchor.left + 230, window.innerWidth - 224),
+                zIndex: 9301,
+                width: 216,
+                padding: '6px 0',
+                border: '1px solid var(--c-border)',
+                borderRadius: 10,
+                background: 'var(--c-panel)',
+                boxShadow: '0 14px 36px rgba(40,32,26,0.16)',
+                overflow: 'hidden',
+              }}
+            >
+              {commandSubmenuItems[commandSubmenu].map((item) => (
+                <button
+                  key={item.label}
+                  type="button"
+                  onClick={() => runCommandAction(item.onClick)}
+                  style={{
+                    width: '100%',
+                    minHeight: 31,
+                    display: 'grid',
+                    gridTemplateColumns: 'minmax(0, 1fr) auto',
+                    alignItems: 'center',
+                    gap: 10,
+                    padding: '0 12px',
+                    border: 'none',
+                    background: 'transparent',
+                    color: 'var(--c-text-md)',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    fontFamily: FONTS.ui,
+                    fontSize: 12,
+                    fontWeight: 560,
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'color-mix(in srgb, var(--c-hover) 72%, transparent)';
+                    e.currentTarget.style.color = 'var(--c-text-hi)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'transparent';
+                    e.currentTarget.style.color = 'var(--c-text-md)';
+                  }}
+                >
+                  <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.label}</span>
+                  {item.shortcut && <span style={{ color: 'var(--c-text-lo)', fontSize: 10.5, fontWeight: 650 }}>{item.shortcut}</span>}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div
+          title={workspaceDisplayName}
+          aria-label="Workspace name"
+          className="flex items-center min-w-0 text-left"
+          style={{
+            height: 32,
+            padding: '0 4px',
+            color: 'var(--c-text-md)',
+            fontFamily: FONTS.ui,
+          }}
+        >
+          <span
+            style={{
+              minWidth: 0,
+              flex: 1,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              fontSize: 12.5,
+              fontWeight: 560,
+            }}
+          >
+            {workspaceDisplayName}
+          </span>
+        </div>
+
         <button
           onClick={onCollapse}
-          title={collapseIcon === 'open' ? 'Open sidebar' : 'Close sidebar'}
-          className="w-7 h-7 flex items-center justify-center rounded-lg text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
-          style={{ border: 'none', background: 'transparent', cursor: 'pointer', flexShrink: 0 }}
+          title={collapseIcon === 'open' ? 'Open sidebar' : 'Collapse sidebar'}
+          className="flex items-center justify-center text-[var(--c-text-md)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
+          style={{
+            width: 32,
+            height: 32,
+            border: '1px solid var(--c-border)',
+            borderRadius: 9,
+            background: 'color-mix(in srgb, var(--c-canvas) 48%, transparent)',
+            cursor: 'pointer',
+          }}
         >
           {collapseIcon === 'open' ? (
             <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
@@ -2642,208 +3080,71 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
             </svg>
           )}
         </button>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, flex: 1 }}>
-          {!searchOpen ? (
-            workspaceNameEditing ? (
-              <input
-                ref={workspaceNameInputRef}
-                value={workspaceNameDraft}
-                onChange={(e) => setWorkspaceNameDraft(e.target.value)}
-                onBlur={() => {
-                  if (workspaceNameBlurCancelledRef.current) {
-                    workspaceNameBlurCancelledRef.current = false;
-                    return;
-                  }
-                  commitWorkspaceNameEdit();
-                }}
-                onMouseDown={(e) => e.stopPropagation()}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    commitWorkspaceNameEdit();
-                  } else if (e.key === 'Escape') {
-                    e.preventDefault();
-                    cancelWorkspaceNameEdit();
-                  }
-                  e.stopPropagation();
-                }}
-                aria-label="Workspace name"
-                className="select-text"
-                style={{
-                  flex: 1,
-                  minWidth: 0,
-                  height: 24,
-                  padding: '0 7px',
-                  background: 'var(--c-canvas)',
-                  border: '1px solid var(--c-border)',
-                  borderRadius: 6,
-                  outline: 'none',
-                  fontFamily: FONTS.ui,
-                  fontSize: 12,
-                  fontWeight: 800,
-                  color: 'var(--c-text-hi)',
-                  letterSpacing: 0,
-                }}
-              />
-            ) : (
-              <button
-                type="button"
-                onClick={startWorkspaceNameEdit}
-                title="Rename workspace"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 5,
-                  minWidth: 0,
-                  maxWidth: '100%',
-                  padding: '2px 4px',
-                  background: 'transparent',
-                  border: 'none',
-                  borderRadius: 5,
-                  cursor: 'text',
-                  color: 'var(--c-text-hi)',
-                }}
-                className="group/workspace-name hover:bg-[var(--c-hover)]"
-              >
-                <span
-                  style={{
-                    minWidth: 0,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    fontFamily: FONTS.ui,
-                    fontSize: 12,
-                    fontWeight: 800,
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {workspaceDisplayName}
-                </span>
-                <svg
-                  width="10"
-                  height="10"
-                  viewBox="0 0 10 10"
-                  fill="none"
-                  aria-hidden="true"
-                  className="opacity-0 group-hover/workspace-name:opacity-60 group-focus/workspace-name:opacity-60 transition-opacity"
-                  style={{ flexShrink: 0 }}
-                >
-                  <path d="M6.6 1.3 8.7 3.4 3.2 8.9H1.1V6.8L6.6 1.3Z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round" />
-                </svg>
-              </button>
-            )
-          ) : (
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                minWidth: 0,
-                flex: 1,
-                height: 24,
-                padding: '0 8px',
-                border: '1px solid var(--c-border)',
-                borderRadius: 8,
-                background: 'var(--c-panel)',
-              }}
-            >
-              <svg width="11" height="11" viewBox="0 0 11 11" fill="none" style={{ flexShrink: 0, opacity: 0.55 }}>
-                <circle cx="4.5" cy="4.5" r="3.5" stroke="var(--c-text-hi)" strokeWidth="1.3" />
-                <line x1="7.5" y1="7.5" x2="10" y2="10" stroke="var(--c-text-hi)" strokeWidth="1.3" strokeLinecap="round" />
-              </svg>
-              <input
-                ref={searchInputRef}
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Escape') {
-                    e.preventDefault();
-                    setSearchOpen(false);
-                    setSearchQuery('');
-                    return;
-                  }
-                  if (['ArrowUp', 'ArrowDown', 'Enter'].includes(e.key)) handleKeyDown(e as unknown as React.KeyboardEvent);
-                }}
-                placeholder="Search asset files..."
-                style={{
-                  flex: 1,
-                  minWidth: 0,
-                  background: 'transparent',
-                  border: 'none',
-                  outline: 'none',
-                  fontFamily: FONTS.ui,
-                  fontSize: 10,
-                  color: 'var(--c-text-hi)',
-                  caretColor: 'var(--c-line)',
-                }}
-              />
-            </div>
-          )}
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
-          {confirmingClose ? (
-            /* Two-step close confirmation */
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <span style={{ fontFamily: FONTS.ui, fontSize: 10, color: 'var(--c-text-off)', whiteSpace: 'nowrap' }}>Close?</span>
-              <button
-                onClick={() => {
-                  if (confirmCloseTimerRef.current) clearTimeout(confirmCloseTimerRef.current);
-                  onClose();
-                }}
-                style={{ padding: '1px 7px', background: 'var(--c-line)', border: 'none', borderRadius: 4, fontFamily: FONTS.ui, fontSize: 10, color: 'white', cursor: 'pointer', lineHeight: 1.6 }}
-              >
-                Yes
-              </button>
-              <button
-                onClick={() => {
-                  if (confirmCloseTimerRef.current) clearTimeout(confirmCloseTimerRef.current);
-                  setConfirmingClose(false);
-                }}
-                style={{ padding: '1px 7px', background: 'none', border: '1px solid var(--c-border)', borderRadius: 4, fontFamily: FONTS.ui, fontSize: 10, color: 'var(--c-text-lo)', cursor: 'pointer', lineHeight: 1.6 }}
-              >
-                No
-              </button>
-            </div>
-          ) : (
-            <>
-              <button
-                onClick={() => {
-                  setSearchOpen((current) => {
-                    const next = !current;
-                    if (!next) setSearchQuery('');
-                    return next;
-                  });
-                }}
-                title={searchOpen ? 'Close search' : 'Search'}
-                className="w-5 h-5 flex items-center justify-center rounded text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
-                style={{ border: 'none', background: 'transparent', cursor: 'pointer', flexShrink: 0 }}
-              >
-                <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
-                  <circle cx="4.5" cy="4.5" r="3.5" stroke="currentColor" strokeWidth="1.3" />
-                  <line x1="7.5" y1="7.5" x2="10" y2="10" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-                </svg>
-              </button>
-              {canClose && (
-                <button
-                  onClick={() => {
-                    setConfirmingClose(true);
-                    if (confirmCloseTimerRef.current) clearTimeout(confirmCloseTimerRef.current);
-                    confirmCloseTimerRef.current = setTimeout(() => setConfirmingClose(false), 3000);
-                  }}
-                  title="Close explorer"
-                  className="w-5 h-5 flex items-center justify-center rounded text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
-                  style={{ border: 'none', background: 'transparent', cursor: 'pointer', flexShrink: 0 }}
-                >
-                  <svg width="9" height="9" viewBox="0 0 9 9" fill="none">
-                    <path d="M1 1l7 7M8 1L1 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                  </svg>
-                </button>
-              )}
-            </>
-          )}
-        </div>
       </div>
+      {hasWorkspaceContext && (
+        <div
+          style={{
+            padding: '9px 10px 10px',
+            borderBottom: '1px solid var(--c-border)',
+            flexShrink: 0,
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              minWidth: 0,
+              height: 28,
+              padding: '0 8px',
+              border: `1px solid ${searchOpen ? 'rgba(184,119,80,0.28)' : 'transparent'}`,
+              borderRadius: 7,
+              background: searchOpen ? 'var(--c-canvas)' : 'color-mix(in srgb, var(--c-hover) 52%, transparent)',
+              transition: 'border-color 120ms, background 120ms',
+            }}
+            onMouseDown={() => {
+              setSearchOpen(true);
+              requestAnimationFrame(() => searchInputRef.current?.focus());
+            }}
+          >
+            <svg width="11" height="11" viewBox="0 0 11 11" fill="none" style={{ flexShrink: 0, opacity: 0.62 }}>
+              <circle cx="4.5" cy="4.5" r="3.5" stroke="var(--c-text-hi)" strokeWidth="1.3" />
+              <line x1="7.5" y1="7.5" x2="10" y2="10" stroke="var(--c-text-hi)" strokeWidth="1.3" strokeLinecap="round" />
+            </svg>
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onFocus={() => setSearchOpen(true)}
+              onBlur={() => setSearchOpen(false)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  e.preventDefault();
+                  setSearchOpen(false);
+                  setSearchQuery('');
+                  searchInputRef.current?.blur();
+                  return;
+                }
+                if (['ArrowUp', 'ArrowDown', 'Enter'].includes(e.key)) handleKeyDown(e as unknown as React.KeyboardEvent);
+              }}
+              placeholder="Search notes..."
+              style={{
+                flex: 1,
+                minWidth: 0,
+                background: 'transparent',
+                border: 'none',
+                outline: 'none',
+                fontFamily: FONTS.ui,
+                fontSize: 11,
+                fontWeight: 550,
+                color: 'var(--c-text-hi)',
+                caretColor: 'var(--c-line)',
+              }}
+            />
+          </div>
+        </div>
+      )}
 
       {hasWorkspaceContext && documents.length > 0 && (
         <div style={{ borderBottom: '1px solid var(--c-border)', flexShrink: 0 }}>
@@ -2858,8 +3159,8 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
                   display: 'flex',
                   alignItems: 'center',
                   gap: 4,
-                  minHeight: 24,
-                  padding: '4px 10px',
+                  minHeight: 22,
+                  padding: '4px 10px 3px',
                   background: 'none',
                   border: 'none',
                   cursor: 'pointer',
@@ -2868,10 +3169,10 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
               >
                 <span style={explorerSectionHeaderStyle}>Favorites</span>
                 <SectionChevron open={favoritesSectionOpen} />
-                <span style={{ marginLeft: 'auto', fontFamily: FONTS.ui, fontSize: 9, color: 'var(--c-text-lo)' }}>{favoriteDocs.length}</span>
+                <span style={{ marginLeft: 'auto', fontFamily: FONTS.ui, fontSize: 8.5, color: 'var(--c-text-lo)' }}>{favoriteDocs.length}</span>
               </button>
               {favoritesSectionOpen && (
-                <div style={{ padding: '0 6px 4px' }}>
+                <div style={{ padding: '0 8px 4px' }}>
                   {visibleFavoriteDocs.map((doc) => (
                     <NoteShortcutRow
                       key={doc.id}
@@ -2893,78 +3194,35 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
             </>
           )}
 
-          <button
-            type="button"
-            onClick={() => setRecentsSectionOpen((v) => !v)}
-            className="group"
-            style={{
-              width: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 4,
-              minHeight: 24,
-              padding: '4px 10px',
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              userSelect: 'none',
-            }}
-          >
-            <span style={explorerSectionHeaderStyle}>Recents</span>
-            <SectionChevron open={recentsSectionOpen} />
-            <span style={{ marginLeft: 'auto', fontFamily: FONTS.ui, fontSize: 9, color: 'var(--c-text-lo)' }}>{recentDocs.length}</span>
-          </button>
-          {recentsSectionOpen && (
-            <div style={{ padding: '0 6px 4px' }}>
-              {recentDocs.length === 0 ? (
-                <div style={{ padding: '6px 8px 2px', fontSize: 9.5, color: 'var(--c-text-lo)', fontFamily: FONTS.ui, fontStyle: 'italic' }}>
-                  No recent notes
-                </div>
-              ) : (
-                recentDocs.map((doc) => (
-                  <NoteShortcutRow
-                    key={doc.id}
-                    doc={doc}
-                    active={doc.id === activeDocId}
-                    onOpen={openDocumentFromShortcut}
-                    onToggleFavorite={toggleFavoriteFromExplorer}
-                    onPreview={showShortcutNotePreview}
-                    onPreviewEnd={clearNotePreview}
-                  />
-                ))
-              )}
-            </div>
-          )}
         </div>
       )}
 
-      {/* ── BOARDS section ─────────────────────────────────────────────────── */}
+      {/* ── FOLDERS section ────────────────────────────────────────────────── */}
       {hasWorkspaceContext && pages.length > 0 && (
-        <div style={{ borderBottom: '1px solid var(--c-border)', flexShrink: 0 }}>
+        <div style={{ flexShrink: 0 }}>
           {/* Section header */}
           <div
             onClick={() => setPagesSectionOpen((v) => !v)}
             className="group"
             style={{
               width: '100%', display: 'flex', alignItems: 'center', gap: 4,
-              minHeight: 24,
-              padding: '4px 10px', background: 'none', border: 'none',
+              minHeight: 22,
+              padding: '4px 10px 3px', background: 'none', border: 'none',
               cursor: 'pointer', userSelect: 'none',
             }}
           >
-            <span style={explorerSectionHeaderStyle}>Pages</span>
-            {cloudOnlyWorkspace && <CloudOnlyBadge />}
+            <span style={explorerSectionHeaderStyle}>Folders</span>
             <SectionChevron open={pagesSectionOpen} />
-            <span style={{ marginLeft: 'auto', fontFamily: FONTS.ui, fontSize: 9, color: 'var(--c-text-lo)' }}>{pages.length}</span>
+            <span style={{ marginLeft: 'auto', fontFamily: FONTS.ui, fontSize: 8.5, color: 'var(--c-text-lo)' }}>{pages.length}</span>
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 addPage();
               }}
-              title="New page"
+              title="New folder"
               style={{
-                width: 18,
-                height: 18,
+                width: 16,
+                height: 16,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -2976,7 +3234,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
                 cursor: 'pointer',
                 flexShrink: 0,
                 fontFamily: FONTS.ui,
-                fontSize: 14,
+                fontSize: 12,
                 lineHeight: 1,
                 opacity: 0,
                 transition: 'opacity 0.12s ease, background 0.12s ease, color 0.12s ease',
@@ -2998,8 +3256,9 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
           {pagesSectionOpen && (
             <div
               style={{
-                padding: '0 6px 0',
-                height: pageSectionHeight,
+                padding: '0 8px 0',
+                flex: 1,
+                minHeight: 0,
                 overflowY: 'auto',
                 scrollbarWidth: 'thin',
               }}
@@ -3032,6 +3291,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
                       if (!isActive) switchPage(page.id);
                       window.dispatchEvent(new CustomEvent('devboard:snap-close-document'));
                     }}
+	                    onCreateFolder={() => addPage()}
 	                    onCreateNote={() => createNoteForPage(page.id)}
 	                    onOpenDocument={(docId) => {
 	                      if (!isActive) switchPage(page.id);
@@ -3053,180 +3313,245 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
         </div>
       )}
 
-      {hasWorkspaceContext && pages.length > 0 && pagesSectionOpen && (
-        <div
-          onPointerDown={startPageSectionResize}
-          title="Resize pages section"
-          style={{
-            height: 8,
-            flexShrink: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'ns-resize',
-            borderBottom: '1px solid var(--c-border)',
-            background: 'var(--c-panel)',
-          }}
-        >
+      <div
+        ref={missingImagesPopoverRef}
+        style={{
+          marginTop: 'auto',
+          borderTop: '1px solid var(--c-border)',
+          flexShrink: 0,
+          padding: 10,
+          position: 'relative',
+        }}
+      >
+        {missingImagesOpen && missingImages.length > 0 && (
           <div
             style={{
-              width: 32,
-              height: 3,
-              borderRadius: 999,
-              background: 'rgba(138, 117, 95, 0.26)',
+              position: 'absolute',
+              left: 10,
+              right: 10,
+              bottom: 'calc(100% + 8px)',
+              zIndex: 9200,
+              padding: 12,
+              border: '1px solid rgba(245,158,11,0.38)',
+              borderRadius: 12,
+              background: 'var(--c-panel)',
+              boxShadow: '0 18px 46px rgba(25,18,14,0.22)',
+              fontFamily: FONTS.ui,
             }}
-          />
-        </div>
-      )}
-
-      {/* Files section */}
-      <div style={{ borderBottom: '1px solid var(--c-border)', flexShrink: 0 }}>
-        <button
-          onClick={() => setAssetsSectionOpen((v) => !v)}
-          onContextMenu={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setFilesSectionMenu({ x: e.clientX, y: e.clientY });
-          }}
-          className="group"
-          style={{
-            width: '100%', display: 'flex', alignItems: 'center', gap: 4,
-            minHeight: 24,
-            padding: '4px 10px', background: 'none', border: 'none',
-            cursor: 'pointer', userSelect: 'none',
-          }}
-        >
-          <span style={explorerSectionHeaderStyle}>Asset files</span>
-          {cloudOnlyWorkspace && <CloudOnlyBadge />}
-          <SectionChevron open={assetsSectionOpen} />
-          <span style={{ marginLeft: 'auto', fontFamily: FONTS.ui, fontSize: 9, color: 'var(--c-text-lo)' }}>{assetTree.length}</span>
-          {advancedFilesVisible && (
-            <span
-              style={{
-                fontFamily: FONTS.ui,
-                fontSize: 8,
-                color: 'var(--c-line)',
-                textTransform: 'uppercase',
-                letterSpacing: '0.06em',
-                marginRight: 6,
-                flexShrink: 0,
-              }}
-            >
-              Advanced
-            </span>
-          )}
-          {hasLocalWorkspace && (
-            <span
-              role="button"
-              tabIndex={0}
-              title="New folder at root"
-              className="w-5 h-5 flex items-center justify-center rounded text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors group-hover:opacity-100 focus:opacity-100"
-              style={{ flexShrink: 0, opacity: 0 }}
-              onClick={(e) => {
-                e.stopPropagation();
-                setAssetsSectionOpen(true);
-                startNewFolder([]);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setAssetsSectionOpen(true);
-                  startNewFolder([]);
-                }
-              }}
-            >
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                <path d="M1 3a1 1 0 0 1 1-1h2.5L5.5 3H10a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V3z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" fill="none" />
-                <line x1="6" y1="5.5" x2="6" y2="8.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-                <line x1="4.5" y1="7" x2="7.5" y2="7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-              </svg>
-            </span>
-          )}
-        </button>
-      </div>
-
-      {filesSectionMenu && (() => {
-        const MENU_W = 190;
-        const left = Math.min(filesSectionMenu.x, window.innerWidth - MENU_W - 8);
-        const top = Math.min(filesSectionMenu.y, window.innerHeight - 80);
-        return (
-          <div
-            ref={filesSectionMenuRef}
-            style={{ position: 'fixed', left, top, zIndex: 9100, minWidth: MENU_W }}
-            className="py-1.5 rounded-xl border border-[var(--c-border)] bg-[var(--c-panel)] shadow-2xl"
             onMouseDown={(e) => e.stopPropagation()}
           >
-            <button
-              className="w-full flex items-center justify-between px-3 py-1.5 text-[12px] rounded transition-colors text-left text-[var(--c-text-md)] hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]"
-              style={{ fontFamily: FONTS.ui }}
-              onClick={() => {
-                setAdvancedFilesVisible((current) => !current);
-                setFilesSectionMenu(null);
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 12, fontWeight: 750, color: 'var(--c-text-hi)' }}>
+                  {missingImages.length} missing image{missingImages.length === 1 ? '' : 's'}
+                </div>
+                <p style={{ margin: '5px 0 0', fontSize: 10.5, lineHeight: 1.45, color: 'var(--c-text-lo)' }}>
+                  DevBoard has image cards, but the image files are not loaded from this workspace.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMissingImagesOpen(false)}
+                title="Close"
+                aria-label="Close missing images help"
+                style={{
+                  width: 22,
+                  height: 22,
+                  border: 'none',
+                  borderRadius: 6,
+                  background: 'transparent',
+                  color: 'var(--c-text-lo)',
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                }}
+              >
+                ×
+              </button>
+            </div>
+            <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {missingImages.slice(0, 4).map((image) => (
+                <div
+                  key={image.id}
+                  title={missingImagePath(image)}
+                  style={{
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    fontSize: 10,
+                    color: 'var(--c-text-md)',
+                    padding: '4px 6px',
+                    borderRadius: 6,
+                    background: 'color-mix(in srgb, var(--c-hover) 46%, transparent)',
+                  }}
+                >
+                  {missingImagePath(image)}
+                </div>
+              ))}
+              {missingImages.length > 4 && (
+                <div style={{ fontSize: 10, color: 'var(--c-text-lo)', padding: '2px 6px' }}>
+                  +{missingImages.length - 4} more
+                </div>
+              )}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
+              <button
+                type="button"
+                onClick={handleFindMissingImages}
+                disabled={missingImagesFixing || !hasWorkspaceHandle()}
+                title={hasWorkspaceHandle() ? 'Search the workspace for missing image files' : 'Reopen the workspace folder first'}
+                style={{
+                  flex: 1,
+                  height: 32,
+                  border: 'none',
+                  borderRadius: 8,
+                  background: hasWorkspaceHandle() ? 'var(--c-line)' : 'var(--c-hover)',
+                  color: hasWorkspaceHandle() ? '#fff' : 'var(--c-text-lo)',
+                  cursor: missingImagesFixing || !hasWorkspaceHandle() ? 'default' : 'pointer',
+                  fontFamily: FONTS.ui,
+                  fontSize: 11,
+                  fontWeight: 750,
+                  opacity: missingImagesFixing ? 0.72 : 1,
+                }}
+              >
+                {missingImagesFixing ? 'Finding...' : 'Find images'}
+              </button>
+              <button
+                type="button"
+                onClick={handleOpenFolder}
+                style={{
+                  flex: 1,
+                  height: 32,
+                  border: '1px solid var(--c-border)',
+                  borderRadius: 8,
+                  background: 'transparent',
+                  color: 'var(--c-text-md)',
+                  cursor: 'pointer',
+                  fontFamily: FONTS.ui,
+                  fontSize: 11,
+                  fontWeight: 650,
+                }}
+              >
+                Reopen folder
+              </button>
+            </div>
+          </div>
+        )}
+        <button
+          type="button"
+          onClick={() => {
+            if (missingImages.length > 0) {
+              setMissingImagesOpen((open) => !open);
+              return;
+            }
+            openCloudModal();
+          }}
+          title={missingImages.length > 0 ? 'Fix missing images' : authConfigured ? 'Open Workspace Sync' : 'Workspace Sync is not configured'}
+          className="group"
+          style={{
+            width: '100%',
+            minHeight: 54,
+            minWidth: 0,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            padding: '6px 6px',
+            border: 'none',
+            borderRadius: 12,
+            background: 'transparent',
+            color: 'var(--c-text-md)',
+            cursor: 'pointer',
+            fontFamily: FONTS.ui,
+            textAlign: 'left',
+            transition: 'background 120ms, color 120ms',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'var(--c-hover)';
+            e.currentTarget.style.color = 'var(--c-text-hi)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'transparent';
+            e.currentTarget.style.color = 'var(--c-text-md)';
+          }}
+        >
+          <span
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 999,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+              overflow: 'hidden',
+              background: 'var(--c-line)',
+              color: '#fff',
+              fontSize: 13,
+              fontWeight: 800,
+              letterSpacing: 0,
+            }}
+          >
+            {avatarUrl ? (
+              <img src={avatarUrl} alt="" referrerPolicy="no-referrer" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ) : (
+              accountInitials
+            )}
+          </span>
+          <span style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <span
+              style={{
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                color: 'var(--c-text-hi)',
+                fontSize: 12.5,
+                fontWeight: 700,
               }}
             >
-              <span>{advancedFilesVisible ? 'Hide advanced files' : 'Show advanced files'}</span>
-              <span className="text-[10px] text-[var(--c-text-off)] ml-3">{advancedFilesVisible ? 'on' : 'off'}</span>
-            </button>
-          </div>
-        );
-      })()}
-
-      {/* File tree */}
-      {assetsSectionOpen && (
-      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto py-0.5" style={{ scrollbarWidth: 'thin', overflowX: 'hidden' }}>
-        {/* Inline new-folder input at root */}
-        {newFolderParent !== null && newFolderParent.length === 0 && (
-          <div className="flex items-center gap-1.5 h-[26px] px-2 mx-1 rounded" style={{ background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.35)' }}>
-            <svg width="11" height="11" viewBox="0 0 12 12" fill="none" style={{ flexShrink: 0, opacity: 0.6 }}>
-              <path d="M1 3a1 1 0 0 1 1-1h2.5L5.5 3H10a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V3z" stroke="var(--c-line)" strokeWidth="1.2" strokeLinejoin="round" />
-            </svg>
-            <input
-              ref={newFolderInputRef}
-              type="text"
-              value={newFolderName}
-              onChange={(e) => setNewFolderName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') { e.preventDefault(); commitNewFolder(); }
-                if (e.key === 'Escape') { e.preventDefault(); setNewFolderParent(null); }
-                e.stopPropagation();
-              }}
-              onBlur={() => { if (!newFolderName.trim()) setNewFolderParent(null); }}
-              placeholder="folder name…"
-              style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', fontFamily: FONTS.ui, fontSize: 11, color: 'var(--c-text-hi)', caretColor: 'var(--c-line)' }}
-            />
-          </div>
-        )}
-        {rootLoading && !cloudOnlyWorkspace ? (
-          <div style={{ padding: '10px 16px', fontSize: 10, color: 'var(--c-text-lo)', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Loading…</div>
-        ) : rootError ? (
-          <div style={{ padding: '10px 16px', fontSize: 10.5, color: '#c96a6a', fontFamily: FONTS.ui, lineHeight: 1.5 }}>{rootError}</div>
-        ) : !hasWorkspaceContext ? (
-          <NoWorkspaceState onOpen={handleOpenFolder} onCreate={IS_TAURI ? handleCreateWorkspace : undefined} />
-        ) : assetSearchResults !== null ? (
-          assetSearchResults.length === 0 ? (
-            <div style={{ padding: '10px 16px', fontSize: 10, color: 'var(--c-text-lo)', fontFamily: FONTS.ui, fontStyle: 'italic' }}>No matches</div>
-          ) : (
-            assetSearchResults.map((entry) => (
-              <TreeRow key={entry.path.join('/')} entry={entry} depth={0} focusedPath={focusedPath} renamingPath={renamingPath} renameDraft={renameDraft} onRenameDraftChange={setRenameDraft} onRenameCommit={commitRename} onRenameCancel={() => setRenamingPath(null)} onToggle={handleAssetToggle} onFileSingleClick={handleFileSingleClick} onFileOpen={handleFileOpen} onMarkdownDrop={importMarkdownToNotes} onContextMenu={handleEntryContextMenu} onFileDragStart={handleFileDragStart} onFileHover={handleFileHover} usedOnCanvas={usedOnCanvas} isDark={isDark} onFocus={focusAssetPath} />
-            ))
-          )
-        ) : assetTree.length === 0 ? (
-          <div style={{ padding: '10px 16px', fontSize: 10, color: 'var(--c-text-lo)', fontFamily: FONTS.ui, fontStyle: 'italic', lineHeight: 1.45 }}>
-            No asset files. Notes live under Pages.
-          </div>
-        ) : (
-          assetTree.map((entry) => (
-            <TreeRow key={entry.path.join('/')} entry={entry} depth={0} focusedPath={focusedPath} renamingPath={renamingPath} renameDraft={renameDraft} onRenameDraftChange={setRenameDraft} onRenameCommit={commitRename} onRenameCancel={() => setRenamingPath(null)} onToggle={handleAssetToggle} onFileSingleClick={handleFileSingleClick} onFileOpen={handleFileOpen} onMarkdownDrop={importMarkdownToNotes} onContextMenu={handleEntryContextMenu} onFileDragStart={handleFileDragStart} onFileHover={handleFileHover} usedOnCanvas={usedOnCanvas} isDark={isDark} onFocus={focusAssetPath} />
-          ))
-        )}
-      </div>
-      )}
-
-      <div style={{ padding: '7px 10px 8px', borderTop: '1px solid var(--c-border)', flexShrink: 0 }}>
-        <p style={{ fontSize: 9, color: 'var(--c-text-lo)', fontFamily: FONTS.ui, lineHeight: 1.3, margin: 0 }}>
-          ⌘K to jump anywhere
-        </p>
+              {accountLabel}
+            </span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: missingImages.length > 0 ? '#b45309' : 'var(--c-text-lo)', fontSize: 10.5, fontWeight: 600 }}>
+              <span
+                aria-hidden="true"
+                style={{
+                  width: 7,
+                  height: 7,
+                  borderRadius: 999,
+                  background: missingImages.length > 0 || hasUnsyncedSyncChanges ? '#f59e0b' : 'var(--c-border)',
+                }}
+              />
+              {accountStatus}
+            </span>
+          </span>
+          <span
+            aria-hidden="true"
+            style={{
+              width: 32,
+              height: 32,
+              marginLeft: 'auto',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+              borderRadius: 10,
+              color: missingImages.length > 0
+                ? '#b45309'
+                : cloudOnlyWorkspace || hasUnsyncedSyncChanges
+                  ? 'var(--c-line)'
+                  : 'var(--c-text-lo)',
+              background: 'color-mix(in srgb, var(--c-hover) 56%, transparent)',
+            }}
+          >
+            {missingImages.length > 0 ? (
+              <svg width="17" height="17" viewBox="0 0 17 17" fill="none" aria-hidden="true">
+                <path d="M8.5 2.2 15 13.6H2L8.5 2.2Z" stroke="currentColor" strokeWidth="1.45" strokeLinejoin="round" />
+                <path d="M8.5 6.3v3.4" stroke="currentColor" strokeWidth="1.45" strokeLinecap="round" />
+                <circle cx="8.5" cy="11.8" r="0.7" fill="currentColor" />
+              </svg>
+            ) : (
+              <IconCloud size={17} />
+            )}
+          </span>
+        </button>
       </div>
 
       {/* Delete confirmation */}
@@ -3262,7 +3587,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
         </div>
       )}
 
-      {/* Page delete confirmation */}
+      {/* Folder delete confirmation */}
       {deletePageConfirm && (
         <div
           style={{ position: 'fixed', inset: 0, zIndex: 9200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.45)' }}
@@ -3270,7 +3595,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
         >
           <div style={{ background: 'var(--c-panel)', border: '1px solid var(--c-border)', borderRadius: 14, padding: '20px 24px', maxWidth: 340, boxShadow: '0 16px 48px rgba(0,0,0,0.4)' }}>
             <p style={{ fontFamily: FONTS.ui, fontSize: 12, fontWeight: 700, color: 'var(--c-text-hi)', margin: '0 0 8px' }}>
-              Delete page?
+              Delete folder?
             </p>
             <p style={{ fontFamily: FONTS.ui, fontSize: 11, color: 'var(--c-text-lo)', margin: '0 0 16px', lineHeight: 1.5 }}>
               <span style={{ color: '#f87171' }}>{deletePageConfirm.name}</span>
@@ -3423,7 +3748,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
                 className="px-3 py-1.5 text-[12px]"
                 style={{ fontFamily: FONTS.ui, color: 'var(--c-text-off)' }}
               >
-                {cloudOnlyWorkspace ? 'Cloud file' : 'Managed by Pages'}
+                {cloudOnlyWorkspace ? 'Cloud file' : 'Managed by Folders'}
               </div>
             ) : (
               <>
@@ -3450,7 +3775,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
         );
       })()}
 
-      {/* Page preview panel */}
+      {/* Folder preview panel */}
       {pagePreview && (() => {
         const previewW = 240;
         const rect = panelRef.current?.getBoundingClientRect();
@@ -3486,7 +3811,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
                 {pagePreview.page.name}
               </span>
               <span style={{ fontFamily: FONTS.ui, fontSize: 9, color: 'var(--c-text-off)', marginLeft: 6 }}>
-                {pagePreview.page.layoutMode === 'stack' ? 'stack page' : 'canvas page'}
+                {pagePreview.page.layoutMode === 'stack' ? 'notes folder' : 'canvas folder'}
               </span>
             </div>
             <div style={{ padding: 8, borderBottom: '1px solid var(--c-border)', background: 'linear-gradient(180deg, rgba(212,131,90,0.08), rgba(212,131,90,0.02))' }}>
@@ -3512,7 +3837,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
             )}
             <div style={{ padding: '5px 10px', borderTop: '1px solid var(--c-border)', flexShrink: 0 }}>
               <span style={{ fontFamily: FONTS.ui, fontSize: 9, color: 'var(--c-text-off)' }}>
-                press ↵ to open page overview
+                press ↵ to open folder overview
               </span>
             </div>
           </div>

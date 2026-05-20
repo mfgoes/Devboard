@@ -6,11 +6,12 @@ import { saveAs } from 'file-saver';
 import { hasWorkspaceHandle, readWorkspaceFileAsUrl, saveImageAsset, saveTextFileToWorkspace } from '../utils/workspaceManager';
 import { toast } from '../utils/toast';
 import { focusNode } from '../utils/focusNode';
-import { IconAlignCenter, IconAlignLeft, IconAlignRight, IconArrowRight, IconCode, IconCodeBlock, IconCopy, IconEye, IconHorizontalRule, IconLink, IconList, IconListOrdered, IconNodeLink, IconQuote, IconSaveFile, IconStar, IconTextWrap, IconUnlink, IconWikiLink } from './icons';
+import { IconAlignCenter, IconAlignLeft, IconAlignRight, IconArrowRight, IconCode, IconCodeBlock, IconCopy, IconEye, IconHorizontalRule, IconLink, IconList, IconListOrdered, IconNodeLink, IconQuote, IconStar, IconTextWrap, IconUnlink, IconWikiLink } from './icons';
 import { useDocumentAutoSave } from '../hooks/useDocumentAutoSave';
 import { type DocumentCommandDefinition, type DocumentCommandGroup, getDocumentCommandsForSurface, runDocumentCommand } from './documentCommands';
 import { sanitizeClipboardHtml } from '../utils/richText';
 import { describeNoteSaveStatus, saveLinkedWorkspaceToCloud, type NoteSavePresentation } from '../utils/saveStatus';
+import AssetDrawer from './AssetDrawer';
 
 // ── Inline chip utilities ─────────────────────────────────────────────────────
 
@@ -312,6 +313,76 @@ function stripLeadingHtmlTitle(html: string, title?: string): string {
       root.firstElementChild.remove();
     }
   }
+}
+
+function blockTextForMarkdownTable(el: HTMLElement): string | null {
+  const tag = el.tagName.toLowerCase();
+  if (tag !== 'div' && tag !== 'p') return null;
+  if (el.querySelector('img, figure, table, hr, pre, blockquote, ul, ol, h1, h2, h3')) return null;
+  return (el.textContent ?? '').replace(/\u00a0/g, ' ').trimEnd();
+}
+
+function normalizeMarkdownTablesInHtml(html: string): string {
+  if (!html || !html.includes('|')) return html;
+
+  const root = document.createElement('div');
+  root.innerHTML = html;
+  let changed = false;
+  let index = 0;
+
+  while (index < root.children.length - 1) {
+    const children = Array.from(root.children) as HTMLElement[];
+    const start = children[index];
+    const startText = blockTextForMarkdownTable(start);
+    if (!startText || !startText.includes('|')) {
+      index += 1;
+      continue;
+    }
+
+    const candidateBlocks: HTMLElement[] = [];
+    const candidateLines: string[] = [];
+    let cursor = index;
+
+    while (cursor < children.length) {
+      const current = children[cursor];
+      const text = blockTextForMarkdownTable(current);
+      if (!text || !text.trim()) break;
+      candidateBlocks.push(current);
+      candidateLines.push(text);
+      cursor += 1;
+    }
+
+    let bestLength = 0;
+    let bestHtml = '';
+    for (let length = candidateLines.length; length >= 2; length -= 1) {
+      const parsed = markdownToHtml(candidateLines.slice(0, length).join('\n')).trim();
+      if (parsed.startsWith('<table>') && parsed.endsWith('</table>')) {
+        bestLength = length;
+        bestHtml = parsed;
+        break;
+      }
+    }
+
+    if (bestLength < 2) {
+      index += 1;
+      continue;
+    }
+
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = bestHtml;
+    const table = wrapper.firstElementChild;
+    if (!table || table.tagName.toLowerCase() !== 'table') {
+      index += 1;
+      continue;
+    }
+
+    candidateBlocks[0].before(table);
+    candidateBlocks.slice(0, bestLength).forEach((block) => block.remove());
+    changed = true;
+    index += 1;
+  }
+
+  return changed ? root.innerHTML : html;
 }
 
 function relativeTime(ms: number): string {
@@ -755,7 +826,6 @@ interface FmtBarProps {
   compactMode?: boolean;
   onToggleSource: () => void;
   onToggleEdit: () => void;
-  onSave: () => void;
   onExportMarkdown: () => void;
   onSourceInsert: (syntax: string) => void;
   sourceWrap: boolean;
@@ -789,7 +859,6 @@ function FormattingBar({
   compactMode = false,
   onToggleSource,
   onToggleEdit,
-  onSave,
   onExportMarkdown,
   onSourceInsert,
   sourceWrap,
@@ -1322,15 +1391,6 @@ function FormattingBar({
             {saveStatus.label}
           </span>
         )}
-        <button
-          style={btnStyle(false, hoveredControl === 'save')}
-          title="Save Note (Cmd+S)"
-          aria-label="Save Note (Command+S)"
-          onMouseDown={(e) => { e.preventDefault(); onSave(); }}
-          {...hoverHandlers('save')}
-        >
-          <IconSaveFile />
-        </button>
         <button
           ref={noteBtnRef}
           style={btnStyle(showNoteMenu, hoveredControl === 'note')}
@@ -2547,6 +2607,7 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
   const [sidebarPanel, setSidebarPanel] = useState<'outline' | 'properties' | null>(null);
   const [selectedImageId, setSelectedImageId] = useState<string | null>(null);
   const [selectedImageRect, setSelectedImageRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
+  const [assetDrawerOpen, setAssetDrawerOpen] = useState(false);
   const [, forceSaveStatusTick] = useState(0);
   const savedSelectionRef = useRef<Range | null>(null);
   const wikiRenameInputRef = useRef<HTMLInputElement>(null);
@@ -2619,6 +2680,14 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
   const docWordCount = useMemo(() => wordCountFromHtml(doc?.content ?? ''), [doc?.content]);
   const docReadingTime = useMemo(() => readingTimeLabel(docWordCount), [docWordCount]);
   const docOutline = useMemo(() => documentOutlineFromHtml(doc?.content ?? ''), [doc?.content]);
+  const currentDocAssetPaths = useMemo(() => {
+    if (!doc?.content) return [];
+    const root = document.createElement('div');
+    root.innerHTML = doc.content;
+    return Array.from(root.querySelectorAll('img'))
+      .map((image) => image.getAttribute('data-workspace-src') ?? '')
+      .filter(Boolean);
+  }, [doc?.content]);
 
   const getSourceCursorOffset = useCallback((syntax: string) => {
     const placeholders = ['text', 'bold', 'code', 'url', 'alt', 'Note'];
@@ -2790,6 +2859,26 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
     toast(`Inserted image${hasWorkspaceHandle() ? ` into ${imageAssetFolder || 'assets'}/` : ''}`);
   }, [doc, imageAssetFolder, insertBlockHtmlAtSelection, saveHistory]);
 
+  const insertWorkspaceAsset = useCallback(async (relativePath: string) => {
+    const resolvedUrl = await readWorkspaceFileAsUrl(relativePath);
+    if (!resolvedUrl) {
+      toast('Could not load that asset');
+      return;
+    }
+
+    const assetName = relativePath.split('/').pop() ?? 'image';
+    const alt = (assetName.replace(/\.[^.]+$/, '') || 'Reference image').trim();
+
+    saveHistory();
+    insertBlockHtmlAtSelection(
+      `<figure data-doc-image="true" style="margin:20px 0;">` +
+        `<img src="${escapeHtmlAttr(resolvedUrl)}" alt="${escapeHtmlAttr(alt)}" data-workspace-src="${escapeHtmlAttr(relativePath)}" style="display:block;max-width:100%;height:auto;border-radius:14px;border:1px solid rgba(255,255,255,0.12);" />` +
+        `<figcaption style="margin-top:8px;font-size:12px;line-height:1.5;color:var(--c-text-lo);">${escapeInlineHtml(alt)}</figcaption>` +
+      `</figure><div><br></div>`,
+    );
+    toast(`Inserted ${assetName}`);
+  }, [insertBlockHtmlAtSelection, saveHistory]);
+
   const slashCommands = useMemo<SlashCommand[]>(() => {
     return getDocumentCommandsForSurface('slash');
   }, []);
@@ -2798,6 +2887,11 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
     const sel = window.getSelection();
     if (sel && sel.rangeCount > 0) savedSelectionRef.current = sel.getRangeAt(0).cloneRange();
   }, []);
+
+  const openAssetDrawer = useCallback(() => {
+    captureEditorSelection();
+    setAssetDrawerOpen(true);
+  }, [captureEditorSelection]);
 
   useEffect(() => () => {
     if (wikiPreviewCloseTimerRef.current !== null) {
@@ -3017,7 +3111,7 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
     let cancelled = false;
     const version = ++hydrationVersionRef.current;
     const run = async () => {
-      const bodyContent = stripLeadingHtmlTitle(doc.content ?? '', doc.title) || '<p><br></p>';
+      const bodyContent = normalizeMarkdownTablesInHtml(stripLeadingHtmlTitle(doc.content ?? '', doc.title)) || '<p><br></p>';
       const hydrated = await hydrateDocumentImages(bodyContent);
       if (cancelled || version !== hydrationVersionRef.current) return;
 
@@ -3083,6 +3177,11 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
   // Keep the editable body separate from the note title shown above it.
   const handleInput = useCallback(() => {
     if (!contentRef.current || !doc) return;
+    const normalizedHtml = normalizeMarkdownTablesInHtml(contentRef.current.innerHTML);
+    if (normalizedHtml !== contentRef.current.innerHTML) {
+      contentRef.current.innerHTML = normalizedHtml;
+      applyChipsToDOM(contentRef.current, documents);
+    }
     ensureDocImageIds(contentRef.current);
     ensureDocumentHeadingIds(contentRef.current);
     updatePlaceholderVisibility(contentRef.current);
@@ -3094,7 +3193,7 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
     }
     markDirty();
     updateDocument(doc.id, updates);
-  }, [checkpointDocumentHistory, doc, markDirty, updateDocument]);
+  }, [checkpointDocumentHistory, doc, documents, markDirty, updateDocument]);
 
   const switchToSource = () => {
     if (!doc) return;
@@ -3678,10 +3777,10 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
       insertNodeLink: () => insertBlockHtmlAtSelection(
         `<div><span class="chip-node" data-chip="node" data-nodeid="${escapeHtmlAttr(linkedNodeId)}" contenteditable="false">${escapeInlineHtml(linkedNodeLabel)}</span></div><div><br></div>`,
       ),
-      insertImageUpload: () => imageInputRef.current?.click(),
+      insertImageUpload: openAssetDrawer,
       insertTag: () => insertBlockHtmlAtSelection('<div><span class="chip-tag" data-chip="tag" contenteditable="false">#tag</span></div><div><br></div>'),
     });
-  }, [checkpointDocumentHistory, closeSlashPalette, doc?.id, documents, insertBlockHtmlAtSelection, nodes]);
+  }, [checkpointDocumentHistory, closeSlashPalette, doc?.id, documents, insertBlockHtmlAtSelection, nodes, openAssetDrawer]);
 
   if (!doc) return null;
 
@@ -3897,7 +3996,6 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
             compactMode={panelMode}
             onToggleSource={switchToSource}
             onToggleEdit={switchToEdit}
-            onSave={handleSave}
             onExportMarkdown={handleExportMarkdown}
             onSourceInsert={insertSourceSyntax}
             sourceWrap={sourceWrap}
@@ -4482,6 +4580,18 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
           </aside>
         )}
       </div>
+
+      <AssetDrawer
+        open={assetDrawerOpen}
+        title="Assets"
+        pageAssetPaths={currentDocAssetPaths}
+        onClose={() => setAssetDrawerOpen(false)}
+        onSelectAsset={(asset) => insertWorkspaceAsset(asset.path)}
+        onUploadFiles={async (files) => {
+          const first = files[0];
+          if (first) await insertImageFile(first);
+        }}
+      />
 
       {/* Wiki hover preview card */}
       {wikiPreview && (
