@@ -99,10 +99,10 @@ function openCloudModal() {
   window.dispatchEvent(new CustomEvent('devboard:open-cloud-modal'));
 }
 
-export function announceLocalSave(kind: 'workspace' | 'file') {
+export function announceLocalSave(kind: 'workspace' | 'file', name?: string | null) {
   const { cloudBoardId, cloudBoardTitle, markLocalSaved } = useBoardStore.getState();
   const target = kind === 'workspace' ? 'workspace folder' : 'local file';
-  markLocalSaved();
+  markLocalSaved(Date.now(), { kind, name });
 
   if (cloudBoardId && cloudBoardTitle) {
     void saveLinkedWorkspaceToCloud(target, {

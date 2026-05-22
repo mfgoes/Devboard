@@ -135,6 +135,7 @@ interface BoardState {
   workspaceName: string | null;
   workspaceSavedAt: number; // not persisted — bumped after each saveWorkspace call
   lastLocalSavedAt: number | null;
+  lastLocalSaveTarget: { kind: 'workspace' | 'file' | 'note'; name?: string | null } | null;
   explorerOpen: boolean;
   imageAssetFolder: string;
   noteAutosaveEnabled: boolean;
@@ -165,7 +166,7 @@ interface BoardState {
   setReaction: (nodeId: string, emoji: string | null) => void;
   setWorkspaceName: (name: string | null) => void;
   bumpWorkspaceSaved: () => void;
-  markLocalSaved: (savedAt?: number) => void;
+  markLocalSaved: (savedAt?: number, target?: { kind: 'workspace' | 'file' | 'note'; name?: string | null }) => void;
   setExplorerOpen: (open: boolean) => void;
   setImageAssetFolder: (folder: string) => void;
   setNoteAutosaveEnabled: (enabled: boolean) => void;
@@ -238,6 +239,7 @@ export const useBoardStore = create<BoardState>()(
       workspaceName: null,
       workspaceSavedAt: 0,
       lastLocalSavedAt: null,
+      lastLocalSaveTarget: null,
       explorerOpen: false,
       imageAssetFolder: 'assets',
       noteAutosaveEnabled: true,
@@ -326,9 +328,16 @@ export const useBoardStore = create<BoardState>()(
       setWorkspaceName: (name) => set({ workspaceName: name }),
       bumpWorkspaceSaved: () => {
         const savedAt = Date.now();
-        set({ workspaceSavedAt: savedAt, lastLocalSavedAt: savedAt });
+        set((state) => ({
+          workspaceSavedAt: savedAt,
+          lastLocalSavedAt: savedAt,
+          lastLocalSaveTarget: { kind: 'workspace', name: state.workspaceName },
+        }));
       },
-      markLocalSaved: (savedAt = Date.now()) => set({ lastLocalSavedAt: savedAt }),
+      markLocalSaved: (savedAt = Date.now(), target) => set({
+        lastLocalSavedAt: savedAt,
+        ...(target ? { lastLocalSaveTarget: target } : {}),
+      }),
       setExplorerOpen: (open) => set({ explorerOpen: open }),
       setImageAssetFolder: (folder) => set({ imageAssetFolder: folder }),
       setNoteAutosaveEnabled: (enabled) => set({ noteAutosaveEnabled: enabled }),
@@ -474,6 +483,7 @@ export const useBoardStore = create<BoardState>()(
             cloudBoardTitle: null,
             cloudSyncedAt: null,
             lastLocalSavedAt: null,
+            lastLocalSaveTarget: null,
             selectedIds: [],
             editingId: null,
             tableEditState: null,
@@ -498,6 +508,7 @@ export const useBoardStore = create<BoardState>()(
             cloudBoardTitle: null,
             cloudSyncedAt: null,
             lastLocalSavedAt: null,
+            lastLocalSaveTarget: null,
             selectedIds: [],
             editingId: null,
             tableEditState: null,
@@ -886,6 +897,7 @@ export const useBoardStore = create<BoardState>()(
           imageAssetFolder: state.imageAssetFolder,
           noteAutosaveEnabled: state.noteAutosaveEnabled,
           lastLocalSavedAt: state.lastLocalSavedAt,
+          lastLocalSaveTarget: state.lastLocalSaveTarget,
           cloudBoardId: state.cloudBoardId,
           cloudBoardTitle: state.cloudBoardTitle,
           cloudSyncedAt: state.cloudSyncedAt,

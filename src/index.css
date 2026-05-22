@@ -459,20 +459,54 @@ canvas:focus {
   cursor: default;
 }
 
-.doc-top-left-controls__step {
-  opacity: 0 !important;
-  pointer-events: none;
-  transform: translateY(-1px);
+@media (max-width: 560px) {
+  .doc-editor-header {
+    gap: 8px !important;
+    padding-left: 10px !important;
+    padding-right: 8px !important;
+  }
+
+  .doc-editor-title-group {
+    gap: 5px !important;
+  }
+
+  .doc-editor-title-input {
+    font-size: 13px !important;
+    text-overflow: ellipsis;
+  }
+
+  .doc-editor-header-actions {
+    gap: 6px !important;
+  }
+
+  .doc-editor-page-nav {
+    display: none !important;
+  }
+
+  .doc-editor-status {
+    gap: 0 !important;
+  }
+
+  .doc-editor-status-label {
+    display: none;
+  }
+
+  .doc-editor-view-toggle {
+    border-radius: 9px !important;
+  }
+
+  .doc-editor-view-button {
+    min-width: 58px !important;
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+  }
 }
-.doc-top-left-controls:hover .doc-top-left-controls__step,
-.doc-top-left-controls:focus-within .doc-top-left-controls__step {
-  opacity: 1 !important;
-  pointer-events: auto;
-  transform: translateY(0);
-}
-.doc-top-left-controls:hover .doc-top-left-controls__step:disabled,
-.doc-top-left-controls:focus-within .doc-top-left-controls__step:disabled {
-  opacity: 0.35 !important;
+
+@media (max-width: 430px) {
+  .doc-editor-view-button {
+    min-width: 46px !important;
+    font-size: 11px !important;
+  }
 }
 
 @keyframes download-progress-shimmer {

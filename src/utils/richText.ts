@@ -171,6 +171,8 @@ export interface PreviewSegment {
   text: string;
   bold: boolean;
   italic: boolean;
+  wikiTitle?: string;
+  wikiMissing?: boolean;
 }
 
 export interface PreviewLine {
@@ -186,16 +188,64 @@ export function htmlToPreviewStructured(html: string, maxLines = 5): PreviewLine
   root.innerHTML = html;
   const lines: PreviewLine[] = [];
 
+  function appendSegment(out: PreviewSegment[], segment: PreviewSegment) {
+    if (!segment.text) return;
+    const last = out[out.length - 1];
+    if (
+      last
+      && !last.wikiTitle
+      && !segment.wikiTitle
+      && last.bold === segment.bold
+      && last.italic === segment.italic
+    ) {
+      last.text += segment.text;
+      return;
+    }
+    out.push(segment);
+  }
+
+  function splitWikiText(text: string, bold: boolean, italic: boolean): PreviewSegment[] {
+    const out: PreviewSegment[] = [];
+    const pattern = /\[\[([^\]]+)\]\]/g;
+    let lastIdx = 0;
+    let match: RegExpExecArray | null;
+    while ((match = pattern.exec(text)) !== null) {
+      if (match.index > lastIdx) {
+        appendSegment(out, { text: text.slice(lastIdx, match.index), bold, italic });
+      }
+      const [titlePart, aliasPart] = match[1].split('|').map((part) => part.trim());
+      const title = titlePart || match[1].trim();
+      appendSegment(out, { text: aliasPart || title, bold, italic, wikiTitle: title });
+      lastIdx = match.index + match[0].length;
+    }
+    if (lastIdx < text.length) appendSegment(out, { text: text.slice(lastIdx), bold, italic });
+    return out;
+  }
+
   function extractSegs(node: Node, bold: boolean, italic: boolean): PreviewSegment[] {
     const out: PreviewSegment[] = [];
     for (const child of Array.from(node.childNodes)) {
       if (child.nodeType === Node.TEXT_NODE) {
         const t = child.textContent ?? '';
-        if (t) out.push({ text: t, bold, italic });
+        if (t) out.push(...splitWikiText(t, bold, italic));
       } else if (child.nodeType === Node.ELEMENT_NODE) {
         const el = child as HTMLElement;
         const tag = el.tagName.toLowerCase();
         if (tag === 'br') continue;
+        if (el.dataset.chip === 'wiki' || el.classList.contains('chip-wiki')) {
+          const title = (el.dataset.title ?? el.textContent ?? '').trim();
+          const label = (el.dataset.alias ?? el.textContent ?? title).trim();
+          if (label || title) {
+            out.push({
+              text: label || title,
+              bold,
+              italic,
+              wikiTitle: title || label,
+              wikiMissing: el.dataset.wikiStatus === 'missing' || el.classList.contains('chip-wiki--missing'),
+            });
+          }
+          continue;
+        }
         let b = bold, i = italic;
         if (tag === 'b' || tag === 'strong') b = true;
         if (tag === 'i' || tag === 'em') i = true;
@@ -214,7 +264,13 @@ export function htmlToPreviewStructured(html: string, maxLines = 5): PreviewLine
     const out: PreviewSegment[] = [];
     for (const s of raw) {
       const last = out[out.length - 1];
-      if (last && last.bold === s.bold && last.italic === s.italic) {
+      if (
+        last
+        && !last.wikiTitle
+        && !s.wikiTitle
+        && last.bold === s.bold
+        && last.italic === s.italic
+      ) {
         last.text += s.text;
       } else if (s.text) {
         out.push({ ...s });

@@ -57,6 +57,9 @@ const EXPLORER_COLLAPSED_WIDTH = 44;
 const EXPLORER_EXPAND_HIT_WIDTH = 64;
 const DESKTOP_EXPLORER_BREAKPOINT = 1024;
 const MOBILE_NOTE_BREAKPOINT = 768;
+const TOP_BAR_HEIGHT = 44;
+const NOTICE_HEIGHT = 40;
+const DOCUMENT_FULLSCREEN_Z = 210;
 const IS_WINDOWS = typeof navigator !== 'undefined' && navigator.userAgent.includes('Windows');
 
 function shouldKeepSidePanelOpenForTarget(target: EventTarget | null): boolean {
@@ -153,7 +156,7 @@ export default function App() {
     document.title = label ? `${label} — DevBoard` : 'DevBoard';
   }, [boardTitle, workspaceName]);
   const activeNoticeCount = Number(showBraveNotice) + Number(showMobileWorkspaceNotice);
-  const contentTop = 44 + activeNoticeCount * 40;
+  const contentTop = TOP_BAR_HEIGHT + activeNoticeCount * NOTICE_HEIGHT;
   const [explorerWidth, setExplorerWidth] = useState(WORKSPACE_EXPLORER_WIDTH);
   const [explorerCollapsed, setExplorerCollapsed] = useState(false);
   const [explorerPreviewOpen, setExplorerPreviewOpen] = useState(false);
@@ -184,6 +187,10 @@ export default function App() {
   const [morphPhase, setMorphPhase] = useState<'idle' | 'opening' | 'open' | 'closing'>('idle');
   const [panelPhase, setPanelPhase] = useState<'idle' | 'open' | 'closing'>('idle');
   const [morphRectOverride, setMorphRectOverride] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
+  const documentFullscreenOwnsTop = appMode === 'document' && effectiveDocViewMode === 'fullscreen' && morphPhase !== 'idle';
+  const documentFullscreenTop = documentFullscreenOwnsTop ? activeNoticeCount * NOTICE_HEIGHT : contentTop;
+  const documentPanelOwnsTop = appMode === 'document' && effectiveDocViewMode === 'panel' && panelPhase !== 'idle';
+  const documentPanelTop = documentPanelOwnsTop ? activeNoticeCount * NOTICE_HEIGHT : contentTop;
   const prevPresentation = useRef({ appMode, docViewMode: effectiveDocViewMode });
 
   const getPanelRect = useCallback(() => {
@@ -193,11 +200,11 @@ export default function App() {
       : Math.max(380, Math.min(maxWidth, docPanelWidth));
     return {
       left: window.innerWidth - panelWidth,
-      top: contentTop,
+      top: documentPanelTop,
       width: panelWidth,
-      height: Math.max(0, window.innerHeight - contentTop),
+      height: Math.max(0, window.innerHeight - documentPanelTop),
     };
-  }, [contentTop, docPanelWidth, documentFrameOffset]);
+  }, [docPanelWidth, documentFrameOffset, documentPanelTop]);
 
   useEffect(() => {
     if (appMode === 'document' && documentTransitionTimerRef.current) {
@@ -484,6 +491,12 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    const openGetStarted = () => setShowOnboarding(true);
+    window.addEventListener('devboard:open-get-started', openGetStarted);
+    return () => window.removeEventListener('devboard:open-get-started', openGetStarted);
+  }, []);
+
+  useEffect(() => {
     setToastListener((payload) => {
       clearTimeout(toastTimer.current);
       setToastData(payload);
@@ -685,12 +698,12 @@ export default function App() {
         if (getWorkspaceName()) {
           saveWorkspace(data, { notify: false }).then((result) => {
             if (!result.saved) return;
-            announceLocalSave('workspace');
+            announceLocalSave('workspace', result.workspaceName);
           });
         } else {
           saveBoard(data, { notify: false }).then((result) => {
             if (!result.saved) return;
-            announceLocalSave('file');
+            announceLocalSave('file', result.targetName);
           });
         }
         return;
@@ -840,16 +853,21 @@ export default function App() {
         if (getWorkspaceName()) {
           void saveWorkspace(data, { notify: false }).then((result) => {
             if (!result.saved) return;
-            announceLocalSave('workspace');
+            announceLocalSave('workspace', result.workspaceName);
           });
         } else {
           void saveBoard(data, { notify: false }).then((result) => {
             if (!result.saved) return;
-            announceLocalSave('file');
+            announceLocalSave('file', result.targetName);
           });
         }
       },
-      'menu:save_as':      () => import('./utils/fileSave').then(m => m.saveBoardAs(useBoardStore.getState().exportData())),
+      'menu:save_as':      () => import('./utils/fileSave').then((m) => {
+        void m.saveBoardAs(useBoardStore.getState().exportData(), { notify: false }).then((result) => {
+          if (!result.saved) return;
+          announceLocalSave('file', result.targetName);
+        });
+      }),
       'menu:export_png':   () => {
         const c = document.querySelector<HTMLCanvasElement>('.konvajs-content canvas');
         c?.toBlob(b => {
@@ -931,6 +949,7 @@ export default function App() {
         jiraOpen={jiraOpen}
         onToggleJira={() => setJiraOpen((v) => !v)}
         onToggleSearch={() => setSearchOpen((v) => !v)}
+        workspaceOffset={documentFrameOffset}
         templatesOpen={templatesOpen}
         onTemplatesOpenChange={setTemplatesOpen}
       />
@@ -938,7 +957,13 @@ export default function App() {
       {jiraOpen && <JiraPanel onClose={() => setJiraOpen(false)} />}
       {searchOpen && <SearchBar onClose={() => setSearchOpen(false)} />}
       {showBraveNotice && (
-        <div className="absolute top-11 left-0 right-0 z-50 flex items-center justify-between gap-3 bg-orange-500 text-white text-xs px-4 py-2">
+        <div
+          className="absolute left-0 right-0 z-50 flex items-center justify-between gap-3 bg-orange-500 text-white text-xs px-4 py-2"
+          style={{
+            top: documentFullscreenOwnsTop ? 0 : TOP_BAR_HEIGHT,
+            zIndex: documentFullscreenOwnsTop ? DOCUMENT_FULLSCREEN_Z + 20 : 50,
+          }}
+        >
           <span>
             🦁 <strong>Brave browser detected:</strong> Workspace folders can work here, but if <strong>Open folder</strong> does nothing, click the 🦁 icon in the address bar and disable <strong>Shields</strong> for this page.
           </span>
@@ -953,7 +978,12 @@ export default function App() {
       {showMobileWorkspaceNotice && (
         <div
           className="absolute left-0 right-0 z-50 flex items-center justify-between gap-3 bg-amber-600 text-white text-xs px-4 py-2"
-          style={{ top: showBraveNotice ? 84 : 44 }}
+          style={{
+            top: documentFullscreenOwnsTop
+              ? (showBraveNotice ? NOTICE_HEIGHT : 0)
+              : TOP_BAR_HEIGHT + (showBraveNotice ? NOTICE_HEIGHT : 0),
+            zIndex: documentFullscreenOwnsTop ? DOCUMENT_FULLSCREEN_Z + 20 : 50,
+          }}
         >
           <span>
             <strong>Mobile device detected:</strong> Opening folder workspaces is only supported on desktop browsers and the desktop app right now.
@@ -1223,7 +1253,7 @@ export default function App() {
               right: panelPhase === 'open' ? 0 : -panelRect.width,
               width: panelRect.width,
               bottom: 0,
-              zIndex: 170,
+              zIndex: DOCUMENT_FULLSCREEN_Z,
               transition: `right ${PANEL_SLIDE_MS}ms cubic-bezier(0.22,1,0.36,1)`,
               boxShadow: '-8px 0 32px rgba(0,0,0,0.3)',
               borderLeft: '1px solid var(--c-border)',
@@ -1274,21 +1304,21 @@ export default function App() {
         const frameStyle: React.CSSProperties = {
           position: 'fixed',
           left: isOpen ? documentFrameOffset : (src?.left ?? documentFrameOffset + (W - documentFrameOffset) / 2 - 150),
-          top: isOpen ? contentTop : (src?.top ?? H / 2 - 100),
+          top: isOpen ? documentFullscreenTop : (src?.top ?? H / 2 - 100),
           width: isOpen ? Math.max(0, W - documentFrameOffset) : (src?.width ?? 300),
-          height: isOpen ? Math.max(0, H - contentTop) : (src?.height ?? 200),
+          height: isOpen ? Math.max(0, H - documentFullscreenTop) : (src?.height ?? 200),
           borderRadius: isOpen ? 0 : 10,
           overflow: 'hidden',
           transition: `left ${MORPH_MS}ms ease, top ${MORPH_MS}ms ease, width ${MORPH_MS}ms ease, height ${MORPH_MS}ms ease, border-radius ${MORPH_MS}ms ease`,
         };
         return (
-          <div style={{ position: 'fixed', inset: 0, zIndex: 170, pointerEvents: 'none' }}>
+          <div style={{ position: 'fixed', inset: 0, zIndex: DOCUMENT_FULLSCREEN_Z, pointerEvents: 'none' }}>
             <div style={{
               position: 'fixed',
               left: documentFrameOffset,
-              top: contentTop,
+              top: documentFullscreenTop,
               width: Math.max(0, W - documentFrameOffset),
-              height: Math.max(0, H - contentTop),
+              height: Math.max(0, H - documentFullscreenTop),
               background: 'rgba(0,0,0,0.45)',
               opacity: isOpen ? 1 : 0,
               transition: `opacity ${MORPH_MS}ms ease`,

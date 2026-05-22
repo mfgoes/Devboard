@@ -2968,8 +2968,8 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
                 icon={<CommandIcon kind="help" />}
                 label="Help & about"
                 onClick={() => {
-                  setCommandMenuOpen(false);
-                  window.open('/manual.html', '_blank', 'noopener');
+                  closeCommandMenu();
+                  window.dispatchEvent(new CustomEvent('devboard:open-get-started'));
                 }}
               />
             </div>

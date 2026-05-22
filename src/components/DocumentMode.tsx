@@ -6,7 +6,7 @@ import { saveAs } from 'file-saver';
 import { hasWorkspaceHandle, readWorkspaceFileAsUrl, saveImageAsset, saveTextFileToWorkspace } from '../utils/workspaceManager';
 import { toast } from '../utils/toast';
 import { focusNode } from '../utils/focusNode';
-import { IconAlignCenter, IconAlignLeft, IconAlignRight, IconArrowRight, IconCode, IconCodeBlock, IconCopy, IconEye, IconHorizontalRule, IconLink, IconList, IconListOrdered, IconNodeLink, IconQuote, IconStar, IconTextWrap, IconUnlink, IconWikiLink } from './icons';
+import { IconAlignCenter, IconAlignLeft, IconAlignRight, IconArrowRight, IconCode, IconCodeBlock, IconCopy, IconEye, IconHorizontalRule, IconLink, IconList, IconListOrdered, IconMoreHorizontal, IconNodeLink, IconQuote, IconStar, IconTextWrap, IconUnlink, IconWikiLink } from './icons';
 import { useDocumentAutoSave } from '../hooks/useDocumentAutoSave';
 import { type DocumentCommandDefinition, type DocumentCommandGroup, getDocumentCommandsForSurface, runDocumentCommand } from './documentCommands';
 import { sanitizeClipboardHtml } from '../utils/richText';
@@ -831,7 +831,7 @@ interface FmtBarProps {
   sourceWrap: boolean;
   setSourceWrap: React.Dispatch<React.SetStateAction<boolean>>;
   onCopySource: () => void;
-  saveStatus: NoteSavePresentation;
+  saveStatus?: NoteSavePresentation;
   onOpenOutline: () => void;
   onOpenProperties: () => void;
   onFindReplace: () => void;
@@ -857,20 +857,10 @@ interface FloatingPalettePosition {
 function FormattingBar({
   viewMode,
   compactMode = false,
-  onToggleSource,
-  onToggleEdit,
-  onExportMarkdown,
   onSourceInsert,
   sourceWrap,
   setSourceWrap,
   onCopySource,
-  saveStatus,
-  onOpenOutline,
-  onOpenProperties,
-  onFindReplace,
-  onShowWordCount,
-  wordCount,
-  readingTime,
   insertCommands,
   onInsertCommand,
   onCaptureSelection,
@@ -878,7 +868,6 @@ function FormattingBar({
   const [showFormatMenu, setShowFormatMenu] = useState(false);
   const [showAlignMenu, setShowAlignMenu] = useState(false);
   const [showToolsMenu, setShowToolsMenu] = useState(false);
-  const [showNoteMenu, setShowNoteMenu] = useState(false);
   const [hoveredControl, setHoveredControl] = useState<string | null>(null);
   const [toolbarWidth, setToolbarWidth] = useState(() => (typeof window !== 'undefined' ? window.innerWidth : 1440));
   const isMobileNarrow = toolbarWidth < 520;
@@ -890,11 +879,9 @@ function FormattingBar({
   const formatBtnRef = useRef<HTMLButtonElement>(null);
   const alignBtnRef = useRef<HTMLButtonElement>(null);
   const toolsBtnRef = useRef<HTMLButtonElement>(null);
-  const noteBtnRef = useRef<HTMLButtonElement>(null);
   const formatMenuRef = useRef<HTMLDivElement>(null);
   const alignMenuRef = useRef<HTMLDivElement>(null);
   const toolsMenuRef = useRef<HTMLDivElement>(null);
-  const noteMenuRef = useRef<HTMLDivElement>(null);
 
   const saveSelection = () => {
     const sel = window.getSelection();
@@ -916,7 +903,19 @@ function FormattingBar({
     tick((n) => n + 1);
   };
 
+  const applyLink = () => {
+    restoreSelection();
+    const existingHref = getLinkHref(savedRangeRef.current);
+    const url = window.prompt(existingHref ? 'Edit link URL' : 'Link URL', existingHref || 'https://');
+    if (url === null) return;
+    const trimmed = url.trim();
+    if (!trimmed) fmt('unlink');
+    else fmt('createLink', trimmed);
+  };
+
   const currentBlock = getBlockType(showFormatMenu ? savedRangeRef.current : null);
+  const isBold = document.queryCommandState('bold');
+  const isItalic = document.queryCommandState('italic');
 
   const btnStyle = (active: boolean, hovered = false): React.CSSProperties => ({
     height: isMobileNarrow ? 30 : 26,
@@ -946,32 +945,6 @@ function FormattingBar({
   const hoverHandlers = (id: string) => ({
     onMouseEnter: () => setHoveredControl(id),
     onMouseLeave: () => setHoveredControl((current) => (current === id ? null : current)),
-  });
-
-  const modeButtonWidth = useCompactToolbar ? 32 : 72;
-  const modeButtonHeight = useCompactToolbar ? 28 : 30;
-  const modeButtonGap = useCompactToolbar ? 0 : 5;
-
-  const modeButtonStyle = (active: boolean, side: 'left' | 'right'): React.CSSProperties => ({
-    position: 'relative',
-    zIndex: 1,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: modeButtonGap,
-    width: modeButtonWidth,
-    height: modeButtonHeight,
-    padding: useCompactToolbar ? '0' : '0 10px',
-    borderRadius: side === 'left' ? '7px 5px 5px 7px' : '5px 7px 7px 5px',
-    border: 'none',
-    cursor: 'pointer',
-    fontSize: useCompactToolbar ? 0 : 11,
-    fontFamily: 'inherit',
-    fontWeight: active ? 700 : 600,
-    background: 'transparent',
-    color: active ? 'var(--c-text-hi)' : 'var(--c-text-lo)',
-    transform: active ? 'translateY(-0.5px)' : 'translateY(0)',
-    transition: 'color 0.16s ease, transform 0.16s ease',
   });
 
   const sourceShortcutStyle: React.CSSProperties = {
@@ -1041,11 +1014,9 @@ function FormattingBar({
   ];
   const visibleSourceShortcuts = useUltraCompactToolbar ? sourceShortcuts.slice(0, 6) : sourceShortcuts;
 
-  const hideSaveStatus = isMobileNarrow || toolbarWidth < 980;
   const formatMenuRect = showFormatMenu && formatBtnRef.current ? formatBtnRef.current.getBoundingClientRect() : null;
   const alignMenuRect = showAlignMenu && alignBtnRef.current ? alignBtnRef.current.getBoundingClientRect() : null;
   const toolsMenuRect = showToolsMenu && toolsBtnRef.current ? toolsBtnRef.current.getBoundingClientRect() : null;
-  const noteMenuRect = showNoteMenu && noteBtnRef.current ? noteBtnRef.current.getBoundingClientRect() : null;
   const groupedInsertCommands = insertCommands.reduce<Record<DocumentCommandGroup, DocumentCommandDefinition[]>>((acc, command) => {
     (acc[command.group] ||= []).push(command);
     return acc;
@@ -1055,11 +1026,10 @@ function FormattingBar({
     setShowFormatMenu(false);
     setShowAlignMenu(false);
     setShowToolsMenu(false);
-    setShowNoteMenu(false);
   };
 
   useEffect(() => {
-    if (!showFormatMenu && !showAlignMenu && !showToolsMenu && !showNoteMenu) return;
+    if (!showFormatMenu && !showAlignMenu && !showToolsMenu) return;
     const handleWindowPointer = (event: MouseEvent | TouchEvent) => {
       const target = event.target as Node | null;
       if (!target) return;
@@ -1067,8 +1037,7 @@ function FormattingBar({
         toolbarRef.current?.contains(target) ||
         formatMenuRef.current?.contains(target) ||
         alignMenuRef.current?.contains(target) ||
-        toolsMenuRef.current?.contains(target) ||
-        noteMenuRef.current?.contains(target)
+        toolsMenuRef.current?.contains(target)
       ) {
         return;
       }
@@ -1080,7 +1049,7 @@ function FormattingBar({
       window.removeEventListener('mousedown', handleWindowPointer);
       window.removeEventListener('touchstart', handleWindowPointer);
     };
-  }, [showFormatMenu, showAlignMenu, showToolsMenu, showNoteMenu]);
+  }, [showFormatMenu, showAlignMenu, showToolsMenu]);
 
   useEffect(() => {
     const el = toolbarRef.current;
@@ -1121,13 +1090,12 @@ function FormattingBar({
       ref={toolbarRef}
       style={{
         position: 'relative',
-        padding: compactMode ? '6px 14px' : '6px 24px',
+        padding: compactMode ? '8px 14px' : '9px 28px',
         borderBottom: '1px solid var(--c-border)',
-        background: 'rgba(255,255,255,0.02)',
+        background: 'var(--c-panel)',
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: 12,
+        gap: 8,
         flexShrink: 0,
         boxShadow: '0 1px 0 rgba(0,0,0,0.04)',
       }}
@@ -1167,7 +1135,6 @@ function FormattingBar({
                 setShowFormatMenu((v) => !v);
                 setShowAlignMenu(false);
                 setShowToolsMenu(false);
-                setShowNoteMenu(false);
                 tick((n) => n + 1);
               }}
               {...hoverHandlers('format')}
@@ -1195,7 +1162,6 @@ function FormattingBar({
                 setShowAlignMenu((v) => !v);
                 setShowFormatMenu(false);
                 setShowToolsMenu(false);
-                setShowNoteMenu(false);
               }}
               {...hoverHandlers('align')}
               title="Alignment"
@@ -1213,13 +1179,52 @@ function FormattingBar({
                 setShowToolsMenu((v) => !v);
                 setShowFormatMenu(false);
                 setShowAlignMenu(false);
-                setShowNoteMenu(false);
               }}
               {...hoverHandlers('tools')}
               title="Insert block or link"
             >
               <span style={{ fontSize: 11 }}>Insert</span>
               <span style={{ fontSize: 9, opacity: 0.7 }}>▼</span>
+            </button>
+            <div style={{ width: 1, height: 22, background: 'var(--c-border)', margin: '0 4px', flexShrink: 0 }} />
+            <button
+              type="button"
+              style={btnStyle(isBold, hoveredControl === 'bold')}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                saveSelection();
+                fmt('bold');
+              }}
+              {...hoverHandlers('bold')}
+              title="Bold"
+            >
+              <span style={{ fontSize: 13, fontWeight: 800, lineHeight: 1 }}>B</span>
+            </button>
+            <button
+              type="button"
+              style={btnStyle(isItalic, hoveredControl === 'italic')}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                saveSelection();
+                fmt('italic');
+              }}
+              {...hoverHandlers('italic')}
+              title="Italic"
+            >
+              <span style={{ fontSize: 14, fontStyle: 'italic', fontWeight: 700, lineHeight: 1 }}>I</span>
+            </button>
+            <button
+              type="button"
+              style={btnStyle(false, hoveredControl === 'link')}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                saveSelection();
+                applyLink();
+              }}
+              {...hoverHandlers('link')}
+              title="Link"
+            >
+              <IconLink />
             </button>
           </>
         )}
@@ -1337,123 +1342,6 @@ function FormattingBar({
         )}
       </div>
 
-      <div
-        style={{
-          flexShrink: 0,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          marginLeft: 'auto',
-          paddingLeft: 8,
-          background: 'linear-gradient(90deg, rgba(246,241,234,0) 0%, var(--c-canvas) 18px)',
-        }}
-      >
-        {!hideSaveStatus && (
-          <span
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              minHeight: 26,
-              padding: '0 10px',
-              borderRadius: 999,
-              border: '1px solid var(--c-border)',
-              background: 'rgba(255,255,255,0.03)',
-              color: 'var(--c-text-md)',
-              userSelect: 'none',
-              whiteSpace: 'nowrap',
-              maxWidth: 220,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              fontSize: 11,
-              fontWeight: 500,
-            }}
-            title={saveStatus.title}
-          >
-            <span
-              style={{
-                width: 7,
-                height: 7,
-                borderRadius: 999,
-                marginRight: 8,
-                flexShrink: 0,
-                background:
-                  saveStatus.tone === 'busy'
-                    ? '#d97706'
-                    : saveStatus.tone === 'success'
-                      ? '#4d7c5f'
-                      : saveStatus.tone === 'warning'
-                        ? '#f59e0b'
-                        : saveStatus.tone === 'danger'
-                          ? '#ef4444'
-                          : 'var(--c-text-lo)',
-              }}
-            />
-            {saveStatus.label}
-          </span>
-        )}
-        <button
-          ref={noteBtnRef}
-          style={btnStyle(showNoteMenu, hoveredControl === 'note')}
-          title="Note actions"
-          onMouseDown={(e) => {
-            e.preventDefault();
-            setShowNoteMenu((v) => !v);
-            setShowFormatMenu(false);
-            setShowAlignMenu(false);
-            setShowToolsMenu(false);
-          }}
-          {...hoverHandlers('note')}
-        >
-          <span style={{ fontSize: 11 }}>Note</span>
-          <span style={{ fontSize: 9, opacity: 0.7 }}>▼</span>
-        </button>
-        <div style={{ width: 1, height: 18, background: 'rgba(255,255,255,0.12)', margin: '0 2px 0 2px', flexShrink: 0 }} />
-
-        <div
-          style={{
-            position: 'relative',
-            display: 'flex',
-            gap: 2,
-            background: 'rgba(255,255,255,0.06)',
-            border: '1px solid var(--c-border)',
-            borderRadius: 9,
-            padding: 2,
-            flexShrink: 0,
-            boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.04)',
-          }}
-        >
-          <div
-            style={{
-              position: 'absolute',
-              top: 3,
-              bottom: 3,
-              left: 3,
-              width: modeButtonWidth,
-              borderRadius: 7,
-              background: 'var(--c-panel)',
-              boxShadow: '0 1px 5px rgba(0,0,0,0.2)',
-              transform: viewMode === 'source' ? `translateX(${modeButtonWidth + 2}px)` : 'translateX(0)',
-              transition: 'transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1)',
-              pointerEvents: 'none',
-            }}
-          />
-          <button
-            title="Rich text editor"
-            onMouseDown={(e) => { e.preventDefault(); if (viewMode === 'source') onToggleEdit(); }}
-            style={modeButtonStyle(viewMode === 'edit', 'left')}
-            onMouseEnter={(e) => { if (viewMode !== 'edit') e.currentTarget.style.color = 'var(--c-text-md)'; }}
-            onMouseLeave={(e) => { if (viewMode !== 'edit') e.currentTarget.style.color = 'var(--c-text-lo)'; }}
-          ><IconEye />{!useCompactToolbar && ' Preview'}</button>
-          <button
-            title="Markdown source"
-            onMouseDown={(e) => { e.preventDefault(); if (viewMode === 'edit') onToggleSource(); }}
-            style={modeButtonStyle(viewMode === 'source', 'right')}
-            onMouseEnter={(e) => { if (viewMode !== 'source') e.currentTarget.style.color = 'var(--c-text-md)'; }}
-            onMouseLeave={(e) => { if (viewMode !== 'source') e.currentTarget.style.color = 'var(--c-text-lo)'; }}
-          ><IconCode />{!useCompactToolbar && ' Source'}</button>
-        </div>
-      </div>
-
       {formatMenuRect && (
         <div ref={formatMenuRef} style={menuShell(formatMenuRect)} onMouseDown={(e) => e.stopPropagation()}>
           {(['p', 'h1', 'h2', 'h3'] as const).map((tag) => (
@@ -1527,41 +1415,6 @@ function FormattingBar({
               ))}
             </div>
           ))}
-        </div>
-      )}
-
-      {noteMenuRect && (
-        <div ref={noteMenuRef} style={menuShell(noteMenuRect, 220)} onMouseDown={(e) => e.stopPropagation()}>
-          <button
-            style={menuButtonStyle}
-            onMouseDown={(e) => {
-              e.preventDefault();
-              closeMenus();
-              onFindReplace();
-            }}
-            {...menuHover}
-          >
-            <span>Find / Replace</span>
-          </button>
-          <button
-            style={menuButtonStyle}
-            onMouseDown={(e) => {
-              e.preventDefault();
-              closeMenus();
-              onShowWordCount();
-            }}
-            {...menuHover}
-          >
-            <span>Word count</span>
-            <span style={{ marginLeft: 'auto', color: 'var(--c-text-lo)', fontSize: 11 }}>{wordCount} words</span>
-          </button>
-          <button style={menuButtonStyle} onMouseDown={(e) => { e.preventDefault(); closeMenus(); onExportMarkdown(); }} {...menuHover}><span>Export .md</span></button>
-          <button style={menuButtonStyle} onMouseDown={(e) => { e.preventDefault(); closeMenus(); onOpenOutline(); }} {...menuHover}><span>Outline</span></button>
-          <button style={menuButtonStyle} onMouseDown={(e) => { e.preventDefault(); closeMenus(); onOpenProperties(); }} {...menuHover}><span>Properties</span></button>
-          <div style={{ height: 1, background: 'var(--c-border)', margin: '6px 4px' }} />
-          <div style={{ padding: '7px 10px', color: 'var(--c-text-lo)', fontSize: 11 }}>
-            {readingTime}
-          </div>
         </div>
       )}
 
@@ -2583,6 +2436,7 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
   const sourceRef = useRef<HTMLTextAreaElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
+  const headerMenuRef = useRef<HTMLDivElement>(null);
   const editHistoryTimerRef = useRef<number | null>(null);
   const canStartEditHistoryGroupRef = useRef(true);
   const [viewMode, setViewMode] = useState<'edit' | 'source'>('edit');
@@ -2608,6 +2462,7 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
   const [selectedImageId, setSelectedImageId] = useState<string | null>(null);
   const [selectedImageRect, setSelectedImageRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
   const [assetDrawerOpen, setAssetDrawerOpen] = useState(false);
+  const [showHeaderMenu, setShowHeaderMenu] = useState(false);
   const [, forceSaveStatusTick] = useState(0);
   const savedSelectionRef = useRef<Range | null>(null);
   const wikiRenameInputRef = useRef<HTMLInputElement>(null);
@@ -3059,6 +2914,21 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
     const interval = window.setInterval(() => forceSaveStatusTick((n) => n + 1), 30_000);
     return () => window.clearInterval(interval);
   }, [lastSavedAt]);
+
+  useEffect(() => {
+    if (!showHeaderMenu) return;
+    const closeOnOutsidePointer = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node | null;
+      if (target && headerMenuRef.current?.contains(target)) return;
+      setShowHeaderMenu(false);
+    };
+    window.addEventListener('mousedown', closeOnOutsidePointer);
+    window.addEventListener('touchstart', closeOnOutsidePointer);
+    return () => {
+      window.removeEventListener('mousedown', closeOnOutsidePointer);
+      window.removeEventListener('touchstart', closeOnOutsidePointer);
+    };
+  }, [showHeaderMenu]);
 
   const markDirty = useCallback(() => {
     setHasEditedSinceOpen(true);
@@ -3794,6 +3664,65 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
       : 'Close note';
   const onPrimaryNav = showSidePanelControl ? onCollapseToPanel : handleClose;
   const primaryNavDirection: 'left' | 'right' = panelMode ? 'right' : 'left';
+  const showPageStepControls = !!onCollapseToPanel;
+  const headerStatusLabel =
+    saveStatus.tone === 'busy'
+      ? 'Saving'
+      : saveStatus.tone === 'danger'
+        ? 'Save issue'
+        : saveStatus.tone === 'warning'
+          ? 'Unsaved'
+          : 'Saved';
+  const headerStatusColor =
+    saveStatus.tone === 'busy'
+      ? '#d97706'
+      : saveStatus.tone === 'danger'
+        ? '#ef4444'
+        : saveStatus.tone === 'warning'
+          ? '#f59e0b'
+          : '#1fa37a';
+  const headerModeButtonStyle = (active: boolean, side: 'left' | 'right'): React.CSSProperties => ({
+    position: 'relative',
+    zIndex: 1,
+    height: 30,
+    minWidth: panelMode ? 52 : 74,
+    padding: panelMode ? '0 8px' : '0 12px',
+    border: 'none',
+    borderRadius: side === 'left' ? '8px 6px 6px 8px' : '6px 8px 8px 6px',
+    background: active ? 'var(--c-panel)' : 'transparent',
+    color: active ? 'var(--c-text-hi)' : 'var(--c-text-md)',
+    boxShadow: active ? '0 1px 5px rgba(0,0,0,0.14)' : 'none',
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    fontSize: 12,
+    fontWeight: active ? 760 : 600,
+    transition: 'background 0.14s, color 0.14s, box-shadow 0.14s',
+  });
+  const headerMenuButtonStyle: React.CSSProperties = {
+    width: '100%',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    padding: '8px 10px',
+    border: 'none',
+    borderRadius: 8,
+    background: 'transparent',
+    color: 'var(--c-text-md)',
+    cursor: 'pointer',
+    fontSize: 12,
+    fontFamily: 'inherit',
+    textAlign: 'left',
+  };
+  const headerMenuHover = {
+    onMouseEnter: (e: React.MouseEvent<HTMLButtonElement>) => {
+      e.currentTarget.style.background = 'var(--c-hover)';
+      e.currentTarget.style.color = 'var(--c-text-hi)';
+    },
+    onMouseLeave: (e: React.MouseEvent<HTMLButtonElement>) => {
+      e.currentTarget.style.background = 'transparent';
+      e.currentTarget.style.color = 'var(--c-text-md)';
+    },
+  };
 
   return (
     <div
@@ -3807,22 +3736,19 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
     >
       {/* Top bar */}
       <div
+        className="doc-editor-header"
         style={{
-          height: 44,
-          borderBottom: '1px solid rgba(255,255,255,0.08)',
+          minHeight: 54,
+          borderBottom: '1px solid var(--c-border)',
           background: 'var(--c-panel)',
           display: 'flex',
           alignItems: 'center',
-          padding: '0 16px',
-          gap: 8,
+          padding: panelMode ? '0 12px' : '0 18px',
+          gap: 12,
           flexShrink: 0,
         }}
       >
-        {/* Page controls */}
-        <div
-          className="doc-top-left-controls"
-          style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}
-        >
+        <div className="doc-top-left-controls" style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
           <button
             onClick={onPrimaryNav}
             title={primaryNavTitle}
@@ -3831,7 +3757,13 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
             onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
           >
             <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
-              {primaryNavDirection === 'right' ? (
+              {showSidePanelControl ? (
+                <>
+                  <rect x="2.2" y="2.4" width="10.6" height="10.2" rx="1.8" stroke="currentColor" strokeWidth="1.35" />
+                  <path d="M9.3 2.4v10.2" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" />
+                  <path d="M4.8 5.1 7.2 7.5 4.8 9.9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </>
+              ) : primaryNavDirection === 'right' ? (
                 <>
                   <path d="M5.2 3.1 9.6 7.5l-4.4 4.4" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round" />
                   <path d="M2 3.1 6.4 7.5 2 11.9" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round" />
@@ -3859,9 +3791,102 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
                   </svg>
                 </button>
               )}
-              <div style={{ width: 1, height: 18, background: 'var(--c-border)', margin: '0 4px', opacity: 0.72 }} />
+            </>
+          )}
+          {docHistory.length > 0 && (() => {
+            const prevDoc = documents.find((d) => d.id === docHistory[docHistory.length - 1]);
+            return (
               <button
-                className="doc-top-left-controls__step"
+                title={`Back to: ${prevDoc?.title || 'previous note'}`}
+                onClick={() => {
+                  const prevId = docHistory[docHistory.length - 1];
+                  setDocHistory((h) => h.slice(0, -1));
+                  openDocumentWithMorph(prevId);
+                }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 5, padding: '0 8px', height: 28,
+                  background: 'rgba(184,119,80,0.12)', border: '1px solid rgba(184,119,80,0.3)',
+                  borderRadius: 6, color: 'var(--c-line)', cursor: 'pointer', fontSize: 11,
+                  fontFamily: 'inherit', flexShrink: 0, transition: 'background 0.12s',
+                  maxWidth: 150,
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(184,119,80,0.22)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(184,119,80,0.12)'; }}
+              >
+                <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+                  <path d="M7 2L4 5.5L7 9" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                <span style={{ overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
+                  {prevDoc?.title || 'Back'}
+                </span>
+              </button>
+            );
+          })()}
+        </div>
+
+        <div style={{ width: 1, height: 28, background: 'var(--c-border)', opacity: 0.84, flexShrink: 0 }} />
+
+        <div className="doc-editor-title-group" style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button
+            type="button"
+            onClick={() => toggleFavoriteDocument(doc.id)}
+            title={doc.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+            aria-label={doc.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+            style={{
+              width: 28,
+              height: 28,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'transparent',
+              border: 'none',
+              borderRadius: 6,
+              color: doc.isFavorite ? '#d6a045' : 'var(--c-text-lo)',
+              cursor: 'pointer',
+              flexShrink: 0,
+              transition: 'background 0.12s, color 0.12s',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'var(--c-hover)';
+              e.currentTarget.style.color = doc.isFavorite ? '#d6a045' : 'var(--c-text-md)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.color = doc.isFavorite ? '#d6a045' : 'var(--c-text-lo)';
+            }}
+          >
+            <IconStar filled={!!doc.isFavorite} size={16} />
+          </button>
+          <input
+            className="doc-editor-title-input"
+            ref={titleInputRef}
+            type="text"
+            value={doc.title}
+            onChange={(e) => {
+              const newTitle = e.target.value;
+              if (newTitle !== doc.title) checkpointDocumentHistory();
+              markDirty();
+              updateDocument(doc.id, { title: newTitle });
+            }}
+            placeholder="Untitled note"
+            style={{
+              flex: 1,
+              fontSize: panelMode ? 13 : 15,
+              fontWeight: 720,
+              color: 'var(--c-text-hi)',
+              background: 'transparent',
+              border: 'none',
+              outline: 'none',
+              fontFamily: 'inherit',
+              minWidth: 0,
+            }}
+          />
+        </div>
+
+        <div className="doc-editor-header-actions" style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+          {showPageStepControls && (
+            <div className="doc-editor-page-nav" style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
+              <button
                 onClick={() => prevPageDoc && openDocumentWithMorph(prevPageDoc.id)}
                 disabled={!prevPageDoc}
                 title={prevPageDoc ? `Previous: ${prevPageDoc.title || 'Untitled'}` : 'No previous note'}
@@ -3874,7 +3899,6 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
                 </svg>
               </button>
               <button
-                className="doc-top-left-controls__step"
                 onClick={() => nextPageDoc && openDocumentWithMorph(nextPageDoc.id)}
                 disabled={!nextPageDoc}
                 title={nextPageDoc ? `Next: ${nextPageDoc.title || 'Untitled'}` : 'No next note'}
@@ -3886,95 +3910,125 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
                   <path d="M5 2.5 8.5 6.5 5 10.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
               </button>
-            </>
+            </div>
           )}
-        </div>
-
-        {/* Back through wikilink history */}
-        {docHistory.length > 0 && (() => {
-          const prevDoc = documents.find((d) => d.id === docHistory[docHistory.length - 1]);
-          return (
+          <span
+            className="doc-editor-status"
+            title={saveStatus.title}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 7,
+              color: 'var(--c-text-md)',
+              fontSize: 12,
+              fontWeight: 600,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            <span style={{ width: 7, height: 7, borderRadius: 999, background: headerStatusColor, flexShrink: 0 }} />
+            {!panelMode && <span className="doc-editor-status-label">{headerStatusLabel}</span>}
+          </span>
+          <div
+            className="doc-editor-view-toggle"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 2,
+              padding: 2,
+              borderRadius: 10,
+              border: '1px solid var(--c-border)',
+              background: 'rgba(255,255,255,0.035)',
+              boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.04)',
+            }}
+          >
             <button
-              title={`Back to: ${prevDoc?.title || 'previous note'}`}
-              onClick={() => {
-                const prevId = docHistory[docHistory.length - 1];
-                setDocHistory((h) => h.slice(0, -1));
-                openDocumentWithMorph(prevId);
+              className="doc-editor-view-button"
+              title="Preview"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                if (viewMode === 'source') switchToEdit();
+              }}
+              style={headerModeButtonStyle(viewMode === 'edit', 'left')}
+            >
+              {panelMode ? <IconEye /> : 'Preview'}
+            </button>
+            <button
+              className="doc-editor-view-button"
+              title="Source"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                if (viewMode === 'edit') switchToSource();
+              }}
+              style={headerModeButtonStyle(viewMode === 'source', 'right')}
+            >
+              {panelMode ? <IconCode /> : 'Source'}
+            </button>
+          </div>
+          <div ref={headerMenuRef} style={{ position: 'relative' }}>
+            <button
+              type="button"
+              title="More note actions"
+              aria-label="More note actions"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                setShowHeaderMenu((v) => !v);
               }}
               style={{
-                display: 'flex', alignItems: 'center', gap: 5, padding: '0 8px', height: 28,
-                background: 'rgba(184,119,80,0.12)', border: '1px solid rgba(184,119,80,0.3)',
-                borderRadius: 6, color: 'var(--c-line)', cursor: 'pointer', fontSize: 11,
-                fontFamily: 'inherit', flexShrink: 0, transition: 'background 0.12s',
-                maxWidth: 180,
+                width: 34,
+                height: 34,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: 10,
+                border: showHeaderMenu ? '1px solid rgba(184,119,80,0.55)' : '1px solid var(--c-border)',
+                background: showHeaderMenu ? 'rgba(184,119,80,0.14)' : 'transparent',
+                color: showHeaderMenu ? 'var(--c-line)' : 'var(--c-text-md)',
+                cursor: 'pointer',
+                transition: 'background 0.12s, border-color 0.12s, color 0.12s',
               }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(184,119,80,0.22)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(184,119,80,0.12)'; }}
             >
-              <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
-                <path d="M7 2L4 5.5L7 9" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-              <span style={{ overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
-                {prevDoc?.title || 'Back'}
-              </span>
+              <IconMoreHorizontal size={17} />
             </button>
-          );
-        })()}
-
-        <button
-          type="button"
-          onClick={() => toggleFavoriteDocument(doc.id)}
-          title={doc.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-          aria-label={doc.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-          style={{
-            width: 28,
-            height: 28,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: 'transparent',
-            border: 'none',
-            borderRadius: 6,
-            color: doc.isFavorite ? '#d6a045' : 'var(--c-text-lo)',
-            cursor: 'pointer',
-            flexShrink: 0,
-            transition: 'background 0.12s, color 0.12s',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = 'var(--c-hover)';
-            e.currentTarget.style.color = doc.isFavorite ? '#d6a045' : 'var(--c-text-md)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'transparent';
-            e.currentTarget.style.color = doc.isFavorite ? '#d6a045' : 'var(--c-text-lo)';
-          }}
-        >
-          <IconStar filled={!!doc.isFavorite} size={14} />
-        </button>
-        <input
-          ref={titleInputRef}
-          type="text"
-          value={doc.title}
-          onChange={(e) => {
-            const newTitle = e.target.value;
-            if (newTitle !== doc.title) checkpointDocumentHistory();
-            markDirty();
-            updateDocument(doc.id, { title: newTitle });
-          }}
-          placeholder="Untitled note"
-          style={{
-            flex: 1,
-            fontSize: 14,
-            fontWeight: 600,
-            color: 'var(--c-text-hi)',
-            background: 'transparent',
-            border: 'none',
-            outline: 'none',
-            fontFamily: 'inherit',
-            minWidth: 0,
-          }}
-        />
-
+            {showHeaderMenu && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 8px)',
+                  right: 0,
+                  zIndex: 520,
+                  width: 224,
+                  padding: 6,
+                  borderRadius: 10,
+                  border: '1px solid var(--c-border)',
+                  background: 'var(--c-panel)',
+                  boxShadow: '0 12px 32px rgba(0,0,0,0.28)',
+                }}
+                onMouseDown={(e) => e.stopPropagation()}
+              >
+                <button style={headerMenuButtonStyle} onMouseDown={(e) => { e.preventDefault(); setShowHeaderMenu(false); handleFindReplace(); }} {...headerMenuHover}>
+                  <span>Find / Replace</span>
+                </button>
+                <button style={headerMenuButtonStyle} onMouseDown={(e) => { e.preventDefault(); setShowHeaderMenu(false); handleShowWordCount(); }} {...headerMenuHover}>
+                  <span>Word count</span>
+                  <span style={{ marginLeft: 'auto', color: 'var(--c-text-lo)', fontSize: 11 }}>{docWordCount} words</span>
+                </button>
+                <button style={headerMenuButtonStyle} onMouseDown={(e) => { e.preventDefault(); setShowHeaderMenu(false); handleExportMarkdown(); }} {...headerMenuHover}>
+                  <span>Export .md</span>
+                </button>
+                <button style={headerMenuButtonStyle} onMouseDown={(e) => { e.preventDefault(); setShowHeaderMenu(false); setSidebarPanel((current) => current === 'outline' ? null : 'outline'); }} {...headerMenuHover}>
+                  <span>Outline</span>
+                </button>
+                <button style={headerMenuButtonStyle} onMouseDown={(e) => { e.preventDefault(); setShowHeaderMenu(false); setSidebarPanel((current) => current === 'properties' ? null : 'properties'); }} {...headerMenuHover}>
+                  <span>Properties</span>
+                </button>
+                <div style={{ height: 1, background: 'var(--c-border)', margin: '6px 4px' }} />
+                <div style={{ padding: '7px 10px', color: 'var(--c-text-lo)', fontSize: 11 }}>
+                  {docReadingTime}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Body: editor */}
@@ -4001,7 +4055,6 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
             sourceWrap={sourceWrap}
             setSourceWrap={setSourceWrap}
             onCopySource={copySourceText}
-            saveStatus={saveStatus}
             onOpenOutline={() => setSidebarPanel((current) => current === 'outline' ? null : 'outline')}
             onOpenProperties={() => setSidebarPanel((current) => current === 'properties' ? null : 'properties')}
             onFindReplace={handleFindReplace}

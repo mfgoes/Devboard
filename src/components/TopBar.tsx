@@ -27,6 +27,7 @@ interface TopBarProps {
   jiraOpen: boolean;
   onToggleJira: () => void;
   onToggleSearch: () => void;
+  workspaceOffset?: number;
   templatesOpen?: boolean;
   onTemplatesOpenChange?: (open: boolean) => void;
 }
@@ -92,8 +93,18 @@ function parseCSV(text: string): string[][] {
   return rows;
 }
 
-export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleTimer, explorerOpen, onToggleExplorer, onWorkspaceOpened, jiraOpen, onToggleJira, onToggleSearch, templatesOpen, onTemplatesOpenChange }: TopBarProps) {
-  const { boardTitle, exportData, loadBoard, setActiveTool, setActiveShapeKind, toggleTheme, theme, addNode, pages, activePageId, setPageLayoutMode, workspaceName, setWorkspaceName, nodes, appMode, noteAutosaveEnabled, setNoteAutosaveEnabled, cloudBoardId, cloudSyncedAt, lastLocalSavedAt } = useBoardStore();
+type WorkspaceStorageTone = 'neutral' | 'local' | 'cloud' | 'success' | 'warning';
+
+function storageToneClass(tone: WorkspaceStorageTone): string {
+  if (tone === 'success') return 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300';
+  if (tone === 'warning') return 'border-amber-500/28 bg-amber-500/12 text-amber-700 dark:text-amber-300';
+  if (tone === 'cloud') return 'border-sky-500/24 bg-sky-500/10 text-sky-700 dark:text-sky-300';
+  if (tone === 'local') return 'border-[var(--c-border)] bg-[var(--c-panel)]/75 text-[var(--c-text-md)]';
+  return 'border-[var(--c-border)] bg-[var(--c-panel)]/65 text-[var(--c-text-lo)]';
+}
+
+export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleTimer, explorerOpen, onToggleExplorer, onWorkspaceOpened, jiraOpen, onToggleJira, onToggleSearch, workspaceOffset = 0, templatesOpen, onTemplatesOpenChange }: TopBarProps) {
+  const { boardTitle, exportData, loadBoard, setActiveTool, setActiveShapeKind, toggleTheme, theme, addNode, pages, activePageId, setPageLayoutMode, workspaceName, setWorkspaceName, nodes, appMode, noteAutosaveEnabled, setNoteAutosaveEnabled, cloudBoardId, cloudBoardTitle, cloudSyncedAt, lastLocalSavedAt, lastLocalSaveTarget } = useBoardStore();
   const { isConfigured, isLoading: authLoading, user, signInWithGitHub, signOut } = useAuth();
   const activePage = pages.find((p) => p.id === activePageId);
   const isDocumentContext = appMode === 'document';
@@ -140,17 +151,21 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
       saveWorkspace(exportData(), { notify: false }).then((result) => {
         if (!result.saved) return;
         playExportSound();
-        announceLocalSave('workspace');
+        announceLocalSave('workspace', result.workspaceName);
       });
     } else {
       saveBoard(exportData(), { notify: false }).then((result) => {
         if (!result.saved) return;
         playExportSound();
-        announceLocalSave('file');
+        announceLocalSave('file', result.targetName);
       });
     }
   };
-  const handleSaveAsJSON = () => saveBoardAs(exportData()).then(playExportSound);
+  const handleSaveAsJSON = () => saveBoardAs(exportData(), { notify: false }).then((result) => {
+    if (!result.saved) return;
+    playExportSound();
+    announceLocalSave('file', result.targetName);
+  });
 
   const handleOpenFolder = async () => {
     setMenuOpen(false);
@@ -417,15 +432,53 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
   const isLinkedSyncSignedOut = !user && !!cloudBoardId;
   const hasUnsyncedSyncChanges = !!user && !!cloudBoardId && !!lastLocalSavedAt && !!cloudSyncedAt && lastLocalSavedAt > cloudSyncedAt + 1000;
   const isCloudOnlyWorkspace = !!cloudBoardId && !workspaceFolderLabel;
-  const syncBadgeLabel = hasUnsyncedSyncChanges
-    ? 'Unsynced changes'
-    : isLinkedSyncSignedOut
-      ? 'Sync paused'
-      : cloudBoardId
-      ? (isCloudOnlyWorkspace ? 'Saved to cloud' : 'Synced')
-      : user
-        ? 'Sync available'
-        : 'Local only';
+  const localTargetLabel = workspaceFolderLabel
+    ? `workspace folder "${workspaceFolderLabel}"`
+    : lastLocalSaveTarget?.kind === 'workspace'
+      ? `workspace folder${lastLocalSaveTarget.name ? ` "${lastLocalSaveTarget.name}"` : ''}`
+    : lastLocalSaveTarget?.kind === 'file'
+      ? `local file${lastLocalSaveTarget.name ? ` "${lastLocalSaveTarget.name}"` : ''}`
+      : lastLocalSavedAt
+        ? 'local file'
+        : null;
+  const hasLocalAttachment = !!localTargetLabel;
+  const storageStatus: { label: string; title: string; tone: WorkspaceStorageTone } = isLinkedSyncSignedOut
+    ? {
+      label: 'Sync paused',
+      title: `This workspace is linked to cloud storage${cloudBoardTitle ? ` as "${cloudBoardTitle}"` : ''}, but you are signed out.`,
+      tone: 'warning',
+    }
+    : hasUnsyncedSyncChanges
+      ? {
+        label: 'Unsynced',
+        title: `Local changes in your ${localTargetLabel ?? 'workspace'} are newer than the last cloud sync.`,
+        tone: 'warning',
+      }
+      : cloudBoardId && isCloudOnlyWorkspace && !hasLocalAttachment
+        ? {
+          label: 'Cloud only',
+          title: `This workspace is saved in cloud storage${cloudBoardTitle ? ` as "${cloudBoardTitle}"` : ''}, but no local folder or file is attached on this device.`,
+          tone: 'cloud',
+        }
+        : cloudBoardId
+          ? {
+            label: 'Synced',
+            title: `Your ${localTargetLabel ?? 'local workspace'} and cloud copy${cloudBoardTitle ? ` "${cloudBoardTitle}"` : ''} are linked.`,
+            tone: 'success',
+          }
+          : hasLocalAttachment
+            ? {
+              label: 'Local only',
+              title: `Saved to your ${localTargetLabel}. Not linked to Workspace Sync.`,
+              tone: 'local',
+            }
+            : {
+              label: 'Not saved',
+              title: 'No local workspace, local board file, or cloud workspace is attached yet.',
+              tone: 'neutral',
+            };
+  const syncBadgeLabel = storageStatus.label;
+  const storageStatusIconOnly = workspaceOffset > 400;
   return (
     <>
     {confirmDialog && (
@@ -669,8 +722,9 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
 
       {/* Center: Layout mode switcher */}
       <div
-        className="pointer-events-auto absolute left-1/2 top-1/2 hidden -translate-x-1/2 -translate-y-1/2 md:flex items-center shrink-0"
+        className="pointer-events-auto absolute top-1/2 hidden -translate-x-1/2 -translate-y-1/2 md:flex items-center shrink-0"
         style={{
+          left: workspaceOffset > 0 ? `calc(50% + ${Math.round(workspaceOffset / 2)}px)` : '50%',
           padding: 2,
           background: 'color-mix(in srgb, var(--c-panel) 82%, transparent)',
           border: '1px solid color-mix(in srgb, var(--c-border) 86%, transparent)',
@@ -707,6 +761,23 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
 
       {/* Right: Actions */}
       <div className="pointer-events-auto absolute right-2 sm:right-4 top-1/2 flex -translate-y-1/2 shrink-0 items-center gap-0.5 sm:gap-1 whitespace-nowrap">
+        <button
+          type="button"
+          onClick={() => setCloudOpen(true)}
+          title={storageStatus.title}
+          aria-label={`Workspace storage status: ${storageStatus.label}. ${storageStatus.title}`}
+          className={[
+            'hidden md:inline-flex h-7 items-center justify-center gap-1.5 rounded-full border px-2.5 font-sans text-[10px] font-semibold transition-colors hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]',
+            storageToneClass(storageStatus.tone),
+          ].join(' ')}
+        >
+          <span
+            aria-hidden="true"
+            className="h-1.5 w-1.5 shrink-0 rounded-full bg-current"
+            style={{ opacity: storageStatus.tone === 'neutral' ? 0.45 : 0.8 }}
+          />
+          {!storageStatusIconOnly && <span>{storageStatus.label}</span>}
+        </button>
         <input
           ref={fileInputRef}
           type="file"

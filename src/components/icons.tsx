@@ -6,12 +6,13 @@ import {
   List, ListOrdered,
   AlignLeft, AlignCenter, AlignRight,
   Code, Eye, CircleDot, Copy, TextWrap,
-  Quote, Code2, Minus, Cloud,
-  Link2, Star, ArrowRight, Unlink, Brackets,
+  Quote, Code2, Minus, Cloud, Pencil,
+  Link2, Star, ArrowRight, Unlink, Brackets, MoreHorizontal,
 } from 'lucide-react';
 
 export function IconGrip()         { return <GripVertical  size={12} />; }
 export function IconExpand()       { return <Maximize2     size={13} />; }
+export function IconPencil()       { return <Pencil        size={13} />; }
 export function IconDoc()          { return <FileText      size={11} />; }
 export function IconSaveFile()     { return <Save          size={13} />; }
 export function IconFolder({ size = 13 }: { size?: number }) { return <Folder size={size} />; }
@@ -31,6 +32,7 @@ export function IconCodeBlock()    { return <Code2          size={13} />; }
 export function IconHorizontalRule() { return <Minus        size={14} />; }
 export function IconLink()         { return <Link2         size={13} />; }
 export function IconWikiLink()     { return <Brackets      size={14} />; }
+export function IconMoreHorizontal({ size = 15 }: { size?: number }) { return <MoreHorizontal size={size} />; }
 export function IconArrowRight({ size = 14 }: { size?: number }) { return <ArrowRight size={size} />; }
 export function IconUnlink({ size = 14 }: { size?: number }) { return <Unlink size={size} />; }
 export function IconStar({ filled = false, size = 13 }: { filled?: boolean; size?: number }) {

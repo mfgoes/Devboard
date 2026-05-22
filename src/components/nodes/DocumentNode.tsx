@@ -2,11 +2,13 @@ import { useRef, useState } from 'react';
 import { useBoardStore } from '../../store/boardStore';
 import { DocumentNode, AnchorSide } from '../../types';
 import { PreviewLine, htmlToPreviewStructured } from '../../utils/richText';
-import { IconGrip, IconExpand, IconDoc } from '../icons';
+import { IconGrip, IconExpand, IconDoc, IconPencil } from '../icons';
 import { useDocumentAutoSave } from '../../hooks/useDocumentAutoSave';
 
 const CARD_WIDTH  = 280;
 const CARD_HEIGHT = 176;
+const MIN_CARD_WIDTH = 220;
+const MIN_CARD_HEIGHT = 132;
 
 const ANCHOR_SIDES: { side: AnchorSide; sx: (w: number) => number; sy: (h: number) => number; ox: number; oy: number }[] = [
   { side: 'top',    sx: (w) => w / 2, sy: () => 0,    ox: 0,   oy: -28 },
@@ -16,20 +18,20 @@ const ANCHOR_SIDES: { side: AnchorSide; sx: (w: number) => number; sy: (h: numbe
 ];
 
 const btnBase: React.CSSProperties = {
-  height: 22,
-  padding: '0 7px',
-  background: 'rgba(255,255,255,0.06)',
-  border: '1px solid rgba(255,255,255,0.12)',
-  borderRadius: 5,
-  color: 'var(--c-text-lo)',
+  width: 28,
+  height: 28,
+  padding: 0,
+  background: 'rgba(255,255,255,0.72)',
+  border: '1px solid rgba(138,117,95,0.22)',
+  borderRadius: 7,
+  color: 'var(--c-text-md)',
   cursor: 'pointer',
   display: 'flex',
   alignItems: 'center',
-  gap: 4,
-  fontSize: 10.5,
+  justifyContent: 'center',
   fontFamily: 'inherit',
   flexShrink: 0,
-  whiteSpace: 'nowrap',
+  boxShadow: '0 1px 6px rgba(31,24,18,0.08)',
 };
 
 interface Props {
@@ -45,11 +47,41 @@ interface Props {
 
 function renderPreviewLine(line: PreviewLine, idx: number): React.ReactNode {
   const renderSegs = (segments: PreviewLine['segments']) =>
-    segments.map((s, i) => (
-      <span key={i} style={{ fontWeight: s.bold ? 700 : undefined, fontStyle: s.italic ? 'italic' : undefined }}>
-        {s.text}
-      </span>
-    ));
+    segments.map((s, i) => {
+      if (s.wikiTitle) {
+        return (
+          <span
+            key={i}
+            title={s.wikiTitle}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+              maxWidth: '100%',
+              margin: '0 2px',
+              padding: '1px 7px',
+              borderRadius: 7,
+              border: s.wikiMissing ? '1px dashed rgba(138,117,95,0.4)' : '1px solid rgba(184,119,80,0.28)',
+              background: s.wikiMissing ? 'rgba(138,117,95,0.08)' : 'rgba(184,119,80,0.1)',
+              color: s.wikiMissing ? 'var(--c-text-lo)' : 'var(--c-line)',
+              fontWeight: 650,
+              lineHeight: 1.35,
+              verticalAlign: 'baseline',
+            }}
+          >
+            <span style={{ display: 'flex', flexShrink: 0 }}>
+              <IconDoc />
+            </span>
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.text}</span>
+          </span>
+        );
+      }
+      return (
+        <span key={i} style={{ fontWeight: s.bold ? 700 : undefined, fontStyle: s.italic ? 'italic' : undefined }}>
+          {s.text}
+        </span>
+      );
+    });
 
   const ellipsis: React.CSSProperties = { overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' };
 
@@ -105,15 +137,21 @@ function renderPreviewLine(line: PreviewLine, idx: number): React.ReactNode {
 }
 
 export default function DocumentNodeComponent({ node, isSelected, isDrawingLine, onAnchorDown, onAnchorUp, onAnchorEnter, onAnchorLeave, snapAnchor }: Props) {
-  const { camera, updateNode, selectIds, setFocusDocument, openDocument, openDocumentWithMorph, activeTool, documents, activeDocId, focusDocumentId, noteAutosaveEnabled } = useBoardStore();
+  const { camera, updateNode, selectIds, setFocusDocument, openDocument, openDocumentWithMorph, activeTool, documents, activeDocId, focusDocumentId, noteAutosaveEnabled, saveHistory, setDocViewMode } = useBoardStore();
 
   // Post-migration: read title/content from Document entity; fall back to inline fields
   const doc = node.docId ? documents.find((d) => d.id === node.docId) : undefined;
   const displayTitle = doc?.title ?? node.title ?? '';
   const displayContent = doc?.content ?? node.content ?? '';
 
-  const dragRef = useRef<{ startMX: number; startMY: number; startNX: number; startNY: number } | null>(null);
+  const cardWidth = node.width ?? CARD_WIDTH;
+  const cardHeight = node.height ?? CARD_HEIGHT;
+  const dragRef = useRef<{ startMX: number; startMY: number; startNX: number; startNY: number; moved: boolean } | null>(null);
+  const resizeRef = useRef<{ startMX: number; startMY: number; startW: number; startH: number } | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
+  const suppressNextClickRef = useRef(false);
+  const [isHovered, setIsHovered] = useState(false);
+  const [isResizing, setIsResizing] = useState(false);
   const [hoveredAnchor, setHoveredAnchor] = useState<AnchorSide | null>(null);
 
   useDocumentAutoSave({
@@ -129,7 +167,39 @@ export default function DocumentNodeComponent({ node, isSelected, isDrawingLine,
     if (!dragRef.current) return;
     const dx = (e.clientX - dragRef.current.startMX) / camera.scale;
     const dy = (e.clientY - dragRef.current.startMY) / camera.scale;
+    if (Math.hypot(e.clientX - dragRef.current.startMX, e.clientY - dragRef.current.startMY) > 3) {
+      dragRef.current.moved = true;
+    }
     updateNode(node.id, { x: dragRef.current.startNX + dx, y: dragRef.current.startNY + dy });
+  };
+
+  const handleResizeMove = (e: MouseEvent) => {
+    if (!resizeRef.current) return;
+    const dx = (e.clientX - resizeRef.current.startMX) / camera.scale;
+    const dy = (e.clientY - resizeRef.current.startMY) / camera.scale;
+    updateNode(node.id, {
+      width: Math.max(MIN_CARD_WIDTH, resizeRef.current.startW + dx),
+      height: Math.max(MIN_CARD_HEIGHT, resizeRef.current.startH + dy),
+    });
+  };
+
+  const handleResizeEnd = () => {
+    resizeRef.current = null;
+    setIsResizing(false);
+    window.removeEventListener('mousemove', handleResizeMove);
+    window.removeEventListener('mouseup', handleResizeEnd);
+  };
+
+  const handleResizeStart = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (activeTool === 'pan') return;
+    selectIds([node.id]);
+    saveHistory();
+    resizeRef.current = { startMX: e.clientX, startMY: e.clientY, startW: cardWidth, startH: cardHeight };
+    setIsResizing(true);
+    window.addEventListener('mousemove', handleResizeMove);
+    window.addEventListener('mouseup', handleResizeEnd);
   };
 
   const handleCardMouseDown = (e: React.MouseEvent) => {
@@ -142,14 +212,20 @@ export default function DocumentNodeComponent({ node, isSelected, isDrawingLine,
     if (activeTool !== 'pan') selectIds([node.id]);
   };
 
-  const handleHeaderDragStart = (e: React.MouseEvent) => {
+  const handleDragStart = (e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
-    if (target.tagName === 'INPUT' || target.closest('input') || target.closest('button')) return;
+    if (
+      target.tagName === 'INPUT'
+      || target.closest('input')
+      || target.closest('button')
+      || target.closest('[data-card-resize-handle="true"]')
+    ) return;
     e.stopPropagation();
     if (activeTool !== 'pan') selectIds([node.id]);
-    dragRef.current = { startMX: e.clientX, startMY: e.clientY, startNX: node.x, startNY: node.y };
+    dragRef.current = { startMX: e.clientX, startMY: e.clientY, startNX: node.x, startNY: node.y, moved: false };
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', () => {
+      if (dragRef.current?.moved) suppressNextClickRef.current = true;
       dragRef.current = null;
       window.removeEventListener('mousemove', handleMouseMove);
     }, { once: true });
@@ -157,10 +233,26 @@ export default function DocumentNodeComponent({ node, isSelected, isDrawingLine,
 
   const handleFocusMode = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (suppressNextClickRef.current) {
+      suppressNextClickRef.current = false;
+      return;
+    }
     selectIds([node.id]);
     if (node.docId) {
+      setDocViewMode('fullscreen');
       const rect = cardRef.current?.getBoundingClientRect();
       openDocumentWithMorph(node.docId, rect ? { left: rect.left, top: rect.top, width: rect.width, height: rect.height } : undefined);
+    } else {
+      setFocusDocument(node.id);
+    }
+  };
+
+  const handleEditMode = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    selectIds([node.id]);
+    if (node.docId) {
+      setDocViewMode('panel');
+      openDocument(node.docId);
     } else {
       setFocusDocument(node.id);
     }
@@ -170,18 +262,21 @@ export default function DocumentNodeComponent({ node, isSelected, isDrawingLine,
   const screenY = camera.y + node.y * camera.scale;
 
   const previewLines = htmlToPreviewStructured(displayContent, 5);
+  const showCardActions = isHovered || isResizing;
 
   return (
     <>
       <div
         ref={cardRef}
         onMouseDown={handleCardMouseDown}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
         style={{
           position: 'absolute',
           left: screenX,
           top: screenY,
-          width: CARD_WIDTH,
-          height: CARD_HEIGHT,
+          width: cardWidth,
+          height: cardHeight,
           transformOrigin: 'top left',
           transform: `scale(${camera.scale})`,
           borderRadius: 10,
@@ -199,7 +294,7 @@ export default function DocumentNodeComponent({ node, isSelected, isDrawingLine,
       >
         {/* Title header — drag handle */}
         <div
-          onMouseDown={handleHeaderDragStart}
+          onMouseDown={handleDragStart}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -233,7 +328,7 @@ export default function DocumentNodeComponent({ node, isSelected, isDrawingLine,
               flex: 1,
               fontSize: 13,
               fontWeight: 700,
-              letterSpacing: '-0.01em',
+              letterSpacing: 0,
               color: 'var(--c-text-hi)',
               background: 'transparent',
               border: 'none',
@@ -256,23 +351,49 @@ export default function DocumentNodeComponent({ node, isSelected, isDrawingLine,
             </span>
           )}
 
-          <button
-            type="button"
-            onClick={handleFocusMode}
-            onMouseDown={(e) => e.stopPropagation()}
-            title="Open note"
-            style={btnBase}
-            onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.11)'; e.currentTarget.style.color = 'var(--c-text-hi)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; e.currentTarget.style.color = 'var(--c-text-lo)'; }}
+          <div
+            aria-hidden={!showCardActions}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 5,
+              opacity: showCardActions ? 1 : 0,
+              transform: showCardActions ? 'translateY(0)' : 'translateY(-2px)',
+              pointerEvents: showCardActions ? 'auto' : 'none',
+              transition: 'opacity 120ms ease, transform 120ms ease',
+            }}
           >
-            <IconExpand />
-            <span style={{ letterSpacing: 0.2 }}>Edit</span>
-          </button>
+            <button
+              type="button"
+              tabIndex={showCardActions ? 0 : -1}
+              onClick={handleFocusMode}
+              onMouseDown={(e) => e.stopPropagation()}
+              title="Expand note"
+              style={btnBase}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'white'; e.currentTarget.style.color = 'var(--c-text-hi)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.72)'; e.currentTarget.style.color = 'var(--c-text-md)'; }}
+            >
+              <IconExpand />
+            </button>
+            <button
+              type="button"
+              tabIndex={showCardActions ? 0 : -1}
+              onClick={handleEditMode}
+              onMouseDown={(e) => e.stopPropagation()}
+              title="Edit note"
+              style={btnBase}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'white'; e.currentTarget.style.color = 'var(--c-text-hi)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.72)'; e.currentTarget.style.color = 'var(--c-text-md)'; }}
+            >
+              <IconPencil />
+            </button>
+          </div>
         </div>
 
         {/* Preview body */}
         <div
           onClick={handleFocusMode}
+          onMouseDown={handleDragStart}
           style={{
             flex: 1,
             padding: '9px 12px 6px',
@@ -283,7 +404,7 @@ export default function DocumentNodeComponent({ node, isSelected, isDrawingLine,
             display: 'flex',
             flexDirection: 'column',
             gap: 2,
-            cursor: 'pointer',
+            cursor: activeTool === 'pan' ? 'grab' : 'move',
           }}
         >
           {previewLines.length > 0
@@ -298,11 +419,13 @@ export default function DocumentNodeComponent({ node, isSelected, isDrawingLine,
           justifyContent: 'flex-end',
           padding: '0 10px 8px',
           flexShrink: 0,
+          opacity: showCardActions ? 0 : 1,
+          transition: 'opacity 120ms ease',
         }}>
           <span style={{
             fontSize: 9.5,
             fontWeight: 600,
-            letterSpacing: '0.04em',
+            letterSpacing: 0,
             color: 'var(--c-text-lo)',
             background: 'rgba(184,119,80,0.1)',
             border: '1px solid rgba(184,119,80,0.2)',
@@ -313,18 +436,46 @@ export default function DocumentNodeComponent({ node, isSelected, isDrawingLine,
             .md
           </span>
         </div>
+
+        <div
+          data-card-resize-handle="true"
+          onMouseDown={handleResizeStart}
+          title="Resize note"
+          style={{
+            position: 'absolute',
+            right: 7,
+            bottom: 7,
+            width: 18,
+            height: 18,
+            cursor: 'nwse-resize',
+            opacity: showCardActions ? 0.95 : 0,
+            pointerEvents: showCardActions ? 'auto' : 'none',
+            transition: 'opacity 120ms ease',
+          }}
+        >
+          <span style={{
+            position: 'absolute',
+            right: 0,
+            bottom: 0,
+            width: 15,
+            height: 15,
+            borderRight: '3px solid rgba(138,117,95,0.58)',
+            borderBottom: '3px solid rgba(138,117,95,0.58)',
+            borderRadius: '0 0 4px 0',
+          }} />
+        </div>
       </div>
 
       {showAnchors && ANCHOR_SIDES.map(({ side, sx, sy, ox, oy }) => {
-        const ax = screenX + sx(CARD_WIDTH)  * camera.scale + ox;
-        const ay = screenY + sy(CARD_HEIGHT) * camera.scale + oy;
+        const ax = screenX + sx(cardWidth)  * camera.scale + ox;
+        const ay = screenY + sy(cardHeight) * camera.scale + oy;
         const isSnapped = snapAnchor === side;
         return (
           <div
             key={side}
             onMouseDown={(e) => {
               e.stopPropagation();
-              onAnchorDown?.(node.id, side, node.x + sx(CARD_WIDTH), node.y + sy(CARD_HEIGHT));
+              onAnchorDown?.(node.id, side, node.x + sx(cardWidth), node.y + sy(cardHeight));
             }}
             onMouseUp={(e) => {
               e.stopPropagation();
