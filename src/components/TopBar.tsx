@@ -959,6 +959,7 @@ function MenuItemSub({ label, icon, children }: { label: string; icon?: React.Re
         </div>
       )}
     </div>
+    </>
   );
 }
 

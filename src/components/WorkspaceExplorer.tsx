@@ -2713,6 +2713,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
   }, [activePageId, assetVisibleEntries, clearPagePreview, clearPreview, focusedIdx, focusedItem, handleAssetToggle, keyboardItems, openDocument, openFile, placeFile, searchOpen, startDelete, startRename, switchPage]);
 
   return (
+    <>
     <div
       ref={panelRef}
       className="flex flex-col select-none"
