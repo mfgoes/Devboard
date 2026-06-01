@@ -9,7 +9,7 @@
  *     assets/
  *       <uniqueName>.png   ← actual image files (no base64 in JSON)
  */
-import { BoardData, CanvasNode, Document } from '../types';
+import { BoardData, CanvasNode, Document, FolderDescriptor } from '../types';
 import { toast } from './toast';
 import { documentMarkdownFromParts, generateMarkdownFilename, markdownBodyToHtml, titleFromMarkdown } from './exportMarkdown';
 import { getDeviceId, getDeviceLabel } from './deviceIdentity';
@@ -84,6 +84,7 @@ const WORKSPACE_STORE = 'handles';
 const WORKSPACE_KEY = 'last-workspace';
 const WORKSPACE_RECENTS_KEY = 'recent-workspaces';
 const WORKSPACE_RECENT_HANDLE_PREFIX = 'recent-workspace-handle:';
+const FOLDER_DESCRIPTOR_FILE = 'folder-descriptors.json';
 
 export interface LocalRecentWorkspace {
   id: string;
@@ -450,6 +451,7 @@ async function readTauriWorkspaceAtPath(path: string): Promise<WorkspaceOpenResu
       ? manifest.activePageId
       : pages[0].id;
     const noteDocuments = await readTauriNoteDocuments(path, activePageId);
+    const folderDescriptors = await readTauriFolderDescriptors(path);
 
     for (const page of pages) {
       for (const node of page.nodes) {
@@ -475,6 +477,7 @@ async function readTauriWorkspaceAtPath(path: string): Promise<WorkspaceOpenResu
         activePageId,
         nodes: [],
         documents: mergeWorkspaceDocuments(manifest.documents, noteDocuments, activePageId),
+        folderDescriptors,
       },
       name,
       sync,
@@ -686,6 +689,7 @@ async function getBrowserWorkspaceData(dirHandle: FileSystemDirectoryHandle): Pr
       ? manifest.activePageId
       : pages[0].id;
     const noteDocuments = await readBrowserNoteDocuments(dirHandle, activePageId);
+    const folderDescriptors = await readBrowserFolderDescriptors(dirHandle);
 
     for (const page of pages) {
       for (const node of page.nodes) {
@@ -713,6 +717,7 @@ async function getBrowserWorkspaceData(dirHandle: FileSystemDirectoryHandle): Pr
       activePageId,
       nodes: [],
       documents: mergeWorkspaceDocuments(manifest.documents, noteDocuments, activePageId),
+      folderDescriptors,
     };
     return { data, name, sync };
   } catch {
@@ -815,6 +820,134 @@ interface WorkspaceManifest {
   activePageId: string;
   documents?: Document[];
   sync?: WorkspaceSyncMetadata;
+}
+
+interface FolderDescriptorDocument {
+  version?: number;
+  generatedAt?: number;
+  folders?: FolderDescriptor[];
+}
+
+function compactText(value: string, maxLength: number): string {
+  const text = value.replace(/\s+/g, ' ').trim();
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
+}
+
+function htmlToPlainText(html: string): string {
+  return html
+    .replace(/<(br|\/p|\/div|\/li|\/h[1-6])\s*\/?>/gi, ' ')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\u00a0/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function autoDescribeFolder(docs: Document[]): string {
+  const candidates = docs
+    .map((doc) => {
+      const text = htmlToPlainText(doc.content);
+      if (!text) return doc.title || '';
+      const withoutRepeatedTitle = doc.title && text.toLowerCase().startsWith(doc.title.toLowerCase())
+        ? text.slice(doc.title.length).trim()
+        : text;
+      return withoutRepeatedTitle || doc.title || '';
+    })
+    .filter(Boolean);
+  return compactText(candidates.slice(0, 2).join(' '), 180);
+}
+
+function normalizeFolderDescriptors(raw: unknown): FolderDescriptor[] {
+  const source = raw as FolderDescriptorDocument | FolderDescriptor[] | null | undefined;
+  const folders = Array.isArray(source) ? source : Array.isArray(source?.folders) ? source.folders : [];
+  return folders
+    .filter((folder): folder is FolderDescriptor => !!folder && typeof folder.id === 'string' && typeof folder.name === 'string')
+    .map((folder) => ({
+      ...folder,
+      description: typeof folder.description === 'string' ? folder.description : undefined,
+      autoDescription: typeof folder.autoDescription === 'string' ? folder.autoDescription : undefined,
+      files: Array.isArray(folder.files)
+        ? folder.files
+            .filter((file) => file && typeof file.path === 'string')
+            .map((file) => ({
+              path: file.path,
+              title: typeof file.title === 'string' && file.title.trim() ? file.title : file.path.split('/').pop() ?? file.path,
+              updatedAt: typeof file.updatedAt === 'number' ? file.updatedAt : undefined,
+              tags: Array.isArray(file.tags) ? file.tags.filter((tag): tag is string => typeof tag === 'string' && !!tag.trim()) : undefined,
+              isFavorite: !!file.isFavorite,
+            }))
+        : undefined,
+      tags: Array.isArray(folder.tags) ? folder.tags.filter((tag): tag is string => typeof tag === 'string' && !!tag.trim()) : undefined,
+      lastEditedAt: typeof folder.lastEditedAt === 'number' ? folder.lastEditedAt : null,
+      noteCount: typeof folder.noteCount === 'number' ? folder.noteCount : undefined,
+      favoriteCount: typeof folder.favoriteCount === 'number' ? folder.favoriteCount : undefined,
+      generatedAt: typeof folder.generatedAt === 'number' ? folder.generatedAt : undefined,
+    }));
+}
+
+function buildFolderDescriptors(data: BoardData, documents: Document[]): FolderDescriptor[] {
+  const now = Date.now();
+  const existing = new Map((data.folderDescriptors ?? []).map((folder) => [folder.id, folder]));
+  const pages = data.pages?.length
+    ? data.pages
+    : [{ id: data.activePageId || 'page-1', name: 'Page 1', layoutMode: undefined, noteSort: 'updated' as const }];
+
+  return pages.map((page) => {
+    const pageDocs = documents
+      .filter((doc) => (doc.pageId ?? data.activePageId ?? page.id) === page.id)
+      .sort((a, b) => (a.orderIndex ?? Number.MAX_SAFE_INTEGER) - (b.orderIndex ?? Number.MAX_SAFE_INTEGER) || b.updatedAt - a.updatedAt);
+    const tags = Array.from(new Set(pageDocs.flatMap((doc) => doc.tags ?? []).map((tag) => tag.trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+    const lastEditedAt = pageDocs.length > 0 ? Math.max(...pageDocs.map((doc) => doc.updatedAt ?? 0)) : null;
+    const previous = existing.get(page.id);
+    const autoDescription = autoDescribeFolder(pageDocs);
+
+    return {
+      id: page.id,
+      name: page.name,
+      description: previous?.description,
+      autoDescription,
+      layoutMode: page.layoutMode,
+      noteSort: page.noteSort,
+      noteCount: pageDocs.length,
+      favoriteCount: pageDocs.filter((doc) => !!doc.isFavorite).length,
+      lastEditedAt,
+      tags,
+      files: pageDocs.map((doc) => ({
+        path: doc.linkedFile ?? `notes/${generateMarkdownFilename(doc.title)}`,
+        title: doc.title || 'Untitled',
+        updatedAt: doc.updatedAt,
+        tags: doc.tags,
+        isFavorite: !!doc.isFavorite,
+      })),
+      generatedAt: now,
+    };
+  });
+}
+
+function folderDescriptorDocument(data: BoardData, documents: Document[]): FolderDescriptorDocument {
+  return {
+    version: 1,
+    generatedAt: Date.now(),
+    folders: buildFolderDescriptors(data, documents),
+  };
+}
+
+async function readTauriFolderDescriptors(workspacePath: string): Promise<FolderDescriptor[]> {
+  try {
+    const text = await tauriFsReadText(joinPath(workspacePath, FOLDER_DESCRIPTOR_FILE));
+    return normalizeFolderDescriptors(JSON.parse(text));
+  } catch {
+    return [];
+  }
+}
+
+async function readBrowserFolderDescriptors(dirHandle: FileSystemDirectoryHandle): Promise<FolderDescriptor[]> {
+  try {
+    const handle = await dirHandle.getFileHandle(FOLDER_DESCRIPTOR_FILE);
+    return normalizeFolderDescriptors(JSON.parse(await (await handle.getFile()).text()));
+  } catch {
+    return [];
+  }
 }
 
 async function readTauriNoteDocuments(workspacePath: string, fallbackPageId: string): Promise<Document[]> {
@@ -1333,6 +1466,7 @@ export async function openWorkspace(): Promise<WorkspaceOpenResult | null> {
         ? manifest.activePageId
         : pages[0].id;
       const noteDocuments = await readTauriNoteDocuments(tauriWorkspacePath!, activePageId);
+      const folderDescriptors = await readTauriFolderDescriptors(tauriWorkspacePath!);
 
       // Populate image src
       for (const page of pages) {
@@ -1359,6 +1493,7 @@ export async function openWorkspace(): Promise<WorkspaceOpenResult | null> {
           activePageId,
           nodes: [],
           documents: mergeWorkspaceDocuments(manifest.documents, noteDocuments, activePageId),
+          folderDescriptors,
         },
         name,
         sync,
@@ -1434,6 +1569,7 @@ export async function downloadCloudWorkspaceToFolder({
   const syncedAt = new Date(cloud.updatedAt).getTime();
   const pagesBeforeAssets = materializePages({ ...data, boardTitle: selectedTitle });
   const { documents, notes } = materializeDocuments(data.documents);
+  const descriptors = folderDescriptorDocument({ ...data, boardTitle: selectedTitle }, documents);
   const { pages, assets, missingAssets } = materializePageAssets(pagesBeforeAssets);
   const totalSteps = 3 + pages.length + notes.length + assets.length;
   let completedSteps = 0;
@@ -1488,6 +1624,7 @@ export async function downloadCloudWorkspaceToFolder({
 
     await tauriFsWriteText(joinPath(selected, 'workspace.json'), JSON.stringify(manifest, null, 2));
     complete('Wrote workspace manifest');
+    await tauriFsWriteText(joinPath(selected, FOLDER_DESCRIPTOR_FILE), JSON.stringify(descriptors, null, 2));
 
     const pagesDir = joinPath(selected, 'pages');
     await tauriFsMkdir(pagesDir);
@@ -1557,6 +1694,7 @@ export async function downloadCloudWorkspaceToFolder({
 
   await writeBrowserTextAt(selectedHandle, 'workspace.json', JSON.stringify(manifest, null, 2));
   complete('Wrote workspace manifest');
+  await writeBrowserTextAt(selectedHandle, FOLDER_DESCRIPTOR_FILE, JSON.stringify(descriptors, null, 2));
 
   for (const page of pages) {
     await writeBrowserTextAt(selectedHandle, `pages/${page.id}.json`, JSON.stringify({
@@ -1628,6 +1766,7 @@ export async function saveTextFileToWorkspace(
 export async function saveWorkspace(data: BoardData, options: SaveWorkspaceOptions = {}): Promise<SaveWorkspaceResult> {
   const shouldNotify = options.notify !== false;
   const { documents, notes } = materializeDocuments(data.documents);
+  const descriptors = folderDescriptorDocument(data, documents);
 
   if (IS_TAURI) {
     if (!tauriWorkspacePath) return { saved: false };
@@ -1639,6 +1778,7 @@ export async function saveWorkspace(data: BoardData, options: SaveWorkspaceOptio
       sync: setWorkspaceSyncMetadata(workspaceSyncMetadata ?? {}) ?? undefined,
     };
     await tauriFsWriteText(joinPath(tauriWorkspacePath, 'workspace.json'), JSON.stringify(manifest, null, 2));
+    await tauriFsWriteText(joinPath(tauriWorkspacePath, FOLDER_DESCRIPTOR_FILE), JSON.stringify(descriptors, null, 2));
     const pagesDir = joinPath(tauriWorkspacePath, 'pages');
     await tauriFsMkdir(pagesDir);
     for (const page of data.pages ?? []) {
@@ -1675,6 +1815,7 @@ export async function saveWorkspace(data: BoardData, options: SaveWorkspaceOptio
     sync: setWorkspaceSyncMetadata(workspaceSyncMetadata ?? {}) ?? undefined,
   };
   await writeTextFile(workspaceHandle, 'workspace.json', JSON.stringify(manifest, null, 2));
+  await writeTextFile(workspaceHandle, FOLDER_DESCRIPTOR_FILE, JSON.stringify(descriptors, null, 2));
 
   const pagesDir = await getOrCreateDir(workspaceHandle, 'pages');
   for (const page of data.pages ?? []) {

@@ -2426,10 +2426,28 @@ interface DocumentModeProps {
   onClose?: () => void;
   onExpand?: () => void;
   onCollapseToPanel?: () => void;
+  onClosePanel?: () => void;
+  onOpenDocument?: (id: string) => void;
+  documentId?: string;
+  headerBreadcrumb?: {
+    workspaceLabel: string;
+    folderLabel: string;
+    noteLabel: string;
+    onFolderClick: () => void;
+  };
   panelMode?: boolean;
 }
 
-export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, panelMode = false }: DocumentModeProps) {
+export default function DocumentMode({
+  onClose,
+  onExpand,
+  onCollapseToPanel,
+  onClosePanel,
+  onOpenDocument,
+  documentId,
+  headerBreadcrumb,
+  panelMode = false,
+}: DocumentModeProps) {
   const { documents, activeDocId, updateDocument, toggleFavoriteDocument, addDocument, closeDocument, openDocumentWithMorph, nodes, activePageId, saveHistory, undo, redo, noteAutosaveEnabled, imageAssetFolder } = useBoardStore();
   const contentRef = useRef<HTMLDivElement>(null);
   const editorScrollRef = useRef<HTMLDivElement>(null);
@@ -2463,6 +2481,7 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
   const [selectedImageRect, setSelectedImageRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
   const [assetDrawerOpen, setAssetDrawerOpen] = useState(false);
   const [showHeaderMenu, setShowHeaderMenu] = useState(false);
+  const [isEditorFocused, setIsEditorFocused] = useState(false);
   const [, forceSaveStatusTick] = useState(0);
   const savedSelectionRef = useRef<Range | null>(null);
   const wikiRenameInputRef = useRef<HTMLInputElement>(null);
@@ -2472,8 +2491,19 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
   const wikiPointerDownRef = useRef<{ chip: HTMLElement; x: number; y: number } | null>(null);
   const selectionToolbarInteractingRef = useRef(false);
 
-  const doc = documents.find((d) => d.id === activeDocId) as Document | undefined;
-  const handleClose = onClose ?? closeDocument;
+  const currentDocumentId = documentId ?? activeDocId;
+  const doc = documents.find((d) => d.id === currentDocumentId) as Document | undefined;
+  const handleClose = onClosePanel ?? onClose ?? closeDocument;
+  const openDocumentInSurface = useCallback((id: string) => {
+    if (onOpenDocument) {
+      onOpenDocument(id);
+      return;
+    }
+    openDocumentWithMorph(id);
+  }, [onOpenDocument, openDocumentWithMorph]);
+  const docPageId = doc?.pageId ?? activePageId;
+  const isOverlayPanel = !!headerBreadcrumb;
+  const simplifyPanelChrome = panelMode && isOverlayPanel;
 
   const panelNavBtn = (disabled: boolean): React.CSSProperties => ({
     width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -2487,11 +2517,11 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
 
   const pageDocs = useMemo(() =>
     documents
-      .filter((d) => d.pageId === activePageId)
+      .filter((d) => d.pageId === docPageId)
       .sort((a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0) || a.updatedAt - b.updatedAt),
-    [documents, activePageId]
+    [documents, docPageId]
   );
-  const currentDocIdx = pageDocs.findIndex((d) => d.id === activeDocId);
+  const currentDocIdx = pageDocs.findIndex((d) => d.id === currentDocumentId);
   const prevPageDoc = currentDocIdx > 0 ? pageDocs[currentDocIdx - 1] : null;
   const nextPageDoc = currentDocIdx >= 0 && currentDocIdx < pageDocs.length - 1 ? pageDocs[currentDocIdx + 1] : null;
 
@@ -2531,6 +2561,10 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
     if (viewMode !== 'edit' || !contentRef.current) return;
     applyChipsToDOM(contentRef.current, useBoardStore.getState().documents);
   }, [viewMode, wikiResolutionSignature]);
+
+  useEffect(() => {
+    setIsEditorFocused(false);
+  }, [currentDocumentId, viewMode]);
 
   const docWordCount = useMemo(() => wordCountFromHtml(doc?.content ?? ''), [doc?.content]);
   const docReadingTime = useMemo(() => readingTimeLabel(docWordCount), [docWordCount]);
@@ -3454,8 +3488,8 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
     setWikiPreview(null);
     setWikiContextMenu(null);
     wikiPreviewTitle.current = null;
-    openDocumentWithMorph(targetDoc.id);
-  }, [doc, openDocumentWithMorph]);
+    openDocumentInSurface(targetDoc.id);
+  }, [doc, openDocumentInSurface]);
 
   const openWikiPreviewDoc = useCallback(() => {
     if (!wikiPreview) return;
@@ -3656,7 +3690,9 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
 
   const isWikiLinkActive = !!getActiveWikiChip();
   const wikiPreviewTitleText = wikiPreview?.doc.title || 'Untitled';
+  const showOverlayHeader = !!headerBreadcrumb;
   const showSidePanelControl = !!onCollapseToPanel && !panelMode;
+  const showPrimaryNavButton = !showOverlayHeader;
   const primaryNavTitle = panelMode
     ? 'Collapse note'
     : showSidePanelControl
@@ -3723,6 +3759,17 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
       e.currentTarget.style.color = 'var(--c-text-md)';
     },
   };
+  const overlayBreadcrumbButtonStyle: React.CSSProperties = {
+    border: 'none',
+    background: 'transparent',
+    padding: 0,
+    color: 'var(--c-text-md)',
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    fontSize: 12,
+    fontWeight: 600,
+  };
+  const showFormattingBar = viewMode === 'source' || !simplifyPanelChrome || isEditorFocused;
 
   return (
     <div
@@ -3734,48 +3781,256 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
         flexDirection: 'column',
       }}
     >
+      {showOverlayHeader && headerBreadcrumb && (
+        <div
+          style={{
+            minHeight: 46,
+            padding: '0 14px 0 16px',
+            borderBottom: '1px solid var(--c-border)',
+            background: 'var(--c-panel)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            flexShrink: 0,
+          }}
+        >
+          <div
+            style={{
+              minWidth: 0,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 7,
+              fontSize: 12,
+              fontWeight: 600,
+              color: 'var(--c-text-lo)',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{headerBreadcrumb.workspaceLabel}</span>
+            <span style={{ opacity: 0.5 }}>/</span>
+            <button
+              type="button"
+              onClick={headerBreadcrumb.onFolderClick}
+              style={overlayBreadcrumbButtonStyle}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = 'var(--c-text-hi)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = 'var(--c-text-md)';
+              }}
+            >
+              {headerBreadcrumb.folderLabel}
+            </button>
+            <span style={{ opacity: 0.5 }}>/</span>
+            <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--c-text-hi)' }}>
+              {headerBreadcrumb.noteLabel}
+            </span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+            {simplifyPanelChrome && onExpand && (
+              <button
+                type="button"
+                onClick={onExpand}
+                title="Open in full page"
+                aria-label="Open in full page"
+                style={panelNavBtn(false)}
+                onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--c-hover)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+              >
+                <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
+                  <path d="M2 8v3h3M11 5V2H8M2 5V2h3M11 8v3H8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+            )}
+            {simplifyPanelChrome && (
+              <button
+                type="button"
+                onClick={() => toggleFavoriteDocument(doc.id)}
+                title={doc.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+                aria-label={doc.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+                style={{
+                  width: 28,
+                  height: 28,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: 'transparent',
+                  border: 'none',
+                  borderRadius: 6,
+                  color: doc.isFavorite ? '#d6a045' : 'var(--c-text-lo)',
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                  transition: 'background 0.12s, color 0.12s',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'var(--c-hover)';
+                  e.currentTarget.style.color = doc.isFavorite ? '#d6a045' : 'var(--c-text-md)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'transparent';
+                  e.currentTarget.style.color = doc.isFavorite ? '#d6a045' : 'var(--c-text-lo)';
+                }}
+              >
+                <IconStar filled={!!doc.isFavorite} size={16} />
+              </button>
+            )}
+            {simplifyPanelChrome && (
+              <div ref={headerMenuRef} style={{ position: 'relative' }}>
+                <button
+                  type="button"
+                  title="More note actions"
+                  aria-label="More note actions"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    setShowHeaderMenu((v) => !v);
+                  }}
+                  style={{
+                    width: 34,
+                    height: 34,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    borderRadius: 10,
+                    border: showHeaderMenu ? '1px solid rgba(184,119,80,0.55)' : '1px solid var(--c-border)',
+                    background: showHeaderMenu ? 'rgba(184,119,80,0.14)' : 'transparent',
+                    color: showHeaderMenu ? 'var(--c-line)' : 'var(--c-text-md)',
+                    cursor: 'pointer',
+                    transition: 'background 0.12s, border-color 0.12s, color 0.12s',
+                  }}
+                >
+                  <IconMoreHorizontal size={17} />
+                </button>
+                {showHeaderMenu && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: 'calc(100% + 8px)',
+                      right: 0,
+                      zIndex: 520,
+                      width: 224,
+                      padding: 6,
+                      borderRadius: 10,
+                      border: '1px solid var(--c-border)',
+                      background: 'var(--c-panel)',
+                      boxShadow: '0 12px 32px rgba(0,0,0,0.28)',
+                    }}
+                    onMouseDown={(e) => e.stopPropagation()}
+                  >
+                    <button style={headerMenuButtonStyle} onMouseDown={(e) => { e.preventDefault(); setShowHeaderMenu(false); handleFindReplace(); }} {...headerMenuHover}>
+                      <span>Find / Replace</span>
+                    </button>
+                    <button
+                      style={headerMenuButtonStyle}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        setShowHeaderMenu(false);
+                        if (viewMode === 'edit') switchToSource();
+                        else switchToEdit();
+                      }}
+                      {...headerMenuHover}
+                    >
+                      <span>{viewMode === 'edit' ? 'View source' : 'View preview'}</span>
+                    </button>
+                    <button style={headerMenuButtonStyle} onMouseDown={(e) => { e.preventDefault(); setShowHeaderMenu(false); handleShowWordCount(); }} {...headerMenuHover}>
+                      <span>Word count</span>
+                      <span style={{ marginLeft: 'auto', color: 'var(--c-text-lo)', fontSize: 11 }}>{docWordCount} words</span>
+                    </button>
+                    <button style={headerMenuButtonStyle} onMouseDown={(e) => { e.preventDefault(); setShowHeaderMenu(false); handleExportMarkdown(); }} {...headerMenuHover}>
+                      <span>Export .md</span>
+                    </button>
+                    <button style={headerMenuButtonStyle} onMouseDown={(e) => { e.preventDefault(); setShowHeaderMenu(false); setSidebarPanel((current) => current === 'outline' ? null : 'outline'); }} {...headerMenuHover}>
+                      <span>Outline</span>
+                    </button>
+                    <button style={headerMenuButtonStyle} onMouseDown={(e) => { e.preventDefault(); setShowHeaderMenu(false); setSidebarPanel((current) => current === 'properties' ? null : 'properties'); }} {...headerMenuHover}>
+                      <span>Properties</span>
+                    </button>
+                    <div style={{ height: 1, background: 'var(--c-border)', margin: '6px 4px' }} />
+                    <div style={{ padding: '7px 10px', color: 'var(--c-text-lo)', fontSize: 11 }}>
+                      {docReadingTime}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={handleClose}
+              title="Close note"
+              aria-label="Close note"
+              style={{
+                width: 30,
+                height: 30,
+                border: 'none',
+                borderRadius: 8,
+                background: 'transparent',
+                color: 'var(--c-text-md)',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                fontSize: 18,
+                lineHeight: 1,
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'var(--c-hover)';
+                e.currentTarget.style.color = 'var(--c-text-hi)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent';
+                e.currentTarget.style.color = 'var(--c-text-md)';
+              }}
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
       {/* Top bar */}
-      <div
+      {!simplifyPanelChrome && <div
         className="doc-editor-header"
         style={{
-          minHeight: 54,
+          minHeight: simplifyPanelChrome ? 46 : 54,
           borderBottom: '1px solid var(--c-border)',
           background: 'var(--c-panel)',
           display: 'flex',
           alignItems: 'center',
-          padding: panelMode ? '0 12px' : '0 18px',
+          padding: simplifyPanelChrome ? '0 12px' : panelMode ? '0 12px' : '0 18px',
           gap: 12,
           flexShrink: 0,
         }}
       >
         <div className="doc-top-left-controls" style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
-          <button
-            onClick={onPrimaryNav}
-            title={primaryNavTitle}
-            style={panelNavBtn(false)}
-            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--c-hover)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
-          >
-            <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
-              {showSidePanelControl ? (
-                <>
-                  <rect x="2.2" y="2.4" width="10.6" height="10.2" rx="1.8" stroke="currentColor" strokeWidth="1.35" />
-                  <path d="M9.3 2.4v10.2" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" />
-                  <path d="M4.8 5.1 7.2 7.5 4.8 9.9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                </>
-              ) : primaryNavDirection === 'right' ? (
-                <>
-                  <path d="M5.2 3.1 9.6 7.5l-4.4 4.4" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round" />
-                  <path d="M2 3.1 6.4 7.5 2 11.9" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round" />
-                </>
-              ) : (
-                <>
-                  <path d="M9.8 3.1 5.4 7.5l4.4 4.4" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round" />
-                  <path d="M13 3.1 8.6 7.5 13 11.9" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round" />
-                </>
-              )}
-            </svg>
-          </button>
+          {showPrimaryNavButton && (
+            <button
+              onClick={onPrimaryNav}
+              title={primaryNavTitle}
+              style={panelNavBtn(false)}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--c-hover)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+            >
+              <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+                {showSidePanelControl ? (
+                  <>
+                    <rect x="2.2" y="2.4" width="10.6" height="10.2" rx="1.8" stroke="currentColor" strokeWidth="1.35" />
+                    <path d="M9.3 2.4v10.2" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" />
+                    <path d="M4.8 5.1 7.2 7.5 4.8 9.9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </>
+                ) : primaryNavDirection === 'right' ? (
+                  <>
+                    <path d="M5.2 3.1 9.6 7.5l-4.4 4.4" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M2 3.1 6.4 7.5 2 11.9" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round" />
+                  </>
+                ) : (
+                  <>
+                    <path d="M9.8 3.1 5.4 7.5l4.4 4.4" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M13 3.1 8.6 7.5 13 11.9" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round" />
+                  </>
+                )}
+              </svg>
+            </button>
+          )}
           {(panelMode || onCollapseToPanel) && (
             <>
               {onExpand && panelMode && (
@@ -3793,7 +4048,7 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
               )}
             </>
           )}
-          {docHistory.length > 0 && (() => {
+          {!simplifyPanelChrome && docHistory.length > 0 && (() => {
             const prevDoc = documents.find((d) => d.id === docHistory[docHistory.length - 1]);
             return (
               <button
@@ -3801,7 +4056,7 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
                 onClick={() => {
                   const prevId = docHistory[docHistory.length - 1];
                   setDocHistory((h) => h.slice(0, -1));
-                  openDocumentWithMorph(prevId);
+                  openDocumentInSurface(prevId);
                 }}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 5, padding: '0 8px', height: 28,
@@ -3824,9 +4079,19 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
           })()}
         </div>
 
-        <div style={{ width: 1, height: 28, background: 'var(--c-border)', opacity: 0.84, flexShrink: 0 }} />
+          {showPrimaryNavButton && <div style={{ width: 1, height: 28, background: 'var(--c-border)', opacity: 0.84, flexShrink: 0 }} />}
 
-        <div className="doc-editor-title-group" style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div
+          className="doc-editor-title-group"
+          style={{
+            flex: simplifyPanelChrome ? 0 : 1,
+            minWidth: 0,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            marginLeft: simplifyPanelChrome ? 2 : 0,
+          }}
+        >
           <button
             type="button"
             onClick={() => toggleFavoriteDocument(doc.id)}
@@ -3857,37 +4122,48 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
           >
             <IconStar filled={!!doc.isFavorite} size={16} />
           </button>
-          <input
-            className="doc-editor-title-input"
-            ref={titleInputRef}
-            type="text"
-            value={doc.title}
-            onChange={(e) => {
-              const newTitle = e.target.value;
-              if (newTitle !== doc.title) checkpointDocumentHistory();
-              markDirty();
-              updateDocument(doc.id, { title: newTitle });
-            }}
-            placeholder="Untitled note"
-            style={{
-              flex: 1,
-              fontSize: panelMode ? 13 : 15,
-              fontWeight: 720,
-              color: 'var(--c-text-hi)',
-              background: 'transparent',
-              border: 'none',
-              outline: 'none',
-              fontFamily: 'inherit',
-              minWidth: 0,
-            }}
-          />
+          {!simplifyPanelChrome && (
+            <input
+              className="doc-editor-title-input"
+              ref={titleInputRef}
+              type="text"
+              value={doc.title}
+              onChange={(e) => {
+                const newTitle = e.target.value;
+                if (newTitle !== doc.title) checkpointDocumentHistory();
+                markDirty();
+                updateDocument(doc.id, { title: newTitle });
+              }}
+              placeholder="Untitled note"
+              style={{
+                flex: 1,
+                fontSize: panelMode ? 13 : 15,
+                fontWeight: 720,
+                color: 'var(--c-text-hi)',
+                background: 'transparent',
+                border: 'none',
+                outline: 'none',
+                fontFamily: 'inherit',
+                minWidth: 0,
+              }}
+            />
+          )}
         </div>
 
-        <div className="doc-editor-header-actions" style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
-          {showPageStepControls && (
+        <div
+          className="doc-editor-header-actions"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: simplifyPanelChrome ? 8 : 12,
+            flexShrink: 0,
+            marginLeft: simplifyPanelChrome ? 'auto' : 0,
+          }}
+        >
+          {!simplifyPanelChrome && showPageStepControls && (
             <div className="doc-editor-page-nav" style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
               <button
-                onClick={() => prevPageDoc && openDocumentWithMorph(prevPageDoc.id)}
+                onClick={() => prevPageDoc && openDocumentInSurface(prevPageDoc.id)}
                 disabled={!prevPageDoc}
                 title={prevPageDoc ? `Previous: ${prevPageDoc.title || 'Untitled'}` : 'No previous note'}
                 style={panelNavBtn(!prevPageDoc)}
@@ -3899,7 +4175,7 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
                 </svg>
               </button>
               <button
-                onClick={() => nextPageDoc && openDocumentWithMorph(nextPageDoc.id)}
+                onClick={() => nextPageDoc && openDocumentInSurface(nextPageDoc.id)}
                 disabled={!nextPageDoc}
                 title={nextPageDoc ? `Next: ${nextPageDoc.title || 'Untitled'}` : 'No next note'}
                 style={panelNavBtn(!nextPageDoc)}
@@ -3912,7 +4188,8 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
               </button>
             </div>
           )}
-          <span
+          {!simplifyPanelChrome && (
+            <span
             className="doc-editor-status"
             title={saveStatus.title}
             style={{
@@ -3927,8 +4204,10 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
           >
             <span style={{ width: 7, height: 7, borderRadius: 999, background: headerStatusColor, flexShrink: 0 }} />
             {!panelMode && <span className="doc-editor-status-label">{headerStatusLabel}</span>}
-          </span>
-          <div
+            </span>
+          )}
+          {!simplifyPanelChrome && (
+            <div
             className="doc-editor-view-toggle"
             style={{
               display: 'flex',
@@ -3940,9 +4219,9 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
               background: 'rgba(255,255,255,0.035)',
               boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.04)',
             }}
-          >
-            <button
-              className="doc-editor-view-button"
+            >
+              <button
+                className="doc-editor-view-button"
               title="Preview"
               onMouseDown={(e) => {
                 e.preventDefault();
@@ -3960,10 +4239,11 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
                 if (viewMode === 'edit') switchToSource();
               }}
               style={headerModeButtonStyle(viewMode === 'source', 'right')}
-            >
-              {panelMode ? <IconCode /> : 'Source'}
-            </button>
-          </div>
+              >
+                {panelMode ? <IconCode /> : 'Source'}
+              </button>
+            </div>
+          )}
           <div ref={headerMenuRef} style={{ position: 'relative' }}>
             <button
               type="button"
@@ -4008,6 +4288,18 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
                 <button style={headerMenuButtonStyle} onMouseDown={(e) => { e.preventDefault(); setShowHeaderMenu(false); handleFindReplace(); }} {...headerMenuHover}>
                   <span>Find / Replace</span>
                 </button>
+                <button
+                  style={headerMenuButtonStyle}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    setShowHeaderMenu(false);
+                    if (viewMode === 'edit') switchToSource();
+                    else switchToEdit();
+                  }}
+                  {...headerMenuHover}
+                >
+                  <span>{viewMode === 'edit' ? 'View source' : 'View preview'}</span>
+                </button>
                 <button style={headerMenuButtonStyle} onMouseDown={(e) => { e.preventDefault(); setShowHeaderMenu(false); handleShowWordCount(); }} {...headerMenuHover}>
                   <span>Word count</span>
                   <span style={{ marginLeft: 'auto', color: 'var(--c-text-lo)', fontSize: 11 }}>{docWordCount} words</span>
@@ -4029,7 +4321,7 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
             )}
           </div>
         </div>
-      </div>
+      </div>}
 
       {/* Body: editor */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
@@ -4045,26 +4337,38 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
               if (file) void insertImageFile(file);
             }}
           />
-          <FormattingBar
-            viewMode={viewMode}
-            compactMode={panelMode}
-            onToggleSource={switchToSource}
-            onToggleEdit={switchToEdit}
-            onExportMarkdown={handleExportMarkdown}
-            onSourceInsert={insertSourceSyntax}
-            sourceWrap={sourceWrap}
-            setSourceWrap={setSourceWrap}
-            onCopySource={copySourceText}
-            onOpenOutline={() => setSidebarPanel((current) => current === 'outline' ? null : 'outline')}
-            onOpenProperties={() => setSidebarPanel((current) => current === 'properties' ? null : 'properties')}
-            onFindReplace={handleFindReplace}
-            onShowWordCount={handleShowWordCount}
-            wordCount={docWordCount}
-            readingTime={docReadingTime}
-            insertCommands={slashCommands}
-            onInsertCommand={handleSlashCommandSelect}
-            onCaptureSelection={captureEditorSelection}
-          />
+          <div
+            style={{
+              maxHeight: showFormattingBar ? 72 : 0,
+              opacity: showFormattingBar ? 1 : 0,
+              transform: showFormattingBar ? 'translateY(0)' : 'translateY(-8px)',
+              overflow: 'hidden',
+              pointerEvents: showFormattingBar ? 'auto' : 'none',
+              transition: 'max-height 180ms ease, opacity 140ms ease, transform 180ms ease',
+              flexShrink: 0,
+            }}
+          >
+            <FormattingBar
+              viewMode={viewMode}
+              compactMode={panelMode}
+              onToggleSource={switchToSource}
+              onToggleEdit={switchToEdit}
+              onExportMarkdown={handleExportMarkdown}
+              onSourceInsert={insertSourceSyntax}
+              sourceWrap={sourceWrap}
+              setSourceWrap={setSourceWrap}
+              onCopySource={copySourceText}
+              onOpenOutline={() => setSidebarPanel((current) => current === 'outline' ? null : 'outline')}
+              onOpenProperties={() => setSidebarPanel((current) => current === 'properties' ? null : 'properties')}
+              onFindReplace={handleFindReplace}
+              onShowWordCount={handleShowWordCount}
+              wordCount={docWordCount}
+              readingTime={docReadingTime}
+              insertCommands={slashCommands}
+              onInsertCommand={handleSlashCommandSelect}
+              onCaptureSelection={captureEditorSelection}
+            />
+          </div>
 
           {viewMode === 'edit' && (
             <SelectionFormattingToolbar
@@ -4150,7 +4454,7 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
                   const linked = findDocumentByTitle(documents, title);
                   if (linked && doc) {
                     setDocHistory((prev) => [...prev, doc.id]);
-                    openDocumentWithMorph(linked.id);
+                    openDocumentInSurface(linked.id);
                   } else {
                     const rect = chip.getBoundingClientRect();
                     setWikiContextMenu(null);
@@ -4270,6 +4574,11 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
                 contentEditable
                 suppressContentEditableWarning
                 className="doc-content"
+                onFocus={() => setIsEditorFocused(true)}
+                onBlur={(e) => {
+                  if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+                  setIsEditorFocused(false);
+                }}
                 onInput={handleInput}
                 onKeyDown={(e) => {
                   if ((e.key === 'Backspace' || e.key === 'Delete') && selectedImageId) {
@@ -4484,7 +4793,10 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
                 {backlinks.map((bl) => (
                   <div
                     key={bl.from.id}
-                    onClick={() => { if (doc) setDocHistory((h) => [...h, doc.id]); openDocumentWithMorph(bl.from.id); }}
+                    onClick={() => {
+                      if (doc) setDocHistory((h) => [...h, doc.id]);
+                      openDocumentInSurface(bl.from.id);
+                    }}
                     style={{ padding: '10px 14px', marginBottom: 8, background: 'var(--c-panel)', border: '1px solid var(--c-border)', borderRadius: 8, cursor: 'pointer', transition: 'background 120ms' }}
                     onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--c-hover)'; }}
                     onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--c-panel)'; }}
@@ -4509,6 +4821,8 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
                 markDirty();
                 setSourceText(e.target.value);
               }}
+              onFocus={() => setIsEditorFocused(true)}
+              onBlur={() => setIsEditorFocused(false)}
               spellCheck={false}
               style={{
                 flex: 1,
@@ -4986,7 +5300,7 @@ export default function DocumentMode({ onClose, onExpand, onCollapseToPanel, pan
         <WikilinkPicker
           pos={wikilinkPicker}
           documents={documents}
-          activeDocId={activeDocId}
+          activeDocId={currentDocumentId}
           initialQuery={wikilinkPicker.initialQuery}
           onSelect={insertWikiChip}
           onCreate={handleCreateAndLink}

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { CanvasNode, ConnectorNode, StickyNoteNode, Camera, Tool, BoardData, ShapeKind, TableNode, PageMeta, Document, DocumentNode } from '../types';
+import { CanvasNode, ConnectorNode, StickyNoteNode, Camera, Tool, BoardData, ShapeKind, TableNode, PageMeta, Document, DocumentNode, FolderDescriptor, WorkspacePreferences } from '../types';
 import { findDocumentPlacement } from '../utils/documentPlacement';
 
 export interface TableCellRef { nodeId: string; row: number; col: number; }
@@ -105,6 +105,7 @@ interface BoardState {
   camera: Camera;
   // Documents (Phase 2 — first-class entities)
   documents: Document[];
+  folderDescriptors: FolderDescriptor[];
   schemaVersion: number;
   // Pages
   pages: PageMeta[];
@@ -117,6 +118,7 @@ interface BoardState {
   focusDocumentId: string | null;  // legacy — kept for backward compat during transition
   appMode: 'canvas' | 'document';  // not persisted
   activeDocId: string | null;       // not persisted
+  openPanelDocId: string | null;    // not persisted
   recentDocIds: string[];           // not persisted
   morphSourceRect: { left: number; top: number; width: number; height: number } | null; // not persisted
   documentOpenTransition: 'instant' | 'morph'; // not persisted
@@ -138,6 +140,7 @@ interface BoardState {
   lastLocalSaveTarget: { kind: 'workspace' | 'file' | 'note'; name?: string | null } | null;
   explorerOpen: boolean;
   imageAssetFolder: string;
+  workspacePreferences: WorkspacePreferences;
   noteAutosaveEnabled: boolean;
   cloudBoardId: string | null;
   cloudBoardTitle: string | null;
@@ -156,6 +159,7 @@ interface BoardState {
   setEditingId: (id: string | null) => void;
   setFocusDocument: (id: string | null) => void;
   setDocViewMode: (mode: 'panel' | 'fullscreen') => void;
+  setOpenPanelDocId: (id: string | null) => void;
   setActiveShapeKind: (kind: ShapeKind) => void;
   setActiveSticker: (src: string) => void;
   setTableEditState: (s: TableCellRef | null) => void;
@@ -169,6 +173,8 @@ interface BoardState {
   markLocalSaved: (savedAt?: number, target?: { kind: 'workspace' | 'file' | 'note'; name?: string | null }) => void;
   setExplorerOpen: (open: boolean) => void;
   setImageAssetFolder: (folder: string) => void;
+  setWorkspacePreferences: (preferences: WorkspacePreferences) => void;
+  setIgnoredMissingImagesSignature: (signature: string | null) => void;
   setNoteAutosaveEnabled: (enabled: boolean) => void;
   setCloudBoardState: (state: { boardId: string; title: string; syncedAt?: number }) => void;
   clearCloudBoardState: () => void;
@@ -211,6 +217,7 @@ export const useBoardStore = create<BoardState>()(
       nodes: [],
       camera: { x: 0, y: 0, scale: 1 },
       documents: [],
+      folderDescriptors: [],
       schemaVersion: 3,
       pages: [{ id: 'page-1', name: 'Page 1', noteSort: 'updated' }],
       activePageId: 'page-1',
@@ -221,6 +228,7 @@ export const useBoardStore = create<BoardState>()(
       focusDocumentId: null,
       appMode: 'canvas',
       activeDocId: null,
+      openPanelDocId: null,
       recentDocIds: [],
       morphSourceRect: null,
       documentOpenTransition: 'instant',
@@ -242,6 +250,7 @@ export const useBoardStore = create<BoardState>()(
       lastLocalSaveTarget: null,
       explorerOpen: false,
       imageAssetFolder: 'assets',
+      workspacePreferences: {},
       noteAutosaveEnabled: true,
       cloudBoardId: null,
       cloudBoardTitle: null,
@@ -311,6 +320,10 @@ export const useBoardStore = create<BoardState>()(
 
       setFocusDocument: (id) => set({ focusDocumentId: id }),
 
+      setDocViewMode: (mode) => set({ docViewMode: mode }),
+
+      setOpenPanelDocId: (id) => set({ openPanelDocId: id }),
+
       setActiveShapeKind: (kind) => set({ activeShapeKind: kind }),
 
       setActiveSticker: (src) => set({ activeSticker: src }),
@@ -340,6 +353,13 @@ export const useBoardStore = create<BoardState>()(
       }),
       setExplorerOpen: (open) => set({ explorerOpen: open }),
       setImageAssetFolder: (folder) => set({ imageAssetFolder: folder }),
+      setWorkspacePreferences: (preferences) => set({ workspacePreferences: preferences }),
+      setIgnoredMissingImagesSignature: (signature) => set((state) => ({
+        workspacePreferences: {
+          ...state.workspacePreferences,
+          ignoredMissingImagesSignature: signature,
+        },
+      })),
       setNoteAutosaveEnabled: (enabled) => set({ noteAutosaveEnabled: enabled }),
       setCloudBoardState: ({ boardId, title, syncedAt }) => set({
         cloudBoardId: boardId,
@@ -478,6 +498,8 @@ export const useBoardStore = create<BoardState>()(
             nodes: migratedNodes,
             camera: activePg.camera ?? { x: 0, y: 0, scale: 1 },
             documents,
+            folderDescriptors: data.folderDescriptors ?? [],
+            workspacePreferences: data.workspacePreferences ?? {},
             schemaVersion: 3,
             cloudBoardId: null,
             cloudBoardTitle: null,
@@ -503,6 +525,8 @@ export const useBoardStore = create<BoardState>()(
             activePageId: 'page-1',
             pageSnapshots: {},
             documents,
+            folderDescriptors: data.folderDescriptors ?? [],
+            workspacePreferences: data.workspacePreferences ?? {},
             schemaVersion: 3,
             cloudBoardId: null,
             cloudBoardTitle: null,
@@ -521,13 +545,13 @@ export const useBoardStore = create<BoardState>()(
       },
 
       exportData: () => {
-        const { boardTitle, nodes, camera, pages, activePageId, pageSnapshots, documents, schemaVersion } = get();
+        const { boardTitle, nodes, camera, pages, activePageId, pageSnapshots, documents, folderDescriptors, workspacePreferences, schemaVersion } = get();
         const allPages = pages.map((p) => {
           if (p.id === activePageId) return { ...p, nodes, camera };
           const snap = pageSnapshots[p.id] ?? { nodes: [], camera: { x: 0, y: 0, scale: 1 } };
           return { ...p, ...snap };
         });
-        return { boardTitle, nodes, pages: allPages, activePageId, documents, schemaVersion };
+        return { boardTitle, nodes, pages: allPages, activePageId, documents, folderDescriptors, workspacePreferences, schemaVersion };
       },
 
       copySelected: () => {
@@ -746,6 +770,7 @@ export const useBoardStore = create<BoardState>()(
               ]),
             ),
             ...(state.activeDocId === docId ? { appMode: 'canvas' as const, activeDocId: null } : {}),
+            ...(state.openPanelDocId === docId ? { openPanelDocId: null } : {}),
             selectedIds: state.selectedIds.filter((id) => !cardIds.has(id)),
           };
         }),
@@ -754,6 +779,7 @@ export const useBoardStore = create<BoardState>()(
         set((state) => ({
           appMode: 'document',
           activeDocId: id,
+          openPanelDocId: null,
           focusDocumentId: id,
           morphSourceRect: null,
           documentOpenTransition: 'instant',
@@ -764,6 +790,7 @@ export const useBoardStore = create<BoardState>()(
         set((state) => ({
           appMode: 'document',
           activeDocId: id,
+          openPanelDocId: null,
           focusDocumentId: id,
           morphSourceRect: rect ?? null,
           documentOpenTransition: 'morph',
@@ -772,8 +799,6 @@ export const useBoardStore = create<BoardState>()(
 
       closeDocument: () =>
         set({ appMode: 'canvas', focusDocumentId: null, activeDocId: null, morphSourceRect: null, documentOpenTransition: 'instant' }),
-
-      setDocViewMode: (mode) => set({ docViewMode: mode }),
 
       ensureDocumentNode: (docId, pageId) => {
         const targetPageId = pageId ?? get().activePageId;
@@ -864,9 +889,9 @@ export const useBoardStore = create<BoardState>()(
     }),
     {
       name: 'devboard-v2',
-      version: 3,
+      version: 4,
       migrate: (persistedState: unknown, version: number) => {
-        // Runs when the stored version is older than the current version (3).
+        // Runs when the stored version is older than the current version (4).
         // Pre-version-3 stores have no schemaVersion and inline content on DocumentNodes.
         const state = persistedState as Partial<BoardState>;
         if (version < 3) {
@@ -874,9 +899,9 @@ export const useBoardStore = create<BoardState>()(
           const snapshots = (state.pageSnapshots ?? {}) as Record<string, { nodes: CanvasNode[]; camera: Camera }>;
           const { nodes: migratedNodes, pageSnapshots, documents } =
             migrateInlineDocuments(nodes, snapshots, [], state.activePageId ?? 'page-1');
-          return { ...state, nodes: migratedNodes, pageSnapshots, documents, schemaVersion: 3 };
+          return { ...state, nodes: migratedNodes, pageSnapshots, documents, schemaVersion: 3, workspacePreferences: state.workspacePreferences ?? {} };
         }
-        return state;
+        return { ...state, workspacePreferences: state.workspacePreferences ?? {} };
       },
       partialize: (state) => {
         const sanitiseNodes = (nodes: CanvasNode[]) =>
@@ -895,6 +920,7 @@ export const useBoardStore = create<BoardState>()(
           activePageId: state.activePageId,
           explorerOpen: state.explorerOpen,
           imageAssetFolder: state.imageAssetFolder,
+          workspacePreferences: state.workspacePreferences,
           noteAutosaveEnabled: state.noteAutosaveEnabled,
           lastLocalSavedAt: state.lastLocalSavedAt,
           lastLocalSaveTarget: state.lastLocalSaveTarget,
@@ -902,6 +928,7 @@ export const useBoardStore = create<BoardState>()(
           cloudBoardTitle: state.cloudBoardTitle,
           cloudSyncedAt: state.cloudSyncedAt,
           documents: state.documents,
+          folderDescriptors: state.folderDescriptors,
           schemaVersion: state.schemaVersion,
           pageSnapshots: Object.fromEntries(
             Object.entries(state.pageSnapshots).map(([id, snap]) => [

@@ -898,7 +898,6 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
   };
 
   const handleSignOut = async () => {
-    setAccountMenuOpen(false);
     try {
       await signOut();
       toast('Signed out.');

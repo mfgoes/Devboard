@@ -47,3 +47,4 @@ yarn-error.log*
 
 # Private working docs (strategy, dog-food log, marketing notes)
 STRATEGY.md
+.aider*

@@ -1,12 +1,21 @@
-import { forwardRef, useEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch, type ReactNode, type RefObject, type SetStateAction } from 'react';
+import { forwardRef, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch, type ReactNode, type RefObject, type SetStateAction } from 'react';
 import { useBoardStore } from '../store/boardStore';
-import { Document } from '../types';
-import { IconFreeformPage, IconStackPage, IconStar } from './icons';
-import { IS_TAURI, revealInFinder } from '../utils/workspaceManager';
+import { Document, FolderDescriptor } from '../types';
+import { IconDoc, IconFolder, IconFreeformPage, IconStackPage, IconStar } from './icons';
+import { IS_TAURI, readWorkspaceFileInfo, revealInFinder } from '../utils/workspaceManager';
 import { exportDocumentAsMarkdownFile, exportDocumentAsPdf, exportDocumentAsTextFile } from '../utils/documentExport';
+import DocumentMode from './DocumentMode';
 
 function stripHtml(html: string): string {
   return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function clampAtWordBoundary(text: string, limit: number): string {
+  if (text.length <= limit) return text;
+  const slice = text.slice(0, limit + 1);
+  const boundary = Math.max(slice.lastIndexOf(' '), slice.lastIndexOf('/'), slice.lastIndexOf('-'));
+  const trimmed = (boundary > limit * 0.55 ? slice.slice(0, boundary) : text.slice(0, limit)).trim();
+  return `${trimmed}...`;
 }
 
 function previewLinesFromHtml(html: string, limit = 4): string[] {
@@ -52,13 +61,17 @@ type StackSort = 'updated' | 'custom' | 'az' | 'tag';
 type StackViewMode = 'grid' | 'list';
 type StackBrowserMode = 'folders' | 'notes';
 type FolderSort = 'updated' | 'custom' | 'az';
+const STACK_PANEL_BREAKPOINT = 768;
 
 interface StackCardProps {
-  doc: Document;
-  viewMode: StackViewMode;
-  onOpen: (rect: DOMRect) => void;
-  onContextOpen: (doc: Document, rect: DOMRect, x: number, y: number) => void;
-  onToggleFavorite: () => void;
+	doc: Document;
+	viewMode: StackViewMode;
+	active: boolean;
+  hasMissingImages?: boolean;
+  compactGrid?: boolean;
+	onOpen: (rect: DOMRect) => void;
+	onContextOpen: (doc: Document, rect: DOMRect, x: number, y: number) => void;
+	onToggleFavorite: () => void;
   isRenaming: boolean;
   renameDraft: string;
   onRenameDraftChange: (value: string) => void;
@@ -67,11 +80,14 @@ interface StackCardProps {
 }
 
 function StackCard({
-  doc,
-  viewMode,
-  onOpen,
-  onContextOpen,
-  onToggleFavorite,
+	doc,
+	viewMode,
+	active,
+  hasMissingImages = false,
+  compactGrid = false,
+	onOpen,
+	onContextOpen,
+	onToggleFavorite,
   isRenaming,
   renameDraft,
   onRenameDraftChange,
@@ -80,13 +96,29 @@ function StackCard({
 }: StackCardProps) {
   const cardRef = useRef<HTMLDivElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
-  const preview = useMemo(() => stripHtml(doc.content).slice(0, 300), [doc.content]);
-  const wordCount = useMemo(() => wordCountFromHtml(doc.content), [doc.content]);
-  const [hovered, setHovered] = useState(false);
   const isGrid = viewMode === 'grid';
-  const openFromCard = () => {
-    if (isRenaming) return;
-    const rect = cardRef.current?.getBoundingClientRect();
+  const denseGrid = isGrid && compactGrid;
+  const preview = useMemo(() => clampAtWordBoundary(stripHtml(doc.content), denseGrid ? 92 : isGrid ? 132 : 300), [doc.content, denseGrid, isGrid]);
+  const wordCount = useMemo(() => wordCountFromHtml(doc.content), [doc.content]);
+	const [hovered, setHovered] = useState(false);
+	const borderColor = active
+		? 'rgba(184,119,80,0.8)'
+		: hovered
+			? 'rgba(184,119,80,0.3)'
+			: 'var(--c-border)';
+	const background = active
+		? 'color-mix(in srgb, rgba(201,137,92,0.22) 72%, var(--c-panel))'
+		: hovered
+			? 'color-mix(in srgb, var(--c-hover) 65%, var(--c-panel))'
+			: 'var(--c-panel)';
+	const boxShadow = active
+		? (isGrid ? '0 18px 34px rgba(25,18,14,0.12), 0 0 0 2px rgba(184,119,80,0.12)' : '0 10px 22px rgba(25,18,14,0.09), 0 0 0 2px rgba(184,119,80,0.12)')
+		: hovered
+			? (isGrid ? '0 10px 22px rgba(25,18,14,0.06)' : '0 6px 14px rgba(25,18,14,0.05)')
+			: (isGrid ? '0 3px 10px rgba(25,18,14,0.03)' : '0 1px 4px rgba(25,18,14,0.025)');
+	const openFromCard = () => {
+		if (isRenaming) return;
+		const rect = cardRef.current?.getBoundingClientRect();
     if (rect) onOpen(rect);
   };
 
@@ -113,27 +145,34 @@ function StackCard({
       }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        minHeight: isGrid ? 214 : 68,
-        width: '100%',
-        maxWidth: isGrid ? 320 : 780,
-        background: hovered ? 'color-mix(in srgb, var(--c-hover) 65%, var(--c-panel))' : 'var(--c-panel)',
-        border: `1px solid ${hovered ? 'rgba(184,119,80,0.3)' : 'var(--c-border)'}`,
-        borderRadius: 8,
-        cursor: isRenaming ? 'text' : 'pointer',
-        transition: 'background 140ms, border-color 140ms, transform 140ms, box-shadow 140ms',
-        overflow: 'hidden',
-        transform: hovered ? 'translateY(-2px)' : 'translateY(0)',
-        boxShadow: hovered
-          ? (isGrid ? '0 10px 22px rgba(25,18,14,0.06)' : '0 6px 14px rgba(25,18,14,0.05)')
-          : (isGrid ? '0 3px 10px rgba(25,18,14,0.03)' : '0 1px 4px rgba(25,18,14,0.025)'),
-      }}
-    >
+		style={{
+			display: 'flex',
+			flexDirection: 'column',
+			minHeight: isGrid ? (denseGrid ? 156 : 188) : 68,
+			width: '100%',
+			maxWidth: isGrid ? 'none' : 780,
+			background,
+			border: `1px solid ${borderColor}`,
+			borderRadius: 8,
+			cursor: isRenaming ? 'text' : 'pointer',
+			transition: 'background 140ms, border-color 140ms, transform 140ms, box-shadow 140ms',
+			overflow: 'hidden',
+			transform: active ? 'translateY(-1px)' : hovered ? 'translateY(-2px)' : 'translateY(0)',
+			boxShadow,
+		}}
+	>
+      {active && (
+        <div
+          aria-hidden="true"
+          style={{
+            height: 3,
+            background: 'linear-gradient(90deg, rgba(184,119,80,0.95), rgba(212,131,90,0.72))',
+          }}
+        />
+      )}
       <div
         style={{
-          padding: isGrid ? '14px 14px 0' : '10px 12px 0',
+          padding: isGrid ? (denseGrid ? '12px 12px 0' : '14px 14px 0') : '10px 12px 0',
           display: 'flex',
           alignItems: 'flex-start',
           justifyContent: 'space-between',
@@ -163,13 +202,13 @@ function StackCard({
               style={{
                 width: '100%',
                 maxWidth: isGrid ? '100%' : 520,
-                height: isGrid ? 34 : 30,
+                height: isGrid ? (denseGrid ? 32 : 34) : 30,
                 padding: '0 10px',
                 background: 'var(--c-canvas)',
                 border: '1px solid rgba(184,119,80,0.32)',
                 borderRadius: 8,
                 color: 'var(--c-text-hi)',
-                fontSize: isGrid ? 16 : 14,
+                fontSize: isGrid ? (denseGrid ? 15 : 16) : 14,
                 fontWeight: 700,
                 fontFamily: 'inherit',
                 outline: 'none',
@@ -178,16 +217,16 @@ function StackCard({
           ) : (
             <span
               style={{
-                fontSize: isGrid ? 17 : 15,
+                fontSize: isGrid ? (denseGrid ? 15 : 17) : 15,
                 fontWeight: 700,
-                letterSpacing: '-0.03em',
+                letterSpacing: 0,
                 color: 'var(--c-text-hi)',
                 display: '-webkit-box',
                 WebkitLineClamp: isGrid ? 2 : 1,
                 WebkitBoxOrient: 'vertical',
                 overflow: 'hidden',
                 lineHeight: isGrid ? 1.15 : 1.2,
-                minHeight: isGrid ? '2.3em' : '1.2em',
+                minHeight: isGrid ? (denseGrid ? '2.1em' : '2.3em') : '1.2em',
               }}
             >
               {doc.title || 'Untitled'}
@@ -195,6 +234,21 @@ function StackCard({
           )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexShrink: 0 }}>
+          {hasMissingImages && (
+            <span
+              title="This note has missing linked images"
+              aria-label="This note has missing linked images"
+              style={{
+                width: isGrid ? 10 : 8,
+                height: isGrid ? 10 : 8,
+                borderRadius: 999,
+                background: '#f59e0b',
+                boxShadow: '0 0 0 3px rgba(245,158,11,0.14)',
+                flexShrink: 0,
+                marginTop: isGrid ? 9 : 7,
+              }}
+            />
+          )}
           <button
             type="button"
             onClick={(e) => {
@@ -202,12 +256,12 @@ function StackCard({
               onToggleFavorite();
             }}
             title={doc.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-            aria-label={doc.isFavorite ? `Remove ${doc.title || 'Untitled'} from favorites` : `Add ${doc.title || 'Untitled'} to favorites`}
-            style={{
-              width: isGrid ? 30 : 24,
-              height: isGrid ? 30 : 24,
+              aria-label={doc.isFavorite ? `Remove ${doc.title || 'Untitled'} from favorites` : `Add ${doc.title || 'Untitled'} to favorites`}
+              style={{
+              width: isGrid ? (denseGrid ? 28 : 30) : 24,
+              height: isGrid ? (denseGrid ? 28 : 30) : 24,
               border: 'none',
-              borderRadius: isGrid ? 9 : 7,
+              borderRadius: isGrid ? (denseGrid ? 8 : 9) : 7,
               background: doc.isFavorite ? 'rgba(214,160,69,0.14)' : 'rgba(255,255,255,0.3)',
               color: doc.isFavorite ? '#d6a045' : 'var(--c-text-lo)',
               cursor: 'pointer',
@@ -226,8 +280,8 @@ function StackCard({
         style={{
           display: 'flex',
           flexDirection: 'column',
-          gap: isGrid ? 10 : 4,
-          padding: isGrid ? '0 16px 14px' : '7px 12px 10px',
+          gap: isGrid ? (denseGrid ? 6 : 8) : 4,
+          padding: isGrid ? (denseGrid ? '0 12px 12px' : '0 16px 14px') : '7px 12px 10px',
           flex: 1,
           minWidth: 0,
           justifyContent: isGrid ? 'flex-start' : 'center',
@@ -236,15 +290,16 @@ function StackCard({
         {preview && (
           <div
             style={{
-              fontSize: isGrid ? 13 : 12.5,
-              color: 'var(--c-text-md)',
-              lineHeight: 1.45,
+              fontSize: isGrid ? (denseGrid ? 11.5 : 12) : 12.5,
+              color: isGrid ? 'var(--c-text-lo)' : 'var(--c-text-md)',
+              lineHeight: isGrid ? 1.35 : 1.45,
               display: '-webkit-box',
-              WebkitLineClamp: isGrid ? 4 : 1,
+              WebkitLineClamp: isGrid ? (denseGrid ? 1 : 2) : 1,
               WebkitBoxOrient: 'vertical',
               overflow: 'hidden',
-              minHeight: isGrid ? '5.8em' : '1.45em',
+              minHeight: isGrid ? (denseGrid ? '1.45em' : '2.7em') : '1.45em',
               maxWidth: isGrid ? '100%' : 'none',
+              opacity: isGrid ? 0.86 : 1,
             }}
           >
             {preview}
@@ -253,11 +308,11 @@ function StackCard({
         {!preview && isGrid && (
           <div
             style={{
-              minHeight: '5.8em',
+              minHeight: denseGrid ? '1.45em' : '2.7em',
               display: 'flex',
               alignItems: 'center',
               color: 'var(--c-text-lo)',
-              fontSize: 13,
+              fontSize: denseGrid ? 11.5 : 12,
               fontStyle: 'italic',
               opacity: 0.72,
             }}
@@ -266,7 +321,7 @@ function StackCard({
           </div>
         )}
 
-        {!!doc.tags?.length && isGrid && (
+        {!!doc.tags?.length && isGrid && !denseGrid && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             {doc.tags.slice(0, 3).map((tag) => (
               <span
@@ -293,8 +348,9 @@ function StackCard({
             justifyContent: isGrid ? 'space-between' : 'flex-start',
             gap: isGrid ? 10 : 12,
             marginTop: isGrid ? 'auto' : 0,
-            fontSize: isGrid ? 11.5 : 11,
+            fontSize: isGrid ? (denseGrid ? 10 : 10.5) : 11,
             color: 'var(--c-text-lo)',
+            fontWeight: 400,
             flexWrap: 'wrap',
           }}
         >
@@ -396,7 +452,7 @@ function ToolbarMenuSelect<T extends string>({
           e.currentTarget.style.borderColor = open ? 'rgba(184,119,80,0.34)' : 'var(--c-border)';
         }}
       >
-        <span style={{ fontSize: 11, fontWeight: 560, color: 'var(--c-text-lo)' }}>{label}</span>
+        {label ? <span style={{ fontSize: 11, fontWeight: 560, color: 'var(--c-text-lo)' }}>{label}</span> : null}
         <span style={{ fontSize: 12.5, fontWeight: 540, color: 'var(--c-text-md)', whiteSpace: 'nowrap' }}>
           {selected?.label ?? ''}
         </span>
@@ -467,8 +523,12 @@ type FolderSummary = {
   noteCount: number;
   favoriteCount: number;
   lastEditedAt: number | null;
+  description: string;
   preview: string;
   noteTitles: string[];
+  fileLabels: string[];
+  tags: string[];
+  descriptor?: FolderDescriptor;
 };
 
 function FolderCard({
@@ -485,6 +545,18 @@ function FolderCard({
   const [hovered, setHovered] = useState(false);
   const isGrid = viewMode === 'grid';
   const modeLabel = folder.layoutMode === 'stack' ? 'Notes' : 'Canvas';
+  const description = folder.description || folder.preview;
+  const files = folder.fileLabels.length > 0 ? folder.fileLabels : folder.noteTitles;
+  const cardBorder = active
+    ? 'rgba(184,119,80,0.42)'
+    : hovered
+      ? 'rgba(184,119,80,0.30)'
+      : 'var(--c-border)';
+  const folderFill = active
+    ? 'color-mix(in srgb, rgba(201,137,92,0.16) 66%, var(--c-panel))'
+    : hovered
+      ? 'color-mix(in srgb, var(--c-hover) 72%, var(--c-panel))'
+      : 'var(--c-panel)';
 
   return (
     <button
@@ -493,118 +565,168 @@ function FolderCard({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
+        position: 'relative',
         width: '100%',
-        maxWidth: isGrid ? 320 : 780,
-        minHeight: isGrid ? 196 : 82,
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'stretch',
+        maxWidth: isGrid ? 336 : 780,
+        minHeight: isGrid ? 238 : 104,
+        padding: 0,
+        paddingTop: isGrid ? 24 : 18,
+        border: 'none',
+        background: 'transparent',
+        color: 'inherit',
         textAlign: 'left',
-        padding: isGrid ? '16px 18px' : '12px 14px',
-        borderRadius: 8,
-        border: `1px solid ${active ? 'rgba(184,119,80,0.34)' : hovered ? 'rgba(184,119,80,0.24)' : 'var(--c-border)'}`,
-        background: active
-          ? 'color-mix(in srgb, rgba(201,137,92,0.12) 60%, var(--c-panel))'
-          : hovered
-            ? 'color-mix(in srgb, var(--c-hover) 65%, var(--c-panel))'
-            : 'var(--c-panel)',
-        boxShadow: hovered
-          ? (isGrid ? '0 10px 22px rgba(25,18,14,0.06)' : '0 6px 14px rgba(25,18,14,0.05)')
-          : (isGrid ? '0 3px 10px rgba(25,18,14,0.03)' : '0 1px 4px rgba(25,18,14,0.025)'),
         cursor: 'pointer',
-        transition: 'background 140ms, border-color 140ms, transform 140ms, box-shadow 140ms',
+        transition: 'transform 140ms',
         transform: hovered ? 'translateY(-2px)' : 'translateY(0)',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: isGrid ? 17 : 15, fontWeight: 700, letterSpacing: '-0.03em', color: 'var(--c-text-hi)' }}>
-            {folder.name}
-          </div>
-          <div style={{ marginTop: 6, fontSize: 12, fontWeight: 600, color: 'var(--c-text-lo)' }}>
-            {folder.noteCount} {folder.noteCount === 1 ? 'note' : 'notes'}
-            {folder.lastEditedAt ? ` · ${formatDate(folder.lastEditedAt)}` : ''}
-          </div>
-        </div>
-        <span
-          style={{
-            flexShrink: 0,
-            padding: '4px 9px',
-            borderRadius: 999,
-            background: 'rgba(138,117,95,0.08)',
-            color: 'var(--c-text-md)',
-            fontSize: 10.5,
-            fontWeight: 700,
-          }}
-        >
-          {modeLabel}
-        </span>
-      </div>
-
-      {folder.preview && (
-        <div
-          style={{
-            marginTop: isGrid ? 14 : 10,
-            fontSize: isGrid ? 13 : 12.5,
-            color: 'var(--c-text-md)',
-            lineHeight: 1.45,
-            display: '-webkit-box',
-            WebkitLineClamp: isGrid ? 4 : 2,
-            WebkitBoxOrient: 'vertical',
-            overflow: 'hidden',
-            minHeight: isGrid ? '5.8em' : '2.9em',
-          }}
-        >
-          {folder.preview}
-        </div>
-      )}
-      {!folder.preview && (
-        <div
-          style={{
-            marginTop: isGrid ? 14 : 10,
-            minHeight: isGrid ? '5.8em' : '2.9em',
-            display: 'flex',
-            alignItems: 'center',
-            color: 'var(--c-text-lo)',
-            fontSize: 13,
-            fontStyle: 'italic',
-            opacity: 0.72,
-          }}
-        >
-          Empty folder
-        </div>
-      )}
-
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: isGrid ? 'auto' : 10 }}>
-        {folder.noteTitles.slice(0, isGrid ? 3 : 2).map((title) => (
-          <span
-            key={title}
-            style={{
-              padding: '3px 10px',
-              borderRadius: 999,
-              background: 'rgba(138,117,95,0.08)',
-              fontSize: 10,
-              fontWeight: 700,
-              color: 'var(--c-text-md)',
-            }}
-          >
-            {title}
-          </span>
-        ))}
-      </div>
+      <span
+        aria-hidden="true"
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: isGrid ? 14 : 12,
+          width: isGrid ? 122 : 106,
+          height: isGrid ? 34 : 28,
+          border: `1px solid ${cardBorder}`,
+          borderBottom: 'none',
+          borderRadius: '8px 8px 0 0',
+          background: folderFill,
+          boxShadow: hovered ? '0 8px 16px rgba(25,18,14,0.045)' : '0 1px 4px rgba(25,18,14,0.025)',
+          transition: 'background 140ms, border-color 140ms, box-shadow 140ms',
+        }}
+      />
 
       <div
         style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 12,
-          marginTop: isGrid ? 14 : 10,
-          fontSize: isGrid ? 11.5 : 11,
-          color: 'var(--c-text-lo)',
-          flexWrap: 'wrap',
+          position: 'relative',
+          minHeight: isGrid ? 214 : 88,
+          display: isGrid ? 'flex' : 'grid',
+          gridTemplateColumns: isGrid ? undefined : 'minmax(0, 1fr) minmax(220px, 0.65fr)',
+          gap: isGrid ? 12 : 18,
+          flexDirection: isGrid ? 'column' : undefined,
+          padding: isGrid ? '16px 18px 15px' : '14px 16px',
+          borderRadius: '8px',
+          borderTopLeftRadius: 5,
+          border: `1px solid ${cardBorder}`,
+          background: folderFill,
+          boxShadow: hovered
+            ? (isGrid ? '0 12px 26px rgba(25,18,14,0.07)' : '0 8px 18px rgba(25,18,14,0.055)')
+            : (isGrid ? '0 3px 10px rgba(25,18,14,0.035)' : '0 1px 4px rgba(25,18,14,0.025)'),
+          transition: 'background 140ms, border-color 140ms, box-shadow 140ms',
         }}
       >
-        <span>{folder.favoriteCount} {folder.favoriteCount === 1 ? 'favorite' : 'favorites'}</span>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+            <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span
+                style={{
+                  flexShrink: 0,
+                  width: isGrid ? 34 : 30,
+                  height: isGrid ? 34 : 30,
+                  borderRadius: 8,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: 'rgba(184,119,80,0.12)',
+                  color: 'var(--c-line)',
+                }}
+              >
+                <IconFolder size={isGrid ? 18 : 16} />
+              </span>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: isGrid ? 17 : 15, fontWeight: 750, letterSpacing: '-0.03em', color: 'var(--c-text-hi)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {folder.name}
+                </div>
+                <div style={{ marginTop: 4, fontSize: 11.5, fontWeight: 650, color: 'var(--c-text-lo)' }}>
+                  {folder.noteCount} {folder.noteCount === 1 ? 'file' : 'files'}
+                  {folder.lastEditedAt ? ` · ${formatDate(folder.lastEditedAt)}` : ''}
+                </div>
+              </div>
+            </div>
+            <span
+              style={{
+                flexShrink: 0,
+                padding: '4px 9px',
+                borderRadius: 999,
+                background: 'rgba(138,117,95,0.10)',
+                color: 'var(--c-text-md)',
+                fontSize: 10.5,
+                fontWeight: 750,
+              }}
+            >
+              {modeLabel}
+            </span>
+          </div>
+
+          <div
+            style={{
+              marginTop: isGrid ? 14 : 10,
+              fontSize: isGrid ? 12.5 : 12,
+              color: description ? 'var(--c-text-md)' : 'var(--c-text-lo)',
+              lineHeight: 1.45,
+              display: '-webkit-box',
+              WebkitLineClamp: isGrid ? 3 : 2,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+              minHeight: isGrid ? '4.35em' : '2.9em',
+              fontStyle: description ? 'normal' : 'italic',
+            }}
+          >
+            {description || 'No Markdown files in this folder yet.'}
+          </div>
+        </div>
+
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 7,
+            marginTop: isGrid ? 'auto' : 0,
+            paddingTop: isGrid ? 2 : 4,
+            minWidth: 0,
+          }}
+        >
+          {files.slice(0, isGrid ? 3 : 2).map((title) => (
+            <div
+              key={title}
+              style={{
+                minHeight: 28,
+                display: 'grid',
+                gridTemplateColumns: '16px minmax(0, 1fr)',
+                alignItems: 'center',
+                gap: 7,
+                padding: '0 8px',
+                borderRadius: 6,
+                background: 'rgba(138,117,95,0.075)',
+                color: 'var(--c-text-md)',
+              }}
+            >
+              <span style={{ display: 'inline-flex', color: 'var(--c-text-lo)' }}><IconDoc /></span>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11, fontWeight: 700 }}>
+                {title}
+              </span>
+            </div>
+          ))}
+          {files.length === 0 && (
+            <div style={{ minHeight: 28, display: 'flex', alignItems: 'center', padding: '0 8px', borderRadius: 6, background: 'rgba(138,117,95,0.06)', color: 'var(--c-text-lo)', fontSize: 11, fontWeight: 650 }}>
+              Empty folder
+            </div>
+          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', minHeight: 22, marginTop: 1 }}>
+            {folder.tags.slice(0, isGrid ? 2 : 3).map((tag) => (
+              <span key={tag} style={{ padding: '3px 8px', borderRadius: 999, background: 'rgba(138,117,95,0.08)', fontSize: 9.5, fontWeight: 750, color: 'var(--c-text-md)' }}>
+                {tag}
+              </span>
+            ))}
+            {folder.favoriteCount > 0 && (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 999, background: 'rgba(226,190,114,0.12)', fontSize: 9.5, fontWeight: 750, color: 'var(--c-text-md)' }}>
+                <IconStar filled size={10} />
+                {folder.favoriteCount}
+              </span>
+            )}
+          </div>
+        </div>
       </div>
     </button>
   );
@@ -620,17 +742,20 @@ type StackNoteMenuState = {
 export default function StackView({ pageId, pageName }: Props) {
   const documents = useBoardStore((s) => s.documents);
   const pages = useBoardStore((s) => s.pages);
+  const folderDescriptors = useBoardStore((s) => s.folderDescriptors);
   const boardTitle = useBoardStore((s) => s.boardTitle);
   const workspaceName = useBoardStore((s) => s.workspaceName);
   const addDocument = useBoardStore((s) => s.addDocument);
   const addPage = useBoardStore((s) => s.addPage);
   const updateDocument = useBoardStore((s) => s.updateDocument);
   const deleteDocument = useBoardStore((s) => s.deleteDocument);
-  const ensureDocumentNode = useBoardStore((s) => s.ensureDocumentNode);
-  const openDocumentWithMorph = useBoardStore((s) => s.openDocumentWithMorph);
-  const setDocViewMode = useBoardStore((s) => s.setDocViewMode);
-  const setPageLayoutMode = useBoardStore((s) => s.setPageLayoutMode);
-  const setPageNoteSort = useBoardStore((s) => s.setPageNoteSort);
+	const ensureDocumentNode = useBoardStore((s) => s.ensureDocumentNode);
+	const openDocumentWithMorph = useBoardStore((s) => s.openDocumentWithMorph);
+	const openPanelDocId = useBoardStore((s) => s.openPanelDocId);
+	const setOpenPanelDocId = useBoardStore((s) => s.setOpenPanelDocId);
+	const setDocViewMode = useBoardStore((s) => s.setDocViewMode);
+	const setPageLayoutMode = useBoardStore((s) => s.setPageLayoutMode);
+	const setPageNoteSort = useBoardStore((s) => s.setPageNoteSort);
   const switchPage = useBoardStore((s) => s.switchPage);
   const toggleFavoriteDocument = useBoardStore((s) => s.toggleFavoriteDocument);
   const page = pages.find((entry) => entry.id === pageId);
@@ -639,16 +764,24 @@ export default function StackView({ pageId, pageName }: Props) {
   const [folderSort, setFolderSort] = useState<FolderSort>('updated');
   const [viewMode, setViewMode] = useState<StackViewMode>('grid');
   const [noteMenu, setNoteMenu] = useState<StackNoteMenuState | null>(null);
-  const [noteMenuExportOpen, setNoteMenuExportOpen] = useState(false);
+	const [noteMenuExportOpen, setNoteMenuExportOpen] = useState(false);
   const [renamingDocId, setRenamingDocId] = useState<string | null>(null);
-  const [renameDraft, setRenameDraft] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [folderSearchQuery, setFolderSearchQuery] = useState('');
-  const [activeTagFilter, setActiveTagFilter] = useState('__all__');
-  const newBtnRef = useRef<HTMLButtonElement>(null);
-  const mobileNewBtnRef = useRef<HTMLButtonElement>(null);
-  const noteMenuRef = useRef<HTMLDivElement>(null);
-  const noteMenuExportRef = useRef<HTMLDivElement>(null);
+	const [renameDraft, setRenameDraft] = useState('');
+	const [searchQuery, setSearchQuery] = useState('');
+	const [folderSearchQuery, setFolderSearchQuery] = useState('');
+	const [activeTagFilter, setActiveTagFilter] = useState('__all__');
+  const [showNoteFilter, setShowNoteFilter] = useState(false);
+	const [isMobileViewport, setIsMobileViewport] = useState(() => (
+		typeof window !== 'undefined' ? window.innerWidth < STACK_PANEL_BREAKPOINT : false
+	));
+	const newBtnRef = useRef<HTMLButtonElement>(null);
+	const mobileNewBtnRef = useRef<HTMLButtonElement>(null);
+	const noteMenuRef = useRef<HTMLDivElement>(null);
+	const noteMenuExportRef = useRef<HTMLDivElement>(null);
+	const cardRectsRef = useRef<Record<string, { left: number; top: number; width: number; height: number }>>({});
+  const panelResizeRef = useRef(false);
+  const noteFilterInputRef = useRef<HTMLInputElement>(null);
+  const [stackPanelWidth, setStackPanelWidth] = useState(380);
 
   const pageDocs = useMemo(() => {
     const filtered = documents.filter((d) => d.pageId === pageId);
@@ -665,6 +798,7 @@ export default function StackView({ pageId, pageName }: Props) {
     setBrowserMode('notes');
     setSearchQuery('');
     setActiveTagFilter('__all__');
+    setShowNoteFilter(false);
   }, [pageId]);
 
   const handleSortChange = (nextSort: StackSort) => {
@@ -690,22 +824,52 @@ export default function StackView({ pageId, pageName }: Props) {
     setSort(nextSort);
   };
 
-  const handleOpen = (docId: string, rect: DOMRect) => {
-    openDocumentWithMorph(docId, { left: rect.left, top: rect.top, width: rect.width, height: rect.height });
-  };
+	const handleOpen = useCallback((docId: string, rect: DOMRect) => {
+		cardRectsRef.current[docId] = {
+			left: rect.left,
+			top: rect.top,
+			width: rect.width,
+			height: rect.height,
+		};
+		if (isMobileViewport) {
+			openDocumentWithMorph(docId, cardRectsRef.current[docId]);
+			return;
+		}
+		setOpenPanelDocId(docId);
+	}, [isMobileViewport, openDocumentWithMorph, setOpenPanelDocId]);
 
-  const handleOpenFromMenu = (menu: StackNoteMenuState) => {
-    openDocumentWithMorph(menu.docId, menu.rect);
-    setNoteMenu(null);
-    setNoteMenuExportOpen(false);
-  };
+	const handleClosePanel = useCallback(() => {
+		setOpenPanelDocId(null);
+	}, [setOpenPanelDocId]);
 
-  const handleOpenFullPage = (menu: StackNoteMenuState) => {
-    setDocViewMode('fullscreen');
-    openDocumentWithMorph(menu.docId, menu.rect);
-    setNoteMenu(null);
-    setNoteMenuExportOpen(false);
-  };
+	const handleExpandPanelDoc = useCallback(() => {
+		if (!openPanelDocId) return;
+		setDocViewMode('fullscreen');
+		openDocumentWithMorph(openPanelDocId, cardRectsRef.current[openPanelDocId]);
+		setOpenPanelDocId(null);
+	}, [openDocumentWithMorph, openPanelDocId, setDocViewMode, setOpenPanelDocId]);
+
+	const handleOpenFromMenu = (menu: StackNoteMenuState) => {
+		cardRectsRef.current[menu.docId] = menu.rect;
+		if (isMobileViewport) {
+			openDocumentWithMorph(menu.docId, menu.rect);
+			setNoteMenu(null);
+			setNoteMenuExportOpen(false);
+			return;
+		}
+		setOpenPanelDocId(menu.docId);
+		setNoteMenu(null);
+		setNoteMenuExportOpen(false);
+	};
+
+	const handleOpenFullPage = (menu: StackNoteMenuState) => {
+		cardRectsRef.current[menu.docId] = menu.rect;
+		setDocViewMode('fullscreen');
+		openDocumentWithMorph(menu.docId, menu.rect);
+		setOpenPanelDocId(null);
+		setNoteMenu(null);
+		setNoteMenuExportOpen(false);
+	};
 
   const beginRename = (doc: Document) => {
     setRenamingDocId(doc.id);
@@ -779,11 +943,18 @@ export default function StackView({ pageId, pageName }: Props) {
     }
     ensureDocumentNode(id, pageId);
     const rect = sourceEl?.getBoundingClientRect();
-    openDocumentWithMorph(id, rect ? { left: rect.left, top: rect.top, width: rect.width, height: rect.height } : undefined);
-  };
+		if (rect) {
+			cardRectsRef.current[id] = { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
+		}
+		if (isMobileViewport) {
+			openDocumentWithMorph(id, rect ? { left: rect.left, top: rect.top, width: rect.width, height: rect.height } : undefined);
+			return;
+		}
+		setOpenPanelDocId(id);
+	};
 
-  useEffect(() => {
-    if (!noteMenu) return;
+	useEffect(() => {
+		if (!noteMenu) return;
     const onMouseDown = (e: MouseEvent) => {
       const target = e.target as Node;
       if (noteMenuRef.current?.contains(target) || noteMenuExportRef.current?.contains(target)) return;
@@ -801,13 +972,60 @@ export default function StackView({ pageId, pageName }: Props) {
       window.removeEventListener('mousedown', onMouseDown);
       window.removeEventListener('keydown', onKeyDown);
     };
-  }, [noteMenu]);
+	}, [noteMenu]);
+
+	useEffect(() => {
+		const onResize = () => {
+			setIsMobileViewport(window.innerWidth < STACK_PANEL_BREAKPOINT);
+      setStackPanelWidth((current) => Math.max(340, Math.min(760, current)));
+		};
+		window.addEventListener('resize', onResize);
+		return () => window.removeEventListener('resize', onResize);
+	}, []);
+
+	useEffect(() => {
+		const activePanelDoc = documents.find((doc) => doc.id === openPanelDocId);
+		if (!openPanelDocId) return;
+		if (!activePanelDoc || activePanelDoc.pageId !== pageId || browserMode !== 'notes' || isMobileViewport) {
+			setOpenPanelDocId(null);
+		}
+	}, [browserMode, documents, isMobileViewport, openPanelDocId, pageId, setOpenPanelDocId]);
+
+	useEffect(() => {
+		if (!openPanelDocId) return;
+		const onKeyDown = (event: KeyboardEvent) => {
+			if (event.key !== 'Escape') return;
+			event.preventDefault();
+			setOpenPanelDocId(null);
+		};
+		window.addEventListener('keydown', onKeyDown);
+		return () => window.removeEventListener('keydown', onKeyDown);
+	}, [openPanelDocId, setOpenPanelDocId]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'f' && browserMode === 'notes') {
+        event.preventDefault();
+        setShowNoteFilter(true);
+        requestAnimationFrame(() => noteFilterInputRef.current?.focus());
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [browserMode]);
 
   const activeMenuDoc = noteMenu ? documents.find((doc) => doc.id === noteMenu.docId) : null;
+  const folderDescriptorById = useMemo(() => new Map(folderDescriptors.map((descriptor) => [descriptor.id, descriptor])), [folderDescriptors]);
   const folderSummaries = useMemo<FolderSummary[]>(() => {
     return pages.map((entry) => {
       const docs = sortDocumentsForPage(documents.filter((doc) => doc.pageId === entry.id), 'updated');
       const previewDoc = docs.find((doc) => stripHtml(doc.content));
+      const descriptor = folderDescriptorById.get(entry.id);
+      const descriptorFiles = descriptor?.files?.map((file) => file.title || file.path.split('/').pop() || file.path) ?? [];
+      const tags = Array.from(new Set([
+        ...(descriptor?.tags ?? []),
+        ...docs.flatMap((doc) => doc.tags ?? []),
+      ].map((tag) => tag.trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b));
       return {
         id: entry.id,
         name: entry.name,
@@ -815,11 +1033,15 @@ export default function StackView({ pageId, pageName }: Props) {
         noteCount: docs.length,
         favoriteCount: docs.filter((doc) => !!doc.isFavorite).length,
         lastEditedAt: docs.length > 0 ? Math.max(...docs.map((doc) => doc.updatedAt)) : null,
+        description: descriptor?.description?.trim() || descriptor?.autoDescription?.trim() || '',
         preview: previewDoc ? stripHtml(previewDoc.content).slice(0, 220) : '',
         noteTitles: docs.slice(0, 3).map((doc) => doc.title || 'Untitled'),
+        fileLabels: descriptorFiles.length > 0 ? descriptorFiles : docs.slice(0, 3).map((doc) => doc.linkedFile?.split('/').pop() ?? (doc.title || 'Untitled')),
+        tags,
+        descriptor,
       };
     });
-  }, [documents, pages]);
+  }, [documents, folderDescriptorById, pages]);
   const visibleFolders = useMemo(() => {
     const q = folderSearchQuery.trim().toLowerCase();
     const sorted = [...folderSummaries];
@@ -831,8 +1053,11 @@ export default function StackView({ pageId, pageName }: Props) {
       if (!q) return true;
       return [
         folder.name,
+        folder.description,
         folder.preview,
         ...folder.noteTitles,
+        ...folder.fileLabels,
+        ...folder.tags,
       ].join(' ').toLowerCase().includes(q);
     });
   }, [folderSearchQuery, folderSort, folderSummaries]);
@@ -872,125 +1097,266 @@ export default function StackView({ pageId, pageName }: Props) {
     fontFamily: 'inherit',
     transition: 'background 120ms, color 120ms',
   };
-  const handleOpenFolderBrowser = () => {
-    setBrowserMode('folders');
-    setNoteMenu(null);
-    setNoteMenuExportOpen(false);
-  };
-  const handleOpenFolder = (targetPageId: string) => {
-    if (targetPageId !== pageId) switchPage(targetPageId);
-    setBrowserMode('notes');
-  };
+	const handleOpenFolderBrowser = () => {
+		setOpenPanelDocId(null);
+		setBrowserMode('folders');
+		setNoteMenu(null);
+		setNoteMenuExportOpen(false);
+	};
+	const handleOpenFolder = (targetPageId: string) => {
+		setOpenPanelDocId(null);
+		if (targetPageId !== pageId) switchPage(targetPageId);
+		setBrowserMode('notes');
+	};
   const handleNewFolder = () => {
     addPage('Untitled folder');
     const state = useBoardStore.getState();
     setPageLayoutMode(state.activePageId, 'stack');
     setBrowserMode('notes');
   };
-  const showingFolders = browserMode === 'folders';
-  const activeFolderSummary = folderSummaries.find((entry) => entry.id === pageId);
+	const showingFolders = browserMode === 'folders';
+	const activeFolderSummary = folderSummaries.find((entry) => entry.id === pageId);
+	const activePanelDoc = useMemo(
+		() => documents.find((doc) => doc.id === openPanelDocId) ?? null,
+		[documents, openPanelDocId],
+	);
+	const panelOpen = !!activePanelDoc && !showingFolders && !isMobileViewport;
+	const workspaceBreadcrumbLabel = (workspaceName?.trim() || boardTitle.trim() || 'Workspace').trim();
+  const stackSurfaceMaxWidth = panelOpen ? 1600 : 1360;
+  const stackContentMaxWidth = showingFolders ? 1120 : panelOpen ? 1060 : 1080;
+  const contentGridColumns = viewMode === 'grid'
+    ? panelOpen
+      ? 'repeat(2, minmax(0, 1fr))'
+      : 'repeat(2, minmax(0, 1fr))'
+    : '1fr';
+  const [docMissingImageMap, setDocMissingImageMap] = useState<Record<string, boolean>>({});
 
-  return (
-    <div style={{
-      position: 'absolute',
-      inset: 0,
-      overflowY: 'auto',
-      overflowX: 'hidden',
-      background: 'var(--c-canvas)',
-    }}>
-      <div style={{ maxWidth: 1240, margin: '0 auto', padding: '36px 40px 120px', fontFamily: 'inherit' }}>
+  useEffect(() => {
+    let cancelled = false;
+    const docsToCheck = showingFolders ? [] : pageDocs;
+    if (docsToCheck.length === 0) {
+      setDocMissingImageMap({});
+      return;
+    }
 
-        {/* Folder header */}
-        <div style={{ marginBottom: 18 }}>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              marginBottom: 8,
-              fontSize: 12,
-              fontWeight: 600,
-              color: 'var(--c-text-lo)',
-            }}
-          >
+    const extractImagePaths = (html: string): string[] => {
+      const root = document.createElement('div');
+      root.innerHTML = html;
+      return Array.from(root.querySelectorAll('img'))
+        .map((image) => image.getAttribute('data-workspace-src') ?? '')
+        .filter(Boolean);
+    };
+
+    void (async () => {
+      const entries = await Promise.all(docsToCheck.map(async (doc) => {
+        const paths = extractImagePaths(doc.content);
+        if (paths.length === 0) return [doc.id, false] as const;
+        const checks = await Promise.all(paths.map(async (path) => {
+          const info = await readWorkspaceFileInfo(path);
+          if (info?.url) URL.revokeObjectURL(info.url);
+          return !info;
+        }));
+        return [doc.id, checks.some(Boolean)] as const;
+      }));
+      if (cancelled) return;
+      setDocMissingImageMap(Object.fromEntries(entries));
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pageDocs, showingFolders]);
+
+	return (
+		<div
+			style={{
+				position: 'absolute',
+				inset: 0,
+				overflow: 'hidden',
+				background: 'var(--c-canvas)',
+			}}
+		>
+			<div
+				style={{
+					position: 'relative',
+					width: '100%',
+					height: '100%',
+          maxWidth: stackSurfaceMaxWidth,
+          margin: '0 auto',
+          display: 'flex',
+          alignItems: 'stretch',
+				}}
+			>
+				<div
+					style={{
+						position: 'relative',
+            flex: 1,
+            minWidth: 0,
+						overflowY: 'auto',
+						overflowX: 'hidden',
+					}}
+				>
+					<div style={{ maxWidth: stackContentMaxWidth, margin: '0 auto', padding: '36px 40px 120px', fontFamily: 'inherit' }}>
+
+						{/* Folder header */}
+						<div style={{ marginBottom: 18 }}>
+							<div
+								style={{
+									display: 'flex',
+									alignItems: 'center',
+									gap: 8,
+									marginBottom: 8,
+									fontSize: 12,
+									fontWeight: 600,
+									color: 'var(--c-text-lo)',
+								}}
+							>
+								{showingFolders ? (
+									<>
+										<span>{breadcrumbLabel}</span>
+										<span style={{ opacity: 0.55 }}>/</span>
+										<span style={{ color: 'var(--c-text-hi)' }}>Folders</span>
+									</>
+								) : (
+									<>
+										<button
+											type="button"
+											onClick={handleOpenFolderBrowser}
+											title="Browse folders"
+											style={{ ...breadcrumbButtonStyle, color: 'var(--c-text-md)' }}
+											onMouseEnter={(e) => {
+												e.currentTarget.style.background = 'rgba(138,117,95,0.08)';
+												e.currentTarget.style.color = 'var(--c-text-hi)';
+											}}
+											onMouseLeave={(e) => {
+												e.currentTarget.style.background = 'transparent';
+												e.currentTarget.style.color = 'var(--c-text-md)';
+											}}
+										>
+											{breadcrumbLabel}
+										</button>
+										<span style={{ opacity: 0.55 }}>/</span>
+										<span style={{ color: 'var(--c-text-hi)' }}>{pageName}</span>
+									</>
+								)}
+							</div>
+							<h1 style={{ fontSize: showingFolders ? 28 : 22, fontWeight: 650, letterSpacing: '-0.035em', margin: 0, color: 'var(--c-text-hi)', lineHeight: 1.08 }}>
+								{showingFolders ? 'Folders' : pageName}
+							</h1>
+							<div style={{ marginTop: 6, fontSize: showingFolders ? 13 : 12, color: 'var(--c-text-lo)' }}>
+								{showingFolders ? (
+									<>
+										{folderSummaries.length} {folderSummaries.length === 1 ? 'folder' : 'folders'}
+										{activeFolderSummary?.lastEditedAt ? ` · active folder edited ${formatDate(activeFolderSummary.lastEditedAt)}` : ''}
+									</>
+								) : (
+									<>
+										{pageDocs.length} {pageDocs.length === 1 ? 'note' : 'notes'}
+										{lastEditedAt ? ` · last edited ${formatDate(lastEditedAt)}` : ''}
+									</>
+								)}
+							</div>
+						</div>
+
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 22, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', minWidth: 0 }}>
             {showingFolders ? (
-              <>
-                <span>{breadcrumbLabel}</span>
-                <span style={{ opacity: 0.55 }}>/</span>
-                <span style={{ color: 'var(--c-text-hi)' }}>Folders</span>
-              </>
+              <div
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  minHeight: 38,
+                  minWidth: 220,
+                  padding: '0 10px',
+                  background: 'var(--c-panel)',
+                  border: '1px solid var(--c-border)',
+                  borderRadius: 8,
+                }}
+              >
+                <input
+                  value={folderSearchQuery}
+                  onChange={(e) => setFolderSearchQuery(e.target.value)}
+                  placeholder="Search folders…"
+                  aria-label="Search folders"
+                  style={{
+                    width: '100%',
+                    border: 'none',
+                    outline: 'none',
+                    background: 'transparent',
+                    color: 'var(--c-text-hi)',
+                    fontSize: 13,
+                    fontWeight: 500,
+                    fontFamily: 'inherit',
+                  }}
+                />
+              </div>
             ) : (
               <>
+                {(showNoteFilter || searchQuery) && (
+                  <div
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      minHeight: 38,
+                      minWidth: 220,
+                      maxWidth: 260,
+                      padding: '0 10px',
+                      background: 'var(--c-panel)',
+                      border: '1px solid var(--c-border)',
+                      borderRadius: 8,
+                    }}
+                  >
+                    <input
+                      ref={noteFilterInputRef}
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Filter notes…"
+                      aria-label="Filter notes in this folder"
+                      onBlur={() => {
+                        if (!searchQuery.trim()) setShowNoteFilter(false);
+                      }}
+                      style={{
+                        width: '100%',
+                        border: 'none',
+                        outline: 'none',
+                        background: 'transparent',
+                        color: 'var(--c-text-hi)',
+                        fontSize: 13,
+                        fontWeight: 500,
+                        fontFamily: 'inherit',
+                      }}
+                    />
+                  </div>
+                )}
                 <button
                   type="button"
-                  onClick={handleOpenFolderBrowser}
-                  title="Browse folders"
-                  style={{ ...breadcrumbButtonStyle, color: 'var(--c-text-md)' }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'rgba(138,117,95,0.08)';
-                    e.currentTarget.style.color = 'var(--c-text-hi)';
+                  onClick={() => {
+                    setShowNoteFilter(true);
+                    requestAnimationFrame(() => noteFilterInputRef.current?.focus());
                   }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'transparent';
-                    e.currentTarget.style.color = 'var(--c-text-md)';
+                  title="Filter notes"
+                  aria-label="Filter notes"
+                  style={{
+                    minHeight: 38,
+                    padding: '0 12px',
+                    borderRadius: 8,
+                    border: `1px solid ${showNoteFilter || searchQuery ? 'rgba(184,119,80,0.34)' : 'var(--c-border)'}`,
+                    background: showNoteFilter || searchQuery ? 'var(--c-hover)' : 'var(--c-panel)',
+                    color: showNoteFilter || searchQuery ? 'var(--c-text-hi)' : 'var(--c-text-md)',
+                    cursor: 'pointer',
+                    fontSize: 12.5,
+                    fontWeight: 600,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    fontFamily: 'inherit',
                   }}
                 >
-                  {breadcrumbLabel}
+                  <span>Filter</span>
+                  <span style={{ fontSize: 11, color: 'var(--c-text-lo)' }}>⌘F</span>
                 </button>
-                <span style={{ opacity: 0.55 }}>/</span>
-                <span style={{ color: 'var(--c-text-hi)' }}>{pageName}</span>
               </>
             )}
-          </div>
-          <h1 style={{ fontSize: 28, fontWeight: 650, letterSpacing: '-0.035em', margin: 0, color: 'var(--c-text-hi)', lineHeight: 1.08 }}>
-            {showingFolders ? 'Folders' : pageName}
-          </h1>
-          <div style={{ marginTop: 6, fontSize: 13, color: 'var(--c-text-lo)' }}>
-            {showingFolders ? (
-              <>
-                {folderSummaries.length} {folderSummaries.length === 1 ? 'folder' : 'folders'}
-                {activeFolderSummary?.lastEditedAt ? ` · active folder edited ${formatDate(activeFolderSummary.lastEditedAt)}` : ''}
-              </>
-            ) : (
-              <>
-                {pageDocs.length} {pageDocs.length === 1 ? 'note' : 'notes'}
-                {lastEditedAt ? ` · last edited ${formatDate(lastEditedAt)}` : ''}
-              </>
-            )}
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 18, marginBottom: 22, flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-            <div
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                minHeight: 38,
-                minWidth: 220,
-                padding: '0 10px',
-                background: 'var(--c-panel)',
-                border: '1px solid var(--c-border)',
-                borderRadius: 8,
-              }}
-            >
-              <input
-                value={showingFolders ? folderSearchQuery : searchQuery}
-                onChange={(e) => showingFolders ? setFolderSearchQuery(e.target.value) : setSearchQuery(e.target.value)}
-                placeholder={showingFolders ? 'Search folders…' : 'Filter notes in this folder…'}
-                aria-label={showingFolders ? 'Search folders' : 'Filter notes in this folder'}
-                style={{
-                  width: '100%',
-                  border: 'none',
-                  outline: 'none',
-                  background: 'transparent',
-                  color: 'var(--c-text-hi)',
-                  fontSize: 13,
-                  fontWeight: 500,
-                  fontFamily: 'inherit',
-                }}
-              />
-            </div>
             {showingFolders ? (
               <ToolbarMenuSelect<FolderSort>
                 label="Sort"
@@ -1006,11 +1372,11 @@ export default function StackView({ pageId, pageName }: Props) {
               />
             ) : (
               <ToolbarMenuSelect<StackSort>
-                label="Sort"
+                label=""
                 ariaLabel="Sort notes"
                 value={sort}
                 onChange={handleSortChange}
-                minWidth={162}
+                minWidth={136}
                 options={[
                   { value: 'updated', label: 'Newest' },
                   { value: 'custom', label: 'Folder order' },
@@ -1021,11 +1387,11 @@ export default function StackView({ pageId, pageName }: Props) {
             )}
             {!showingFolders && (
               <ToolbarMenuSelect<string>
-                label="Tag"
+                label=""
                 ariaLabel="Filter notes by tag"
                 value={activeTagFilter}
                 onChange={setActiveTagFilter}
-                minWidth={150}
+                minWidth={132}
                 options={[
                   { value: '__all__', label: 'All tags' },
                   ...availableTags.map((tag) => ({ value: tag, label: tag })),
@@ -1033,7 +1399,7 @@ export default function StackView({ pageId, pageName }: Props) {
               />
             )}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginLeft: 'auto', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginLeft: 'auto', flexWrap: 'nowrap' }}>
             <div
               style={{
                 display: 'inline-flex',
@@ -1125,14 +1491,12 @@ export default function StackView({ pageId, pageName }: Props) {
           </div>
         </div>
 
-        {showingFolders && visibleFolders.length > 0 && (
+						{showingFolders && visibleFolders.length > 0 && (
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: viewMode === 'grid'
-                ? 'repeat(auto-fill, minmax(260px, 320px))'
-                : '1fr',
-              gap: 16,
+              gridTemplateColumns: contentGridColumns,
+              gap: viewMode === 'grid' ? 20 : 16,
               justifyContent: viewMode === 'grid' ? 'start' : 'center',
               justifyItems: viewMode === 'grid' ? 'stretch' : 'center',
             }}
@@ -1149,26 +1513,27 @@ export default function StackView({ pageId, pageName }: Props) {
           </div>
         )}
 
-        {!showingFolders && visibleDocs.length > 0 && (
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: viewMode === 'grid'
-                ? 'repeat(auto-fill, minmax(260px, 320px))'
-                : '1fr',
-              gap: 16,
+						{!showingFolders && visibleDocs.length > 0 && (
+							<div
+								style={{
+									display: 'grid',
+              gridTemplateColumns: contentGridColumns,
+              gap: viewMode === 'grid' ? 20 : 16,
               justifyContent: viewMode === 'grid' ? 'start' : 'center',
               justifyItems: viewMode === 'grid' ? 'stretch' : 'center',
             }}
-          >
-            {visibleDocs.map((doc) => (
-              <StackCard
-                key={doc.id}
-                doc={doc}
-                viewMode={viewMode}
-                onOpen={(rect) => handleOpen(doc.id, rect)}
-                onContextOpen={(targetDoc, rect, x, y) => {
-                  setNoteMenu({
+							>
+								{visibleDocs.map((doc) => (
+									<StackCard
+										key={doc.id}
+										doc={doc}
+										viewMode={viewMode}
+										active={openPanelDocId === doc.id}
+                    hasMissingImages={!!docMissingImageMap[doc.id]}
+                    compactGrid={panelOpen}
+										onOpen={(rect) => handleOpen(doc.id, rect)}
+										onContextOpen={(targetDoc, rect, x, y) => {
+											setNoteMenu({
                     docId: targetDoc.id,
                     x,
                     y,
@@ -1182,12 +1547,12 @@ export default function StackView({ pageId, pageName }: Props) {
                 onRenameDraftChange={setRenameDraft}
                 onRenameCommit={commitRename}
                 onRenameCancel={cancelRename}
-              />
-            ))}
-          </div>
-        )}
+									/>
+								))}
+							</div>
+						)}
 
-        {showingFolders && folderSummaries.length === 0 && (
+						{showingFolders && folderSummaries.length === 0 && (
           <div
             style={{
               textAlign: 'center',
@@ -1202,7 +1567,7 @@ export default function StackView({ pageId, pageName }: Props) {
             No folders yet. Create one to start organizing your notes.
           </div>
         )}
-        {showingFolders && folderSummaries.length > 0 && visibleFolders.length === 0 && (
+						{showingFolders && folderSummaries.length > 0 && visibleFolders.length === 0 && (
           <div
             style={{
               textAlign: 'center',
@@ -1217,7 +1582,7 @@ export default function StackView({ pageId, pageName }: Props) {
             No folders match this search.
           </div>
         )}
-        {!showingFolders && pageDocs.length === 0 && (
+						{!showingFolders && pageDocs.length === 0 && (
           <div
             style={{
               textAlign: 'center',
@@ -1232,7 +1597,7 @@ export default function StackView({ pageId, pageName }: Props) {
             Nothing here yet. Press <strong>⌘N</strong> or create a new note from this folder.
           </div>
         )}
-        {!showingFolders && pageDocs.length > 0 && visibleDocs.length === 0 && (
+						{!showingFolders && pageDocs.length > 0 && visibleDocs.length === 0 && (
           <div
             style={{
               textAlign: 'center',
@@ -1247,11 +1612,92 @@ export default function StackView({ pageId, pageName }: Props) {
             No notes match this filter.
           </div>
         )}
-      </div>
-      {noteMenu && activeMenuDoc && (
-        <StackNoteContextMenu
-          menu={noteMenu}
-          doc={activeMenuDoc}
+					</div>
+				</div>
+				<div
+					style={{
+						position: 'relative',
+						width: panelOpen ? stackPanelWidth : 0,
+						transition: 'width 200ms ease-out',
+						borderLeft: panelOpen ? '1px solid var(--c-border)' : 'none',
+						boxShadow: panelOpen ? '-10px 0 28px rgba(25,18,14,0.14)' : 'none',
+						background: 'var(--c-panel)',
+						overflow: 'hidden',
+						zIndex: 30,
+						pointerEvents: panelOpen ? 'auto' : 'none',
+						flexShrink: 0,
+					}}
+				>
+          {panelOpen && (
+            <div
+              aria-hidden="true"
+              title="Drag to resize panel"
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: -7,
+                bottom: 0,
+                width: 14,
+                cursor: 'col-resize',
+                zIndex: 2,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                panelResizeRef.current = true;
+                const startX = e.clientX;
+                const startW = stackPanelWidth;
+                const onMove = (ev: MouseEvent) => {
+                  if (!panelResizeRef.current) return;
+                  const next = Math.max(340, Math.min(760, startW - (ev.clientX - startX)));
+                  setStackPanelWidth(next);
+                };
+                const onUp = () => {
+                  panelResizeRef.current = false;
+                  window.removeEventListener('mousemove', onMove);
+                  window.removeEventListener('mouseup', onUp);
+                };
+                window.addEventListener('mousemove', onMove);
+                window.addEventListener('mouseup', onUp);
+              }}
+            >
+              <div
+                style={{
+                  width: 3,
+                  height: 56,
+                  borderRadius: 999,
+                  background: 'rgba(138,117,95,0.34)',
+                  boxShadow: '0 0 0 1px rgba(255,255,255,0.32)',
+                }}
+              />
+            </div>
+          )}
+					{activePanelDoc && (
+						<DocumentMode
+							documentId={activePanelDoc.id}
+							panelMode
+							onClosePanel={handleClosePanel}
+							onExpand={handleExpandPanelDoc}
+							onOpenDocument={setOpenPanelDocId}
+							headerBreadcrumb={{
+								workspaceLabel: workspaceBreadcrumbLabel,
+								folderLabel: pageName,
+								noteLabel: activePanelDoc.title || 'Untitled',
+								onFolderClick: () => {
+									setBrowserMode('notes');
+									setOpenPanelDocId(null);
+								},
+							}}
+						/>
+					)}
+				</div>
+			</div>
+			{noteMenu && activeMenuDoc && (
+				<StackNoteContextMenu
+					menu={noteMenu}
+					doc={activeMenuDoc}
           menuRef={noteMenuRef}
           exportRef={noteMenuExportRef}
           exportOpen={noteMenuExportOpen}
@@ -1287,14 +1733,14 @@ export default function StackView({ pageId, pageName }: Props) {
           }}
           onDelete={() => handleDelete(activeMenuDoc)}
         />
-      )}
-      <MobileNewNoteButton
-        ref={mobileNewBtnRef}
-        onClick={() => showingFolders ? handleNewFolder() : handleNewDoc(mobileNewBtnRef.current)}
-        label={showingFolders ? 'New folder' : 'New note'}
-      />
-    </div>
-  );
+			)}
+			<MobileNewNoteButton
+				ref={mobileNewBtnRef}
+				onClick={() => showingFolders ? handleNewFolder() : handleNewDoc(mobileNewBtnRef.current)}
+				label={showingFolders ? 'New folder' : 'New note'}
+			/>
+		</div>
+	);
 }
 
 interface StackNoteContextMenuProps {

@@ -17,7 +17,7 @@ import { applyWorkspaceSyncFromOpenResult } from '../utils/applyWorkspaceSync';
 import devboardIconUrl from '../assets/devboard_icon.png';
 import { useFilePreview } from '../hooks/useFilePreview';
 import { useTreeState } from '../hooks/useTreeState';
-import { IconCloud, IconFolder, IconSidebarToggle, IconStar } from './icons';
+import { IconArrowRight, IconCloud, IconFolder, IconSidebarToggle, IconStar } from './icons';
 import { DARK_MENU_COLORS } from './darkMenuTheme';
 import {
   SKIP_DIRS,
@@ -216,6 +216,50 @@ function CommandMenuItem({
 
 function CommandMenuDivider() {
   return <div style={{ height: 1, margin: '4px 10px', background: DARK_MENU_COLORS.border }} />;
+}
+
+function DarkMenuActionItem({
+  label,
+  onClick,
+  trailing,
+}: {
+  label: React.ReactNode;
+  onClick: () => void;
+  trailing?: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        width: '100%',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: trailing ? 'space-between' : 'flex-start',
+        gap: 10,
+        padding: '8px 9px',
+        border: 'none',
+        borderRadius: 8,
+        background: 'transparent',
+        color: DARK_MENU_COLORS.text,
+        cursor: 'pointer',
+        fontFamily: FONTS.ui,
+        fontSize: 12,
+        textAlign: 'left',
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.background = DARK_MENU_COLORS.hover;
+        e.currentTarget.style.color = DARK_MENU_COLORS.textHi;
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background = 'transparent';
+        e.currentTarget.style.color = DARK_MENU_COLORS.text;
+      }}
+    >
+      <span style={{ minWidth: 0, flex: 1 }}>{label}</span>
+      {trailing && <span style={{ flexShrink: 0 }}>{trailing}</span>}
+    </button>
+  );
 }
 
 const ADVANCED_FILES_STORAGE_KEY = 'devboard-advanced-files-visible';
@@ -1239,20 +1283,32 @@ function PageGroup({
               {page.name}
             </span>
           )}
-          <span style={{
-            fontFamily: FONTS.ui,
-            fontSize: 8.5,
-            color: isActive ? 'var(--c-text-md)' : 'var(--c-text-lo)',
+        </button>
+        <div
+          style={{
+            position: 'relative',
             flexShrink: 0,
-            lineHeight: 1,
             display: 'flex',
             alignItems: 'center',
             alignSelf: 'center',
-          }}>
+            gap: 4,
+            marginLeft: 2,
+          }}
+        >
+          <span
+            style={{
+              minWidth: 20,
+              padding: '0 2px',
+              fontFamily: FONTS.ui,
+              fontSize: 8.5,
+              color: isActive ? 'var(--c-text-md)' : 'var(--c-text-lo)',
+              lineHeight: 1,
+              textAlign: 'right',
+              flexShrink: 0,
+            }}
+          >
             {docs.length}
           </span>
-        </button>
-        <div style={{ position: 'relative', flexShrink: 0, display: 'flex', alignItems: 'center', alignSelf: 'center' }}>
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -1260,8 +1316,8 @@ function PageGroup({
             }}
             title={`New note in ${page.name}`}
             style={{
-              width: 16,
-              height: 16,
+              width: 18,
+              height: 18,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -1298,8 +1354,6 @@ function PageGroup({
               +
             </span>
           </button>
-        </div>
-        <div style={{ position: 'relative', flexShrink: 0, display: 'flex', alignItems: 'center', alignSelf: 'center' }}>
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -1308,8 +1362,8 @@ function PageGroup({
             }}
             title={`${page.name} menu`}
             style={{
-              width: 16,
-              height: 16,
+              width: 18,
+              height: 18,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -1320,6 +1374,19 @@ function PageGroup({
               borderRadius: 4,
               cursor: 'pointer',
               lineHeight: 1,
+              opacity: coarsePointer ? 0.86 : (pageHovered || pageFocused || isActive || pageMenu ? 0.86 : 0.48),
+              transition: 'opacity 0.12s ease, background 0.12s ease, color 0.12s ease',
+            }}
+            className="group-hover:opacity-100 focus:opacity-100"
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'var(--c-hover)';
+              e.currentTarget.style.color = 'var(--c-text-hi)';
+              e.currentTarget.style.opacity = '1';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.color = 'var(--c-text-off)';
+              e.currentTarget.style.opacity = coarsePointer || pageHovered || pageFocused || isActive || pageMenu ? '0.86' : '0.48';
             }}
           >
             <span style={{ fontSize: 14, lineHeight: 1, display: 'block', transform: 'translateY(-0.5px)' }}>⋯</span>
@@ -1888,6 +1955,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
     () => documents.find((doc) => doc.id === activeDocId) ?? null,
     [activeDocId, documents]
   );
+  const ignoredMissingImagesSignature = useBoardStore((s) => s.workspacePreferences.ignoredMissingImagesSignature ?? null);
   const hasLocalWorkspace = !!getWorkspaceName();
   const hasWorkspaceContext = hasLocalWorkspace || !!cloudBoardId;
   const cloudOnlyWorkspace = !hasLocalWorkspace && !!cloudBoardId;
@@ -1908,6 +1976,41 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
     .join('') || 'DB';
   const avatarUrl = typeof user?.user_metadata?.avatar_url === 'string' ? user.user_metadata.avatar_url : null;
   const hasUnsyncedSyncChanges = !!user && !!cloudBoardId && !!lastLocalSavedAt && !!cloudSyncedAt && lastLocalSavedAt > cloudSyncedAt + 1000;
+  const syncStatus = authLoading
+    ? {
+      label: 'Checking',
+      title: 'Checking cloud sync status.',
+      tone: 'neutral' as const,
+    }
+    : !user && !!cloudBoardId
+      ? {
+        label: 'Sync paused',
+        title: `This workspace is linked to cloud storage${cloudBoardTitle ? ` as "${cloudBoardTitle}"` : ''}, but you are signed out.`,
+        tone: 'warning' as const,
+      }
+      : hasUnsyncedSyncChanges
+        ? {
+          label: 'Unsynced',
+          title: 'Local changes are newer than the last cloud sync.',
+          tone: 'warning' as const,
+        }
+        : cloudOnlyWorkspace
+          ? {
+            label: 'Cloud only',
+            title: `This workspace is saved in cloud storage${cloudBoardTitle ? ` as "${cloudBoardTitle}"` : ''}, but no local folder is attached on this device.`,
+            tone: 'cloud' as const,
+          }
+          : cloudBoardId
+            ? {
+              label: 'Synced',
+              title: `This workspace is linked to cloud storage${cloudBoardTitle ? ` as "${cloudBoardTitle}"` : ''}.`,
+              tone: 'success' as const,
+            }
+            : {
+              label: 'Local only',
+              title: 'This workspace is only saved locally right now.',
+              tone: 'neutral' as const,
+            };
   const accountStatus = authLoading
     ? 'Checking...'
     : hasUnsyncedSyncChanges
@@ -1917,6 +2020,12 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
         : 'Saved';
   const openCloudModal = useCallback(() => {
     window.dispatchEvent(new CustomEvent('devboard:open-cloud-modal'));
+  }, []);
+
+  const closeSidebarMenus = useCallback((keep?: 'command' | 'missingImages' | 'account') => {
+    if (keep !== 'command') setCommandMenuOpen(false);
+    if (keep !== 'missingImages') setMissingImagesOpen(false);
+    if (keep !== 'account') setAccountMenuOpen(false);
   }, []);
 
   const handleAccountSignOut = useCallback(async () => {
@@ -1934,6 +2043,16 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
     const folder = image.assetFolder ?? imageAssetFolder ?? 'assets';
     return folder ? `${folder}/${image.assetName}` : image.assetName ?? 'missing image';
   }, [imageAssetFolder]);
+  const missingImagesSignature = useMemo(
+    () => missingImages
+      .map((image) => `${image.id}:${missingImagePath(image)}`)
+      .sort((a, b) => a.localeCompare(b))
+      .join('|'),
+    [missingImages, missingImagePath]
+  );
+  const missingImagesSuppressed = missingImages.length > 0
+    && !!ignoredMissingImagesSignature
+    && ignoredMissingImagesSignature === missingImagesSignature;
 
   // Cleanup on unmount
   useEffect(() => () => {
@@ -1997,8 +2116,16 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
   }, [accountMenuOpen]);
 
   useEffect(() => {
-    if (missingImages.length === 0) setMissingImagesOpen(false);
-  }, [missingImages.length]);
+    if (missingImages.length === 0 || missingImagesSuppressed) setMissingImagesOpen(false);
+  }, [missingImages.length, missingImagesSuppressed]);
+
+  useEffect(() => {
+    if (missingImages.length !== 0 || !ignoredMissingImagesSignature) return;
+    useBoardStore.getState().setIgnoredMissingImagesSignature(null);
+    if (hasWorkspaceContext) {
+      void saveWorkspace(useBoardStore.getState().exportData(), { notify: false });
+    }
+  }, [hasWorkspaceContext, ignoredMissingImagesSignature, missingImages.length]);
 
   useEffect(() => {
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
@@ -2164,6 +2291,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
 
   // ── Keyboard navigation ───────────────────────────────────────────────────
   const handleOpenFolder = useCallback(async () => {
+    closeSidebarMenus();
     const result = await openWorkspace();
     if (result) {
       setMissingImagesOpen(false);
@@ -2184,7 +2312,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
           setRootLoading(false);
         });
     }
-  }, []);
+  }, [closeSidebarMenus]);
 
   const handleFindMissingImages = useCallback(async () => {
     if (missingImagesFixing || missingImages.length === 0) return;
@@ -2213,6 +2341,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
 
       const remaining = missingImages.length - restored;
       if (restored === missingImages.length) {
+        useBoardStore.getState().setIgnoredMissingImagesSignature(null);
         toast(`Restored ${restored} image${restored === 1 ? '' : 's'}`);
         setMissingImagesOpen(false);
       } else if (restored > 0) {
@@ -2220,10 +2349,22 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
       } else {
         toast('Could not find the missing image files. Reopen the workspace folder or place them back in assets/.');
       }
+      if (restored > 0 && hasWorkspaceContext) {
+        void saveWorkspace(useBoardStore.getState().exportData(), { notify: false });
+      }
     } finally {
       setMissingImagesFixing(false);
     }
-  }, [missingImages, missingImagesFixing, updateNode]);
+  }, [hasWorkspaceContext, missingImages, missingImagesFixing, updateNode]);
+
+  const handleIgnoreMissingImages = useCallback(() => {
+    if (!missingImagesSignature) return;
+    useBoardStore.getState().setIgnoredMissingImagesSignature(missingImagesSignature);
+    setMissingImagesOpen(false);
+    if (hasWorkspaceContext) {
+      void saveWorkspace(useBoardStore.getState().exportData(), { notify: false });
+    }
+  }, [hasWorkspaceContext, missingImagesSignature]);
 
   // ── Rename ───────────────────────────────────────────────────────────────
   const [renameExtWarning, setRenameExtWarning] = useState<{ entry: TreeEntry; newName: string } | null>(null);
@@ -2724,6 +2865,13 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
         background: 'var(--c-sidebar)',
       }}
       onMouseDown={(e) => e.stopPropagation()}
+      onMouseDownCapture={(e) => {
+        const target = e.target as Node;
+        if (commandMenuRef.current?.contains(target)) return;
+        if (missingImagesPopoverRef.current?.contains(target)) return;
+        if (accountMenuRef.current?.contains(target)) return;
+        closeSidebarMenus();
+      }}
       tabIndex={0}
       onKeyDown={handleKeyDown}
     >
@@ -2733,6 +2881,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
           display: 'flex',
           alignItems: 'center',
           gap: isPreviewPanel ? 6 : 8,
+          justifyContent: isPreviewPanel ? 'flex-start' : 'space-between',
           minHeight: 52,
           padding: '10px 12px 9px',
           flexShrink: 0,
@@ -2741,34 +2890,42 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
         }}
       >
         {/* Main app menu button */}
-        <div style={{ position: 'relative', minWidth: 0, display: 'flex', alignItems: 'center', gap: 6, flex: isPreviewPanel ? 0 : 1 }}>
-          <button
-            type="button"
-            aria-label="App menu"
-            title="App menu"
-            onClick={(e) => {
-              setCommandMenuOpen((open) => !open);
-            }}
-            className="flex items-center justify-center transition-colors"
-            style={{
-              width: 32,
-              height: 32,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: 0,
-              border: commandMenuOpen ? `1.5px solid ${DARK_MENU_COLORS.border}` : '1px solid var(--c-border)',
-              borderRadius: 9,
-              background: commandMenuOpen ? DARK_MENU_COLORS.surface : 'color-mix(in srgb, var(--c-canvas) 52%, transparent)',
-              cursor: 'pointer',
-              color: commandMenuOpen ? DARK_MENU_COLORS.textHi : 'var(--c-text-hi)',
-              boxShadow: commandMenuOpen ? '0 10px 24px rgba(0,0,0,0.22)' : 'none',
-              flexShrink: 0,
-            }}
+        {!isPreviewPanel ? (
+          <div
+            ref={commandMenuRef}
+            style={{ position: 'relative', minWidth: 0, display: 'flex', alignItems: 'center', gap: 6, flex: 1 }}
           >
-            <MenuIcon />
-          </button>
-          {!isPreviewPanel && (
+            <button
+              type="button"
+              aria-label="App menu"
+              title="App menu"
+              onClick={() => {
+                if (commandMenuOpen) {
+                  setCommandMenuOpen(false);
+                  return;
+                }
+                closeSidebarMenus('command');
+                setCommandMenuOpen(true);
+              }}
+              className="flex items-center justify-center transition-colors"
+              style={{
+                width: 32,
+                height: 32,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 0,
+                border: commandMenuOpen ? `1.5px solid ${DARK_MENU_COLORS.border}` : '1px solid var(--c-border)',
+                borderRadius: 9,
+                background: commandMenuOpen ? DARK_MENU_COLORS.surface : 'color-mix(in srgb, var(--c-canvas) 52%, transparent)',
+                cursor: 'pointer',
+                color: commandMenuOpen ? DARK_MENU_COLORS.textHi : 'var(--c-text-hi)',
+                boxShadow: commandMenuOpen ? '0 10px 24px rgba(0,0,0,0.22)' : 'none',
+                flexShrink: 0,
+              }}
+            >
+              <MenuIcon />
+            </button>
             <span
               style={{
                 minWidth: 0,
@@ -2784,90 +2941,116 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
             >
               {workspaceDisplayName}
             </span>
-          )}
-          {commandMenuOpen && (
-            <div
+            {commandMenuOpen && (
+              <div
+                style={{
+                  position: 'fixed',
+                  top: 50,
+                  left: 10,
+                  zIndex: 10001,
+                  width: 220,
+                  padding: '6px 0',
+                  border: `1px solid ${DARK_MENU_COLORS.border}`,
+                  borderRadius: 10,
+                  background: DARK_MENU_COLORS.surface,
+                  boxShadow: DARK_MENU_COLORS.shadow,
+                  overflow: 'hidden',
+                }}
+                onMouseDown={(e) => e.stopPropagation()}
+              >
+                <CommandMenuItem
+                  icon={<CommandIcon kind="file" />}
+                  label="File"
+                  onClick={() => {
+                    setCommandMenuOpen(false);
+                  }}
+                />
+                <CommandMenuItem
+                  icon={<CommandIcon kind="edit" />}
+                  label="Edit"
+                  onClick={() => {
+                    setCommandMenuOpen(false);
+                  }}
+                />
+                <CommandMenuItem
+                  icon={<CommandIcon kind="view" />}
+                  label="View"
+                  onClick={() => {
+                    setCommandMenuOpen(false);
+                  }}
+                />
+                <CommandMenuItem
+                  icon={<CommandIcon kind="export" />}
+                  label="Export"
+                  onClick={() => {
+                    setCommandMenuOpen(false);
+                  }}
+                />
+                <CommandMenuDivider />
+                <CommandMenuItem
+                  icon={<CommandIcon kind="download" />}
+                  label="Download desktop app"
+                  onClick={() => {
+                    setCommandMenuOpen(false);
+                    window.open('https://devboard.app/download', '_blank');
+                  }}
+                />
+                <CommandMenuDivider />
+                <CommandMenuItem
+                  icon={<CommandIcon kind="settings" />}
+                  label="Preferences..."
+                  onClick={() => {
+                    closeSidebarMenus('account');
+                    setAccountMenuOpen(true);
+                  }}
+                />
+                <CommandMenuItem
+                  icon={<CommandIcon kind="help" />}
+                  label="Help & about"
+                  onClick={() => {
+                    setCommandMenuOpen(false);
+                    window.dispatchEvent(new CustomEvent('devboard:open-get-started'));
+                  }}
+                />
+                <CommandMenuDivider />
+                <CommandMenuItem
+                  icon={<CommandIcon kind="folder" />}
+                  label="Switch workspace..."
+                  onClick={() => {
+                    setCommandMenuOpen(false);
+                    void handleOpenFolder();
+                  }}
+                />
+              </div>
+            )}
+          </div>
+        ) : (
+          <div
+            style={{
+              minWidth: 0,
+              flex: 1,
+              display: 'flex',
+              alignItems: 'center',
+              paddingLeft: 2,
+            }}
+          >
+            <span
               style={{
-                position: 'fixed',
-                top: 50,
-                left: 10,
-                zIndex: 10001,
-                width: 220,
-                padding: '6px 0',
-                border: `1px solid ${DARK_MENU_COLORS.border}`,
-                borderRadius: 10,
-                background: DARK_MENU_COLORS.surface,
-                boxShadow: DARK_MENU_COLORS.shadow,
+                minWidth: 0,
                 overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                color: 'var(--c-text-md)',
+                fontFamily: FONTS.ui,
+                fontSize: 11,
+                fontWeight: 600,
+                letterSpacing: '0.01em',
               }}
-              onMouseDown={(e) => e.stopPropagation()}
             >
-              <CommandMenuItem
-                icon={<CommandIcon kind="file" />}
-                label="File"
-                onClick={() => {
-                  setCommandMenuOpen(false);
-                }}
-              />
-              <CommandMenuItem
-                icon={<CommandIcon kind="edit" />}
-                label="Edit"
-                onClick={() => {
-                  setCommandMenuOpen(false);
-                }}
-              />
-              <CommandMenuItem
-                icon={<CommandIcon kind="view" />}
-                label="View"
-                onClick={() => {
-                  setCommandMenuOpen(false);
-                }}
-              />
-              <CommandMenuItem
-                icon={<CommandIcon kind="export" />}
-                label="Export"
-                onClick={() => {
-                  setCommandMenuOpen(false);
-                }}
-              />
-              <CommandMenuDivider />
-              <CommandMenuItem
-                icon={<CommandIcon kind="download" />}
-                label="Download desktop app"
-                onClick={() => {
-                  setCommandMenuOpen(false);
-                  window.open('https://devboard.app/download', '_blank');
-                }}
-              />
-              <CommandMenuDivider />
-              <CommandMenuItem
-                icon={<CommandIcon kind="settings" />}
-                label="Preferences..."
-                onClick={() => {
-                  setCommandMenuOpen(false);
-                  setAccountMenuOpen(true);
-                }}
-              />
-              <CommandMenuItem
-                icon={<CommandIcon kind="help" />}
-                label="Help & about"
-                onClick={() => {
-                  setCommandMenuOpen(false);
-                  window.dispatchEvent(new CustomEvent('devboard:open-get-started'));
-                }}
-              />
-              <CommandMenuDivider />
-              <CommandMenuItem
-                icon={<CommandIcon kind="folder" />}
-                label="Switch workspace..."
-                onClick={() => {
-                  setCommandMenuOpen(false);
-                  void handleOpenFolder();
-                }}
-              />
-            </div>
-          )}
-        </div>
+              {workspaceDisplayName}
+            </span>
+          </div>
+        )}
 
         {/* Sidebar expand/collapse button - always visible but secondary when expanded */}
         <button
@@ -2877,28 +3060,31 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
           style={{
             width: 32,
             height: 32,
-            border: isPreviewPanel ? '1px solid var(--c-border)' : '1px solid transparent',
+            border: isPreviewPanel ? '1px solid var(--c-border)' : '1px solid color-mix(in srgb, var(--c-border) 70%, transparent)',
             borderRadius: 9,
-            background: isPreviewPanel ? 'color-mix(in srgb, var(--c-canvas) 42%, transparent)' : 'transparent',
-            color: isPreviewPanel ? 'var(--c-text-md)' : 'var(--c-text-off)',
+            background: isPreviewPanel
+              ? 'color-mix(in srgb, var(--c-canvas) 42%, transparent)'
+              : 'color-mix(in srgb, var(--c-canvas) 30%, transparent)',
+            color: 'var(--c-text-md)',
             cursor: 'pointer',
-            opacity: isPreviewPanel ? 1 : 0.4,
+            opacity: isPreviewPanel ? 1 : 0.84,
             flexShrink: 0,
+            boxShadow: isPreviewPanel ? 'none' : 'inset 0 1px 0 color-mix(in srgb, white 42%, transparent)',
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.opacity = isPreviewPanel ? '1' : '0.7';
-            if (!isPreviewPanel) {
-              e.currentTarget.style.color = 'var(--c-text-md)';
-            }
+            e.currentTarget.style.opacity = '1';
+            e.currentTarget.style.color = 'var(--c-text-hi)';
+            e.currentTarget.style.background = 'color-mix(in srgb, var(--c-hover) 82%, transparent)';
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.opacity = isPreviewPanel ? '1' : '0.4';
-            if (!isPreviewPanel) {
-              e.currentTarget.style.color = 'var(--c-text-off)';
-            }
+            e.currentTarget.style.opacity = isPreviewPanel ? '1' : '0.84';
+            e.currentTarget.style.color = 'var(--c-text-md)';
+            e.currentTarget.style.background = isPreviewPanel
+              ? 'color-mix(in srgb, var(--c-canvas) 42%, transparent)'
+              : 'color-mix(in srgb, var(--c-canvas) 30%, transparent)';
           }}
         >
-          <IconSidebarToggle size={16} />
+          {isPreviewPanel ? <IconArrowRight size={15} /> : <IconSidebarToggle size={16} />}
         </button>
       </div>
       {hasWorkspaceContext && (
@@ -2923,6 +3109,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
               transition: 'border-color 120ms, background 120ms',
             }}
             onMouseDown={() => {
+              closeSidebarMenus();
               setSearchOpen(true);
               requestAnimationFrame(() => searchInputRef.current?.focus());
             }}
@@ -3142,7 +3329,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
           position: 'relative',
         }}
       >
-        {missingImages.length > 0 && (
+        {missingImages.length > 0 && !missingImagesSuppressed && (
           <div ref={missingImagesPopoverRef} style={{ position: 'relative', marginBottom: 8 }}>
             {missingImagesOpen && (
               <div
@@ -3238,6 +3425,27 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
                   </button>
                   <button
                     type="button"
+                    onClick={handleIgnoreMissingImages}
+                    disabled={missingImagesFixing}
+                    title="Hide this missing image warning until the missing image list changes"
+                    style={{
+                      flex: 1,
+                      height: 32,
+                      border: '1px solid var(--c-border)',
+                      borderRadius: 8,
+                      background: 'transparent',
+                      color: 'var(--c-text-md)',
+                      cursor: missingImagesFixing ? 'default' : 'pointer',
+                      fontFamily: FONTS.ui,
+                      fontSize: 11,
+                      fontWeight: 650,
+                      opacity: missingImagesFixing ? 0.72 : 1,
+                    }}
+                  >
+                    Ignore
+                  </button>
+                  <button
+                    type="button"
                     onClick={handleOpenFolder}
                     style={{
                       flex: 1,
@@ -3260,31 +3468,43 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
             <button
               type="button"
               onClick={() => {
-                setAccountMenuOpen(false);
-                setMissingImagesOpen((open) => !open);
+                if (missingImagesOpen) {
+                  setMissingImagesOpen(false);
+                  return;
+                }
+                closeSidebarMenus('missingImages');
+                setMissingImagesOpen(true);
               }}
               title="Fix missing images"
               style={{
                 width: '100%',
-                minHeight: 34,
+                minHeight: 22,
                 display: 'flex',
                 alignItems: 'center',
-                gap: 9,
-                padding: '7px 10px',
-                border: '1px solid rgba(245,158,11,0.26)',
-                borderRadius: 10,
-                background: 'rgba(245,158,11,0.09)',
-                color: '#b45309',
+                gap: 6,
+                padding: '2px 4px',
+                border: 'none',
+                borderRadius: 6,
+                background: 'transparent',
+                color: 'var(--c-text-lo)',
                 cursor: 'pointer',
                 fontFamily: FONTS.ui,
                 textAlign: 'left',
               }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'transparent';
+                e.currentTarget.style.color = 'var(--c-text-md)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent';
+                e.currentTarget.style.color = 'var(--c-text-lo)';
+              }}
             >
-              <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: 999, background: '#f59e0b', flexShrink: 0 }} />
-              <span style={{ minWidth: 0, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11, fontWeight: 750 }}>
-                Missing images
+              <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: 999, background: '#f59e0b', flexShrink: 0, opacity: 0.9 }} />
+              <span style={{ minWidth: 0, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 10, fontWeight: 600 }}>
+                Some notes have missing images
               </span>
-              <span style={{ flexShrink: 0, fontSize: 10.5, fontWeight: 650, color: 'var(--c-text-lo)' }}>
+              <span style={{ flexShrink: 0, fontSize: 9.5, fontWeight: 700, color: '#b45309' }}>
                 {missingImages.length}
               </span>
             </button>
@@ -3294,16 +3514,25 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
         <div ref={accountMenuRef} style={{ position: 'relative' }}>
           {accountMenuOpen && (() => {
             const rect = accountMenuRef.current?.getBoundingClientRect();
-            const menuHeight = 320;
-            const left = rect ? Math.max(8, rect.left - 320 + rect.width) : 8;
-            const spaceBelow = rect ? window.innerHeight - rect.bottom : 0;
-            const top = rect ? (spaceBelow >= menuHeight ? rect.bottom + 8 : Math.max(8, rect.top - menuHeight - 8)) : 8;
+            const menuWidth = 320;
+            const viewportPadding = 8;
+            const menuGap = 8;
+            const maxRight = Math.max(viewportPadding, window.innerWidth - menuWidth - viewportPadding);
+            const left = rect
+              ? Math.min(maxRight, Math.max(viewportPadding, rect.right - menuWidth))
+              : viewportPadding;
+            const spaceBelow = rect ? window.innerHeight - rect.bottom - viewportPadding : 0;
+            const openUpward = rect ? spaceBelow < 340 : false;
             return (
               <div
                 style={{
                   position: 'fixed',
                   left,
-                  top,
+                  ...(rect
+                    ? openUpward
+                      ? { bottom: Math.max(viewportPadding, window.innerHeight - rect.top + menuGap) }
+                      : { top: rect.bottom + menuGap }
+                    : { top: viewportPadding }),
                   zIndex: 10000,
                   overflow: 'hidden',
                   border: `1px solid ${DARK_MENU_COLORS.border}`,
@@ -3311,76 +3540,59 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
                   background: DARK_MENU_COLORS.surface,
                   boxShadow: DARK_MENU_COLORS.shadow,
                   fontFamily: FONTS.ui,
-                  width: 320,
+                  width: menuWidth,
+                  maxWidth: `calc(100vw - ${viewportPadding * 2}px)`,
                   maxHeight: '80vh',
                   overflowY: 'auto',
                 }}
                 onMouseDown={(e) => e.stopPropagation()}
               >
                 <div style={{ padding: '12px 12px 10px', borderBottom: `1px solid ${DARK_MENU_COLORS.border}` }}>
-                <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12, fontWeight: 750, color: DARK_MENU_COLORS.textHi }}>
-                  {accountLabel}
-                </div>
-                {user?.email && user.email !== accountLabel && (
-                  <div style={{ marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 10.5, color: DARK_MENU_COLORS.textMuted }}>
-                    {user.email}
+                  <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12, fontWeight: 750, color: DARK_MENU_COLORS.textHi }}>
+                    {accountLabel}
                   </div>
-                )}
-              </div>
-              <div style={{ padding: 6 }}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAccountMenuOpen(false);
-                    openCloudModal();
-                  }}
-                  style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '8px 9px', border: 'none', borderRadius: 8, background: 'transparent', color: DARK_MENU_COLORS.text, cursor: 'pointer', fontFamily: FONTS.ui, fontSize: 12, textAlign: 'left' }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = DARK_MENU_COLORS.hover; e.currentTarget.style.color = DARK_MENU_COLORS.textHi; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = DARK_MENU_COLORS.text; }}
-                >
-                  <span>Workspace Sync...</span>
-                  <span style={{ color: authConfigured ? 'var(--c-line)' : DARK_MENU_COLORS.textMuted, fontSize: 10.5 }}>
-                    {authConfigured ? accountStatus : 'Off'}
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    toggleTheme();
-                    setAccountMenuOpen(false);
-                  }}
-                  style={{ width: '100%', display: 'flex', alignItems: 'center', padding: '8px 9px', border: 'none', borderRadius: 8, background: 'transparent', color: DARK_MENU_COLORS.text, cursor: 'pointer', fontFamily: FONTS.ui, fontSize: 12, textAlign: 'left' }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = DARK_MENU_COLORS.hover; e.currentTarget.style.color = DARK_MENU_COLORS.textHi; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = DARK_MENU_COLORS.text; }}
-                >
-                  {theme === 'light' ? 'Dark mode' : 'Light mode'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setNoteAutosaveEnabled(!noteAutosaveEnabled);
-                    setAccountMenuOpen(false);
-                  }}
-                  style={{ width: '100%', display: 'flex', alignItems: 'center', padding: '8px 9px', border: 'none', borderRadius: 8, background: 'transparent', color: DARK_MENU_COLORS.text, cursor: 'pointer', fontFamily: FONTS.ui, fontSize: 12, textAlign: 'left' }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = DARK_MENU_COLORS.hover; e.currentTarget.style.color = DARK_MENU_COLORS.textHi; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = DARK_MENU_COLORS.text; }}
-                >
-                  {noteAutosaveEnabled ? 'Disable note autosave' : 'Enable note autosave'}
-                </button>
-                {user && (
-                  <>
-                    <div style={{ height: 1, margin: '6px 4px', background: DARK_MENU_COLORS.border }} />
-                    <button
-                      type="button"
-                      onClick={() => { void handleAccountSignOut(); }}
-                      style={{ width: '100%', display: 'flex', alignItems: 'center', padding: '8px 9px', border: 'none', borderRadius: 8, background: 'transparent', color: DARK_MENU_COLORS.text, cursor: 'pointer', fontFamily: FONTS.ui, fontSize: 12, textAlign: 'left' }}
-                      onMouseEnter={(e) => { e.currentTarget.style.background = DARK_MENU_COLORS.hover; e.currentTarget.style.color = DARK_MENU_COLORS.textHi; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = DARK_MENU_COLORS.text; }}
-                    >
-                      Sign out
-                    </button>
-                  </>
-                )}
+                  {user?.email && user.email !== accountLabel && (
+                    <div style={{ marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 10.5, color: DARK_MENU_COLORS.textMuted }}>
+                      {user.email}
+                    </div>
+                  )}
+                </div>
+                <div style={{ padding: 6 }}>
+                  <DarkMenuActionItem
+                    label="Workspace Sync..."
+                    trailing={(
+                      <span style={{ color: authConfigured ? 'var(--c-line)' : DARK_MENU_COLORS.textMuted, fontSize: 10.5 }}>
+                        {authConfigured ? accountStatus : 'Off'}
+                      </span>
+                    )}
+                    onClick={() => {
+                      setAccountMenuOpen(false);
+                      openCloudModal();
+                    }}
+                  />
+                  <DarkMenuActionItem
+                    label={theme === 'light' ? 'Dark mode' : 'Light mode'}
+                    onClick={() => {
+                      toggleTheme();
+                      setAccountMenuOpen(false);
+                    }}
+                  />
+                  <DarkMenuActionItem
+                    label={noteAutosaveEnabled ? 'Disable note autosave' : 'Enable note autosave'}
+                    onClick={() => {
+                      setNoteAutosaveEnabled(!noteAutosaveEnabled);
+                      setAccountMenuOpen(false);
+                    }}
+                  />
+                  {user && (
+                    <>
+                      <div style={{ height: 1, margin: '6px 4px', background: DARK_MENU_COLORS.border }} />
+                      <DarkMenuActionItem
+                        label="Sign out"
+                        onClick={() => { void handleAccountSignOut(); }}
+                      />
+                    </>
+                  )}
                 </div>
               </div>
             );
@@ -3388,8 +3600,12 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
           <button
             type="button"
             onClick={() => {
-              setMissingImagesOpen(false);
-              setAccountMenuOpen((open) => !open);
+              if (accountMenuOpen) {
+                setAccountMenuOpen(false);
+                return;
+              }
+              closeSidebarMenus('account');
+              setAccountMenuOpen(true);
             }}
             title="Account and settings"
             className="group"
@@ -3455,7 +3671,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
             >
               {accountLabel}
             </span>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--c-text-lo)', fontSize: 10.5, fontWeight: 600 }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', color: 'var(--c-text-lo)', fontSize: 10.5, fontWeight: 600 }}>
               <span
                 aria-hidden="true"
                 style={{
@@ -3466,6 +3682,60 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
                 }}
               />
               {accountStatus}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  closeSidebarMenus();
+                  openCloudModal();
+                }}
+                title={syncStatus.title}
+                aria-label={`Workspace sync status: ${syncStatus.label}. ${syncStatus.title}`}
+                style={{
+                  minHeight: 20,
+                  padding: '0 8px',
+                  borderRadius: 999,
+                  border: syncStatus.tone === 'warning'
+                    ? '1px solid rgba(245,158,11,0.24)'
+                    : syncStatus.tone === 'success'
+                      ? '1px solid rgba(16,185,129,0.2)'
+                      : syncStatus.tone === 'cloud'
+                        ? '1px solid var(--c-border)'
+                        : '1px solid rgba(138,117,95,0.18)',
+                  background: syncStatus.tone === 'warning'
+                    ? 'rgba(245,158,11,0.12)'
+                    : syncStatus.tone === 'success'
+                      ? 'rgba(16,185,129,0.1)'
+                      : syncStatus.tone === 'cloud'
+                        ? 'color-mix(in srgb, var(--c-hover) 42%, transparent)'
+                        : 'rgba(138,117,95,0.08)',
+                  color: syncStatus.tone === 'warning'
+                    ? '#b45309'
+                    : syncStatus.tone === 'success'
+                      ? '#047857'
+                      : 'var(--c-text-md)',
+                  cursor: 'pointer',
+                  fontSize: 10,
+                  fontWeight: 700,
+                  fontFamily: FONTS.ui,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  flexShrink: 0,
+                }}
+              >
+                <span
+                  aria-hidden="true"
+                  style={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: 999,
+                    background: 'currentColor',
+                    opacity: syncStatus.tone === 'neutral' ? 0.5 : 0.85,
+                  }}
+                />
+                {syncStatus.label}
+              </button>
             </span>
           </span>
           <span

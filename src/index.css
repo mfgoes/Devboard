@@ -29,6 +29,7 @@
   --c-canvas: #1c1916;
   --c-panel: #242019;
   --c-hover: #2d2820;
+  --c-sidebar: color-mix(in srgb, var(--c-panel) 42%, var(--c-hover));
   --c-border: #3c3529;
   --c-text-hi: #ece6dd;
   --c-text-md: #afa294;
@@ -52,6 +53,7 @@
   --c-canvas: #f6f1ea;
   --c-panel: #ede7dd;
   --c-hover: #e3dbd0;
+  --c-sidebar: color-mix(in srgb, var(--c-panel) 30%, var(--c-hover));
   --c-border: #cdc4b6;
   --c-text-hi: #28201a;
   --c-text-md: #6b5e52;
@@ -520,8 +522,7 @@ canvas:focus {
 
 .workspace-explorer-shell {
   transition:
-    width 190ms cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 190ms cubic-bezier(0.22, 1, 0.36, 1);
+    width 190ms cubic-bezier(0.22, 1, 0.36, 1);
   will-change: width;
 }
 

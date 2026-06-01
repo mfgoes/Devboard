@@ -38,6 +38,14 @@ export function IconUnlink({ size = 14 }: { size?: number }) { return <Unlink si
 export function IconStar({ filled = false, size = 13 }: { filled?: boolean; size?: number }) {
   return <Star size={size} fill={filled ? 'currentColor' : 'none'} />;
 }
+export function IconSidebarToggle({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <rect x="2.75" y="2.5" width="10.5" height="11" rx="1.8" stroke="currentColor" strokeWidth="1.55" />
+      <path d="M6.35 2.75v10.5" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" />
+    </svg>
+  );
+}
 export function IconFreeformPage() {
   return (
     <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">

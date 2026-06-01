@@ -52,6 +52,7 @@ import SearchBar from './components/SearchBar';
 import { useBoardStore } from './store/boardStore';
 import { useAuth } from './contexts/AuthContext';
 import { applyTheme } from './theme';
+import { IconSidebarToggle } from './components/icons';
 
 const EXPLORER_COLLAPSED_WIDTH = 44;
 const EXPLORER_EXPAND_HIT_WIDTH = 64;
@@ -129,6 +130,7 @@ export default function App() {
   const openDocumentWithMorph = useBoardStore((s) => s.openDocumentWithMorph);
   const docViewMode = useBoardStore((s) => s.docViewMode);
   const setDocViewMode = useBoardStore((s) => s.setDocViewMode);
+  const setOpenPanelDocId = useBoardStore((s) => s.setOpenPanelDocId);
 
   const boardTitle = useBoardStore((s) => s.boardTitle);
   const workspaceName = useBoardStore((s) => s.workspaceName);
@@ -176,8 +178,8 @@ export default function App() {
   const docPanelRef = useRef<HTMLDivElement>(null);
   const [docPanelWidth, setDocPanelWidth] = useState(() => (
     typeof window !== 'undefined'
-      ? Math.max(440, Math.min(760, Math.round(window.innerWidth * 0.44)))
-      : 560
+      ? Math.max(380, Math.min(560, Math.round(window.innerWidth * 0.34)))
+      : 420
   ));
   const effectiveDocViewMode = isMobileViewport || isStackPage ? 'fullscreen' : docViewMode;
 
@@ -300,11 +302,17 @@ export default function App() {
 
   // Cmd+N on stack pages → new note
   const handleNewNote = useCallback(() => {
-    const pageId = useBoardStore.getState().activePageId;
+    const state = useBoardStore.getState();
+    const pageId = state.activePageId;
     const id = addDocument({ title: '', content: '', pageId });
-    useBoardStore.getState().ensureDocumentNode(id, pageId);
+    state.ensureDocumentNode(id, pageId);
+    const page = state.pages.find((entry) => entry.id === pageId);
+    if (page?.layoutMode === 'stack' && !isMobileViewport) {
+      setOpenPanelDocId(id);
+      return;
+    }
     openDocumentWithMorph(id);
-  }, [addDocument, openDocumentWithMorph]);
+  }, [addDocument, isMobileViewport, openDocumentWithMorph, setOpenPanelDocId]);
 
   // Snap-close doc without animation (used when jumping to a canvas node)
   const snapCloseDoc = useCallback(() => {
@@ -1005,10 +1013,10 @@ export default function App() {
             left: 0,
             bottom: 0,
             width: explorerCollapsed ? EXPLORER_COLLAPSED_WIDTH : explorerWidth,
-            zIndex: 180,
+            zIndex: 520,
             borderRight: '1px solid var(--c-border)',
-            background: 'var(--c-panel)',
-            boxShadow: explorerCollapsed ? '6px 0 18px rgba(0,0,0,0.06)' : '8px 0 24px rgba(0,0,0,0.08)',
+            background: 'var(--c-sidebar)',
+            boxShadow: 'none',
             overflow: 'hidden',
           }}
         >
@@ -1032,12 +1040,10 @@ export default function App() {
                 }}
                 title="Open sidebar"
                 aria-label="Open sidebar"
-                className="w-8 h-8 flex items-center justify-center rounded-lg text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
-                style={{ border: 'none', background: 'transparent', cursor: 'pointer' }}
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-[var(--c-text-md)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
+                style={{ border: '1px solid var(--c-border)', background: 'color-mix(in srgb, var(--c-canvas) 42%, transparent)', cursor: 'pointer' }}
               >
-                <svg width="16" height="16" viewBox="0 0 15 15" fill="none" aria-hidden="true">
-                  <path d="M3 4h9M3 7.5h9M3 11h9" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" />
-                </svg>
+                <IconSidebarToggle size={16} />
               </button>
               <button
                 type="button"
@@ -1147,15 +1153,14 @@ export default function App() {
           style={{
             position: 'absolute',
             top: 8,
-            left: 0,
+            left: EXPLORER_COLLAPSED_WIDTH - 1,
             bottom: 12,
             width: Math.min(300, explorerWidth, WORKSPACE_EXPLORER_WIDTH),
-            zIndex: 230,
+            zIndex: 540,
             border: '1px solid var(--c-border)',
-            borderLeft: 'none',
-            borderRadius: '0 14px 14px 0',
-            background: 'var(--c-panel)',
-            boxShadow: '18px 0 44px rgba(0,0,0,0.22)',
+            borderRadius: '0 12px 12px 0',
+            background: 'var(--c-sidebar)',
+            boxShadow: 'none',
             overflow: 'hidden',
             transformOrigin: 'left center',
           }}
@@ -1228,6 +1233,12 @@ export default function App() {
           const state = useBoardStore.getState();
           const doc = state.documents.find((d) => d.id === id);
           if (doc?.pageId && doc.pageId !== state.activePageId) state.switchPage(doc.pageId);
+          const targetPageId = doc?.pageId ?? state.activePageId;
+          const page = state.pages.find((entry) => entry.id === targetPageId);
+          if (page?.layoutMode === 'stack' && !isMobileViewport) {
+            state.setOpenPanelDocId(id);
+            return;
+          }
           state.openDocumentWithMorph(id);
         }}
         onPickNode={(id) => {

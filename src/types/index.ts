@@ -282,6 +282,33 @@ export interface PageMeta {
   noteSort?: 'updated' | 'custom';
 }
 
+export interface FolderDescriptorFile {
+  path: string;
+  title: string;
+  updatedAt?: number;
+  tags?: string[];
+  isFavorite?: boolean;
+}
+
+export interface FolderDescriptor {
+  id: string;
+  name: string;
+  description?: string;
+  autoDescription?: string;
+  layoutMode?: 'freeform' | 'stack';
+  noteSort?: 'updated' | 'custom';
+  noteCount?: number;
+  favoriteCount?: number;
+  lastEditedAt?: number | null;
+  tags?: string[];
+  files?: FolderDescriptorFile[];
+  generatedAt?: number;
+}
+
+export interface WorkspacePreferences {
+  ignoredMissingImagesSignature?: string | null;
+}
+
 export interface BoardData {
   boardTitle: string;
   nodes: CanvasNode[];
@@ -290,6 +317,8 @@ export interface BoardData {
   activePageId?: string;
   // Phase 2 document entities — absent in legacy saves
   documents?: Document[];
+  folderDescriptors?: FolderDescriptor[];
+  workspacePreferences?: WorkspacePreferences;
   schemaVersion?: number;
   workspaceIdentity?: {
     workspaceId: string;
