@@ -2730,7 +2730,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: isPreviewPanel ? 'minmax(0, 1fr)' : 'minmax(0, 1fr) 32px',
+          gridTemplateColumns: 'minmax(0, 1fr) 32px',
           alignItems: 'center',
           gap: 8,
           minHeight: 50,
@@ -2777,6 +2777,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
               fontSize: 11.5,
               fontWeight: 550,
               textAlign: 'left',
+              display: isPreviewPanel ? 'none' : 'block',
             }}
           >
             {workspaceDisplayName}
@@ -2865,23 +2866,35 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
           )}
         </div>
 
-        {!isPreviewPanel && (
-          <button
-            onClick={onCollapse}
-            title="Collapse sidebar"
-            className="flex items-center justify-center text-[var(--c-text-md)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
-            style={{
-              width: 32,
-              height: 32,
-              border: '1px solid var(--c-border)',
-              borderRadius: 9,
-              background: 'color-mix(in srgb, var(--c-canvas) 42%, transparent)',
-              cursor: 'pointer',
-            }}
-          >
-            <IconSidebarToggle size={16} />
-          </button>
-        )}
+        <button
+          onClick={onCollapse}
+          title={isPreviewPanel ? 'Expand sidebar' : 'Collapse sidebar'}
+          className="flex items-center justify-center transition-colors"
+          style={{
+            width: 32,
+            height: 32,
+            border: isPreviewPanel ? '1px solid var(--c-border)' : 'none',
+            borderRadius: 9,
+            background: isPreviewPanel ? 'color-mix(in srgb, var(--c-canvas) 42%, transparent)' : 'transparent',
+            color: isPreviewPanel ? 'var(--c-text-md)' : 'var(--c-text-off)',
+            cursor: 'pointer',
+            opacity: isPreviewPanel ? 1 : 0.5,
+          }}
+          onMouseEnter={(e) => {
+            if (!isPreviewPanel) {
+              e.currentTarget.style.opacity = '0.8';
+              e.currentTarget.style.color = 'var(--c-text-md)';
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (!isPreviewPanel) {
+              e.currentTarget.style.opacity = '0.5';
+              e.currentTarget.style.color = 'var(--c-text-off)';
+            }
+          }}
+        >
+          <IconSidebarToggle size={16} />
+        </button>
       </div>
       {hasWorkspaceContext && (
         <div
