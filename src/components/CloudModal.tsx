@@ -1725,7 +1725,7 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
   return (
     <div
       data-native-clipboard="true"
-      className="fixed inset-0 z-[260] flex items-center justify-center bg-black/55 backdrop-blur-sm"
+      className="fixed inset-0 z-[10002] flex items-center justify-center bg-black/55 backdrop-blur-sm"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
