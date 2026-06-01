@@ -3283,20 +3283,20 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
                 bottom: 'calc(100% + 8px)',
                 zIndex: 9200,
                 overflow: 'hidden',
-                border: '1px solid var(--c-border)',
+                border: `1px solid ${DARK_MENU_COLORS.border}`,
                 borderRadius: 14,
-                background: 'var(--c-panel)',
-                boxShadow: '0 18px 46px rgba(25,18,14,0.22)',
+                background: DARK_MENU_COLORS.surface,
+                boxShadow: DARK_MENU_COLORS.shadow,
                 fontFamily: FONTS.ui,
               }}
               onMouseDown={(e) => e.stopPropagation()}
             >
-              <div style={{ padding: '12px 12px 10px', borderBottom: '1px solid var(--c-border)' }}>
-                <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12, fontWeight: 750, color: 'var(--c-text-hi)' }}>
+              <div style={{ padding: '12px 12px 10px', borderBottom: `1px solid ${DARK_MENU_COLORS.border}` }}>
+                <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12, fontWeight: 750, color: DARK_MENU_COLORS.textHi }}>
                   {accountLabel}
                 </div>
                 {user?.email && user.email !== accountLabel && (
-                  <div style={{ marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 10.5, color: 'var(--c-text-lo)' }}>
+                  <div style={{ marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 10.5, color: DARK_MENU_COLORS.textMuted }}>
                     {user.email}
                   </div>
                 )}
@@ -3308,12 +3308,12 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
                     setAccountMenuOpen(false);
                     openCloudModal();
                   }}
-                  style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '8px 9px', border: 'none', borderRadius: 8, background: 'transparent', color: 'var(--c-text-md)', cursor: 'pointer', fontFamily: FONTS.ui, fontSize: 12, textAlign: 'left' }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--c-hover)'; e.currentTarget.style.color = 'var(--c-text-hi)'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--c-text-md)'; }}
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '8px 9px', border: 'none', borderRadius: 8, background: 'transparent', color: DARK_MENU_COLORS.text, cursor: 'pointer', fontFamily: FONTS.ui, fontSize: 12, textAlign: 'left' }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = DARK_MENU_COLORS.hover; e.currentTarget.style.color = DARK_MENU_COLORS.textHi; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = DARK_MENU_COLORS.text; }}
                 >
                   <span>Workspace Sync...</span>
-                  <span style={{ color: authConfigured ? 'var(--c-line)' : 'var(--c-text-off)', fontSize: 10.5 }}>
+                  <span style={{ color: authConfigured ? 'var(--c-line)' : DARK_MENU_COLORS.textMuted, fontSize: 10.5 }}>
                     {authConfigured ? accountStatus : 'Off'}
                   </span>
                 </button>
@@ -3323,9 +3323,9 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
                     toggleTheme();
                     setAccountMenuOpen(false);
                   }}
-                  style={{ width: '100%', display: 'flex', alignItems: 'center', padding: '8px 9px', border: 'none', borderRadius: 8, background: 'transparent', color: 'var(--c-text-md)', cursor: 'pointer', fontFamily: FONTS.ui, fontSize: 12, textAlign: 'left' }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--c-hover)'; e.currentTarget.style.color = 'var(--c-text-hi)'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--c-text-md)'; }}
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', padding: '8px 9px', border: 'none', borderRadius: 8, background: 'transparent', color: DARK_MENU_COLORS.text, cursor: 'pointer', fontFamily: FONTS.ui, fontSize: 12, textAlign: 'left' }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = DARK_MENU_COLORS.hover; e.currentTarget.style.color = DARK_MENU_COLORS.textHi; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = DARK_MENU_COLORS.text; }}
                 >
                   {theme === 'light' ? 'Dark mode' : 'Light mode'}
                 </button>
@@ -3335,21 +3335,21 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
                     setNoteAutosaveEnabled(!noteAutosaveEnabled);
                     setAccountMenuOpen(false);
                   }}
-                  style={{ width: '100%', display: 'flex', alignItems: 'center', padding: '8px 9px', border: 'none', borderRadius: 8, background: 'transparent', color: 'var(--c-text-md)', cursor: 'pointer', fontFamily: FONTS.ui, fontSize: 12, textAlign: 'left' }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--c-hover)'; e.currentTarget.style.color = 'var(--c-text-hi)'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--c-text-md)'; }}
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', padding: '8px 9px', border: 'none', borderRadius: 8, background: 'transparent', color: DARK_MENU_COLORS.text, cursor: 'pointer', fontFamily: FONTS.ui, fontSize: 12, textAlign: 'left' }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = DARK_MENU_COLORS.hover; e.currentTarget.style.color = DARK_MENU_COLORS.textHi; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = DARK_MENU_COLORS.text; }}
                 >
                   {noteAutosaveEnabled ? 'Disable note autosave' : 'Enable note autosave'}
                 </button>
                 {user && (
                   <>
-                    <div style={{ height: 1, margin: '6px 4px', background: 'var(--c-border)' }} />
+                    <div style={{ height: 1, margin: '6px 4px', background: DARK_MENU_COLORS.border }} />
                     <button
                       type="button"
                       onClick={() => { void handleAccountSignOut(); }}
-                      style={{ width: '100%', display: 'flex', alignItems: 'center', padding: '8px 9px', border: 'none', borderRadius: 8, background: 'transparent', color: 'var(--c-text-md)', cursor: 'pointer', fontFamily: FONTS.ui, fontSize: 12, textAlign: 'left' }}
-                      onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--c-hover)'; e.currentTarget.style.color = 'var(--c-text-hi)'; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--c-text-md)'; }}
+                      style={{ width: '100%', display: 'flex', alignItems: 'center', padding: '8px 9px', border: 'none', borderRadius: 8, background: 'transparent', color: DARK_MENU_COLORS.text, cursor: 'pointer', fontFamily: FONTS.ui, fontSize: 12, textAlign: 'left' }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = DARK_MENU_COLORS.hover; e.currentTarget.style.color = DARK_MENU_COLORS.textHi; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = DARK_MENU_COLORS.text; }}
                     >
                       Sign out
                     </button>
