@@ -504,12 +504,12 @@ function NoteShortcutRow({
         display: 'flex',
         alignItems: 'center',
         gap: 6,
-        padding: '4px 8px',
+        padding: '5px 9px',
         marginTop: 2,
         border: 'none',
-        borderRadius: 5,
-        background: active ? 'rgba(184,119,80,0.14)' : hovered ? 'rgba(184,119,80,0.08)' : 'transparent',
-        outline: active ? '1px solid rgba(184,119,80,0.26)' : hovered ? '1px solid rgba(184,119,80,0.16)' : 'none',
+        borderRadius: 6,
+        background: active ? 'rgba(184,119,80,0.16)' : hovered ? 'rgba(184,119,80,0.09)' : 'transparent',
+        outline: active ? '1px solid rgba(184,119,80,0.32)' : hovered ? '1px solid rgba(184,119,80,0.18)' : 'none',
         outlineOffset: -1,
         cursor: 'pointer',
         textAlign: 'left',
@@ -1482,19 +1482,19 @@ function PageGroup({
                     marginTop: 2,
                     padding: '4px 8px',
 	                    background: isDragged
-                        ? 'rgba(184,119,80,0.08)'
+                        ? 'rgba(184,119,80,0.09)'
                         : (isFocused || isSelected)
-                          ? 'rgba(184,119,80,0.14)'
+                          ? 'rgba(184,119,80,0.16)'
                           : isHovered
-                            ? 'rgba(184,119,80,0.08)'
+                            ? 'rgba(184,119,80,0.09)'
                             : 'none',
 	                    border: 'none',
 	                    outline: isDropTarget
-	                      ? '1px solid rgba(184,119,80,0.42)'
+	                      ? '1px solid rgba(184,119,80,0.48)'
 	                      : (isFocused || isSelected)
-	                        ? '1px solid rgba(184,119,80,0.26)'
+	                        ? '1px solid rgba(184,119,80,0.32)'
                           : isHovered
-                            ? '1px solid rgba(184,119,80,0.16)'
+                            ? '1px solid rgba(184,119,80,0.18)'
 	                        : 'none',
                     outlineOffset: -1,
                     borderRadius: 5,
@@ -2733,14 +2733,15 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
           display: 'flex',
           alignItems: 'center',
           gap: isPreviewPanel ? 6 : 8,
-          minHeight: 50,
-          padding: '9px 10px 8px',
+          minHeight: 52,
+          padding: '10px 12px 9px',
           flexShrink: 0,
           borderBottom: '1px solid var(--c-border)',
+          background: 'color-mix(in srgb, var(--c-sidebar) 96%, var(--c-canvas))',
         }}
       >
         {/* Main app menu button */}
-        <div style={{ position: 'relative', minWidth: 0, display: 'flex', alignItems: 'center', gap: 8, flex: isPreviewPanel ? 0 : 1 }}>
+        <div style={{ position: 'relative', minWidth: 0, display: 'flex', alignItems: 'center', gap: 6, flex: isPreviewPanel ? 0 : 1 }}>
           <button
             type="button"
             aria-label="App menu"
@@ -2758,7 +2759,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
               padding: 0,
               border: commandMenuOpen ? `1.5px solid ${DARK_MENU_COLORS.border}` : '1px solid var(--c-border)',
               borderRadius: 9,
-              background: commandMenuOpen ? DARK_MENU_COLORS.surface : 'color-mix(in srgb, var(--c-canvas) 48%, transparent)',
+              background: commandMenuOpen ? DARK_MENU_COLORS.surface : 'color-mix(in srgb, var(--c-canvas) 52%, transparent)',
               cursor: 'pointer',
               color: commandMenuOpen ? DARK_MENU_COLORS.textHi : 'var(--c-text-hi)',
               boxShadow: commandMenuOpen ? '0 10px 24px rgba(0,0,0,0.22)' : 'none',
@@ -2774,10 +2775,10 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',
-                color: 'var(--c-text-md)',
+                color: 'var(--c-text-hi)',
                 fontFamily: FONTS.ui,
                 fontSize: 11.5,
-                fontWeight: 550,
+                fontWeight: 600,
                 textAlign: 'left',
               }}
             >
@@ -2903,7 +2904,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
       {hasWorkspaceContext && (
         <div
           style={{
-            padding: '9px 10px 10px',
+            padding: '10px 12px 11px',
             borderBottom: '1px solid var(--c-border)',
             flexShrink: 0,
           }}
@@ -2914,11 +2915,11 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
               alignItems: 'center',
               gap: 6,
               minWidth: 0,
-              height: 28,
-              padding: '0 8px',
-              border: `1px solid ${searchOpen ? 'rgba(184,119,80,0.28)' : 'transparent'}`,
-              borderRadius: 7,
-              background: searchOpen ? 'var(--c-canvas)' : 'color-mix(in srgb, var(--c-hover) 52%, transparent)',
+              height: 30,
+              padding: '0 9px',
+              border: `1px solid ${searchOpen ? 'rgba(184,119,80,0.32)' : 'transparent'}`,
+              borderRadius: 8,
+              background: searchOpen ? 'var(--c-canvas)' : 'color-mix(in srgb, var(--c-hover) 58%, transparent)',
               transition: 'border-color 120ms, background 120ms',
             }}
             onMouseDown={() => {
