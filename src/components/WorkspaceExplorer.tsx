@@ -2557,10 +2557,6 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
     showNotePreview(page, doc, anchorY);
   }, [activePageId, pages, showNotePreview]);
 
-  const closeCommandMenu = useCallback(() => {
-    setCommandMenuOpen(false);
-  }, []);
-
   const cloudTree = useMemo(() => buildVirtualCloudTree({
     pages,
     documents,
@@ -2759,19 +2755,16 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
           borderBottom: '1px solid var(--c-border)',
         }}
       >
-        <div ref={commandMenuRef} style={{ position: 'relative', minWidth: 0, height: 32 }}>
+        <div style={{ position: 'relative', minWidth: 0 }}>
           <button
             type="button"
             aria-label="Workspace menu"
             title="Workspace menu"
             onClick={(e) => {
-              const rect = e.currentTarget.getBoundingClientRect();
-              setCommandMenuAnchor({ left: rect.left, top: rect.bottom + 8 });
               setCommandMenuOpen((open) => !open);
             }}
             className="flex items-center justify-center transition-colors"
             style={{
-              width: '100%',
               height: 32,
               display: 'grid',
               gridTemplateColumns: '23px minmax(0, 1fr) 12px',
@@ -2809,11 +2802,10 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
             <div
               style={{
                 position: 'fixed',
-                top: commandMenuAnchor?.top ?? 64,
-                left: commandMenuAnchor?.left ?? 10,
+                top: 50,
+                left: 10,
                 zIndex: 9300,
-                width: 224,
-                maxWidth: 'calc(100vw - 24px)',
+                width: 200,
                 padding: '6px 0',
                 border: `1px solid ${DARK_MENU_COLORS.border}`,
                 borderRadius: 10,
@@ -2821,12 +2813,13 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
                 boxShadow: DARK_MENU_COLORS.shadow,
                 overflow: 'hidden',
               }}
+              onMouseDown={(e) => e.stopPropagation()}
             >
               <CommandMenuItem
                 icon={<CommandIcon kind="folder" />}
                 label="Switch workspace..."
                 onClick={() => {
-                  closeCommandMenu();
+                  setCommandMenuOpen(false);
                   void handleOpenFolder();
                 }}
               />
@@ -2835,7 +2828,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
                 icon={<CommandIcon kind="settings" />}
                 label="Preferences..."
                 onClick={() => {
-                  closeCommandMenu();
+                  setCommandMenuOpen(false);
                   setAccountMenuOpen(true);
                 }}
               />
@@ -2843,7 +2836,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
                 icon={<CommandIcon kind="help" />}
                 label="Help & about"
                 onClick={() => {
-                  closeCommandMenu();
+                  setCommandMenuOpen(false);
                   window.dispatchEvent(new CustomEvent('devboard:open-get-started'));
                 }}
               />
