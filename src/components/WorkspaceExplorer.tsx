@@ -2805,7 +2805,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
                 top: 50,
                 left: 10,
                 zIndex: 9300,
-                width: 200,
+                width: 220,
                 padding: '6px 0',
                 border: `1px solid ${DARK_MENU_COLORS.border}`,
                 borderRadius: 10,
@@ -2815,12 +2815,44 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
               }}
               onMouseDown={(e) => e.stopPropagation()}
             >
+              <div style={{ padding: '4px 12px 6px', fontFamily: FONTS.ui, fontSize: 9, fontWeight: 650, letterSpacing: '0.02em', color: DARK_MENU_COLORS.textMuted, textTransform: 'uppercase' }}>
+                Menu
+              </div>
               <CommandMenuItem
-                icon={<CommandIcon kind="folder" />}
-                label="Switch workspace..."
+                icon={<CommandIcon kind="file" />}
+                label="File"
                 onClick={() => {
                   setCommandMenuOpen(false);
-                  void handleOpenFolder();
+                }}
+              />
+              <CommandMenuItem
+                icon={<CommandIcon kind="edit" />}
+                label="Edit"
+                onClick={() => {
+                  setCommandMenuOpen(false);
+                }}
+              />
+              <CommandMenuItem
+                icon={<CommandIcon kind="view" />}
+                label="View"
+                onClick={() => {
+                  setCommandMenuOpen(false);
+                }}
+              />
+              <CommandMenuItem
+                icon={<CommandIcon kind="export" />}
+                label="Export"
+                onClick={() => {
+                  setCommandMenuOpen(false);
+                }}
+              />
+              <CommandMenuDivider />
+              <CommandMenuItem
+                icon={<CommandIcon kind="download" />}
+                label="Download desktop app"
+                onClick={() => {
+                  setCommandMenuOpen(false);
+                  window.open('https://devboard.app/download', '_blank');
                 }}
               />
               <CommandMenuDivider />
