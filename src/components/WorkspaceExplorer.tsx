@@ -3896,5 +3896,6 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
         );
       })()}
     </div>
+    </>
   );
 }
