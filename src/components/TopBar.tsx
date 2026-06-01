@@ -458,57 +458,57 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
   const storageStatusIconOnly = workspaceOffset > 400;
   return (
     <>
-    {confirmDialog && (
-      <ConfirmDialog
-        message={confirmDialog.message}
-        onConfirm={confirmDialog.onConfirm}
-        onCancel={() => setConfirmDialog(null)}
-        confirmLabel={confirmDialog.confirmLabel}
-        extraActions={confirmDialog.extraActions}
-      />
-    )}
-    <CloudModal open={cloudOpen} onClose={() => setCloudOpen(false)} />
-    {templatesModalOpen && (
-      <div
-        className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50"
-        onMouseDown={() => setTemplatesModalOpen(false)}
-      >
+      {confirmDialog && (
+        <ConfirmDialog
+          message={confirmDialog.message}
+          onConfirm={confirmDialog.onConfirm}
+          onCancel={() => setConfirmDialog(null)}
+          confirmLabel={confirmDialog.confirmLabel}
+          extraActions={confirmDialog.extraActions}
+        />
+      )}
+      <CloudModal open={cloudOpen} onClose={() => setCloudOpen(false)} />
+      {templatesModalOpen && (
         <div
-          className="relative w-[420px] max-h-[70vh] flex flex-col rounded-2xl border border-[var(--c-border)] bg-[var(--c-panel)] shadow-2xl overflow-hidden font-sans"
-          onMouseDown={(e) => e.stopPropagation()}
+          className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50"
+          onMouseDown={() => setTemplatesModalOpen(false)}
         >
-          {/* Header */}
-          <div className="flex items-center justify-between px-5 py-3.5 border-b border-[var(--c-border)] shrink-0">
-            <span className="font-sans text-[13px] font-semibold text-[var(--c-text-hi)] tracking-wide">Starter Workspaces</span>
-            <button
-              onClick={() => setTemplatesModalOpen(false)}
-              className="w-6 h-6 flex items-center justify-center rounded text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
-            >
-              <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
-                <path d="M1.5 1.5l8 8M9.5 1.5l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-              </svg>
-            </button>
-          </div>
-          {/* Scrollable list */}
-          <div className="overflow-y-auto py-2">
-            {TEMPLATES.map((t) => (
+          <div
+            className="relative w-[420px] max-h-[70vh] flex flex-col rounded-2xl border border-[var(--c-border)] bg-[var(--c-panel)] shadow-2xl overflow-hidden font-sans"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-[var(--c-border)] shrink-0">
+              <span className="font-sans text-[13px] font-semibold text-[var(--c-text-hi)] tracking-wide">Starter Workspaces</span>
               <button
-                key={t.id}
-                onClick={() => { setTemplatesModalOpen(false); handleLoadTemplate(t.id); }}
-                className="w-full flex items-start gap-3 px-5 py-3 text-left hover:bg-[var(--c-hover)] transition-colors group"
+                onClick={() => setTemplatesModalOpen(false)}
+                className="w-6 h-6 flex items-center justify-center rounded text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
               >
-                <span className="mt-0.5 shrink-0 text-[var(--c-line)]"><IconTemplate /></span>
-                <div className="min-w-0">
-                  <div className="font-sans text-[12px] text-[var(--c-text-hi)] group-hover:text-[var(--c-text-hi)]">{t.name}</div>
-                  <div className="font-sans text-[10px] text-[var(--c-text-lo)] mt-0.5 leading-snug">{t.description}</div>
-                </div>
+                <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+                  <path d="M1.5 1.5l8 8M9.5 1.5l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
               </button>
-            ))}
+            </div>
+            {/* Scrollable list */}
+            <div className="overflow-y-auto py-2">
+              {TEMPLATES.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => { setTemplatesModalOpen(false); handleLoadTemplate(t.id); }}
+                  className="w-full flex items-start gap-3 px-5 py-3 text-left hover:bg-[var(--c-hover)] transition-colors group"
+                >
+                  <span className="mt-0.5 shrink-0 text-[var(--c-line)]"><IconTemplate /></span>
+                  <div className="min-w-0">
+                    <div className="font-sans text-[12px] text-[var(--c-text-hi)] group-hover:text-[var(--c-text-hi)]">{t.name}</div>
+                    <div className="font-sans text-[10px] text-[var(--c-text-lo)] mt-0.5 leading-snug">{t.description}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
-      </div>
-    )}
-    <div className="pointer-events-none absolute top-0 left-0 right-0 z-[190] h-11 font-sans overflow-visible">
+      )}
+      <div className="pointer-events-none absolute top-0 left-0 right-0 z-[190] h-11 font-sans overflow-visible">
       {/* Left: Logo + dropdown */}
       {!explorerOpen && (
       <div className="pointer-events-auto absolute left-2 sm:left-4 top-1/2 flex max-w-[calc(50vw-132px)] -translate-y-1/2 items-center gap-1.5 sm:gap-2.5 min-w-0 overflow-visible">
