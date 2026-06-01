@@ -2730,16 +2730,25 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
       <div
         style={{
           display: 'flex',
-          alignItems: 'center',
-          gap: isPreviewPanel ? 6 : 8,
-          minHeight: 50,
-          padding: '9px 10px 8px',
+          flexDirection: 'column',
+          gap: 0,
+          minHeight: 'auto',
+          padding: 0,
           flexShrink: 0,
           borderBottom: '1px solid var(--c-border)',
         }}
       >
-        {/* Main app menu button */}
-        <div style={{ position: 'relative', minWidth: 0, display: 'flex', alignItems: 'center', gap: 8, flex: isPreviewPanel ? 0 : 1 }}>
+        {/* Top row: menu button + workspace title */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            minHeight: 50,
+            padding: '9px 10px 8px',
+            borderBottom: '1px solid var(--c-border)',
+          }}
+        >
           <button
             type="button"
             aria-label="App menu"
@@ -2778,6 +2787,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
                 fontSize: 11.5,
                 fontWeight: 550,
                 textAlign: 'left',
+                flex: 1,
               }}
             >
               {workspaceDisplayName}
@@ -2867,37 +2877,47 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
           )}
         </div>
 
-        {/* Sidebar expand/collapse button - always visible but secondary when expanded */}
-        <button
-          onClick={onCollapse}
-          title={isPreviewPanel ? 'Expand sidebar' : 'Collapse sidebar'}
-          className="flex items-center justify-center transition-all"
+        {/* Bottom row: sidebar toggle button */}
+        <div
           style={{
-            width: 32,
-            height: 32,
-            border: isPreviewPanel ? '1px solid var(--c-border)' : '1px solid transparent',
-            borderRadius: 9,
-            background: isPreviewPanel ? 'color-mix(in srgb, var(--c-canvas) 42%, transparent)' : 'transparent',
-            color: isPreviewPanel ? 'var(--c-text-md)' : 'var(--c-text-off)',
-            cursor: 'pointer',
-            opacity: isPreviewPanel ? 1 : 0.4,
-            flexShrink: 0,
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.opacity = isPreviewPanel ? '1' : '0.7';
-            if (!isPreviewPanel) {
-              e.currentTarget.style.color = 'var(--c-text-md)';
-            }
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.opacity = isPreviewPanel ? '1' : '0.4';
-            if (!isPreviewPanel) {
-              e.currentTarget.style.color = 'var(--c-text-off)';
-            }
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+            minHeight: 40,
+            padding: '6px 10px',
           }}
         >
-          <IconSidebarToggle size={16} />
-        </button>
+          <button
+            onClick={onCollapse}
+            title={isPreviewPanel ? 'Expand sidebar' : 'Collapse sidebar'}
+            className="flex items-center justify-center transition-all"
+            style={{
+              width: 32,
+              height: 32,
+              border: isPreviewPanel ? '1px solid var(--c-border)' : '1px solid transparent',
+              borderRadius: 9,
+              background: isPreviewPanel ? 'color-mix(in srgb, var(--c-canvas) 42%, transparent)' : 'transparent',
+              color: isPreviewPanel ? 'var(--c-text-md)' : 'var(--c-text-off)',
+              cursor: 'pointer',
+              opacity: isPreviewPanel ? 1 : 0.4,
+              flexShrink: 0,
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.opacity = isPreviewPanel ? '1' : '0.7';
+              if (!isPreviewPanel) {
+                e.currentTarget.style.color = 'var(--c-text-md)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.opacity = isPreviewPanel ? '1' : '0.4';
+              if (!isPreviewPanel) {
+                e.currentTarget.style.color = 'var(--c-text-off)';
+              }
+            }}
+          >
+            <IconSidebarToggle size={16} />
+          </button>
+        </div>
       </div>
       {hasWorkspaceContext && (
         <div
