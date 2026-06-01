@@ -3311,7 +3311,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
                 }}
                 onMouseDown={(e) => e.stopPropagation()}
               >
-              <div style={{ padding: '12px 12px 10px', borderBottom: `1px solid ${DARK_MENU_COLORS.border}` }}>
+                <div style={{ padding: '12px 12px 10px', borderBottom: `1px solid ${DARK_MENU_COLORS.border}` }}>
                 <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12, fontWeight: 750, color: DARK_MENU_COLORS.textHi }}>
                   {accountLabel}
                 </div>
@@ -3375,6 +3375,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
                     </button>
                   </>
                 )}
+                </div>
               </div>
             );
           })()}
