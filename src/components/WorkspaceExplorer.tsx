@@ -2726,20 +2726,20 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
       tabIndex={0}
       onKeyDown={handleKeyDown}
     >
-      {/* App menu */}
+      {/* App menu + sidebar toggle header */}
       <div
         style={{
-          display: 'grid',
-          gridTemplateColumns: 'minmax(0, 1fr) 32px',
+          display: 'flex',
           alignItems: 'center',
-          gap: 8,
+          gap: isPreviewPanel ? 6 : 8,
           minHeight: 50,
           padding: '9px 10px 8px',
           flexShrink: 0,
           borderBottom: '1px solid var(--c-border)',
         }}
       >
-        <div style={{ position: 'relative', minWidth: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+        {/* Main app menu button */}
+        <div style={{ position: 'relative', minWidth: 0, display: 'flex', alignItems: 'center', gap: 8, flex: isPreviewPanel ? 0 : 1 }}>
           <button
             type="button"
             aria-label="App menu"
@@ -2766,22 +2766,23 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
           >
             <MenuIcon />
           </button>
-          <span
-            style={{
-              minWidth: 0,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-              color: 'var(--c-text-md)',
-              fontFamily: FONTS.ui,
-              fontSize: 11.5,
-              fontWeight: 550,
-              textAlign: 'left',
-              display: isPreviewPanel ? 'none' : 'block',
-            }}
-          >
-            {workspaceDisplayName}
-          </span>
+          {!isPreviewPanel && (
+            <span
+              style={{
+                minWidth: 0,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                color: 'var(--c-text-md)',
+                fontFamily: FONTS.ui,
+                fontSize: 11.5,
+                fontWeight: 550,
+                textAlign: 'left',
+              }}
+            >
+              {workspaceDisplayName}
+            </span>
+          )}
           {commandMenuOpen && (
             <div
               style={{
@@ -2866,29 +2867,31 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
           )}
         </div>
 
+        {/* Sidebar expand/collapse button - always visible but secondary when expanded */}
         <button
           onClick={onCollapse}
           title={isPreviewPanel ? 'Expand sidebar' : 'Collapse sidebar'}
-          className="flex items-center justify-center transition-colors"
+          className="flex items-center justify-center transition-all"
           style={{
             width: 32,
             height: 32,
-            border: isPreviewPanel ? '1px solid var(--c-border)' : 'none',
+            border: isPreviewPanel ? '1px solid var(--c-border)' : '1px solid transparent',
             borderRadius: 9,
             background: isPreviewPanel ? 'color-mix(in srgb, var(--c-canvas) 42%, transparent)' : 'transparent',
             color: isPreviewPanel ? 'var(--c-text-md)' : 'var(--c-text-off)',
             cursor: 'pointer',
-            opacity: isPreviewPanel ? 1 : 0.5,
+            opacity: isPreviewPanel ? 1 : 0.4,
+            flexShrink: 0,
           }}
           onMouseEnter={(e) => {
+            e.currentTarget.style.opacity = isPreviewPanel ? '1' : '0.7';
             if (!isPreviewPanel) {
-              e.currentTarget.style.opacity = '0.8';
               e.currentTarget.style.color = 'var(--c-text-md)';
             }
           }}
           onMouseLeave={(e) => {
+            e.currentTarget.style.opacity = isPreviewPanel ? '1' : '0.4';
             if (!isPreviewPanel) {
-              e.currentTarget.style.opacity = '0.5';
               e.currentTarget.style.color = 'var(--c-text-off)';
             }
           }}
