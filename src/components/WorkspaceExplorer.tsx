@@ -94,30 +94,14 @@ function SectionChevron({ open }: { open: boolean }) {
   );
 }
 
-function DevBoardMark() {
+function MenuIcon() {
   return (
-    <img
-      src={devboardIconUrl}
-      alt=""
-      aria-hidden="true"
-      draggable={false}
-      style={{
-        width: 23,
-        height: 23,
-        borderRadius: 6,
-        display: 'block',
-      }}
-    />
-  );
-}
-
-function CommandChevronDown() {
-  return (
-    <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
-      <path d="M2.4 3.8 5 6.4l2.6-2.6" stroke="currentColor" strokeWidth="1.45" strokeLinecap="round" strokeLinejoin="round" />
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
     </svg>
   );
 }
+
 
 function CommandIcon({ kind }: { kind: 'search' | 'folder' | 'file' | 'edit' | 'view' | 'export' | 'settings' | 'download' | 'help' }) {
   if (kind === 'search') {
@@ -2742,7 +2726,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
       tabIndex={0}
       onKeyDown={handleKeyDown}
     >
-      {/* Workspace selector */}
+      {/* App menu */}
       <div
         style={{
           display: 'grid',
@@ -2755,49 +2739,48 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
           borderBottom: '1px solid var(--c-border)',
         }}
       >
-        <div style={{ position: 'relative', minWidth: 0 }}>
+        <div style={{ position: 'relative', minWidth: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
           <button
             type="button"
-            aria-label="Workspace menu"
-            title="Workspace menu"
+            aria-label="App menu"
+            title="App menu"
             onClick={(e) => {
               setCommandMenuOpen((open) => !open);
             }}
             className="flex items-center justify-center transition-colors"
             style={{
+              width: 32,
               height: 32,
-              display: 'grid',
-              gridTemplateColumns: '23px minmax(0, 1fr) 12px',
+              display: 'flex',
               alignItems: 'center',
-              gap: 8,
-              padding: '0 9px',
+              justifyContent: 'center',
+              padding: 0,
               border: commandMenuOpen ? `1.5px solid ${DARK_MENU_COLORS.border}` : '1px solid var(--c-border)',
               borderRadius: 9,
               background: commandMenuOpen ? DARK_MENU_COLORS.surface : 'color-mix(in srgb, var(--c-canvas) 48%, transparent)',
               cursor: 'pointer',
+              color: commandMenuOpen ? DARK_MENU_COLORS.textHi : 'var(--c-text-hi)',
               boxShadow: commandMenuOpen ? '0 10px 24px rgba(0,0,0,0.22)' : 'none',
+              flexShrink: 0,
             }}
           >
-            <DevBoardMark />
-            <span
-              style={{
-                minWidth: 0,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-                color: commandMenuOpen ? DARK_MENU_COLORS.textHi : 'var(--c-text-hi)',
-                fontFamily: FONTS.ui,
-                fontSize: 12.5,
-                fontWeight: 650,
-                textAlign: 'left',
-              }}
-            >
-              {workspaceDisplayName}
-            </span>
-            <span style={{ display: 'inline-flex', color: commandMenuOpen ? DARK_MENU_COLORS.textMuted : 'var(--c-text-md)' }}>
-              <CommandChevronDown />
-            </span>
+            <MenuIcon />
           </button>
+          <span
+            style={{
+              minWidth: 0,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              color: 'var(--c-text-md)',
+              fontFamily: FONTS.ui,
+              fontSize: 11.5,
+              fontWeight: 550,
+              textAlign: 'left',
+            }}
+          >
+            {workspaceDisplayName}
+          </span>
           {commandMenuOpen && (
             <div
               style={{
@@ -2815,9 +2798,6 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
               }}
               onMouseDown={(e) => e.stopPropagation()}
             >
-              <div style={{ padding: '4px 12px 6px', fontFamily: FONTS.ui, fontSize: 9, fontWeight: 650, letterSpacing: '0.02em', color: DARK_MENU_COLORS.textMuted, textTransform: 'uppercase' }}>
-                Menu
-              </div>
               <CommandMenuItem
                 icon={<CommandIcon kind="file" />}
                 label="File"
@@ -2870,6 +2850,15 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
                 onClick={() => {
                   setCommandMenuOpen(false);
                   window.dispatchEvent(new CustomEvent('devboard:open-get-started'));
+                }}
+              />
+              <CommandMenuDivider />
+              <CommandMenuItem
+                icon={<CommandIcon kind="folder" />}
+                label="Switch workspace..."
+                onClick={() => {
+                  setCommandMenuOpen(false);
+                  void handleOpenFolder();
                 }}
               />
             </div>
