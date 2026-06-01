@@ -13,6 +13,7 @@ import exportSound from '../assets/get1.mp3';
 import { IconDoc, IconFreeformPage, IconSaveFile, IconStackPage } from './icons';
 import { announceLocalSave } from '../utils/saveStatus';
 import { applyWorkspaceSyncFromOpenResult } from '../utils/applyWorkspaceSync';
+import { DARK_MENU_CLASSES } from './darkMenuTheme';
 
 const playExportSound = () => new Audio(exportSound).play().catch(() => {});
 
@@ -36,13 +37,6 @@ function IconChevronDown() {
   return (
     <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
       <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-function IconGitHub() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-      <path d="M8 1.2a6.8 6.8 0 0 0-2.15 13.25c.34.06.47-.15.47-.33v-1.18c-1.9.41-2.3-.8-2.3-.8-.3-.78-.74-.99-.74-.99-.6-.41.05-.4.05-.4.67.05 1.03.69 1.03.69.6 1.02 1.57.72 1.95.55.06-.43.24-.72.43-.89-1.52-.17-3.13-.76-3.13-3.38 0-.75.27-1.36.7-1.84-.07-.17-.3-.87.07-1.82 0 0 .58-.19 1.9.7a6.6 6.6 0 0 1 3.46 0c1.32-.89 1.89-.7 1.89-.7.38.95.15 1.65.08 1.82.44.48.7 1.09.7 1.84 0 2.63-1.61 3.2-3.15 3.37.25.21.46.62.46 1.26v1.87c0 .18.12.39.48.33A6.8 6.8 0 0 0 8 1.2Z" />
     </svg>
   );
 }
@@ -95,23 +89,26 @@ function parseCSV(text: string): string[][] {
 
 type WorkspaceStorageTone = 'neutral' | 'local' | 'cloud' | 'success' | 'warning';
 
-function storageToneClass(tone: WorkspaceStorageTone): string {
-  if (tone === 'success') return 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300';
-  if (tone === 'warning') return 'border-amber-500/28 bg-amber-500/12 text-amber-700 dark:text-amber-300';
-  if (tone === 'cloud') return 'border-sky-500/24 bg-sky-500/10 text-sky-700 dark:text-sky-300';
+function storageToneClass(tone: WorkspaceStorageTone, theme: 'dark' | 'light'): string {
+  if (tone === 'success') return `border-emerald-500/25 bg-emerald-500/10 ${theme === 'light' ? 'text-emerald-700' : 'text-emerald-300'}`;
+  if (tone === 'warning') return `border-amber-500/28 bg-amber-500/12 ${theme === 'light' ? 'text-amber-700' : 'text-amber-300'}`;
+  if (tone === 'cloud') {
+    return theme === 'light'
+      ? 'border-[var(--c-border)] bg-[var(--c-panel)]/85 text-[var(--c-text-hi)]'
+      : 'border-sky-500/24 bg-sky-500/10 text-sky-300';
+  }
   if (tone === 'local') return 'border-[var(--c-border)] bg-[var(--c-panel)]/75 text-[var(--c-text-md)]';
   return 'border-[var(--c-border)] bg-[var(--c-panel)]/65 text-[var(--c-text-lo)]';
 }
 
 export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleTimer, explorerOpen, onToggleExplorer, onWorkspaceOpened, jiraOpen, onToggleJira, onToggleSearch, workspaceOffset = 0, templatesOpen, onTemplatesOpenChange }: TopBarProps) {
   const { boardTitle, exportData, loadBoard, setActiveTool, setActiveShapeKind, toggleTheme, theme, addNode, pages, activePageId, setPageLayoutMode, workspaceName, setWorkspaceName, nodes, appMode, noteAutosaveEnabled, setNoteAutosaveEnabled, cloudBoardId, cloudBoardTitle, cloudSyncedAt, lastLocalSavedAt, lastLocalSaveTarget } = useBoardStore();
-  const { isConfigured, isLoading: authLoading, user, signInWithGitHub, signOut } = useAuth();
+  const { user } = useAuth();
   const activePage = pages.find((p) => p.id === activePageId);
   const isDocumentContext = appMode === 'document';
   const fileInputRef = useRef<HTMLInputElement>(null);
   const csvInputRef = useRef<HTMLInputElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [activeSubMenu, setActiveSubMenu] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const [confirmDialog, setConfirmDialog] = useState<{
     message: string;
@@ -134,7 +131,7 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
   useEffect(() => {
     if (!menuOpen) return;
     const handler = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) { setMenuOpen(false); setActiveSubMenu(null); }
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
@@ -410,25 +407,6 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
     fn();
   };
 
-  const handleGitHubSignIn = async () => {
-    setCloudOpen(true);
-  };
-
-  const handleSignOut = async () => {
-    try {
-      await signOut();
-      toast('Signed out.');
-    } catch (err) {
-      console.warn('Sign-out failed', err);
-      toast('Could not sign out right now.');
-    }
-  };
-
-  const accountLabel = user?.user_metadata?.user_name
-    ?? user?.user_metadata?.preferred_username
-    ?? user?.user_metadata?.name
-    ?? user?.email
-    ?? 'Account';
   const isLinkedSyncSignedOut = !user && !!cloudBoardId;
   const hasUnsyncedSyncChanges = !!user && !!cloudBoardId && !!lastLocalSavedAt && !!cloudSyncedAt && lastLocalSavedAt > cloudSyncedAt + 1000;
   const isCloudOnlyWorkspace = !!cloudBoardId && !workspaceFolderLabel;
@@ -477,7 +455,6 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
               title: 'No local workspace, local board file, or cloud workspace is attached yet.',
               tone: 'neutral',
             };
-  const syncBadgeLabel = storageStatus.label;
   const storageStatusIconOnly = workspaceOffset > 400;
   return (
     <>
@@ -548,173 +525,30 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
                 : 'text-[var(--c-line)] hover:opacity-80 hover:bg-[var(--c-hover)]',
             ].join(' ')}
           >
-            <span className="font-sans text-[10px] font-semibold tracking-wider uppercase">DevBoard</span>
+            <span className="font-sans text-[11px] font-semibold truncate max-w-[132px]">
+              {(workspaceFolderLabel ?? boardTitle.trim()) || 'DevBoard'}
+            </span>
             <IconChevronDown />
           </button>
 
           {/* Dropdown */}
           {menuOpen && (
-            <ActiveSubMenuCtx.Provider value={{ activeId: activeSubMenu, setActiveId: setActiveSubMenu as (id: string | null | ((prev: string | null) => string | null)) => void }}>
-            <div className="absolute top-full left-0 mt-1.5 w-52 rounded-xl border border-[var(--c-border)] bg-[var(--c-panel)] shadow-2xl py-1.5 z-[220]">
-
-              <MenuItemSub label="File" icon={<IconJson />}>
-                <MenuItemSub label="New" icon={<IconNewBoard />}>
-                  <MenuItem onClick={() => menuAction(handleNewBoard)} icon={<IconNewBoard />}>Board</MenuItem>
-                  <MenuItem onClick={() => menuAction(onNewNote)} icon={<IconDoc />} badge="⌘N">Note</MenuItem>
-                  {IS_TAURI && (
-                    <MenuItem onClick={handleCreateWorkspace} icon={<IconFolder />}>Workspace…</MenuItem>
-                  )}
-                </MenuItemSub>
-                <MenuItem onClick={handleOpenFolder} icon={<IconFolder />}>
-                  Open workspace…
-                  {workspaceName && <span className="ml-auto text-[9px] text-[var(--c-line)] font-sans truncate max-w-[80px]">{workspaceName}</span>}
-                </MenuItem>
-                <MenuItem onClick={() => menuAction(() => fileInputRef.current?.click())} icon={<IconLoad />}>Open board file…</MenuItem>
-                <MenuDivider />
-                <MenuItem onClick={() => menuAction(handleSaveJSON)} icon={<IconJson />} badge="⌘S">Save workspace</MenuItem>
-                <MenuItem onClick={() => menuAction(handleSaveAsJSON)} icon={<IconJson />}>Save workspace as…</MenuItem>
-                <MenuDivider />
-                <MenuLabel>Starter Workspaces</MenuLabel>
-                {TEMPLATES.slice(0, 3).map((t) => (
-                  <MenuItem key={t.id} onClick={() => handleLoadTemplate(t.id)} icon={<IconTemplate />}>
-                    {t.name}
-                  </MenuItem>
-                ))}
-                <MenuItem
-                  onClick={() => { setMenuOpen(false); setTemplatesModalOpen(true); }}
-                  icon={<IconChevronRight />}
-                >
-                  View more
-                </MenuItem>
-              </MenuItemSub>
-
-              {!isDocumentContext && (
-                <>
-                  <MenuDivider />
-                  <MenuItemSub label="Insert" icon={<IconSticky />}>
-                    <MenuItem onClick={() => menuAction(() => setActiveTool('sticky'))} icon={<IconSticky />} badge="S">Sticky note</MenuItem>
-                    <MenuItem onClick={() => menuAction(() => setActiveTool('text'))}   icon={<IconText />}   badge="T">Text block</MenuItem>
-                    <MenuDivider />
-                    <MenuLabel>Shapes</MenuLabel>
-                    <MenuItem onClick={() => menuAction(() => { setActiveShapeKind('rect');     setActiveTool('shape'); })} icon={<IconShapeRect />}     badge="R">Rectangle</MenuItem>
-                    <MenuItem onClick={() => menuAction(() => { setActiveShapeKind('ellipse');  setActiveTool('shape'); })} icon={<IconShapeEllipse />}  badge="R">Ellipse</MenuItem>
-                    <MenuItem onClick={() => menuAction(() => { setActiveShapeKind('diamond');  setActiveTool('shape'); })} icon={<IconShapeDiamond />}  badge="R">Diamond</MenuItem>
-                    <MenuItem onClick={() => menuAction(() => { setActiveShapeKind('triangle'); setActiveTool('shape'); })} icon={<IconShapeTriangle />} badge="R">Triangle</MenuItem>
-                    <MenuDivider />
-                    <MenuLabel>Code</MenuLabel>
-                    <MenuItem onClick={() => menuAction(() => setActiveTool('code'))} icon={<IconCode />} badge="C">Code snippet</MenuItem>
-                    <MenuDivider />
-                    <MenuLabel>Table</MenuLabel>
-                    <MenuItem onClick={() => menuAction(() => setActiveTool('table'))} icon={<IconTableNew />} badge="G">Table (new)</MenuItem>
-                    <MenuItem onClick={() => { setMenuOpen(false); csvInputRef.current?.click(); }} icon={<IconCsv />}>Table from CSV</MenuItem>
-                    <MenuDivider />
-                    <MenuLabel>Image</MenuLabel>
-                    <MenuItem onClick={() => menuAction(() => setActiveTool('image'))} icon={<IconImageMenu />} badge="I">Place image</MenuItem>
-                  </MenuItemSub>
-                </>
-              )}
-              <MenuItemSub label="Tools" icon={<IconTools />}>
-                <MenuItem
-                  onClick={() => { setMenuOpen(false); onToggleSearch(); }}
-                  icon={<IconSearchMenu />}
-                  badge="⌘F"
-                >
-                  Find on board
-                </MenuItem>
-                <MenuItem
-                  onClick={() => { setMenuOpen(false); onToggleTimer(); }}
-                  icon={<IconTimerMenu />}
-                  checked={timerVisible}
-                >
-                  Timer
-                </MenuItem>
-                <MenuItem
-                  onClick={() => { setMenuOpen(false); onToggleExplorer(); }}
-                  icon={<IconFolder />}
-                  checked={explorerOpen}
-                >
-                  File explorer
-                </MenuItem>
-                <MenuItem
-                  onClick={() => { setMenuOpen(false); onToggleJira(); }}
-                  icon={<IconJiraMenu />}
-                  checked={jiraOpen}
-                >
-                  Jira
-                </MenuItem>
-              </MenuItemSub>
-
-              {isConfigured && (
-                <>
-                  <MenuDivider />
-                  <div className="md:hidden">
-                    <MenuLabel>Sync</MenuLabel>
-                    <MenuItem
-                      onClick={() => menuAction(handleGitHubSignIn)}
-                      icon={<IconGitHub />}
-                    >
-                      Workspace Sync
-                      <span className="ml-auto text-[9px] text-[var(--c-text-lo)] font-sans truncate max-w-[76px]">
-                        {authLoading ? 'Checking...' : syncBadgeLabel}
-                      </span>
-                    </MenuItem>
-                    {user && (
-                      <MenuItem
-                        onClick={() => menuAction(handleSignOut)}
-                        icon={<IconGitHub />}
-                      >
-                        Sign out
-                        <span className="ml-auto text-[9px] text-[var(--c-text-lo)] font-sans truncate max-w-[76px]">
-                          {accountLabel}
-                        </span>
-                      </MenuItem>
-                    )}
-                  </div>
-                </>
-              )}
-
-              <MenuDivider />
-              <MenuItemSub label="Settings" icon={<IconSettings />}>
-                <MenuItem
-                  onClick={() => menuAction(() => setNoteAutosaveEnabled(!noteAutosaveEnabled))}
-                  icon={<IconDoc />}
-                  checked={noteAutosaveEnabled}
-                  badge={noteAutosaveEnabled ? 'AUTO' : 'MANUAL'}
-                >
-                  Autosave notes
-                </MenuItem>
-                <MenuItem onClick={() => menuAction(toggleTheme)} icon={<IconTheme isLight={theme === 'light'} />}>
-                  {theme === 'light' ? 'Dark mode' : 'Light mode'}
-                </MenuItem>
-              </MenuItemSub>
-
-              <MenuDivider />
-              <MenuItemSub label="Export" icon={<IconImg />}>
-                <MenuItem onClick={() => menuAction(handleExportPNG)} icon={<IconImg />}>Board image (.png)</MenuItem>
-                <MenuItem onClick={() => menuAction(handleExportZip)} icon={<IconZip />}>Project bundle (.zip)</MenuItem>
-                <MenuItem onClick={() => menuAction(handleExportTablesCSV)} icon={<IconCsv />}>Tables (.csv)</MenuItem>
-                <MenuItem
-                  onClick={() => menuAction(handleExportDocumentsMarkdown)}
-                  icon={<IconCsv />}
-                  disabled={!nodes.some(n => n.type === 'document')}
-                >
-                  All notes (.md)
-                </MenuItem>
-                {pages.length > 1 && (
-                  <MenuItem onClick={() => menuAction(handleExportAllPages)} icon={<IconJson />}>Board JSON (all pages)</MenuItem>
-                )}
-                {/* Share link disabled — not fully working yet */}
-              </MenuItemSub>
-              <MenuItem onClick={() => menuAction(onShowAbout)} icon={<IconAbout />}>About</MenuItem>
-              <MenuItem
-                onClick={() => { setMenuOpen(false); window.open('https://mischa.itch.io/devboard', '_blank', 'noopener'); }}
-                icon={<IconDownload />}
-              >
-                Download desktop app
+            <div className={`absolute top-full left-0 mt-1.5 w-52 py-1.5 z-[220] ${DARK_MENU_CLASSES.panel}`}>
+              <MenuItem onClick={handleOpenFolder} icon={<IconFolder />}>
+                Switch workspace...
               </MenuItem>
-
+              <MenuDivider />
+              <MenuItem
+                onClick={() => {
+                  setMenuOpen(false);
+                  setCloudOpen(true);
+                }}
+                icon={<IconSettings />}
+              >
+                Preferences...
+              </MenuItem>
+              <MenuItem onClick={() => menuAction(onShowAbout)} icon={<IconAbout />}>Help & about</MenuItem>
             </div>
-            </ActiveSubMenuCtx.Provider>
           )}
         </div>
       </div>
@@ -768,7 +602,7 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
           aria-label={`Workspace storage status: ${storageStatus.label}. ${storageStatus.title}`}
           className={[
             'hidden md:inline-flex h-7 items-center justify-center gap-1.5 rounded-full border px-2.5 font-sans text-[10px] font-semibold transition-colors hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]',
-            storageToneClass(storageStatus.tone),
+            storageToneClass(storageStatus.tone, theme),
           ].join(' ')}
         >
           <span
@@ -801,12 +635,12 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
 // ── Menu sub-components ──────────────────────────────────────────────────────
 
 function MenuDivider() {
-  return <div className="my-1 h-px bg-[var(--c-border)] mx-2" />;
+  return <div className={DARK_MENU_CLASSES.divider} />;
 }
 
 function MenuLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="px-3 py-0.5 font-sans text-[10px] text-[var(--c-text-off)] uppercase tracking-widest select-none">
+    <div className={DARK_MENU_CLASSES.label}>
       {children}
     </div>
   );
@@ -831,27 +665,25 @@ function MenuItem({
     <button
       onClick={disabled ? undefined : onClick}
       className={[
-        'w-full flex items-center gap-2.5 px-3 py-1.5 font-sans text-[12px] text-left transition-colors',
-        disabled
-          ? 'text-[var(--c-text-off)] cursor-default'
-          : 'text-[var(--c-text-md)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
+        DARK_MENU_CLASSES.itemBase,
+        disabled ? DARK_MENU_CLASSES.itemDisabled : DARK_MENU_CLASSES.itemEnabled,
       ].join(' ')}
     >
       {icon && (
-        <span className={disabled ? 'text-[var(--c-text-off)]' : 'text-[var(--c-line)]'}>
+        <span className={disabled ? DARK_MENU_CLASSES.itemDisabled : DARK_MENU_CLASSES.accent}>
           {icon}
         </span>
       )}
       <span className="flex-1">{children}</span>
       {checked !== undefined && (
-        <span className={checked ? 'text-[var(--c-line)]' : 'text-transparent'}>
+        <span className={checked ? DARK_MENU_CLASSES.accent : 'text-transparent'}>
           <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
             <path d="M1.5 5l2.5 2.5 5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </span>
       )}
       {badge && (
-        <span className="text-[9px] font-sans text-[var(--c-text-off)] border border-[var(--c-border)] rounded px-1 py-0.5 uppercase tracking-wide">
+        <span className={DARK_MENU_CLASSES.badge}>
           {badge}
         </span>
       )}
@@ -1106,19 +938,17 @@ function MenuItemSub({ label, icon, children }: { label: string; icon?: React.Re
     <div className="relative" onMouseEnter={show} onMouseLeave={hide}>
       <button
         className={[
-          'w-full flex items-center gap-2.5 px-3 py-1.5 font-sans text-[12px] text-left transition-colors',
-          open
-            ? 'text-[var(--c-text-hi)] bg-[var(--c-hover)]'
-            : 'text-[var(--c-text-md)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
+          DARK_MENU_CLASSES.itemBase,
+          open ? DARK_MENU_CLASSES.itemActive : DARK_MENU_CLASSES.itemEnabled,
         ].join(' ')}
       >
-        {icon && <span className="text-[var(--c-line)]">{icon}</span>}
+        {icon && <span className={DARK_MENU_CLASSES.accent}>{icon}</span>}
         <span className="flex-1">{label}</span>
-        <span className="text-[var(--c-text-off)]"><IconChevronRight /></span>
+        <span className={DARK_MENU_CLASSES.muted}><IconChevronRight /></span>
       </button>
       {open && (
         <div
-          className="absolute left-full top-0 ml-1 w-48 rounded-xl border border-[var(--c-border)] bg-[var(--c-panel)] shadow-2xl py-1.5 z-[230]"
+          className={`absolute left-full top-0 ml-1 w-48 py-1.5 z-[230] ${DARK_MENU_CLASSES.panel}`}
           style={{ animation: 'submenu-in 0.13s ease-out' }}
           onMouseEnter={show}
           onMouseLeave={hide}
