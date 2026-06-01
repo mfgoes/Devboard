@@ -3290,26 +3290,27 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
         )}
 
         <div ref={accountMenuRef} style={{ position: 'relative' }}>
-          {accountMenuOpen && (
-            <div
-              style={{
-                position: 'fixed',
-                left: 0,
-                right: 0,
-                bottom: 'auto',
-                top: 0,
-                zIndex: 10000,
-                overflow: 'hidden',
-                border: `1px solid ${DARK_MENU_COLORS.border}`,
-                borderRadius: 14,
-                background: DARK_MENU_COLORS.surface,
-                boxShadow: DARK_MENU_COLORS.shadow,
-                fontFamily: FONTS.ui,
-                maxWidth: 320,
-                margin: '60px auto 0',
-              }}
-              onMouseDown={(e) => e.stopPropagation()}
-            >
+          {accountMenuOpen && (() => {
+            const rect = accountMenuRef.current?.getBoundingClientRect();
+            const left = rect ? Math.max(8, rect.left - 320 + rect.width) : 8;
+            const top = rect ? rect.top - 8 : 8;
+            return (
+              <div
+                style={{
+                  position: 'fixed',
+                  left,
+                  top,
+                  zIndex: 10000,
+                  overflow: 'hidden',
+                  border: `1px solid ${DARK_MENU_COLORS.border}`,
+                  borderRadius: 14,
+                  background: DARK_MENU_COLORS.surface,
+                  boxShadow: DARK_MENU_COLORS.shadow,
+                  fontFamily: FONTS.ui,
+                  width: 320,
+                }}
+                onMouseDown={(e) => e.stopPropagation()}
+              >
               <div style={{ padding: '12px 12px 10px', borderBottom: `1px solid ${DARK_MENU_COLORS.border}` }}>
                 <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12, fontWeight: 750, color: DARK_MENU_COLORS.textHi }}>
                   {accountLabel}
