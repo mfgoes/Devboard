@@ -3293,8 +3293,10 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
         <div ref={accountMenuRef} style={{ position: 'relative' }}>
           {accountMenuOpen && (() => {
             const rect = accountMenuRef.current?.getBoundingClientRect();
+            const menuHeight = 320;
             const left = rect ? Math.max(8, rect.left - 320 + rect.width) : 8;
-            const top = rect ? rect.top - 8 : 8;
+            const spaceBelow = rect ? window.innerHeight - rect.bottom : 0;
+            const top = rect ? (spaceBelow >= menuHeight ? rect.bottom + 8 : Math.max(8, rect.top - menuHeight - 8)) : 8;
             return (
               <div
                 style={{
@@ -3309,6 +3311,8 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
                   boxShadow: DARK_MENU_COLORS.shadow,
                   fontFamily: FONTS.ui,
                   width: 320,
+                  maxHeight: '80vh',
+                  overflowY: 'auto',
                 }}
                 onMouseDown={(e) => e.stopPropagation()}
               >
