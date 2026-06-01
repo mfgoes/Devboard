@@ -1121,13 +1121,13 @@ function PageGroup({
           borderRadius: 5,
           ...(isActive ? explorerFocusedRowStyle : {}),
           ...(pageFocused ? {
-            background: 'rgba(184,119,80,0.16)',
-            outline: '1px solid rgba(184,119,80,0.38)',
+            background: 'rgba(184,119,80,0.18)',
+            outline: '1px solid rgba(184,119,80,0.42)',
             outlineOffset: -1,
           } : {}),
           ...(!isActive && !pageFocused && pageHovered ? {
-            background: 'rgba(184,119,80,0.08)',
-            outline: '1px solid rgba(184,119,80,0.16)',
+            background: 'rgba(184,119,80,0.09)',
+            outline: '1px solid rgba(184,119,80,0.18)',
             outlineOffset: -1,
           } : {}),
         }}
