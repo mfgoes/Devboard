@@ -7,7 +7,7 @@ import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import { useBoardStore } from '../store/boardStore';
 import { useAuth } from '../contexts/AuthContext';
 import type { Camera, CanvasNode, Document, ImageNode, PageMeta } from '../types';
-import { listDirectory, readWorkspaceFile, readWorkspaceFileAsUrl, readWorkspaceFileInfo, getWorkspaceName, openWorkspace, createWorkspace, renameEntry, createDirectory, deleteEntry, FSA_DIR_SUPPORTED, IN_IFRAME, IS_TAURI, revealInFinder, saveTextFileToWorkspace, saveWorkspace, loadImageAsset, findImageInWorkspace, hasWorkspaceHandle } from '../utils/workspaceManager';
+import { listDirectory, readWorkspaceFile, readWorkspaceFileAsUrl, readWorkspaceFileInfo, getWorkspaceName, openWorkspace, renameEntry, createDirectory, deleteEntry, FSA_DIR_SUPPORTED, IN_IFRAME, IS_TAURI, revealInFinder, saveTextFileToWorkspace, saveWorkspace, loadImageAsset, findImageInWorkspace, hasWorkspaceHandle } from '../utils/workspaceManager';
 import { FONTS } from '../utils/fonts';
 import { placeCodeFile, placeImageFile, placeDocumentFile, openDocumentFile } from '../utils/canvasPlacement';
 import { markdownBodyToHtml, titleFromMarkdown } from '../utils/exportMarkdown';
@@ -17,7 +17,8 @@ import { applyWorkspaceSyncFromOpenResult } from '../utils/applyWorkspaceSync';
 import devboardIconUrl from '../assets/devboard_icon.png';
 import { useFilePreview } from '../hooks/useFilePreview';
 import { useTreeState } from '../hooks/useTreeState';
-import { IconCloud, IconFolder, IconStar } from './icons';
+import { IconCloud, IconFolder, IconSidebarToggle, IconStar } from './icons';
+import { DARK_MENU_COLORS } from './darkMenuTheme';
 import {
   SKIP_DIRS,
   IMAGE_EXTS,
@@ -189,18 +190,10 @@ function CommandIcon({ kind }: { kind: 'search' | 'folder' | 'file' | 'edit' | '
 function CommandMenuItem({
   icon,
   label,
-  shortcut,
-  hasSubmenu,
-  active,
-  onHover,
   onClick,
 }: {
   icon: React.ReactNode;
   label: string;
-  shortcut?: string;
-  hasSubmenu?: boolean;
-  active?: boolean;
-  onHover?: (e: React.MouseEvent<HTMLButtonElement>) => void;
   onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
 }) {
   return (
@@ -211,43 +204,35 @@ function CommandMenuItem({
         width: '100%',
         minHeight: 31,
         display: 'grid',
-        gridTemplateColumns: '17px minmax(0, 1fr) auto',
+        gridTemplateColumns: '17px minmax(0, 1fr)',
         alignItems: 'center',
         gap: 10,
         padding: '0 12px',
         border: 'none',
-        background: active ? 'color-mix(in srgb, var(--c-hover) 72%, transparent)' : 'transparent',
-        color: active ? 'var(--c-text-hi)' : 'var(--c-text-md)',
+        background: 'transparent',
+        color: DARK_MENU_COLORS.text,
         cursor: 'pointer',
         textAlign: 'left',
         fontFamily: FONTS.ui,
       }}
       onMouseEnter={(e) => {
-        onHover?.(e);
-        e.currentTarget.style.background = 'color-mix(in srgb, var(--c-hover) 72%, transparent)';
-        e.currentTarget.style.color = 'var(--c-text-hi)';
+        e.currentTarget.style.background = DARK_MENU_COLORS.hover;
+        e.currentTarget.style.color = DARK_MENU_COLORS.textHi;
       }}
       onMouseLeave={(e) => {
-        if (active) return;
         e.currentTarget.style.background = 'transparent';
-        e.currentTarget.style.color = 'var(--c-text-md)';
+        e.currentTarget.style.color = DARK_MENU_COLORS.text;
       }}
     >
-      <span style={{ display: 'inline-flex', color: 'var(--c-text-lo)' }}>{icon}</span>
+      <span style={{ display: 'inline-flex', color: DARK_MENU_COLORS.accent }}>{icon}</span>
       <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12, fontWeight: 560 }}>{label}</span>
-      <span style={{ display: 'inline-flex', alignItems: 'center', color: 'var(--c-text-lo)', fontSize: 11, fontWeight: 650 }}>
-        {shortcut ?? (hasSubmenu ? '›' : '')}
-      </span>
     </button>
   );
 }
 
 function CommandMenuDivider() {
-  return <div style={{ height: 1, margin: '4px 10px', background: 'var(--c-border)' }} />;
+  return <div style={{ height: 1, margin: '4px 10px', background: DARK_MENU_COLORS.border }} />;
 }
-
-type CommandSubmenuId = 'file' | 'edit' | 'view' | 'export' | 'preferences';
-type CommandSubmenuAction = { label: string; shortcut?: string; onClick: () => void };
 
 const ADVANCED_FILES_STORAGE_KEY = 'devboard-advanced-files-visible';
 
@@ -1790,11 +1775,10 @@ interface Props {
 }
 
 export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true, collapseIcon = 'close' }: Props) {
-  const { isConfigured: authConfigured, isLoading: authLoading, user } = useAuth();
+  const isPreviewPanel = collapseIcon === 'open';
+  const { isConfigured: authConfigured, isLoading: authLoading, user, signOut } = useAuth();
   const imageAssetFolder = useBoardStore((s) => s.imageAssetFolder);
   const boardTitle = useBoardStore((s) => s.boardTitle);
-  const exportData = useBoardStore((s) => s.exportData);
-  const setWorkspaceName = useBoardStore((s) => s.setWorkspaceName);
   const cloudBoardId = useBoardStore((s) => s.cloudBoardId);
   const cloudBoardTitle = useBoardStore((s) => s.cloudBoardTitle);
   const cloudSyncedAt = useBoardStore((s) => s.cloudSyncedAt);
@@ -1804,7 +1788,6 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
   const deletePage = useBoardStore((s) => s.deletePage);
   const renamePage = useBoardStore((s) => s.renamePage);
   const setPageNoteSort = useBoardStore((s) => s.setPageNoteSort);
-  const setPageLayoutMode = useBoardStore((s) => s.setPageLayoutMode);
   const activePageId = useBoardStore((s) => s.activePageId);
   const activeDocId = useBoardStore((s) => s.activeDocId);
   const switchPage = useBoardStore((s) => s.switchPage);
@@ -1879,8 +1862,6 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
   const confirmCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [commandMenuOpen, setCommandMenuOpen] = useState(false);
   const [commandMenuAnchor, setCommandMenuAnchor] = useState<{ left: number; top: number } | null>(null);
-  const [commandSubmenu, setCommandSubmenu] = useState<CommandSubmenuId | null>(null);
-  const [commandSubmenuTop, setCommandSubmenuTop] = useState(0);
   const commandMenuRef = useRef<HTMLDivElement>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
@@ -1906,6 +1887,8 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
   const [missingImagesOpen, setMissingImagesOpen] = useState(false);
   const [missingImagesFixing, setMissingImagesFixing] = useState(false);
   const missingImagesPopoverRef = useRef<HTMLDivElement>(null);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const accountMenuRef = useRef<HTMLDivElement>(null);
   // Explorer context menu (right-click)
   type ExplorerMenu = { entry: TreeEntry; x: number; y: number };
   const [explorerMenu, setExplorerMenu] = useState<ExplorerMenu | null>(null);
@@ -1914,8 +1897,8 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
   const filesSectionMenuRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const workspaceDisplayName = useMemo(() => {
-    const title = boardTitle.trim();
-    return title || cloudBoardTitle || storeWorkspaceName || getWorkspaceName() || 'Untitled Workspace';
+    const workspaceTitle = storeWorkspaceName || getWorkspaceName() || cloudBoardTitle;
+    return workspaceTitle || boardTitle.trim() || 'Untitled Workspace';
   }, [boardTitle, cloudBoardTitle, storeWorkspaceName]);
   const activeDocument = useMemo(
     () => documents.find((doc) => doc.id === activeDocId) ?? null,
@@ -1943,8 +1926,6 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
   const hasUnsyncedSyncChanges = !!user && !!cloudBoardId && !!lastLocalSavedAt && !!cloudSyncedAt && lastLocalSavedAt > cloudSyncedAt + 1000;
   const accountStatus = authLoading
     ? 'Checking...'
-    : missingImages.length > 0
-      ? `${missingImages.length} missing image${missingImages.length === 1 ? '' : 's'}`
     : hasUnsyncedSyncChanges
       ? 'Unsynced'
       : cloudBoardId
@@ -1953,6 +1934,17 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
   const openCloudModal = useCallback(() => {
     window.dispatchEvent(new CustomEvent('devboard:open-cloud-modal'));
   }, []);
+
+  const handleAccountSignOut = useCallback(async () => {
+    try {
+      await signOut();
+      setAccountMenuOpen(false);
+      toast('Signed out.');
+    } catch (err) {
+      console.warn('Sign-out failed', err);
+      toast('Could not sign out right now.');
+    }
+  }, [signOut]);
 
   const missingImagePath = useCallback((image: ImageNode): string => {
     const folder = image.assetFolder ?? imageAssetFolder ?? 'assets';
@@ -1969,7 +1961,6 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
     const handler = (e: MouseEvent) => {
       if (commandMenuRef.current && !commandMenuRef.current.contains(e.target as Node)) {
         setCommandMenuOpen(false);
-        setCommandSubmenu(null);
       }
     };
     document.addEventListener('mousedown', handler);
@@ -2003,6 +1994,23 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
       window.removeEventListener('keydown', onKeyDown);
     };
   }, [missingImagesOpen]);
+
+  useEffect(() => {
+    if (!accountMenuOpen) return;
+    const onMouseDown = (e: MouseEvent) => {
+      if (accountMenuRef.current?.contains(e.target as Node)) return;
+      setAccountMenuOpen(false);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setAccountMenuOpen(false);
+    };
+    window.addEventListener('mousedown', onMouseDown);
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('mousedown', onMouseDown);
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [accountMenuOpen]);
 
   useEffect(() => {
     if (missingImages.length === 0) setMissingImagesOpen(false);
@@ -2549,80 +2557,9 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
     showNotePreview(page, doc, anchorY);
   }, [activePageId, pages, showNotePreview]);
 
-  const handleCreateWorkspace = useCallback(async () => {
-    const result = await createWorkspace(exportData(), boardTitle.trim() || 'DevBoard Workspace');
-    if (!result) return;
-    setWorkspaceName(result.name);
-  }, [boardTitle, exportData, setWorkspaceName]);
-
   const closeCommandMenu = useCallback(() => {
     setCommandMenuOpen(false);
-    setCommandSubmenu(null);
   }, []);
-
-  const openCommandSubmenu = useCallback((id: CommandSubmenuId, target: HTMLElement) => {
-    const rect = target.getBoundingClientRect();
-    setCommandSubmenu(id);
-    setCommandSubmenuTop(rect.top);
-  }, []);
-
-  const runCommandAction = useCallback((action: () => void | Promise<void>) => {
-    closeCommandMenu();
-    void action();
-  }, [closeCommandMenu]);
-
-  const saveCurrentWorkspace = useCallback(async () => {
-    const result = await saveWorkspace(useBoardStore.getState().exportData(), { notify: false });
-    toast(result.saved ? 'Saved workspace' : 'Choose a workspace folder to save');
-  }, []);
-
-  const exportActiveDocument = useCallback((format: 'markdown' | 'text' | 'pdf') => {
-    const doc = useBoardStore.getState().documents.find((entry) => entry.id === useBoardStore.getState().activeDocId);
-    if (!doc) {
-      toast('Open a note before exporting it');
-      return;
-    }
-    if (format === 'markdown') exportDocumentAsMarkdownFile(doc);
-    else if (format === 'text') exportDocumentAsTextFile(doc);
-    else exportDocumentAsPdf(doc);
-  }, []);
-
-  const commandSubmenuItems = useMemo<Record<CommandSubmenuId, CommandSubmenuAction[]>>(() => {
-    const store = () => useBoardStore.getState();
-    return {
-      file: [
-        { label: 'New note', shortcut: '⌘N', onClick: () => createNoteForPage(activePageId) },
-        { label: 'New folder', onClick: () => addPage() },
-        { label: 'Open workspace...', onClick: () => { void handleOpenFolder(); } },
-        ...(IS_TAURI ? [{ label: 'Create workspace...', onClick: () => { void handleCreateWorkspace(); } }] : []),
-        { label: 'Save workspace', shortcut: '⌘S', onClick: () => { void saveCurrentWorkspace(); } },
-      ],
-      edit: [
-        { label: 'Undo', shortcut: '⌘Z', onClick: () => store().undo() },
-        { label: 'Redo', shortcut: '⇧⌘Z', onClick: () => store().redo() },
-        { label: 'Copy', shortcut: '⌘C', onClick: () => store().copySelected() },
-        { label: 'Paste', shortcut: '⌘V', onClick: () => store().paste() },
-        { label: 'Duplicate', shortcut: '⌘D', onClick: () => store().duplicate() },
-        { label: 'Delete selection', onClick: () => store().deleteSelected() },
-      ],
-      view: [
-        { label: 'Canvas mode', onClick: () => setPageLayoutMode(activePageId, 'freeform') },
-        { label: 'Notes mode', onClick: () => setPageLayoutMode(activePageId, 'stack') },
-        { label: 'Reset zoom', onClick: () => store().setCamera({ scale: 1, x: 0, y: 0 }) },
-        { label: 'Quick switcher', shortcut: '⌘K', onClick: () => { window.dispatchEvent(new CustomEvent('devboard:open-quick-switcher')); } },
-      ],
-      export: [
-        { label: 'Current note (.md)', onClick: () => exportActiveDocument('markdown') },
-        { label: 'Current note (.txt)', onClick: () => exportActiveDocument('text') },
-        { label: 'Current note (.pdf)', onClick: () => exportActiveDocument('pdf') },
-      ],
-      preferences: [
-        { label: theme === 'light' ? 'Dark mode' : 'Light mode', onClick: () => toggleTheme() },
-        { label: noteAutosaveEnabled ? 'Disable note autosave' : 'Enable note autosave', onClick: () => setNoteAutosaveEnabled(!noteAutosaveEnabled) },
-        { label: 'Workspace Sync...', onClick: openCloudModal },
-      ],
-    };
-  }, [activePageId, addPage, createNoteForPage, exportActiveDocument, handleCreateWorkspace, handleOpenFolder, noteAutosaveEnabled, openCloudModal, saveCurrentWorkspace, setNoteAutosaveEnabled, setPageLayoutMode, theme, toggleTheme]);
 
   const cloudTree = useMemo(() => buildVirtualCloudTree({
     pages,
@@ -2803,7 +2740,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
         position: 'relative',
         width: '100%',
         height: '100%',
-        background: 'var(--c-panel)',
+        background: 'var(--c-sidebar)',
       }}
       onMouseDown={(e) => e.stopPropagation()}
       tabIndex={0}
@@ -2813,42 +2750,58 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: '52px minmax(0, 1fr) 32px',
+          gridTemplateColumns: isPreviewPanel ? 'minmax(0, 1fr)' : 'minmax(0, 1fr) 32px',
           alignItems: 'center',
           gap: 8,
-          minHeight: 46,
-          padding: '8px 10px 7px',
+          minHeight: 50,
+          padding: '9px 10px 8px',
           flexShrink: 0,
           borderBottom: '1px solid var(--c-border)',
         }}
       >
-        <div ref={commandMenuRef} style={{ position: 'relative', width: 52, height: 32 }}>
+        <div ref={commandMenuRef} style={{ position: 'relative', minWidth: 0, height: 32 }}>
           <button
             type="button"
-            aria-label="DevBoard command center"
-            title="DevBoard command center"
+            aria-label="Workspace menu"
+            title="Workspace menu"
             onClick={(e) => {
               const rect = e.currentTarget.getBoundingClientRect();
               setCommandMenuAnchor({ left: rect.left, top: rect.bottom + 8 });
-              setCommandMenuOpen((open) => {
-                if (open) setCommandSubmenu(null);
-                return !open;
-              });
+              setCommandMenuOpen((open) => !open);
             }}
             className="flex items-center justify-center transition-colors"
             style={{
-              width: 52,
+              width: '100%',
               height: 32,
-              gap: 3,
-              border: commandMenuOpen ? '1.5px solid var(--c-line)' : '1px solid var(--c-border)',
+              display: 'grid',
+              gridTemplateColumns: '23px minmax(0, 1fr) 12px',
+              alignItems: 'center',
+              gap: 8,
+              padding: '0 9px',
+              border: commandMenuOpen ? `1.5px solid ${DARK_MENU_COLORS.border}` : '1px solid var(--c-border)',
               borderRadius: 9,
-              background: commandMenuOpen ? 'var(--c-canvas)' : 'color-mix(in srgb, var(--c-canvas) 48%, transparent)',
+              background: commandMenuOpen ? DARK_MENU_COLORS.surface : 'color-mix(in srgb, var(--c-canvas) 48%, transparent)',
               cursor: 'pointer',
-              boxShadow: commandMenuOpen ? '0 0 0 2px color-mix(in srgb, var(--c-line) 18%, transparent)' : 'none',
+              boxShadow: commandMenuOpen ? '0 10px 24px rgba(0,0,0,0.22)' : 'none',
             }}
           >
             <DevBoardMark />
-            <span style={{ display: 'inline-flex', color: 'var(--c-text-md)' }}>
+            <span
+              style={{
+                minWidth: 0,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                color: commandMenuOpen ? DARK_MENU_COLORS.textHi : 'var(--c-text-hi)',
+                fontFamily: FONTS.ui,
+                fontSize: 12.5,
+                fontWeight: 650,
+                textAlign: 'left',
+              }}
+            >
+              {workspaceDisplayName}
+            </span>
+            <span style={{ display: 'inline-flex', color: commandMenuOpen ? DARK_MENU_COLORS.textMuted : 'var(--c-text-md)' }}>
               <CommandChevronDown />
             </span>
           </button>
@@ -2862,52 +2815,16 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
                 width: 224,
                 maxWidth: 'calc(100vw - 24px)',
                 padding: '6px 0',
-                border: '1px solid var(--c-border)',
+                border: `1px solid ${DARK_MENU_COLORS.border}`,
                 borderRadius: 10,
-                background: 'var(--c-panel)',
-                boxShadow: '0 14px 36px rgba(40,32,26,0.18)',
+                background: DARK_MENU_COLORS.surface,
+                boxShadow: DARK_MENU_COLORS.shadow,
                 overflow: 'hidden',
               }}
             >
-              <button
-                type="button"
-                onClick={() => {
-                  closeCommandMenu();
-                  window.dispatchEvent(new CustomEvent('devboard:open-quick-switcher'));
-                }}
-                style={{
-                  width: 'calc(100% - 12px)',
-                  margin: '0 6px 5px',
-                  minHeight: 30,
-                  display: 'grid',
-                  gridTemplateColumns: '17px minmax(0,1fr) auto',
-                  alignItems: 'center',
-                  gap: 8,
-                  padding: '0 9px',
-                  borderRadius: 7,
-                  background: 'color-mix(in srgb, var(--c-hover) 64%, transparent)',
-                  color: 'var(--c-text-lo)',
-                  fontFamily: FONTS.ui,
-                  border: 'none',
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'var(--c-hover)';
-                  e.currentTarget.style.color = 'var(--c-text-hi)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'color-mix(in srgb, var(--c-hover) 64%, transparent)';
-                  e.currentTarget.style.color = 'var(--c-text-lo)';
-                }}
-              >
-                <CommandIcon kind="search" />
-                <span style={{ fontSize: 12, fontWeight: 560 }}>Actions...</span>
-                <span style={{ fontSize: 10.5, fontWeight: 700, opacity: 0.72 }}>⌘K</span>
-              </button>
               <CommandMenuItem
                 icon={<CommandIcon kind="folder" />}
-                label="Back to workspaces"
+                label="Switch workspace..."
                 onClick={() => {
                   closeCommandMenu();
                   void handleOpenFolder();
@@ -2915,53 +2832,11 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
               />
               <CommandMenuDivider />
               <CommandMenuItem
-                icon={<CommandIcon kind="file" />}
-                label="File"
-                hasSubmenu
-                active={commandSubmenu === 'file'}
-                onHover={(e) => openCommandSubmenu('file', e.currentTarget)}
-                onClick={(e) => openCommandSubmenu('file', e.currentTarget)}
-              />
-              <CommandMenuItem
-                icon={<CommandIcon kind="edit" />}
-                label="Edit"
-                hasSubmenu
-                active={commandSubmenu === 'edit'}
-                onHover={(e) => openCommandSubmenu('edit', e.currentTarget)}
-                onClick={(e) => openCommandSubmenu('edit', e.currentTarget)}
-              />
-              <CommandMenuItem
-                icon={<CommandIcon kind="view" />}
-                label="View"
-                hasSubmenu
-                active={commandSubmenu === 'view'}
-                onHover={(e) => openCommandSubmenu('view', e.currentTarget)}
-                onClick={(e) => openCommandSubmenu('view', e.currentTarget)}
-              />
-              <CommandMenuDivider />
-              <CommandMenuItem
-                icon={<CommandIcon kind="export" />}
-                label="Export"
-                hasSubmenu
-                active={commandSubmenu === 'export'}
-                onHover={(e) => openCommandSubmenu('export', e.currentTarget)}
-                onClick={(e) => openCommandSubmenu('export', e.currentTarget)}
-              />
-              <CommandMenuItem
                 icon={<CommandIcon kind="settings" />}
-                label="Preferences"
-                hasSubmenu
-                active={commandSubmenu === 'preferences'}
-                onHover={(e) => openCommandSubmenu('preferences', e.currentTarget)}
-                onClick={(e) => openCommandSubmenu('preferences', e.currentTarget)}
-              />
-              <CommandMenuDivider />
-              <CommandMenuItem
-                icon={<CommandIcon kind="download" />}
-                label="Download desktop app"
+                label="Preferences..."
                 onClick={() => {
-                  setCommandMenuOpen(false);
-                  window.open('https://mischa.itch.io/devboard', '_blank', 'noopener');
+                  closeCommandMenu();
+                  setAccountMenuOpen(true);
                 }}
               />
               <CommandMenuItem
@@ -2974,112 +2849,25 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
               />
             </div>
           )}
-          {commandMenuOpen && commandSubmenu && commandMenuAnchor && (
-            <div
-              style={{
-                position: 'fixed',
-                top: commandSubmenuTop,
-                left: Math.min(commandMenuAnchor.left + 230, window.innerWidth - 224),
-                zIndex: 9301,
-                width: 216,
-                padding: '6px 0',
-                border: '1px solid var(--c-border)',
-                borderRadius: 10,
-                background: 'var(--c-panel)',
-                boxShadow: '0 14px 36px rgba(40,32,26,0.16)',
-                overflow: 'hidden',
-              }}
-            >
-              {commandSubmenuItems[commandSubmenu].map((item) => (
-                <button
-                  key={item.label}
-                  type="button"
-                  onClick={() => runCommandAction(item.onClick)}
-                  style={{
-                    width: '100%',
-                    minHeight: 31,
-                    display: 'grid',
-                    gridTemplateColumns: 'minmax(0, 1fr) auto',
-                    alignItems: 'center',
-                    gap: 10,
-                    padding: '0 12px',
-                    border: 'none',
-                    background: 'transparent',
-                    color: 'var(--c-text-md)',
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                    fontFamily: FONTS.ui,
-                    fontSize: 12,
-                    fontWeight: 560,
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'color-mix(in srgb, var(--c-hover) 72%, transparent)';
-                    e.currentTarget.style.color = 'var(--c-text-hi)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'transparent';
-                    e.currentTarget.style.color = 'var(--c-text-md)';
-                  }}
-                >
-                  <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.label}</span>
-                  {item.shortcut && <span style={{ color: 'var(--c-text-lo)', fontSize: 10.5, fontWeight: 650 }}>{item.shortcut}</span>}
-                </button>
-              ))}
-            </div>
-          )}
         </div>
 
-        <div
-          title={workspaceDisplayName}
-          aria-label="Workspace name"
-          className="flex items-center min-w-0 text-left"
-          style={{
-            height: 32,
-            padding: '0 4px',
-            color: 'var(--c-text-md)',
-            fontFamily: FONTS.ui,
-          }}
-        >
-          <span
+        {!isPreviewPanel && (
+          <button
+            onClick={onCollapse}
+            title="Collapse sidebar"
+            className="flex items-center justify-center text-[var(--c-text-md)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
             style={{
-              minWidth: 0,
-              flex: 1,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-              fontSize: 12.5,
-              fontWeight: 560,
+              width: 32,
+              height: 32,
+              border: '1px solid var(--c-border)',
+              borderRadius: 9,
+              background: 'color-mix(in srgb, var(--c-canvas) 42%, transparent)',
+              cursor: 'pointer',
             }}
           >
-            {workspaceDisplayName}
-          </span>
-        </div>
-
-        <button
-          onClick={onCollapse}
-          title={collapseIcon === 'open' ? 'Open sidebar' : 'Collapse sidebar'}
-          className="flex items-center justify-center text-[var(--c-text-md)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
-          style={{
-            width: 32,
-            height: 32,
-            border: '1px solid var(--c-border)',
-            borderRadius: 9,
-            background: 'color-mix(in srgb, var(--c-canvas) 48%, transparent)',
-            cursor: 'pointer',
-          }}
-        >
-          {collapseIcon === 'open' ? (
-            <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
-              <path d="M5.2 3.1 9.6 7.5l-4.4 4.4" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round" />
-              <path d="M2 3.1 6.4 7.5 2 11.9" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          ) : (
-            <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
-              <path d="M9.8 3.1 5.4 7.5l4.4 4.4" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round" />
-              <path d="M13 3.1 8.6 7.5 13 11.9" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          )}
-        </button>
+            <IconSidebarToggle size={16} />
+          </button>
+        )}
       </div>
       {hasWorkspaceContext && (
         <div
@@ -3128,7 +2916,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
                 }
                 if (['ArrowUp', 'ArrowDown', 'Enter'].includes(e.key)) handleKeyDown(e as unknown as React.KeyboardEvent);
               }}
-              placeholder="Search notes..."
+              placeholder="Search folders, notes, files..."
               style={{
                 flex: 1,
                 minWidth: 0,
@@ -3314,7 +3102,6 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
       )}
 
       <div
-        ref={missingImagesPopoverRef}
         style={{
           marginTop: 'auto',
           borderTop: '1px solid var(--c-border)',
@@ -3323,156 +3110,274 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
           position: 'relative',
         }}
       >
-        {missingImagesOpen && missingImages.length > 0 && (
-          <div
-            style={{
-              position: 'absolute',
-              left: 10,
-              right: 10,
-              bottom: 'calc(100% + 8px)',
-              zIndex: 9200,
-              padding: 12,
-              border: '1px solid rgba(245,158,11,0.38)',
-              borderRadius: 12,
-              background: 'var(--c-panel)',
-              boxShadow: '0 18px 46px rgba(25,18,14,0.22)',
-              fontFamily: FONTS.ui,
-            }}
-            onMouseDown={(e) => e.stopPropagation()}
-          >
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 12, fontWeight: 750, color: 'var(--c-text-hi)' }}>
-                  {missingImages.length} missing image{missingImages.length === 1 ? '' : 's'}
+        {missingImages.length > 0 && (
+          <div ref={missingImagesPopoverRef} style={{ position: 'relative', marginBottom: 8 }}>
+            {missingImagesOpen && (
+              <div
+                style={{
+                  position: 'absolute',
+                  left: 0,
+                  right: 0,
+                  bottom: 'calc(100% + 8px)',
+                  zIndex: 9200,
+                  padding: 12,
+                  border: '1px solid rgba(245,158,11,0.38)',
+                  borderRadius: 12,
+                  background: 'var(--c-panel)',
+                  boxShadow: '0 18px 46px rgba(25,18,14,0.22)',
+                  fontFamily: FONTS.ui,
+                }}
+                onMouseDown={(e) => e.stopPropagation()}
+              >
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 12, fontWeight: 750, color: 'var(--c-text-hi)' }}>
+                      {missingImages.length} missing image{missingImages.length === 1 ? '' : 's'}
+                    </div>
+                    <p style={{ margin: '5px 0 0', fontSize: 10.5, lineHeight: 1.45, color: 'var(--c-text-lo)' }}>
+                      DevBoard has image cards, but the image files are not loaded from this workspace.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setMissingImagesOpen(false)}
+                    title="Close"
+                    aria-label="Close missing images help"
+                    style={{
+                      width: 22,
+                      height: 22,
+                      border: 'none',
+                      borderRadius: 6,
+                      background: 'transparent',
+                      color: 'var(--c-text-lo)',
+                      cursor: 'pointer',
+                      flexShrink: 0,
+                    }}
+                  >
+                    ×
+                  </button>
                 </div>
-                <p style={{ margin: '5px 0 0', fontSize: 10.5, lineHeight: 1.45, color: 'var(--c-text-lo)' }}>
-                  DevBoard has image cards, but the image files are not loaded from this workspace.
-                </p>
+                <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {missingImages.slice(0, 4).map((image) => (
+                    <div
+                      key={image.id}
+                      title={missingImagePath(image)}
+                      style={{
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        fontSize: 10,
+                        color: 'var(--c-text-md)',
+                        padding: '4px 6px',
+                        borderRadius: 6,
+                        background: 'color-mix(in srgb, var(--c-hover) 46%, transparent)',
+                      }}
+                    >
+                      {missingImagePath(image)}
+                    </div>
+                  ))}
+                  {missingImages.length > 4 && (
+                    <div style={{ fontSize: 10, color: 'var(--c-text-lo)', padding: '2px 6px' }}>
+                      +{missingImages.length - 4} more
+                    </div>
+                  )}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
+                  <button
+                    type="button"
+                    onClick={handleFindMissingImages}
+                    disabled={missingImagesFixing || !hasWorkspaceHandle()}
+                    title={hasWorkspaceHandle() ? 'Search the workspace for missing image files' : 'Reopen the workspace folder first'}
+                    style={{
+                      flex: 1,
+                      height: 32,
+                      border: 'none',
+                      borderRadius: 8,
+                      background: hasWorkspaceHandle() ? 'var(--c-line)' : 'var(--c-hover)',
+                      color: hasWorkspaceHandle() ? '#fff' : 'var(--c-text-lo)',
+                      cursor: missingImagesFixing || !hasWorkspaceHandle() ? 'default' : 'pointer',
+                      fontFamily: FONTS.ui,
+                      fontSize: 11,
+                      fontWeight: 750,
+                      opacity: missingImagesFixing ? 0.72 : 1,
+                    }}
+                  >
+                    {missingImagesFixing ? 'Finding...' : 'Find images'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleOpenFolder}
+                    style={{
+                      flex: 1,
+                      height: 32,
+                      border: '1px solid var(--c-border)',
+                      borderRadius: 8,
+                      background: 'transparent',
+                      color: 'var(--c-text-md)',
+                      cursor: 'pointer',
+                      fontFamily: FONTS.ui,
+                      fontSize: 11,
+                      fontWeight: 650,
+                    }}
+                  >
+                    Reopen folder
+                  </button>
+                </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setMissingImagesOpen(false)}
-                title="Close"
-                aria-label="Close missing images help"
-                style={{
-                  width: 22,
-                  height: 22,
-                  border: 'none',
-                  borderRadius: 6,
-                  background: 'transparent',
-                  color: 'var(--c-text-lo)',
-                  cursor: 'pointer',
-                  flexShrink: 0,
-                }}
-              >
-                ×
-              </button>
-            </div>
-            <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {missingImages.slice(0, 4).map((image) => (
-                <div
-                  key={image.id}
-                  title={missingImagePath(image)}
-                  style={{
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                    fontSize: 10,
-                    color: 'var(--c-text-md)',
-                    padding: '4px 6px',
-                    borderRadius: 6,
-                    background: 'color-mix(in srgb, var(--c-hover) 46%, transparent)',
-                  }}
-                >
-                  {missingImagePath(image)}
-                </div>
-              ))}
-              {missingImages.length > 4 && (
-                <div style={{ fontSize: 10, color: 'var(--c-text-lo)', padding: '2px 6px' }}>
-                  +{missingImages.length - 4} more
-                </div>
-              )}
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
-              <button
-                type="button"
-                onClick={handleFindMissingImages}
-                disabled={missingImagesFixing || !hasWorkspaceHandle()}
-                title={hasWorkspaceHandle() ? 'Search the workspace for missing image files' : 'Reopen the workspace folder first'}
-                style={{
-                  flex: 1,
-                  height: 32,
-                  border: 'none',
-                  borderRadius: 8,
-                  background: hasWorkspaceHandle() ? 'var(--c-line)' : 'var(--c-hover)',
-                  color: hasWorkspaceHandle() ? '#fff' : 'var(--c-text-lo)',
-                  cursor: missingImagesFixing || !hasWorkspaceHandle() ? 'default' : 'pointer',
-                  fontFamily: FONTS.ui,
-                  fontSize: 11,
-                  fontWeight: 750,
-                  opacity: missingImagesFixing ? 0.72 : 1,
-                }}
-              >
-                {missingImagesFixing ? 'Finding...' : 'Find images'}
-              </button>
-              <button
-                type="button"
-                onClick={handleOpenFolder}
-                style={{
-                  flex: 1,
-                  height: 32,
-                  border: '1px solid var(--c-border)',
-                  borderRadius: 8,
-                  background: 'transparent',
-                  color: 'var(--c-text-md)',
-                  cursor: 'pointer',
-                  fontFamily: FONTS.ui,
-                  fontSize: 11,
-                  fontWeight: 650,
-                }}
-              >
-                Reopen folder
-              </button>
-            </div>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                setAccountMenuOpen(false);
+                setMissingImagesOpen((open) => !open);
+              }}
+              title="Fix missing images"
+              style={{
+                width: '100%',
+                minHeight: 34,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 9,
+                padding: '7px 10px',
+                border: '1px solid rgba(245,158,11,0.26)',
+                borderRadius: 10,
+                background: 'rgba(245,158,11,0.09)',
+                color: '#b45309',
+                cursor: 'pointer',
+                fontFamily: FONTS.ui,
+                textAlign: 'left',
+              }}
+            >
+              <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: 999, background: '#f59e0b', flexShrink: 0 }} />
+              <span style={{ minWidth: 0, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11, fontWeight: 750 }}>
+                Missing images
+              </span>
+              <span style={{ flexShrink: 0, fontSize: 10.5, fontWeight: 650, color: 'var(--c-text-lo)' }}>
+                {missingImages.length}
+              </span>
+            </button>
           </div>
         )}
-        <button
-          type="button"
-          onClick={() => {
-            if (missingImages.length > 0) {
-              setMissingImagesOpen((open) => !open);
-              return;
-            }
-            openCloudModal();
-          }}
-          title={missingImages.length > 0 ? 'Fix missing images' : authConfigured ? 'Open Workspace Sync' : 'Workspace Sync is not configured'}
-          className="group"
-          style={{
-            width: '100%',
-            minHeight: 54,
-            minWidth: 0,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            padding: '6px 6px',
-            border: 'none',
-            borderRadius: 12,
-            background: 'transparent',
-            color: 'var(--c-text-md)',
-            cursor: 'pointer',
-            fontFamily: FONTS.ui,
-            textAlign: 'left',
-            transition: 'background 120ms, color 120ms',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = 'var(--c-hover)';
-            e.currentTarget.style.color = 'var(--c-text-hi)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'transparent';
-            e.currentTarget.style.color = 'var(--c-text-md)';
-          }}
-        >
+
+        <div ref={accountMenuRef} style={{ position: 'relative' }}>
+          {accountMenuOpen && (
+            <div
+              style={{
+                position: 'absolute',
+                left: 0,
+                right: 0,
+                bottom: 'calc(100% + 8px)',
+                zIndex: 9200,
+                overflow: 'hidden',
+                border: '1px solid var(--c-border)',
+                borderRadius: 14,
+                background: 'var(--c-panel)',
+                boxShadow: '0 18px 46px rgba(25,18,14,0.22)',
+                fontFamily: FONTS.ui,
+              }}
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <div style={{ padding: '12px 12px 10px', borderBottom: '1px solid var(--c-border)' }}>
+                <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12, fontWeight: 750, color: 'var(--c-text-hi)' }}>
+                  {accountLabel}
+                </div>
+                {user?.email && user.email !== accountLabel && (
+                  <div style={{ marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 10.5, color: 'var(--c-text-lo)' }}>
+                    {user.email}
+                  </div>
+                )}
+              </div>
+              <div style={{ padding: 6 }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAccountMenuOpen(false);
+                    openCloudModal();
+                  }}
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '8px 9px', border: 'none', borderRadius: 8, background: 'transparent', color: 'var(--c-text-md)', cursor: 'pointer', fontFamily: FONTS.ui, fontSize: 12, textAlign: 'left' }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--c-hover)'; e.currentTarget.style.color = 'var(--c-text-hi)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--c-text-md)'; }}
+                >
+                  <span>Workspace Sync...</span>
+                  <span style={{ color: authConfigured ? 'var(--c-line)' : 'var(--c-text-off)', fontSize: 10.5 }}>
+                    {authConfigured ? accountStatus : 'Off'}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    toggleTheme();
+                    setAccountMenuOpen(false);
+                  }}
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', padding: '8px 9px', border: 'none', borderRadius: 8, background: 'transparent', color: 'var(--c-text-md)', cursor: 'pointer', fontFamily: FONTS.ui, fontSize: 12, textAlign: 'left' }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--c-hover)'; e.currentTarget.style.color = 'var(--c-text-hi)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--c-text-md)'; }}
+                >
+                  {theme === 'light' ? 'Dark mode' : 'Light mode'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNoteAutosaveEnabled(!noteAutosaveEnabled);
+                    setAccountMenuOpen(false);
+                  }}
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', padding: '8px 9px', border: 'none', borderRadius: 8, background: 'transparent', color: 'var(--c-text-md)', cursor: 'pointer', fontFamily: FONTS.ui, fontSize: 12, textAlign: 'left' }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--c-hover)'; e.currentTarget.style.color = 'var(--c-text-hi)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--c-text-md)'; }}
+                >
+                  {noteAutosaveEnabled ? 'Disable note autosave' : 'Enable note autosave'}
+                </button>
+                {user && (
+                  <>
+                    <div style={{ height: 1, margin: '6px 4px', background: 'var(--c-border)' }} />
+                    <button
+                      type="button"
+                      onClick={() => { void handleAccountSignOut(); }}
+                      style={{ width: '100%', display: 'flex', alignItems: 'center', padding: '8px 9px', border: 'none', borderRadius: 8, background: 'transparent', color: 'var(--c-text-md)', cursor: 'pointer', fontFamily: FONTS.ui, fontSize: 12, textAlign: 'left' }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--c-hover)'; e.currentTarget.style.color = 'var(--c-text-hi)'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--c-text-md)'; }}
+                    >
+                      Sign out
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              setMissingImagesOpen(false);
+              setAccountMenuOpen((open) => !open);
+            }}
+            title="Account and settings"
+            className="group"
+            style={{
+              width: '100%',
+              minHeight: 54,
+              minWidth: 0,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              padding: '6px 6px',
+              border: 'none',
+              borderRadius: 12,
+              background: 'transparent',
+              color: 'var(--c-text-md)',
+              cursor: 'pointer',
+              fontFamily: FONTS.ui,
+              textAlign: 'left',
+              transition: 'background 120ms, color 120ms',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'var(--c-hover)';
+              e.currentTarget.style.color = 'var(--c-text-hi)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.color = 'var(--c-text-md)';
+            }}
+          >
           <span
             style={{
               width: 44,
@@ -3509,14 +3414,14 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
             >
               {accountLabel}
             </span>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: missingImages.length > 0 ? '#b45309' : 'var(--c-text-lo)', fontSize: 10.5, fontWeight: 600 }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--c-text-lo)', fontSize: 10.5, fontWeight: 600 }}>
               <span
                 aria-hidden="true"
                 style={{
                   width: 7,
                   height: 7,
                   borderRadius: 999,
-                  background: missingImages.length > 0 || hasUnsyncedSyncChanges ? '#f59e0b' : 'var(--c-border)',
+                  background: hasUnsyncedSyncChanges ? '#f59e0b' : 'var(--c-border)',
                 }}
               />
               {accountStatus}
@@ -3533,25 +3438,16 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
               justifyContent: 'center',
               flexShrink: 0,
               borderRadius: 10,
-              color: missingImages.length > 0
-                ? '#b45309'
-                : cloudOnlyWorkspace || hasUnsyncedSyncChanges
+              color: cloudOnlyWorkspace || hasUnsyncedSyncChanges
                   ? 'var(--c-line)'
                   : 'var(--c-text-lo)',
               background: 'color-mix(in srgb, var(--c-hover) 56%, transparent)',
             }}
           >
-            {missingImages.length > 0 ? (
-              <svg width="17" height="17" viewBox="0 0 17 17" fill="none" aria-hidden="true">
-                <path d="M8.5 2.2 15 13.6H2L8.5 2.2Z" stroke="currentColor" strokeWidth="1.45" strokeLinejoin="round" />
-                <path d="M8.5 6.3v3.4" stroke="currentColor" strokeWidth="1.45" strokeLinecap="round" />
-                <circle cx="8.5" cy="11.8" r="0.7" fill="currentColor" />
-              </svg>
-            ) : (
-              <IconCloud size={17} />
-            )}
+            <IconCloud size={17} />
           </span>
-        </button>
+          </button>
+        </div>
       </div>
 
       {/* Delete confirmation */}
