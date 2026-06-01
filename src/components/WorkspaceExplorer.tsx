@@ -3293,17 +3293,20 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
           {accountMenuOpen && (
             <div
               style={{
-                position: 'absolute',
+                position: 'fixed',
                 left: 0,
                 right: 0,
-                bottom: 'calc(100% + 8px)',
-                zIndex: 9200,
+                bottom: 'auto',
+                top: 0,
+                zIndex: 9999,
                 overflow: 'hidden',
                 border: `1px solid ${DARK_MENU_COLORS.border}`,
                 borderRadius: 14,
                 background: DARK_MENU_COLORS.surface,
                 boxShadow: DARK_MENU_COLORS.shadow,
                 fontFamily: FONTS.ui,
+                maxWidth: 320,
+                margin: '60px auto 0',
               }}
               onMouseDown={(e) => e.stopPropagation()}
             >
