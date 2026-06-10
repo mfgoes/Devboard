@@ -175,47 +175,107 @@ function CommandMenuItem({
   icon,
   label,
   onClick,
+  disabled = false,
+  trailing,
 }: {
   icon: React.ReactNode;
   label: string;
   onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
+  disabled?: boolean;
+  trailing?: React.ReactNode;
 }) {
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={disabled ? undefined : onClick}
+      disabled={disabled}
       style={{
         width: '100%',
         minHeight: 31,
         display: 'grid',
-        gridTemplateColumns: '17px minmax(0, 1fr)',
+        gridTemplateColumns: trailing ? '17px minmax(0, 1fr) auto' : '17px minmax(0, 1fr)',
         alignItems: 'center',
         gap: 10,
         padding: '0 12px',
         border: 'none',
         background: 'transparent',
-        color: DARK_MENU_COLORS.text,
-        cursor: 'pointer',
+        color: disabled ? DARK_MENU_COLORS.textMuted : DARK_MENU_COLORS.text,
+        cursor: disabled ? 'default' : 'pointer',
         textAlign: 'left',
         fontFamily: FONTS.ui,
+        opacity: disabled ? 0.58 : 1,
       }}
       onMouseEnter={(e) => {
+        if (disabled) return;
         e.currentTarget.style.background = DARK_MENU_COLORS.hover;
         e.currentTarget.style.color = DARK_MENU_COLORS.textHi;
       }}
       onMouseLeave={(e) => {
+        if (disabled) return;
         e.currentTarget.style.background = 'transparent';
         e.currentTarget.style.color = DARK_MENU_COLORS.text;
       }}
     >
       <span style={{ display: 'inline-flex', color: DARK_MENU_COLORS.accent }}>{icon}</span>
       <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12, fontWeight: 560 }}>{label}</span>
+      {trailing && <span style={{ color: DARK_MENU_COLORS.textMuted, fontSize: 10.5 }}>{trailing}</span>}
     </button>
   );
 }
 
 function CommandMenuDivider() {
   return <div style={{ height: 1, margin: '4px 10px', background: DARK_MENU_COLORS.border }} />;
+}
+
+function CommandMenuSubItem({
+  icon,
+  label,
+  open,
+  onOpen,
+  onClose,
+  children,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  open: boolean;
+  onOpen: () => void;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div style={{ position: 'relative' }} onMouseEnter={onOpen} onMouseLeave={onClose}>
+      <CommandMenuItem
+        icon={icon}
+        label={label}
+        trailing="›"
+        onClick={(e) => {
+          e.preventDefault();
+          open ? onClose() : onOpen();
+        }}
+      />
+      {open && (
+        <div
+          style={{
+            position: 'absolute',
+            left: 'calc(100% - 2px)',
+            top: -6,
+            zIndex: 10002,
+            width: 220,
+            padding: '6px 0',
+            border: `1px solid ${DARK_MENU_COLORS.border}`,
+            borderRadius: 10,
+            background: DARK_MENU_COLORS.surface,
+            boxShadow: DARK_MENU_COLORS.shadow,
+            overflow: 'hidden',
+            animation: 'submenu-in 0.13s ease-out',
+          }}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          {children}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function DarkMenuActionItem({
@@ -1912,6 +1972,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
   const [confirmingClose, setConfirmingClose] = useState(false);
   const confirmCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [commandMenuOpen, setCommandMenuOpen] = useState(false);
+  const [activeCommandSubmenu, setActiveCommandSubmenu] = useState<string | null>(null);
   const [commandMenuAnchor, setCommandMenuAnchor] = useState<{ left: number; top: number } | null>(null);
   const commandMenuRef = useRef<HTMLDivElement>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -2023,7 +2084,10 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
   }, []);
 
   const closeSidebarMenus = useCallback((keep?: 'command' | 'missingImages' | 'account') => {
-    if (keep !== 'command') setCommandMenuOpen(false);
+    if (keep !== 'command') {
+      setCommandMenuOpen(false);
+      setActiveCommandSubmenu(null);
+    }
     if (keep !== 'missingImages') setMissingImagesOpen(false);
     if (keep !== 'account') setAccountMenuOpen(false);
   }, []);
@@ -2314,6 +2378,34 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
     }
   }, [closeSidebarMenus]);
 
+  const activeDocumentForMenu = useMemo(
+    () => documents.find((doc) => doc.id === activeDocId) ?? null,
+    [activeDocId, documents],
+  );
+
+  const closeCommandMenu = useCallback(() => {
+    setCommandMenuOpen(false);
+    setActiveCommandSubmenu(null);
+  }, []);
+
+  const runCommandMenuAction = useCallback((action: () => void) => {
+    closeCommandMenu();
+    action();
+  }, [closeCommandMenu]);
+
+  const handleCreatePageFromMenu = useCallback(() => {
+    addPage();
+  }, [addPage]);
+
+  const handleSaveWorkspaceFromMenu = useCallback(() => {
+    void saveWorkspace(useBoardStore.getState().exportData());
+  }, []);
+
+  const handleFocusSearchFromMenu = useCallback(() => {
+    setSearchOpen(true);
+    window.setTimeout(() => searchInputRef.current?.focus(), 0);
+  }, []);
+
   const handleFindMissingImages = useCallback(async () => {
     if (missingImagesFixing || missingImages.length === 0) return;
     setMissingImagesFixing(true);
@@ -2590,6 +2682,10 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
     useBoardStore.getState().ensureDocumentNode(docId, pageId);
     openDocument(docId);
   }, [activePageId, addDocument, documents, openDocument, pages, switchPage]);
+
+  const handleCreateNoteFromMenu = useCallback(() => {
+    createNoteForPage(activePageId);
+  }, [activePageId, createNoteForPage]);
 
   const openDocumentFromShortcut = useCallback((doc: Document) => {
     if (doc.pageId && doc.pageId !== activePageId) switchPage(doc.pageId);
@@ -2902,6 +2998,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
               onClick={() => {
                 if (commandMenuOpen) {
                   setCommandMenuOpen(false);
+                  setActiveCommandSubmenu(null);
                   return;
                 }
                 closeSidebarMenus('command');
@@ -2954,38 +3051,91 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
                   borderRadius: 10,
                   background: DARK_MENU_COLORS.surface,
                   boxShadow: DARK_MENU_COLORS.shadow,
-                  overflow: 'hidden',
+                  overflow: 'visible',
                 }}
                 onMouseDown={(e) => e.stopPropagation()}
               >
-                <CommandMenuItem
+                <CommandMenuSubItem
                   icon={<CommandIcon kind="file" />}
                   label="File"
-                  onClick={() => {
-                    setCommandMenuOpen(false);
-                  }}
-                />
-                <CommandMenuItem
+                  open={activeCommandSubmenu === 'file'}
+                  onOpen={() => setActiveCommandSubmenu('file')}
+                  onClose={() => setActiveCommandSubmenu((current) => current === 'file' ? null : current)}
+                >
+                  <CommandMenuItem icon={<CommandIcon kind="file" />} label="New note" onClick={() => runCommandMenuAction(handleCreateNoteFromMenu)} />
+                  <CommandMenuItem icon={<CommandIcon kind="folder" />} label="New folder" onClick={() => runCommandMenuAction(handleCreatePageFromMenu)} />
+                  <CommandMenuDivider />
+                  <CommandMenuItem icon={<CommandIcon kind="folder" />} label="Switch workspace..." onClick={() => { closeCommandMenu(); void handleOpenFolder(); }} />
+                  <CommandMenuItem icon={<CommandIcon kind="view" />} label="Save workspace" onClick={() => runCommandMenuAction(handleSaveWorkspaceFromMenu)} />
+                  <CommandMenuItem icon={<CommandIcon kind="settings" />} label="Workspace Sync..." onClick={() => runCommandMenuAction(openCloudModal)} />
+                </CommandMenuSubItem>
+                <CommandMenuSubItem
                   icon={<CommandIcon kind="edit" />}
                   label="Edit"
-                  onClick={() => {
-                    setCommandMenuOpen(false);
-                  }}
-                />
-                <CommandMenuItem
+                  open={activeCommandSubmenu === 'edit'}
+                  onOpen={() => setActiveCommandSubmenu('edit')}
+                  onClose={() => setActiveCommandSubmenu((current) => current === 'edit' ? null : current)}
+                >
+                  <CommandMenuItem icon={<CommandIcon kind="edit" />} label="New note" onClick={() => runCommandMenuAction(handleCreateNoteFromMenu)} />
+                  <CommandMenuItem
+                    icon={<CommandIcon kind="settings" />}
+                    label={noteAutosaveEnabled ? 'Disable note autosave' : 'Enable note autosave'}
+                    onClick={() => runCommandMenuAction(() => setNoteAutosaveEnabled(!noteAutosaveEnabled))}
+                  />
+                  <CommandMenuDivider />
+                  <CommandMenuItem icon={<CommandIcon kind="search" />} label="Search..." onClick={() => runCommandMenuAction(handleFocusSearchFromMenu)} />
+                </CommandMenuSubItem>
+                <CommandMenuSubItem
                   icon={<CommandIcon kind="view" />}
                   label="View"
-                  onClick={() => {
-                    setCommandMenuOpen(false);
-                  }}
-                />
-                <CommandMenuItem
+                  open={activeCommandSubmenu === 'view'}
+                  onOpen={() => setActiveCommandSubmenu('view')}
+                  onClose={() => setActiveCommandSubmenu((current) => current === 'view' ? null : current)}
+                >
+                  <CommandMenuItem
+                    icon={<CommandIcon kind="view" />}
+                    label={theme === 'light' ? 'Dark mode' : 'Light mode'}
+                    onClick={() => runCommandMenuAction(toggleTheme)}
+                  />
+                  <CommandMenuItem icon={<CommandIcon kind="search" />} label="Search..." onClick={() => runCommandMenuAction(handleFocusSearchFromMenu)} />
+                  <CommandMenuDivider />
+                  <CommandMenuItem
+                    icon={<CommandIcon kind="file" />}
+                    label={favoritesSectionOpen ? 'Hide favorites' : 'Show favorites'}
+                    onClick={() => runCommandMenuAction(() => setFavoritesSectionOpen((current) => !current))}
+                  />
+                  <CommandMenuItem
+                    icon={<CommandIcon kind="folder" />}
+                    label={pagesSectionOpen ? 'Hide folders' : 'Show folders'}
+                    onClick={() => runCommandMenuAction(() => setPagesSectionOpen((current) => !current))}
+                  />
+                </CommandMenuSubItem>
+                <CommandMenuSubItem
                   icon={<CommandIcon kind="export" />}
                   label="Export"
-                  onClick={() => {
-                    setCommandMenuOpen(false);
-                  }}
-                />
+                  open={activeCommandSubmenu === 'export'}
+                  onOpen={() => setActiveCommandSubmenu('export')}
+                  onClose={() => setActiveCommandSubmenu((current) => current === 'export' ? null : current)}
+                >
+                  <CommandMenuItem
+                    icon={<CommandIcon kind="export" />}
+                    label="Export active note as Markdown"
+                    disabled={!activeDocumentForMenu}
+                    onClick={() => activeDocumentForMenu && runCommandMenuAction(() => exportDocumentAsMarkdownFile(activeDocumentForMenu))}
+                  />
+                  <CommandMenuItem
+                    icon={<CommandIcon kind="export" />}
+                    label="Export active note as PDF"
+                    disabled={!activeDocumentForMenu}
+                    onClick={() => activeDocumentForMenu && runCommandMenuAction(() => exportDocumentAsPdf(activeDocumentForMenu))}
+                  />
+                  <CommandMenuItem
+                    icon={<CommandIcon kind="export" />}
+                    label="Export active note as text"
+                    disabled={!activeDocumentForMenu}
+                    onClick={() => activeDocumentForMenu && runCommandMenuAction(() => exportDocumentAsTextFile(activeDocumentForMenu))}
+                  />
+                </CommandMenuSubItem>
                 <CommandMenuDivider />
                 <CommandMenuItem
                   icon={<CommandIcon kind="download" />}
