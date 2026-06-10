@@ -6,9 +6,9 @@ import { saveAs } from 'file-saver';
 import { hasWorkspaceHandle, readWorkspaceFileAsUrl, saveImageAsset, saveTextFileToWorkspace } from '../utils/workspaceManager';
 import { toast } from '../utils/toast';
 import { focusNode } from '../utils/focusNode';
-import { IconAlignCenter, IconAlignLeft, IconAlignRight, IconArrowRight, IconCode, IconCodeBlock, IconCopy, IconEye, IconHorizontalRule, IconLink, IconList, IconListOrdered, IconMoreHorizontal, IconNodeLink, IconQuote, IconStar, IconTextWrap, IconUnlink, IconWikiLink } from './icons';
+import { IconArrowRight, IconCode, IconCodeBlock, IconCopy, IconEye, IconHorizontalRule, IconLink, IconList, IconListOrdered, IconMoreHorizontal, IconNodeLink, IconQuote, IconStar, IconTextWrap, IconUnlink, IconWikiLink } from './icons';
 import { useDocumentAutoSave } from '../hooks/useDocumentAutoSave';
-import { type DocumentCommandDefinition, type DocumentCommandGroup, getDocumentCommandsForSurface, runDocumentCommand } from './documentCommands';
+import { type DocumentCommandDefinition, type DocumentCommandGroup, type DocumentCommandId, getDocumentCommandsForSurface, runDocumentCommand } from './documentCommands';
 import { sanitizeClipboardHtml } from '../utils/richText';
 import { describeNoteSaveStatus, saveLinkedWorkspaceToCloud, type NoteSavePresentation } from '../utils/saveStatus';
 import AssetDrawer from './AssetDrawer';
@@ -880,6 +880,7 @@ interface FmtBarProps {
   insertCommands: DocumentCommandDefinition[];
   onInsertCommand: (command: DocumentCommandDefinition) => void;
   onCaptureSelection: () => void;
+  onOpenSlashCommands: () => void;
   onMenuOpenChange?: (open: boolean) => void;
 }
 
@@ -904,10 +905,9 @@ function FormattingBar({
   insertCommands,
   onInsertCommand,
   onCaptureSelection,
+  onOpenSlashCommands,
   onMenuOpenChange,
 }: FmtBarProps) {
-  const [showFormatMenu, setShowFormatMenu] = useState(false);
-  const [showAlignMenu, setShowAlignMenu] = useState(false);
   const [showToolsMenu, setShowToolsMenu] = useState(false);
   const [hoveredControl, setHoveredControl] = useState<string | null>(null);
   const [toolbarWidth, setToolbarWidth] = useState(() => (typeof window !== 'undefined' ? window.innerWidth : 1440));
@@ -917,11 +917,7 @@ function FormattingBar({
   const savedRangeRef = useRef<Range | null>(null);
   const [, tick] = useState(0);
   const toolbarRef = useRef<HTMLDivElement>(null);
-  const formatBtnRef = useRef<HTMLButtonElement>(null);
-  const alignBtnRef = useRef<HTMLButtonElement>(null);
   const toolsBtnRef = useRef<HTMLButtonElement>(null);
-  const formatMenuRef = useRef<HTMLDivElement>(null);
-  const alignMenuRef = useRef<HTMLDivElement>(null);
   const toolsMenuRef = useRef<HTMLDivElement>(null);
 
   const saveSelection = () => {
@@ -940,20 +936,6 @@ function FormattingBar({
     dispatchEditableInput(savedRangeRef.current);
     tick((n) => n + 1);
   };
-
-  const applyLink = () => {
-    restoreSelection();
-    const existingHref = getLinkHref(savedRangeRef.current);
-    const url = window.prompt(existingHref ? 'Edit link URL' : 'Link URL', existingHref || 'https://');
-    if (url === null) return;
-    const trimmed = url.trim();
-    if (!trimmed) fmt('unlink');
-    else fmt('createLink', trimmed);
-  };
-
-  const currentBlock = getBlockType(showFormatMenu ? savedRangeRef.current : null);
-  const isBold = document.queryCommandState('bold');
-  const isItalic = document.queryCommandState('italic');
 
   const btnStyle = (active: boolean, hovered = false): React.CSSProperties => ({
     height: isMobileNarrow ? 30 : 26,
@@ -979,6 +961,45 @@ function FormattingBar({
     boxShadow: hovered && !active ? '0 1px 2px rgba(0,0,0,0.06)' : 'none',
     transition: 'background 0.12s, border-color 0.12s, color 0.12s, box-shadow 0.12s',
   });
+
+  const primaryMenuButtonStyle = (active: boolean, hovered = false): React.CSSProperties => ({
+    ...btnStyle(active, hovered),
+    minWidth: useCompactToolbar ? 96 : 116,
+    height: isMobileNarrow ? 34 : 32,
+    padding: '0 12px',
+    justifyContent: 'space-between',
+    border: `1px solid ${active ? 'rgba(184,119,80,0.52)' : 'rgba(184,119,80,0.32)'}`,
+    background: active ? 'rgba(184,119,80,0.14)' : 'rgba(255,255,255,0.03)',
+    color: active ? 'var(--c-line)' : 'var(--c-text-hi)',
+    fontSize: useCompactToolbar ? 12 : 13,
+    fontWeight: 700,
+    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)',
+  });
+
+  const compactIconButtonStyle = (active: boolean, hovered = false): React.CSSProperties => ({
+    ...btnStyle(active, hovered),
+    height: isMobileNarrow ? 34 : 32,
+    minWidth: isMobileNarrow ? 34 : 32,
+    padding: '0 8px',
+    fontSize: 13,
+    fontWeight: active ? 800 : 700,
+    color: active ? 'var(--c-line)' : (hovered ? 'var(--c-text-hi)' : 'var(--c-text-md)'),
+  });
+
+  const toolbarDividerStyle: React.CSSProperties = {
+    width: 1,
+    height: 24,
+    background: 'var(--c-border)',
+    margin: '0 6px',
+    flexShrink: 0,
+  };
+
+  const todoGlyph = (
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <rect x="2.2" y="2.2" width="11.6" height="11.6" rx="2.2" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M5 8.15 7.05 10.1 11.1 5.8" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
 
   const hoverHandlers = (id: string) => ({
     onMouseEnter: () => setHoveredControl(id),
@@ -1052,8 +1073,6 @@ function FormattingBar({
   ];
   const visibleSourceShortcuts = useUltraCompactToolbar ? sourceShortcuts.slice(0, 6) : sourceShortcuts;
 
-  const formatMenuRect = showFormatMenu && formatBtnRef.current ? formatBtnRef.current.getBoundingClientRect() : null;
-  const alignMenuRect = showAlignMenu && alignBtnRef.current ? alignBtnRef.current.getBoundingClientRect() : null;
   const toolsMenuRect = showToolsMenu && toolsBtnRef.current ? toolsBtnRef.current.getBoundingClientRect() : null;
   const groupedInsertCommands = insertCommands.reduce<Record<DocumentCommandGroup, DocumentCommandDefinition[]>>((acc, command) => {
     (acc[command.group] ||= []).push(command);
@@ -1061,26 +1080,44 @@ function FormattingBar({
   }, {} as Record<DocumentCommandGroup, DocumentCommandDefinition[]>);
 
   const closeMenus = () => {
-    setShowFormatMenu(false);
-    setShowAlignMenu(false);
     setShowToolsMenu(false);
   };
 
-  useEffect(() => {
-    const menuOpen = showFormatMenu || showAlignMenu || showToolsMenu;
-    onMenuOpenChange?.(menuOpen);
-    return () => onMenuOpenChange?.(false);
-  }, [onMenuOpenChange, showAlignMenu, showFormatMenu, showToolsMenu]);
+  const applyHeading = (tag: 'h1' | 'h2') => {
+    restoreSelection();
+    applyBlock(tag, savedRangeRef.current);
+    closeMenus();
+    tick((n) => n + 1);
+  };
+
+  const runToolbarCommand = (id: DocumentCommandId) => {
+    const command = insertCommands.find((candidate) => candidate.id === id);
+    if (!command) return;
+    restoreSelection();
+    onCaptureSelection();
+    closeMenus();
+    onInsertCommand(command);
+  };
+
+  const openSlashCommands = () => {
+    restoreSelection();
+    onCaptureSelection();
+    closeMenus();
+    onOpenSlashCommands();
+  };
 
   useEffect(() => {
-    if (!showFormatMenu && !showAlignMenu && !showToolsMenu) return;
+    onMenuOpenChange?.(showToolsMenu);
+    return () => onMenuOpenChange?.(false);
+  }, [onMenuOpenChange, showToolsMenu]);
+
+  useEffect(() => {
+    if (!showToolsMenu) return;
     const handleWindowPointer = (event: MouseEvent | TouchEvent) => {
       const target = event.target as Node | null;
       if (!target) return;
       if (
         toolbarRef.current?.contains(target) ||
-        formatMenuRef.current?.contains(target) ||
-        alignMenuRef.current?.contains(target) ||
         toolsMenuRef.current?.contains(target)
       ) {
         return;
@@ -1093,7 +1130,7 @@ function FormattingBar({
       window.removeEventListener('mousedown', handleWindowPointer);
       window.removeEventListener('touchstart', handleWindowPointer);
     };
-  }, [showFormatMenu, showAlignMenu, showToolsMenu]);
+  }, [showToolsMenu]);
 
   useEffect(() => {
     const el = toolbarRef.current;
@@ -1163,121 +1200,129 @@ function FormattingBar({
         {viewMode === 'edit' && (
           <>
             <button
-              ref={formatBtnRef}
-              type="button"
-              style={{
-                ...btnStyle(showFormatMenu, hoveredControl === 'format'),
-                minWidth: useCompactToolbar ? 46 : 118,
-                justifyContent: 'space-between',
-                border: `1px solid ${showFormatMenu ? 'rgba(184,119,80,0.52)' : 'rgba(184,119,80,0.32)'}`,
-                background: showFormatMenu ? 'rgba(184,119,80,0.14)' : 'rgba(255,255,255,0.03)',
-                color: showFormatMenu ? 'var(--c-line)' : 'var(--c-text-hi)',
-                boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)',
-              }}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                saveSelection();
-              }}
-              onClick={() => {
-                setShowFormatMenu((v) => !v);
-                setShowAlignMenu(false);
-                setShowToolsMenu(false);
-                tick((n) => n + 1);
-              }}
-              {...hoverHandlers('format')}
-              title="Paragraph style"
-            >
-              <span style={{ overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
-                {useCompactToolbar
-                  ? (BLOCK_SHORT_LABELS[currentBlock] ?? 'P')
-                  : currentBlock === 'h1'
-                    ? 'Heading 1'
-                    : currentBlock === 'h2'
-                      ? 'Heading 2'
-                      : currentBlock === 'h3'
-                        ? 'Heading 3'
-                        : 'Paragraph'}
-              </span>
-              <span style={{ fontSize: 9, opacity: 0.7 }}>▼</span>
-            </button>
-            <button
-              ref={alignBtnRef}
-              type="button"
-              style={btnStyle(showAlignMenu, hoveredControl === 'align')}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                saveSelection();
-              }}
-              onClick={() => {
-                setShowAlignMenu((v) => !v);
-                setShowFormatMenu(false);
-                setShowToolsMenu(false);
-              }}
-              {...hoverHandlers('align')}
-              title="Alignment"
-            >
-              <IconAlignLeft />
-              {!useCompactToolbar && <span style={{ fontSize: 11 }}>Align</span>}
-              <span style={{ fontSize: 9, opacity: 0.7 }}>▼</span>
-            </button>
-            <button
               ref={toolsBtnRef}
               type="button"
-              style={btnStyle(showToolsMenu, hoveredControl === 'tools')}
+              style={primaryMenuButtonStyle(showToolsMenu, hoveredControl === 'tools')}
               onMouseDown={(e) => {
                 e.preventDefault();
                 saveSelection();
               }}
               onClick={() => {
                 setShowToolsMenu((v) => !v);
-                setShowFormatMenu(false);
-                setShowAlignMenu(false);
               }}
               {...hoverHandlers('tools')}
               title="Insert block or link"
             >
-              <span style={{ fontSize: 11 }}>Insert</span>
+              <span style={{ fontSize: 18, fontWeight: 500, lineHeight: 1 }}>+</span>
+              <span style={{ marginRight: 2 }}>Insert</span>
               <span style={{ fontSize: 9, opacity: 0.7 }}>▼</span>
             </button>
-            <div style={{ width: 1, height: 22, background: 'var(--c-border)', margin: '0 4px', flexShrink: 0 }} />
+            <div style={toolbarDividerStyle} />
             <button
               type="button"
-              style={btnStyle(isBold, hoveredControl === 'bold')}
+              style={compactIconButtonStyle(false, hoveredControl === 'h1')}
               onMouseDown={(e) => {
                 e.preventDefault();
                 saveSelection();
-                fmt('bold');
               }}
-              {...hoverHandlers('bold')}
-              title="Bold"
+              onClick={() => applyHeading('h1')}
+              {...hoverHandlers('h1')}
+              title="Heading 1"
             >
-              <span style={{ fontSize: 13, fontWeight: 800, lineHeight: 1 }}>B</span>
+              H1
             </button>
             <button
               type="button"
-              style={btnStyle(isItalic, hoveredControl === 'italic')}
+              style={compactIconButtonStyle(false, hoveredControl === 'h2')}
               onMouseDown={(e) => {
                 e.preventDefault();
                 saveSelection();
-                fmt('italic');
               }}
-              {...hoverHandlers('italic')}
-              title="Italic"
+              onClick={() => applyHeading('h2')}
+              {...hoverHandlers('h2')}
+              title="Heading 2"
             >
-              <span style={{ fontSize: 14, fontStyle: 'italic', fontWeight: 700, lineHeight: 1 }}>I</span>
+              H2
             </button>
             <button
               type="button"
-              style={btnStyle(false, hoveredControl === 'link')}
+              style={compactIconButtonStyle(false, hoveredControl === 'bullet-list')}
               onMouseDown={(e) => {
                 e.preventDefault();
                 saveSelection();
-                applyLink();
               }}
-              {...hoverHandlers('link')}
-              title="Link"
+              onClick={() => fmt('insertUnorderedList')}
+              {...hoverHandlers('bullet-list')}
+              title="Bullet list"
             >
-              <IconLink />
+              <IconList />
+            </button>
+            <button
+              type="button"
+              style={compactIconButtonStyle(false, hoveredControl === 'todo-list')}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                saveSelection();
+              }}
+              onClick={() => runToolbarCommand('todo-list')}
+              {...hoverHandlers('todo-list')}
+              title="Todo list"
+            >
+              {todoGlyph}
+            </button>
+            <button
+              type="button"
+              style={compactIconButtonStyle(false, hoveredControl === 'quote')}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                saveSelection();
+              }}
+              onClick={() => runToolbarCommand('quote')}
+              {...hoverHandlers('quote')}
+              title="Quote"
+            >
+              <IconQuote />
+            </button>
+            <div style={toolbarDividerStyle} />
+            <button
+              type="button"
+              style={{
+                ...btnStyle(false, hoveredControl === 'slash-commands'),
+                height: isMobileNarrow ? 34 : 32,
+                minWidth: useCompactToolbar ? 42 : 154,
+                padding: useCompactToolbar ? '0 9px' : '0 12px',
+                borderRadius: 999,
+                border: '1px dashed var(--c-border)',
+                color: hoveredControl === 'slash-commands' ? 'var(--c-text-hi)' : 'var(--c-text-md)',
+                fontSize: 13,
+                fontWeight: 600,
+              }}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                saveSelection();
+              }}
+              onClick={openSlashCommands}
+              {...hoverHandlers('slash-commands')}
+              title="Slash commands"
+            >
+              <span
+                style={{
+                  width: 24,
+                  height: 24,
+                  borderRadius: 7,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: 'rgba(255,255,255,0.05)',
+                  border: '1px solid rgba(255,255,255,0.12)',
+                  color: 'var(--c-text-hi)',
+                  fontSize: 15,
+                  lineHeight: 1,
+                }}
+              >
+                /
+              </span>
+              {!useCompactToolbar && <span>slash commands</span>}
             </button>
           </>
         )}
@@ -1395,27 +1440,6 @@ function FormattingBar({
         )}
       </div>
 
-      {formatMenuRect && (
-        <div ref={formatMenuRef} style={menuShell(formatMenuRect)} onMouseDown={(e) => e.stopPropagation()}>
-          {(['p', 'h1', 'h2', 'h3'] as const).map((tag) => (
-            <button
-              key={tag}
-              style={{ ...menuButtonStyle, background: currentBlock === tag ? 'rgba(184,119,80,0.15)' : 'transparent', color: currentBlock === tag ? 'var(--c-line)' : 'var(--c-text-md)' }}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                restoreSelection();
-                applyBlock(tag, savedRangeRef.current);
-                closeMenus();
-                tick((n) => n + 1);
-              }}
-              {...menuHover}
-            >
-              <span>{BLOCK_LABELS[tag]}</span>
-            </button>
-          ))}
-        </div>
-      )}
-
       {toolsMenuRect && (
         <div
           ref={toolsMenuRef}
@@ -1469,14 +1493,6 @@ function FormattingBar({
               ))}
             </div>
           ))}
-        </div>
-      )}
-
-      {alignMenuRect && (
-        <div ref={alignMenuRef} style={menuShell(alignMenuRect, 168)} onMouseDown={(e) => e.stopPropagation()}>
-          <button style={menuButtonStyle} onMouseDown={(e) => { e.preventDefault(); applyTextAlignment('left', savedRangeRef.current); closeMenus(); tick((n) => n + 1); }} {...menuHover}><IconAlignLeft /><span>Align left</span></button>
-          <button style={menuButtonStyle} onMouseDown={(e) => { e.preventDefault(); applyTextAlignment('center', savedRangeRef.current); closeMenus(); tick((n) => n + 1); }} {...menuHover}><IconAlignCenter /><span>Align center</span></button>
-          <button style={menuButtonStyle} onMouseDown={(e) => { e.preventDefault(); applyTextAlignment('right', savedRangeRef.current); closeMenus(); tick((n) => n + 1); }} {...menuHover}><IconAlignRight /><span>Align right</span></button>
         </div>
       )}
 
@@ -4451,6 +4467,7 @@ export default function DocumentMode({
               insertCommands={slashCommands}
               onInsertCommand={handleSlashCommandSelect}
               onCaptureSelection={captureEditorSelection}
+              onOpenSlashCommands={openSlashPalette}
               onMenuOpenChange={setFormattingMenuOpen}
             />
           </div>

@@ -7,7 +7,7 @@ import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import { useBoardStore } from '../store/boardStore';
 import { useAuth } from '../contexts/AuthContext';
 import type { Camera, CanvasNode, Document, ImageNode, PageMeta } from '../types';
-import { listDirectory, readWorkspaceFile, readWorkspaceFileAsUrl, readWorkspaceFileInfo, getWorkspaceName, openWorkspace, renameEntry, createDirectory, deleteEntry, FSA_DIR_SUPPORTED, IN_IFRAME, IS_TAURI, revealInFinder, saveTextFileToWorkspace, saveWorkspace, loadImageAsset, findImageInWorkspace, hasWorkspaceHandle } from '../utils/workspaceManager';
+import { listDirectory, readWorkspaceFile, readWorkspaceFileAsUrl, readWorkspaceFileInfo, getWorkspaceName, openWorkspace, openRecentWorkspace, listLocalRecentWorkspaces, renameEntry, createDirectory, deleteEntry, FSA_DIR_SUPPORTED, IN_IFRAME, IS_TAURI, revealInFinder, saveTextFileToWorkspace, saveWorkspace, loadImageAsset, findImageInWorkspace, hasWorkspaceHandle, type LocalRecentWorkspace, type WorkspaceOpenResult } from '../utils/workspaceManager';
 import { FONTS } from '../utils/fonts';
 import { placeCodeFile, placeImageFile, placeDocumentFile, openDocumentFile } from '../utils/canvasPlacement';
 import { markdownBodyToHtml, titleFromMarkdown } from '../utils/exportMarkdown';
@@ -2002,6 +2002,9 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
   const missingImagesPopoverRef = useRef<HTMLDivElement>(null);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const accountMenuRef = useRef<HTMLDivElement>(null);
+  const [projectSwitcherOpen, setProjectSwitcherOpen] = useState(false);
+  const [projectSwitcherLoading, setProjectSwitcherLoading] = useState(false);
+  const [projectSwitcherRecents, setProjectSwitcherRecents] = useState<LocalRecentWorkspace[]>([]);
   const [preferencesOpen, setPreferencesOpen] = useState(false);
   // Explorer context menu (right-click)
   type ExplorerMenu = { entry: TreeEntry; x: number; y: number };
@@ -2118,13 +2121,14 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
     window.dispatchEvent(new CustomEvent('devboard:open-cloud-modal', { detail: { tab } }));
   }, []);
 
-  const closeSidebarMenus = useCallback((keep?: 'command' | 'missingImages' | 'account' | 'preferences') => {
+  const closeSidebarMenus = useCallback((keep?: 'command' | 'missingImages' | 'account' | 'projectSwitcher' | 'preferences') => {
     if (keep !== 'command') {
       setCommandMenuOpen(false);
       setActiveCommandSubmenu(null);
     }
     if (keep !== 'missingImages') setMissingImagesOpen(false);
     if (keep !== 'account') setAccountMenuOpen(false);
+    if (keep !== 'projectSwitcher') setProjectSwitcherOpen(false);
     if (keep !== 'preferences') setPreferencesOpen(false);
   }, []);
 
@@ -2224,6 +2228,23 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
       window.removeEventListener('keydown', onKeyDown);
     };
   }, [accountMenuOpen]);
+
+  useEffect(() => {
+    if (!projectSwitcherOpen) return;
+    const onMouseDown = (e: MouseEvent) => {
+      if (accountMenuRef.current?.contains(e.target as Node)) return;
+      setProjectSwitcherOpen(false);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setProjectSwitcherOpen(false);
+    };
+    window.addEventListener('mousedown', onMouseDown);
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('mousedown', onMouseDown);
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [projectSwitcherOpen]);
 
   useEffect(() => {
     if (missingImages.length === 0 || missingImagesSuppressed) setMissingImagesOpen(false);
@@ -2400,29 +2421,77 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
   }, [filePreview]);
 
   // ── Keyboard navigation ───────────────────────────────────────────────────
+  const reloadWorkspaceRootTree = useCallback(() => {
+    setRootLoading(true);
+    setRootError(null);
+    listDirectory([])
+      .then((entries) => {
+        const filtered = entries.filter((entry) => !entry.name.startsWith('.') && !(entry.kind === 'directory' && SKIP_DIRS.has(entry.name)));
+        setTree(filtered.map((entry) => buildEntry(entry.name, entry.kind, [])));
+        setRootLoading(false);
+      })
+      .catch((err) => {
+        setRootError(`Failed to read folder: ${err?.message ?? err}`);
+        setRootLoading(false);
+      });
+  }, [setTree]);
+
+  const applyOpenedWorkspaceResult = useCallback((result: WorkspaceOpenResult) => {
+    setMissingImagesOpen(false);
+    setProjectSwitcherOpen(false);
+    useBoardStore.getState().setWorkspaceName?.(result.name);
+    if (result.data) useBoardStore.getState().loadBoard(result.data);
+    applyWorkspaceSyncFromOpenResult(result);
+    reloadWorkspaceRootTree();
+  }, [reloadWorkspaceRootTree]);
+
   const handleOpenFolder = useCallback(async () => {
     closeSidebarMenus();
     const result = await openWorkspace();
     if (result) {
-      setMissingImagesOpen(false);
-      useBoardStore.getState().setWorkspaceName?.(result.name);
-      if (result.data) useBoardStore.getState().loadBoard(result.data);
-      applyWorkspaceSyncFromOpenResult(result);
-      // Reload tree
-      setRootLoading(true);
-      setRootError(null);
-      listDirectory([])
-        .then((entries) => {
-          const filtered = entries.filter((e) => !e.name.startsWith('.') && !(e.kind === 'directory' && SKIP_DIRS.has(e.name)));
-          setTree(filtered.map((e) => buildEntry(e.name, e.kind, [])));
-          setRootLoading(false);
-        })
-        .catch((err) => {
-          setRootError(`Failed to read folder: ${err?.message ?? err}`);
-          setRootLoading(false);
-        });
+      applyOpenedWorkspaceResult(result);
     }
-  }, [closeSidebarMenus]);
+  }, [applyOpenedWorkspaceResult, closeSidebarMenus]);
+
+  const loadProjectSwitcherRecents = useCallback(async () => {
+    setProjectSwitcherLoading(true);
+    try {
+      setProjectSwitcherRecents((await listLocalRecentWorkspaces()).slice(0, 6));
+    } catch (err) {
+      console.warn('Failed to load recent workspaces', err);
+      setProjectSwitcherRecents([]);
+    } finally {
+      setProjectSwitcherLoading(false);
+    }
+  }, []);
+
+  const handleToggleProjectSwitcher = useCallback(() => {
+    if (projectSwitcherOpen) {
+      setProjectSwitcherOpen(false);
+      return;
+    }
+    closeSidebarMenus('projectSwitcher');
+    setProjectSwitcherOpen(true);
+    void loadProjectSwitcherRecents();
+  }, [closeSidebarMenus, loadProjectSwitcherRecents, projectSwitcherOpen]);
+
+  const handleOpenRecentProject = useCallback(async (recent: LocalRecentWorkspace) => {
+    setProjectSwitcherLoading(true);
+    try {
+      const result = await openRecentWorkspace(recent.id);
+      if (!result) {
+        toast('Could not reopen that project. Relocate the folder or choose another project.');
+        await loadProjectSwitcherRecents();
+        return;
+      }
+      applyOpenedWorkspaceResult(result);
+    } catch (err) {
+      console.warn('Failed to open recent project', err);
+      toast('Could not reopen that project.');
+    } finally {
+      setProjectSwitcherLoading(false);
+    }
+  }, [applyOpenedWorkspaceResult, loadProjectSwitcherRecents]);
 
   const activeDocumentForMenu = useMemo(
     () => documents.find((doc) => doc.id === activeDocId) ?? null,
@@ -3748,6 +3817,164 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
               </div>
             );
           })()}
+          {projectSwitcherOpen && (
+            <div
+              style={{
+                position: 'absolute',
+                left: 0,
+                right: 0,
+                bottom: 'calc(100% + 8px)',
+                zIndex: 9200,
+                overflow: 'hidden',
+                border: '1px solid var(--c-border)',
+                borderRadius: 12,
+                background: 'var(--c-panel)',
+                boxShadow: '0 18px 46px rgba(25,18,14,0.22)',
+                fontFamily: FONTS.ui,
+              }}
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <div style={{ padding: '9px 10px 7px', borderBottom: '1px solid var(--c-border)' }}>
+                <div style={{ fontSize: 10.5, fontWeight: 760, color: 'var(--c-text-hi)' }}>
+                  Switch project
+                </div>
+              </div>
+              <div style={{ maxHeight: 240, overflowY: 'auto', padding: 5 }}>
+                {projectSwitcherLoading && projectSwitcherRecents.length === 0 ? (
+                  <div style={{ padding: '10px 8px', fontSize: 11, fontWeight: 650, color: 'var(--c-text-lo)' }}>
+                    Loading recent projects...
+                  </div>
+                ) : projectSwitcherRecents.length === 0 ? (
+                  <div style={{ padding: '10px 8px', fontSize: 11, lineHeight: 1.45, color: 'var(--c-text-lo)' }}>
+                    No recent projects yet.
+                  </div>
+                ) : (
+                  projectSwitcherRecents.map((recent) => {
+                    const isCurrent = recent.title === workspaceDisplayName;
+                    const unavailable = recent.permissionState === 'denied' || recent.permissionState === 'missing';
+                    const subtitle = unavailable
+                      ? 'Folder access needed'
+                      : recent.localPathHint
+                        ? recent.localPathHint.replace(/\\/g, '/').split('/').slice(-2).join('/')
+                        : recent.source === 'tauri'
+                          ? 'Desktop folder'
+                          : 'Browser folder';
+                    return (
+                      <button
+                        key={recent.id}
+                        type="button"
+                        onClick={() => {
+                          if (isCurrent) {
+                            setProjectSwitcherOpen(false);
+                            return;
+                          }
+                          void handleOpenRecentProject(recent);
+                        }}
+                        disabled={projectSwitcherLoading}
+                        title={recent.localPathHint ?? recent.title}
+                        style={{
+                          width: '100%',
+                          minHeight: 42,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 9,
+                          padding: '7px 8px',
+                          border: 'none',
+                          borderRadius: 9,
+                          background: isCurrent ? 'var(--c-hover)' : 'transparent',
+                          color: unavailable ? 'var(--c-text-lo)' : 'var(--c-text-hi)',
+                          cursor: projectSwitcherLoading ? 'default' : 'pointer',
+                          fontFamily: FONTS.ui,
+                          textAlign: 'left',
+                          opacity: projectSwitcherLoading ? 0.72 : 1,
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!isCurrent) e.currentTarget.style.background = 'var(--c-hover)';
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!isCurrent) e.currentTarget.style.background = 'transparent';
+                        }}
+                      >
+                        <span style={{ position: 'relative', display: 'inline-flex', color: unavailable ? 'var(--c-text-lo)' : 'var(--c-text-md)', flexShrink: 0 }}>
+                          <IconFolder size={14} />
+                          {recent.cloudBoardId && (
+                            <span
+                              aria-hidden="true"
+                              style={{
+                                position: 'absolute',
+                                right: -3,
+                                top: -3,
+                                width: 7,
+                                height: 7,
+                                borderRadius: 999,
+                                border: '1px solid var(--c-panel)',
+                                background: '#4aa878',
+                              }}
+                            />
+                          )}
+                        </span>
+                        <span style={{ minWidth: 0, flex: 1 }}>
+                          <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12, fontWeight: 740 }}>
+                            {recent.title}
+                          </span>
+                          <span style={{ display: 'block', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 10, fontWeight: 600, color: unavailable ? '#b45309' : 'var(--c-text-lo)' }}>
+                            {subtitle}
+                          </span>
+                        </span>
+                        {isCurrent && (
+                          <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 760, color: 'var(--c-line)' }}>
+                            Current
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5, padding: 5, borderTop: '1px solid var(--c-border)' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProjectSwitcherOpen(false);
+                    void handleOpenFolder();
+                  }}
+                  style={{
+                    height: 32,
+                    border: 'none',
+                    borderRadius: 8,
+                    background: 'transparent',
+                    color: 'var(--c-text-md)',
+                    cursor: 'pointer',
+                    fontFamily: FONTS.ui,
+                    fontSize: 11,
+                    fontWeight: 720,
+                  }}
+                >
+                  Open folder...
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProjectSwitcherOpen(false);
+                    openCloudModal('library');
+                  }}
+                  style={{
+                    height: 32,
+                    border: 'none',
+                    borderRadius: 8,
+                    background: 'var(--c-hover)',
+                    color: 'var(--c-text-hi)',
+                    cursor: 'pointer',
+                    fontFamily: FONTS.ui,
+                    fontSize: 11,
+                    fontWeight: 740,
+                  }}
+                >
+                  All projects...
+                </button>
+              </div>
+            </div>
+          )}
           <div
             style={{
               minHeight: 44,
@@ -3816,10 +4043,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
             <span aria-hidden="true" style={{ width: 1, height: 22, flexShrink: 0, background: 'var(--c-border)' }} />
             <button
               type="button"
-              onClick={() => {
-                closeSidebarMenus();
-                openCloudModal('library');
-              }}
+              onClick={handleToggleProjectSwitcher}
               title={footerSyncDot ? `${workspaceDisplayName} · ${footerSyncDot.label}. ${footerSyncDot.title}` : `Switch project: ${workspaceDisplayName}`}
               aria-label={footerSyncDot ? `Switch project: ${workspaceDisplayName}. ${footerSyncDot.label}. ${footerSyncDot.title}` : `Switch project: ${workspaceDisplayName}`}
               style={{
