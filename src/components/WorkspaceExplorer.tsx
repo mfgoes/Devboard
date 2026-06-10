@@ -19,6 +19,7 @@ import { useFilePreview } from '../hooks/useFilePreview';
 import { useTreeState } from '../hooks/useTreeState';
 import { IconArrowRight, IconCloud, IconFolder, IconSidebarToggle, IconStar } from './icons';
 import { DARK_MENU_COLORS } from './darkMenuTheme';
+import ModalCloseButton from './ModalCloseButton';
 import {
   SKIP_DIRS,
   IMAGE_EXTS,
@@ -2001,6 +2002,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
   const missingImagesPopoverRef = useRef<HTMLDivElement>(null);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const accountMenuRef = useRef<HTMLDivElement>(null);
+  const [preferencesOpen, setPreferencesOpen] = useState(false);
   // Explorer context menu (right-click)
   type ExplorerMenu = { entry: TreeEntry; x: number; y: number };
   const [explorerMenu, setExplorerMenu] = useState<ExplorerMenu | null>(null);
@@ -2046,7 +2048,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
     : !user && !!cloudBoardId
       ? {
         label: 'Sync paused',
-        title: `This workspace is linked to cloud storage${cloudBoardTitle ? ` as "${cloudBoardTitle}"` : ''}, but you are signed out.`,
+        title: `This project is linked to cloud storage${cloudBoardTitle ? ` as "${cloudBoardTitle}"` : ''}, but you are signed out.`,
         tone: 'warning' as const,
       }
       : hasUnsyncedSyncChanges
@@ -2058,18 +2060,18 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
         : cloudOnlyWorkspace
           ? {
             label: 'Cloud only',
-            title: `This workspace is saved in cloud storage${cloudBoardTitle ? ` as "${cloudBoardTitle}"` : ''}, but no local folder is attached on this device.`,
+            title: `This project is saved in cloud storage${cloudBoardTitle ? ` as "${cloudBoardTitle}"` : ''}, but no local folder is attached on this device.`,
             tone: 'cloud' as const,
           }
           : cloudBoardId
             ? {
               label: 'Synced',
-              title: `This workspace is linked to cloud storage${cloudBoardTitle ? ` as "${cloudBoardTitle}"` : ''}.`,
+              title: `This project is linked to cloud storage${cloudBoardTitle ? ` as "${cloudBoardTitle}"` : ''}.`,
               tone: 'success' as const,
             }
             : {
               label: 'Local only',
-              title: 'This workspace is only saved locally right now.',
+              title: 'This project is only saved locally right now.',
               tone: 'neutral' as const,
             };
   const accountStatus = authLoading
@@ -2079,18 +2081,62 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
       : cloudBoardId
         ? 'Saved'
         : 'Saved';
-  const openCloudModal = useCallback(() => {
-    window.dispatchEvent(new CustomEvent('devboard:open-cloud-modal'));
+  const bottomSyncStatus = authLoading
+    ? null
+    : !user && !!cloudBoardId
+      ? { label: 'Not saved — offline', tone: 'danger' as const, title: syncStatus.title }
+      : syncStatus.label === 'Cloud copy newer'
+        ? { label: 'Cloud copy is newer — review', tone: 'warning' as const, title: syncStatus.title }
+      : hasUnsyncedSyncChanges
+        ? { label: 'Not saved — offline', tone: 'danger' as const, title: syncStatus.title }
+        : cloudOnlyWorkspace
+          ? { label: 'Synced to cloud', tone: 'success' as const, title: syncStatus.title }
+          : !cloudBoardId
+          ? { label: 'Local only — not backed up', tone: 'neutral' as const, title: syncStatus.title }
+            : null;
+  const footerSyncDot = bottomSyncStatus
+    ? {
+      label: bottomSyncStatus.label,
+      title: bottomSyncStatus.title,
+      color: bottomSyncStatus.tone === 'danger'
+        ? '#ef4444'
+        : bottomSyncStatus.tone === 'warning'
+          ? '#d97706'
+          : bottomSyncStatus.tone === 'success'
+            ? '#4aa878'
+            : '#b6b6b1',
+      textColor: bottomSyncStatus.tone === 'danger'
+        ? '#c93636'
+        : bottomSyncStatus.tone === 'warning'
+          ? '#a05a00'
+          : bottomSyncStatus.tone === 'success'
+            ? '#2f7d57'
+            : 'var(--c-text-md)',
+    }
+    : null;
+  const openCloudModal = useCallback((tab: 'workspace' | 'library' = 'workspace') => {
+    window.dispatchEvent(new CustomEvent('devboard:open-cloud-modal', { detail: { tab } }));
   }, []);
 
-  const closeSidebarMenus = useCallback((keep?: 'command' | 'missingImages' | 'account') => {
+  const closeSidebarMenus = useCallback((keep?: 'command' | 'missingImages' | 'account' | 'preferences') => {
     if (keep !== 'command') {
       setCommandMenuOpen(false);
       setActiveCommandSubmenu(null);
     }
     if (keep !== 'missingImages') setMissingImagesOpen(false);
     if (keep !== 'account') setAccountMenuOpen(false);
+    if (keep !== 'preferences') setPreferencesOpen(false);
   }, []);
+
+  const openPreferences = useCallback(() => {
+    closeSidebarMenus('preferences');
+    setPreferencesOpen(true);
+  }, [closeSidebarMenus]);
+
+  useEffect(() => {
+    window.addEventListener('devboard:open-preferences', openPreferences);
+    return () => window.removeEventListener('devboard:open-preferences', openPreferences);
+  }, [openPreferences]);
 
   const handleAccountSignOut = useCallback(async () => {
     try {
@@ -3067,7 +3113,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
                   <CommandMenuDivider />
                   <CommandMenuItem icon={<CommandIcon kind="folder" />} label="Switch workspace..." onClick={() => { closeCommandMenu(); void handleOpenFolder(); }} />
                   <CommandMenuItem icon={<CommandIcon kind="view" />} label="Save workspace" onClick={() => runCommandMenuAction(handleSaveWorkspaceFromMenu)} />
-                  <CommandMenuItem icon={<CommandIcon kind="settings" />} label="Workspace Sync..." onClick={() => runCommandMenuAction(openCloudModal)} />
+                  <CommandMenuItem icon={<CommandIcon kind="settings" />} label="Project Sync..." onClick={() => runCommandMenuAction(openCloudModal)} />
                 </CommandMenuSubItem>
                 <CommandMenuSubItem
                   icon={<CommandIcon kind="edit" />}
@@ -3077,11 +3123,6 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
                   onClose={() => setActiveCommandSubmenu((current) => current === 'edit' ? null : current)}
                 >
                   <CommandMenuItem icon={<CommandIcon kind="edit" />} label="New note" onClick={() => runCommandMenuAction(handleCreateNoteFromMenu)} />
-                  <CommandMenuItem
-                    icon={<CommandIcon kind="settings" />}
-                    label={noteAutosaveEnabled ? 'Disable note autosave' : 'Enable note autosave'}
-                    onClick={() => runCommandMenuAction(() => setNoteAutosaveEnabled(!noteAutosaveEnabled))}
-                  />
                   <CommandMenuDivider />
                   <CommandMenuItem icon={<CommandIcon kind="search" />} label="Search..." onClick={() => runCommandMenuAction(handleFocusSearchFromMenu)} />
                 </CommandMenuSubItem>
@@ -3092,23 +3133,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
                   onOpen={() => setActiveCommandSubmenu('view')}
                   onClose={() => setActiveCommandSubmenu((current) => current === 'view' ? null : current)}
                 >
-                  <CommandMenuItem
-                    icon={<CommandIcon kind="view" />}
-                    label={theme === 'light' ? 'Dark mode' : 'Light mode'}
-                    onClick={() => runCommandMenuAction(toggleTheme)}
-                  />
                   <CommandMenuItem icon={<CommandIcon kind="search" />} label="Search..." onClick={() => runCommandMenuAction(handleFocusSearchFromMenu)} />
-                  <CommandMenuDivider />
-                  <CommandMenuItem
-                    icon={<CommandIcon kind="file" />}
-                    label={favoritesSectionOpen ? 'Hide favorites' : 'Show favorites'}
-                    onClick={() => runCommandMenuAction(() => setFavoritesSectionOpen((current) => !current))}
-                  />
-                  <CommandMenuItem
-                    icon={<CommandIcon kind="folder" />}
-                    label={pagesSectionOpen ? 'Hide folders' : 'Show folders'}
-                    onClick={() => runCommandMenuAction(() => setPagesSectionOpen((current) => !current))}
-                  />
                 </CommandMenuSubItem>
                 <CommandMenuSubItem
                   icon={<CommandIcon kind="export" />}
@@ -3149,10 +3174,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
                 <CommandMenuItem
                   icon={<CommandIcon kind="settings" />}
                   label="Preferences..."
-                  onClick={() => {
-                    closeSidebarMenus('account');
-                    setAccountMenuOpen(true);
-                  }}
+                  onClick={() => runCommandMenuAction(openPreferences)}
                 />
                 <CommandMenuItem
                   icon={<CommandIcon kind="help" />}
@@ -3708,208 +3730,278 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
                   )}
                 </div>
                 <div style={{ padding: 6 }}>
-                  <DarkMenuActionItem
-                    label="Workspace Sync..."
-                    trailing={(
-                      <span style={{ color: authConfigured ? 'var(--c-line)' : DARK_MENU_COLORS.textMuted, fontSize: 10.5 }}>
-                        {authConfigured ? accountStatus : 'Off'}
-                      </span>
-                    )}
-                    onClick={() => {
-                      setAccountMenuOpen(false);
-                      openCloudModal();
-                    }}
-                  />
-                  <DarkMenuActionItem
-                    label={theme === 'light' ? 'Dark mode' : 'Light mode'}
-                    onClick={() => {
-                      toggleTheme();
-                      setAccountMenuOpen(false);
-                    }}
-                  />
-                  <DarkMenuActionItem
-                    label={noteAutosaveEnabled ? 'Disable note autosave' : 'Enable note autosave'}
-                    onClick={() => {
-                      setNoteAutosaveEnabled(!noteAutosaveEnabled);
-                      setAccountMenuOpen(false);
-                    }}
-                  />
-                  {user && (
-                    <>
-                      <div style={{ height: 1, margin: '6px 4px', background: DARK_MENU_COLORS.border }} />
-                      <DarkMenuActionItem
-                        label="Sign out"
-                        onClick={() => { void handleAccountSignOut(); }}
-                      />
-                    </>
+                  {user ? (
+                    <DarkMenuActionItem
+                      label="Sign out"
+                      onClick={() => { void handleAccountSignOut(); }}
+                    />
+                  ) : (
+                    <DarkMenuActionItem
+                      label="Sign in"
+                      onClick={() => {
+                        setAccountMenuOpen(false);
+                        openCloudModal();
+                      }}
+                    />
                   )}
                 </div>
               </div>
             );
           })()}
-          <button
-            type="button"
-            onClick={() => {
-              if (accountMenuOpen) {
-                setAccountMenuOpen(false);
-                return;
-              }
-              closeSidebarMenus('account');
-              setAccountMenuOpen(true);
-            }}
-            title="Account and settings"
-            className="group"
+          <div
             style={{
-              width: '100%',
-              minHeight: 54,
+              minHeight: 44,
               minWidth: 0,
               display: 'flex',
               alignItems: 'center',
-              gap: 10,
-              padding: '6px 6px',
-              border: 'none',
-              borderRadius: 12,
-              background: 'transparent',
-              color: 'var(--c-text-md)',
-              cursor: 'pointer',
+              gap: 8,
+              padding: '6px 8px',
               fontFamily: FONTS.ui,
-              textAlign: 'left',
-              transition: 'background 120ms, color 120ms',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'var(--c-hover)';
-              e.currentTarget.style.color = 'var(--c-text-hi)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'transparent';
-              e.currentTarget.style.color = 'var(--c-text-md)';
             }}
           >
-          <span
-            style={{
-              width: 44,
-              height: 44,
-              borderRadius: 999,
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
-              overflow: 'hidden',
-              background: 'var(--c-line)',
-              color: '#fff',
-              fontSize: 13,
-              fontWeight: 800,
-              letterSpacing: 0,
-            }}
-          >
-            {avatarUrl ? (
-              <img src={avatarUrl} alt="" referrerPolicy="no-referrer" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            ) : (
-              accountInitials
-            )}
-          </span>
-          <span style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
-            <span
+            <button
+              type="button"
+              onClick={() => {
+                if (accountMenuOpen) {
+                  setAccountMenuOpen(false);
+                  return;
+                }
+                closeSidebarMenus('account');
+                setAccountMenuOpen(true);
+              }}
+              title={user?.email && user.email !== accountLabel ? `${accountLabel} · ${user.email}` : accountLabel}
+              aria-label="Account"
               style={{
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
+                minWidth: 0,
+                maxWidth: 104,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: 0,
+                border: 'none',
+                background: 'transparent',
                 color: 'var(--c-text-hi)',
-                fontSize: 12.5,
-                fontWeight: 700,
+                cursor: 'pointer',
+                fontFamily: FONTS.ui,
+                textAlign: 'left',
               }}
             >
-              {accountLabel}
-            </span>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', color: 'var(--c-text-lo)', fontSize: 10.5, fontWeight: 600 }}>
               <span
-                aria-hidden="true"
                 style={{
-                  width: 7,
-                  height: 7,
+                  width: 28,
+                  height: 28,
                   borderRadius: 999,
-                  background: hasUnsyncedSyncChanges ? '#f59e0b' : 'var(--c-border)',
-                }}
-              />
-              {accountStatus}
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  closeSidebarMenus();
-                  openCloudModal();
-                }}
-                title={syncStatus.title}
-                aria-label={`Workspace sync status: ${syncStatus.label}. ${syncStatus.title}`}
-                style={{
-                  minHeight: 20,
-                  padding: '0 8px',
-                  borderRadius: 999,
-                  border: syncStatus.tone === 'warning'
-                    ? '1px solid rgba(245,158,11,0.24)'
-                    : syncStatus.tone === 'success'
-                      ? '1px solid rgba(16,185,129,0.2)'
-                      : syncStatus.tone === 'cloud'
-                        ? '1px solid var(--c-border)'
-                        : '1px solid rgba(138,117,95,0.18)',
-                  background: syncStatus.tone === 'warning'
-                    ? 'rgba(245,158,11,0.12)'
-                    : syncStatus.tone === 'success'
-                      ? 'rgba(16,185,129,0.1)'
-                      : syncStatus.tone === 'cloud'
-                        ? 'color-mix(in srgb, var(--c-hover) 42%, transparent)'
-                        : 'rgba(138,117,95,0.08)',
-                  color: syncStatus.tone === 'warning'
-                    ? '#b45309'
-                    : syncStatus.tone === 'success'
-                      ? '#047857'
-                      : 'var(--c-text-md)',
-                  cursor: 'pointer',
-                  fontSize: 10,
-                  fontWeight: 700,
-                  fontFamily: FONTS.ui,
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: 6,
+                  justifyContent: 'center',
                   flexShrink: 0,
+                  overflow: 'hidden',
+                  background: 'var(--c-line)',
+                  color: '#fff',
+                  fontSize: 12,
+                  fontWeight: 800,
+                  letterSpacing: 0,
                 }}
               >
-                <span
-                  aria-hidden="true"
-                  style={{
-                    width: 6,
-                    height: 6,
-                    borderRadius: 999,
-                    background: 'currentColor',
-                    opacity: syncStatus.tone === 'neutral' ? 0.5 : 0.85,
-                  }}
-                />
-                {syncStatus.label}
-              </button>
-            </span>
-          </span>
-          <span
-            aria-hidden="true"
-            style={{
-              width: 32,
-              height: 32,
-              marginLeft: 'auto',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
-              borderRadius: 10,
-              color: cloudOnlyWorkspace || hasUnsyncedSyncChanges
-                  ? 'var(--c-line)'
-                  : 'var(--c-text-lo)',
-              background: 'color-mix(in srgb, var(--c-hover) 56%, transparent)',
-            }}
-          >
-            <IconCloud size={17} />
-          </span>
-          </button>
+                {avatarUrl ? (
+                  <img src={avatarUrl} alt="" referrerPolicy="no-referrer" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  accountInitials
+                )}
+              </span>
+              <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11.5, fontWeight: 720 }}>
+                {accountLabel}
+              </span>
+            </button>
+            <span aria-hidden="true" style={{ width: 1, height: 22, flexShrink: 0, background: 'var(--c-border)' }} />
+            <button
+              type="button"
+              onClick={() => {
+                closeSidebarMenus();
+                openCloudModal('library');
+              }}
+              title={footerSyncDot ? `${workspaceDisplayName} · ${footerSyncDot.label}. ${footerSyncDot.title}` : `Switch project: ${workspaceDisplayName}`}
+              aria-label={footerSyncDot ? `Switch project: ${workspaceDisplayName}. ${footerSyncDot.label}. ${footerSyncDot.title}` : `Switch project: ${workspaceDisplayName}`}
+              style={{
+                minWidth: 0,
+                flex: 1,
+                height: 32,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '0 9px',
+                border: 'none',
+                borderRadius: 10,
+                background: 'transparent',
+                color: footerSyncDot?.textColor ?? 'var(--c-text-hi)',
+                cursor: 'pointer',
+                fontFamily: FONTS.ui,
+                textAlign: 'left',
+                transition: 'background 120ms, color 120ms',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'var(--c-hover)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent';
+              }}
+            >
+              <span style={{ position: 'relative', display: 'inline-flex', color: 'currentColor', flexShrink: 0 }}>
+                <IconFolder size={15} />
+                {footerSyncDot && (
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      position: 'absolute',
+                      right: -3,
+                      top: -3,
+                      width: 8,
+                      height: 8,
+                      borderRadius: 999,
+                      border: '1.5px solid var(--c-panel)',
+                      background: footerSyncDot.color,
+                    }}
+                  />
+                )}
+              </span>
+              <span style={{ minWidth: 0, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12.5, fontWeight: 760 }}>
+                {workspaceDisplayName}
+              </span>
+              <span aria-hidden="true" style={{ flexShrink: 0, color: 'var(--c-text-lo)', fontSize: 12, lineHeight: 1 }}>
+                ▾
+              </span>
+            </button>
+          </div>
         </div>
       </div>
+
+      {preferencesOpen && (
+        <div
+          style={{ position: 'fixed', inset: 0, zIndex: 9300, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.42)' }}
+          onMouseDown={() => setPreferencesOpen(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="preferences-title"
+            style={{
+              width: 360,
+              maxWidth: 'calc(100vw - 28px)',
+              border: '1px solid var(--c-border)',
+              borderRadius: 14,
+              background: 'var(--c-panel)',
+              boxShadow: '0 18px 56px rgba(0,0,0,0.34)',
+              fontFamily: FONTS.ui,
+              overflow: 'hidden',
+            }}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '14px 16px', borderBottom: '1px solid var(--c-border)' }}>
+              <div>
+                <h2 id="preferences-title" style={{ margin: 0, fontSize: 15, lineHeight: 1.2, color: 'var(--c-text-hi)', fontWeight: 750 }}>
+                  Preferences
+                </h2>
+              </div>
+              <ModalCloseButton onClick={() => setPreferencesOpen(false)} ariaLabel="Close preferences" />
+            </div>
+
+            <div style={{ padding: 8 }}>
+              {[
+                {
+                  label: 'Dark mode',
+                  detail: theme === 'dark' ? 'On' : 'Off',
+                  enabled: theme === 'dark',
+                  onToggle: toggleTheme,
+                },
+                {
+                  label: 'Note autosave',
+                  detail: noteAutosaveEnabled ? 'On' : 'Off',
+                  enabled: noteAutosaveEnabled,
+                  onToggle: () => setNoteAutosaveEnabled(!noteAutosaveEnabled),
+                },
+                {
+                  label: 'Favorites section',
+                  detail: favoritesSectionOpen ? 'Shown' : 'Hidden',
+                  enabled: favoritesSectionOpen,
+                  onToggle: () => setFavoritesSectionOpen((current) => !current),
+                },
+                {
+                  label: 'Folders section',
+                  detail: pagesSectionOpen ? 'Shown' : 'Hidden',
+                  enabled: pagesSectionOpen,
+                  onToggle: () => setPagesSectionOpen((current) => !current),
+                },
+                {
+                  label: 'Advanced files',
+                  detail: advancedFilesVisible ? 'Shown' : 'Hidden',
+                  enabled: advancedFilesVisible,
+                  onToggle: () => setAdvancedFilesVisible((current) => !current),
+                },
+              ].map((item) => (
+                <button
+                  key={item.label}
+                  type="button"
+                  aria-pressed={item.enabled}
+                  onClick={item.onToggle}
+                  style={{
+                    width: '100%',
+                    minHeight: 48,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 14,
+                    padding: '8px 10px',
+                    border: 'none',
+                    borderRadius: 10,
+                    background: 'transparent',
+                    color: 'var(--c-text-hi)',
+                    cursor: 'pointer',
+                    fontFamily: FONTS.ui,
+                    textAlign: 'left',
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--c-hover)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                >
+                  <span style={{ minWidth: 0 }}>
+                    <span style={{ display: 'block', fontSize: 12.5, fontWeight: 700, color: 'var(--c-text-hi)' }}>
+                      {item.label}
+                    </span>
+                    <span style={{ display: 'block', marginTop: 2, fontSize: 10.5, fontWeight: 600, color: 'var(--c-text-lo)' }}>
+                      {item.detail}
+                    </span>
+                  </span>
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      width: 34,
+                      height: 20,
+                      flexShrink: 0,
+                      borderRadius: 999,
+                      border: item.enabled ? '1px solid var(--c-line)' : '1px solid var(--c-border)',
+                      background: item.enabled ? 'var(--c-line)' : 'var(--c-hover)',
+                      position: 'relative',
+                      transition: 'background 120ms, border-color 120ms',
+                    }}
+                  >
+                    <span
+                      style={{
+                        position: 'absolute',
+                        top: 2,
+                        left: item.enabled ? 16 : 2,
+                        width: 14,
+                        height: 14,
+                        borderRadius: 999,
+                        background: item.enabled ? '#fff' : 'var(--c-text-lo)',
+                        transition: 'left 120ms, background 120ms',
+                      }}
+                    />
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Delete confirmation */}
       {deleteConfirm && (

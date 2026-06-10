@@ -1,3 +1,5 @@
+import ModalCloseButton from './ModalCloseButton';
+
 interface Props {
   onClose: () => void;
 }
@@ -21,13 +23,7 @@ export default function WelcomeModal({ onClose }: Props) {
               WIP
             </span>
           </div>
-          <button
-            onClick={onClose}
-            className="text-[var(--c-text-md)] hover:text-[var(--c-text-hi)] text-xl leading-none transition-colors"
-            aria-label="Close"
-          >
-            ×
-          </button>
+          <ModalCloseButton onClick={onClose} />
         </div>
 
         {/* Title */}

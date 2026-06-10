@@ -880,6 +880,7 @@ interface FmtBarProps {
   insertCommands: DocumentCommandDefinition[];
   onInsertCommand: (command: DocumentCommandDefinition) => void;
   onCaptureSelection: () => void;
+  onMenuOpenChange?: (open: boolean) => void;
 }
 
 interface SelectionToolbarAnchor {
@@ -903,6 +904,7 @@ function FormattingBar({
   insertCommands,
   onInsertCommand,
   onCaptureSelection,
+  onMenuOpenChange,
 }: FmtBarProps) {
   const [showFormatMenu, setShowFormatMenu] = useState(false);
   const [showAlignMenu, setShowAlignMenu] = useState(false);
@@ -1065,6 +1067,12 @@ function FormattingBar({
   };
 
   useEffect(() => {
+    const menuOpen = showFormatMenu || showAlignMenu || showToolsMenu;
+    onMenuOpenChange?.(menuOpen);
+    return () => onMenuOpenChange?.(false);
+  }, [onMenuOpenChange, showAlignMenu, showFormatMenu, showToolsMenu]);
+
+  useEffect(() => {
     if (!showFormatMenu && !showAlignMenu && !showToolsMenu) return;
     const handleWindowPointer = (event: MouseEvent | TouchEvent) => {
       const target = event.target as Node | null;
@@ -1156,6 +1164,7 @@ function FormattingBar({
           <>
             <button
               ref={formatBtnRef}
+              type="button"
               style={{
                 ...btnStyle(showFormatMenu, hoveredControl === 'format'),
                 minWidth: useCompactToolbar ? 46 : 118,
@@ -1168,6 +1177,8 @@ function FormattingBar({
               onMouseDown={(e) => {
                 e.preventDefault();
                 saveSelection();
+              }}
+              onClick={() => {
                 setShowFormatMenu((v) => !v);
                 setShowAlignMenu(false);
                 setShowToolsMenu(false);
@@ -1191,10 +1202,13 @@ function FormattingBar({
             </button>
             <button
               ref={alignBtnRef}
+              type="button"
               style={btnStyle(showAlignMenu, hoveredControl === 'align')}
               onMouseDown={(e) => {
                 e.preventDefault();
                 saveSelection();
+              }}
+              onClick={() => {
                 setShowAlignMenu((v) => !v);
                 setShowFormatMenu(false);
                 setShowToolsMenu(false);
@@ -1208,10 +1222,13 @@ function FormattingBar({
             </button>
             <button
               ref={toolsBtnRef}
+              type="button"
               style={btnStyle(showToolsMenu, hoveredControl === 'tools')}
               onMouseDown={(e) => {
                 e.preventDefault();
                 saveSelection();
+              }}
+              onClick={() => {
                 setShowToolsMenu((v) => !v);
                 setShowFormatMenu(false);
                 setShowAlignMenu(false);
@@ -2520,6 +2537,7 @@ export default function DocumentMode({
   const [assetDrawerOpen, setAssetDrawerOpen] = useState(false);
   const [showHeaderMenu, setShowHeaderMenu] = useState(false);
   const [isEditorFocused, setIsEditorFocused] = useState(false);
+  const [formattingMenuOpen, setFormattingMenuOpen] = useState(false);
   const [, forceSaveStatusTick] = useState(0);
   const savedSelectionRef = useRef<Range | null>(null);
   const wikiRenameInputRef = useRef<HTMLInputElement>(null);
@@ -4403,12 +4421,14 @@ export default function DocumentMode({
           />
           <div
             style={{
+              position: 'relative',
+              zIndex: formattingMenuOpen ? 120 : 'auto',
               maxHeight: showFormattingBar ? 72 : 0,
               opacity: showFormattingBar ? 1 : 0,
-              transform: showFormattingBar ? 'translateY(0)' : 'translateY(-8px)',
-              overflow: 'hidden',
+              transform: 'none',
+              overflow: formattingMenuOpen ? 'visible' : 'hidden',
               pointerEvents: showFormattingBar ? 'auto' : 'none',
-              transition: 'max-height 180ms ease, opacity 140ms ease, transform 180ms ease',
+              transition: 'max-height 180ms ease, opacity 140ms ease',
               flexShrink: 0,
             }}
           >
@@ -4431,6 +4451,7 @@ export default function DocumentMode({
               insertCommands={slashCommands}
               onInsertCommand={handleSlashCommandSelect}
               onCaptureSelection={captureEditorSelection}
+              onMenuOpenChange={setFormattingMenuOpen}
             />
           </div>
 

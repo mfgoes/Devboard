@@ -41,24 +41,6 @@ function IconChevronDown() {
     </svg>
   );
 }
-function IconTheme({ isLight }: { isLight: boolean }) {
-  if (isLight) {
-    // Moon icon (switch to dark)
-    return (
-      <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-        <path d="M11 8.5A5.5 5.5 0 0 1 4.5 2a5.5 5.5 0 1 0 6.5 6.5z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    );
-  }
-  // Sun icon (switch to light)
-  return (
-    <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-      <circle cx="6.5" cy="6.5" r="2.5" stroke="currentColor" strokeWidth="1.3" />
-      <path d="M6.5 1v1.5M6.5 10.5V12M1 6.5h1.5M10.5 6.5H12M2.9 2.9l1.1 1.1M9 9l1.1 1.1M2.9 10.1l1.1-1.1M9 4l1.1-1.1" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-    </svg>
-  );
-}
-
 const isItchIo = typeof window !== 'undefined' && window.location.hostname.endsWith('.itch.io');
 
 function parseCSV(text: string): string[][] {
@@ -89,7 +71,7 @@ function parseCSV(text: string): string[][] {
 }
 
 export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleTimer, explorerOpen, onToggleExplorer, onWorkspaceOpened, jiraOpen, onToggleJira, onToggleSearch, workspaceOffset = 0, templatesOpen, onTemplatesOpenChange }: TopBarProps) {
-  const { boardTitle, exportData, loadBoard, setActiveTool, setActiveShapeKind, toggleTheme, theme, addNode, pages, activePageId, setPageLayoutMode, workspaceName, setWorkspaceName, nodes, appMode, noteAutosaveEnabled, setNoteAutosaveEnabled, cloudBoardId, cloudBoardTitle, cloudSyncedAt, lastLocalSavedAt, lastLocalSaveTarget } = useBoardStore();
+  const { boardTitle, exportData, loadBoard, setActiveTool, setActiveShapeKind, addNode, pages, activePageId, setPageLayoutMode, workspaceName, setWorkspaceName, nodes, appMode, cloudBoardId, cloudBoardTitle, cloudSyncedAt, lastLocalSavedAt, lastLocalSaveTarget } = useBoardStore();
   const { user } = useAuth();
   const activePage = pages.find((p) => p.id === activePageId);
   const isDocumentContext = appMode === 'document';
@@ -110,6 +92,7 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
     else setTemplatesModalOpenInternal(open);
   }, [onTemplatesOpenChange]);
   const [cloudOpen, setCloudOpen] = useState(false);
+  const [cloudInitialTab, setCloudInitialTab] = useState<'workspace' | 'library'>('workspace');
 
   const workspacePathHint = getWorkspacePathHint();
   const workspaceFolderLabel = workspaceName ?? workspacePathHint?.replace(/\\/g, '/').split('/').pop() ?? null;
@@ -125,7 +108,11 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
   }, [menuOpen]);
 
   useEffect(() => {
-    const handler = () => setCloudOpen(true);
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<{ tab?: 'workspace' | 'library' }>).detail;
+      setCloudInitialTab(detail?.tab === 'library' ? 'library' : 'workspace');
+      setCloudOpen(true);
+    };
     window.addEventListener('devboard:open-cloud-modal', handler);
     return () => window.removeEventListener('devboard:open-cloud-modal', handler);
   }, []);
@@ -410,7 +397,7 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
           extraActions={confirmDialog.extraActions}
         />
       )}
-      <CloudModal open={cloudOpen} onClose={() => setCloudOpen(false)} />
+      <CloudModal open={cloudOpen} onClose={() => setCloudOpen(false)} initialTab={cloudInitialTab} />
       {templatesModalOpen && (
         <div
           className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50"
@@ -488,7 +475,7 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
               <MenuItem
                 onClick={() => {
                   setMenuOpen(false);
-                  setCloudOpen(true);
+                  window.dispatchEvent(new CustomEvent('devboard:open-preferences'));
                 }}
                 icon={<IconSettings />}
               >

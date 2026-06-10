@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useBoardStore } from '../store/boardStore';
 import { AccountMenu } from './AccountMenu';
+import ModalCloseButton from './ModalCloseButton';
 import {
   createCloudBoard as createCloudWorkspaceSnapshot,
   deleteCloudBoard as deleteCloudWorkspaceSnapshot,
@@ -436,7 +437,7 @@ function IconMore() {
   );
 }
 
-export default function CloudModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+export default function CloudModal({ open, onClose, initialTab = 'workspace' }: { open: boolean; onClose: () => void; initialTab?: 'workspace' | 'library' }) {
   const { isConfigured, isLoading: authLoading, user, signInWithGoogle, signInWithGitHub, signInWithMagicLink, signInWithEmail, signUpWithEmail, signOut } = useAuth();
   const exportData = useBoardStore((s) => s.exportData);
   const loadBoard = useBoardStore((s) => s.loadBoard);
@@ -775,6 +776,12 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
     setDuplicateReviewRoute(null);
     setDuplicateReviewSelection('a');
   }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    setActiveWorkspaceSyncTab(initialTab);
+    if (initialTab === 'library') setLibraryTab('cloud');
+  }, [initialTab, open]);
 
   useEffect(() => {
     setDuplicateReviewSelection('a');
@@ -2047,21 +2054,16 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
         ].join(' ')}
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <button
+        <ModalCloseButton
           onClick={onClose}
+          ariaLabel="Close project sync modal"
           className={[
-            'absolute right-4 top-3 z-20 inline-flex h-9 w-9 items-center justify-center rounded-full text-[var(--c-text-lo)] transition-all',
+            'absolute right-4 top-3 z-20',
             user
-              ? 'hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]'
-              : 'bg-[rgba(255,248,240,0.3)] backdrop-blur-sm hover:bg-[rgba(255,248,240,0.6)] hover:text-[var(--c-text-hi)] md:right-4 md:top-3',
+              ? ''
+              : 'bg-[rgba(255,248,240,0.3)] backdrop-blur-sm hover:bg-[rgba(255,248,240,0.6)] md:right-4 md:top-3',
           ].join(' ')}
-          aria-label="Close project sync modal"
-        >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
-            <path d="M3.5 3.5 12.5 12.5" />
-            <path d="M12.5 3.5 3.5 12.5" />
-          </svg>
-        </button>
+        />
 
         <div className={user ? 'flex items-center justify-between gap-4 border-b border-[var(--c-border)] px-5 py-4 pr-16' : 'hidden'} style={user ? modalHeaderSurface : undefined}>
           <div className="min-w-0">

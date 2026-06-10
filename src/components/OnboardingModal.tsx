@@ -1,3 +1,5 @@
+import ModalCloseButton from './ModalCloseButton';
+
 interface Props {
   onClose: () => void;
   onStartWriting?: () => void;
@@ -28,14 +30,7 @@ export default function OnboardingModal({ onClose, onStartWriting, onStartMappin
       }}
     >
       <div className="relative bg-[var(--c-panel)] border border-[var(--c-border)] rounded-2xl shadow-2xl w-full max-w-md mx-4 p-8 font-sans">
-        {/* Close button */}
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 text-[var(--c-text-md)] hover:text-[var(--c-text-hi)] text-xl leading-none transition-colors"
-          aria-label="Close"
-        >
-          ×
-        </button>
+        <ModalCloseButton onClick={onClose} className="absolute right-4 top-4" />
 
         {/* Logo */}
         <div className="mb-6">
