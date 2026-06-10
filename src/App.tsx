@@ -12,6 +12,7 @@ import {
 } from './utils/updates';
 import { announceLocalSave } from './utils/saveStatus';
 import { applyWorkspaceSyncFromOpenResult } from './utils/applyWorkspaceSync';
+import { extractMarkdownFiles, importMarkdownFileObjects, promptAndImportMarkdownNotes } from './utils/noteImport';
 
 // Tauri event listener — only active when running inside a Tauri window
 async function listenTauriMenus(handlers: Record<string, () => void>) {
@@ -855,6 +856,7 @@ export default function App() {
     listenTauriMenus({
       'menu:new_board':    () => useBoardStore.getState().loadBoard({ boardTitle: 'Untitled Board', nodes: [] }),
       'menu:new_note':     () => handleNewNote(),
+      'menu:import_notes': () => { void promptAndImportMarkdownNotes(); },
       'menu:save':         () => {
         if (requestActiveDocumentSave()) return;
         const data = useBoardStore.getState().exportData();
@@ -891,6 +893,28 @@ export default function App() {
     }).then(fn => { cleanup = fn; });
     return () => cleanup();
   }, [handleNewNote, requestActiveDocumentSave, runUpdateCheck]);
+
+  useEffect(() => {
+    const onDragOver = (event: DragEvent) => {
+      if (extractMarkdownFiles(event.dataTransfer?.files).length === 0) return;
+      event.preventDefault();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
+    };
+
+    const onDrop = (event: DragEvent) => {
+      const files = extractMarkdownFiles(event.dataTransfer?.files);
+      if (files.length === 0) return;
+      event.preventDefault();
+      void importMarkdownFileObjects(files);
+    };
+
+    window.addEventListener('dragover', onDragOver);
+    window.addEventListener('drop', onDrop);
+    return () => {
+      window.removeEventListener('dragover', onDragOver);
+      window.removeEventListener('drop', onDrop);
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -1236,7 +1260,9 @@ export default function App() {
           const targetPageId = doc?.pageId ?? state.activePageId;
           const page = state.pages.find((entry) => entry.id === targetPageId);
           if (page?.layoutMode === 'stack' && !isMobileViewport) {
-            state.setOpenPanelDocId(id);
+            state.setDocViewMode('fullscreen');
+            state.setOpenPanelDocId(null);
+            state.openDocumentWithMorph(id);
             return;
           }
           state.openDocumentWithMorph(id);

@@ -14,6 +14,7 @@ import { IconDoc, IconFreeformPage, IconSaveFile, IconStackPage } from './icons'
 import { announceLocalSave } from '../utils/saveStatus';
 import { applyWorkspaceSyncFromOpenResult } from '../utils/applyWorkspaceSync';
 import { DARK_MENU_CLASSES } from './darkMenuTheme';
+import { promptAndImportMarkdownNotes } from '../utils/noteImport';
 
 const playExportSound = () => new Audio(exportSound).play().catch(() => {});
 
@@ -268,6 +269,11 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
     playExportSound();
   };
 
+  const handleImportNotes = async () => {
+    setMenuOpen(false);
+    await promptAndImportMarkdownNotes();
+  };
+
   const handleImportTableCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -471,6 +477,10 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
           {/* Dropdown */}
           {menuOpen && (
             <div className={`absolute top-full left-0 mt-1.5 w-52 py-1.5 z-[220] ${DARK_MENU_CLASSES.panel}`}>
+              <MenuItem onClick={handleImportNotes} icon={<IconDoc />}>
+                Import notes...
+              </MenuItem>
+              <MenuDivider />
               <MenuItem onClick={handleOpenFolder} icon={<IconFolder />}>
                 Switch workspace...
               </MenuItem>

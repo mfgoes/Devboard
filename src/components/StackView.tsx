@@ -37,7 +37,7 @@ function formatDate(ms: number): string {
   if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
   if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
   if (diff < 7 * 86_400_000) return `${Math.floor(diff / 86_400_000)}d ago`;
-  return new Date(ms).toLocaleDateString();
+  return new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 }
 
 function wordCountFromHtml(html: string): number {
@@ -97,8 +97,8 @@ function StackCard({
   const cardRef = useRef<HTMLDivElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const isGrid = viewMode === 'grid';
-  const denseGrid = isGrid && compactGrid;
-  const preview = useMemo(() => clampAtWordBoundary(stripHtml(doc.content), denseGrid ? 92 : isGrid ? 132 : 300), [doc.content, denseGrid, isGrid]);
+  const denseGrid = isGrid || compactGrid;
+  const preview = useMemo(() => clampAtWordBoundary(stripHtml(doc.content), isGrid ? 84 : 300), [doc.content, isGrid]);
   const wordCount = useMemo(() => wordCountFromHtml(doc.content), [doc.content]);
 	const [hovered, setHovered] = useState(false);
 	const borderColor = active
@@ -148,7 +148,7 @@ function StackCard({
 		style={{
 			display: 'flex',
 			flexDirection: 'column',
-			minHeight: isGrid ? (denseGrid ? 156 : 188) : 68,
+			minHeight: isGrid ? 118 : 68,
 			width: '100%',
 			maxWidth: isGrid ? 'none' : 780,
 			background,
@@ -172,7 +172,7 @@ function StackCard({
       )}
       <div
         style={{
-          padding: isGrid ? (denseGrid ? '12px 12px 0' : '14px 14px 0') : '10px 12px 0',
+          padding: isGrid ? '10px 10px 0' : '10px 12px 0',
           display: 'flex',
           alignItems: 'flex-start',
           justifyContent: 'space-between',
@@ -217,16 +217,16 @@ function StackCard({
           ) : (
             <span
               style={{
-                fontSize: isGrid ? (denseGrid ? 15 : 17) : 15,
+                fontSize: isGrid ? 15 : 15,
                 fontWeight: 700,
                 letterSpacing: 0,
                 color: 'var(--c-text-hi)',
                 display: '-webkit-box',
-                WebkitLineClamp: isGrid ? 2 : 1,
+                WebkitLineClamp: 1,
                 WebkitBoxOrient: 'vertical',
                 overflow: 'hidden',
-                lineHeight: isGrid ? 1.15 : 1.2,
-                minHeight: isGrid ? (denseGrid ? '2.1em' : '2.3em') : '1.2em',
+                lineHeight: 1.2,
+                minHeight: '1.2em',
               }}
             >
               {doc.title || 'Untitled'}
@@ -258,10 +258,10 @@ function StackCard({
             title={doc.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
               aria-label={doc.isFavorite ? `Remove ${doc.title || 'Untitled'} from favorites` : `Add ${doc.title || 'Untitled'} to favorites`}
               style={{
-              width: isGrid ? (denseGrid ? 28 : 30) : 24,
-              height: isGrid ? (denseGrid ? 28 : 30) : 24,
+              width: isGrid ? 26 : 24,
+              height: isGrid ? 26 : 24,
               border: 'none',
-              borderRadius: isGrid ? (denseGrid ? 8 : 9) : 7,
+              borderRadius: isGrid ? 8 : 7,
               background: doc.isFavorite ? 'rgba(214,160,69,0.14)' : 'rgba(255,255,255,0.3)',
               color: doc.isFavorite ? '#d6a045' : 'var(--c-text-lo)',
               cursor: 'pointer',
@@ -280,8 +280,8 @@ function StackCard({
         style={{
           display: 'flex',
           flexDirection: 'column',
-          gap: isGrid ? (denseGrid ? 6 : 8) : 4,
-          padding: isGrid ? (denseGrid ? '0 12px 12px' : '0 16px 14px') : '7px 12px 10px',
+          gap: isGrid ? 7 : 4,
+          padding: isGrid ? '0 10px 10px' : '7px 12px 10px',
           flex: 1,
           minWidth: 0,
           justifyContent: isGrid ? 'flex-start' : 'center',
@@ -290,14 +290,14 @@ function StackCard({
         {preview && (
           <div
             style={{
-              fontSize: isGrid ? (denseGrid ? 11.5 : 12) : 12.5,
+              fontSize: isGrid ? 12 : 12.5,
               color: isGrid ? 'var(--c-text-lo)' : 'var(--c-text-md)',
               lineHeight: isGrid ? 1.35 : 1.45,
               display: '-webkit-box',
-              WebkitLineClamp: isGrid ? (denseGrid ? 1 : 2) : 1,
+              WebkitLineClamp: 1,
               WebkitBoxOrient: 'vertical',
               overflow: 'hidden',
-              minHeight: isGrid ? (denseGrid ? '1.45em' : '2.7em') : '1.45em',
+              minHeight: '1.45em',
               maxWidth: isGrid ? '100%' : 'none',
               opacity: isGrid ? 0.86 : 1,
             }}
@@ -308,11 +308,11 @@ function StackCard({
         {!preview && isGrid && (
           <div
             style={{
-              minHeight: denseGrid ? '1.45em' : '2.7em',
+              minHeight: '1.45em',
               display: 'flex',
               alignItems: 'center',
               color: 'var(--c-text-lo)',
-              fontSize: denseGrid ? 11.5 : 12,
+              fontSize: 12,
               fontStyle: 'italic',
               opacity: 0.72,
             }}
@@ -348,7 +348,7 @@ function StackCard({
             justifyContent: isGrid ? 'space-between' : 'flex-start',
             gap: isGrid ? 10 : 12,
             marginTop: isGrid ? 'auto' : 0,
-            fontSize: isGrid ? (denseGrid ? 10 : 10.5) : 11,
+            fontSize: isGrid ? 11 : 11,
             color: 'var(--c-text-lo)',
             fontWeight: 400,
             flexWrap: 'wrap',
@@ -831,12 +831,10 @@ export default function StackView({ pageId, pageName }: Props) {
 			width: rect.width,
 			height: rect.height,
 		};
-		if (isMobileViewport) {
-			openDocumentWithMorph(docId, cardRectsRef.current[docId]);
-			return;
-		}
-		setOpenPanelDocId(docId);
-	}, [isMobileViewport, openDocumentWithMorph, setOpenPanelDocId]);
+    setDocViewMode('fullscreen');
+		openDocumentWithMorph(docId, cardRectsRef.current[docId]);
+		setOpenPanelDocId(null);
+	}, [openDocumentWithMorph, setDocViewMode, setOpenPanelDocId]);
 
 	const handleClosePanel = useCallback(() => {
 		setOpenPanelDocId(null);
@@ -851,13 +849,9 @@ export default function StackView({ pageId, pageName }: Props) {
 
 	const handleOpenFromMenu = (menu: StackNoteMenuState) => {
 		cardRectsRef.current[menu.docId] = menu.rect;
-		if (isMobileViewport) {
-			openDocumentWithMorph(menu.docId, menu.rect);
-			setNoteMenu(null);
-			setNoteMenuExportOpen(false);
-			return;
-		}
-		setOpenPanelDocId(menu.docId);
+    setDocViewMode('fullscreen');
+		openDocumentWithMorph(menu.docId, menu.rect);
+		setOpenPanelDocId(null);
 		setNoteMenu(null);
 		setNoteMenuExportOpen(false);
 	};
@@ -946,11 +940,9 @@ export default function StackView({ pageId, pageName }: Props) {
 		if (rect) {
 			cardRectsRef.current[id] = { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
 		}
-		if (isMobileViewport) {
-			openDocumentWithMorph(id, rect ? { left: rect.left, top: rect.top, width: rect.width, height: rect.height } : undefined);
-			return;
-		}
-		setOpenPanelDocId(id);
+    setDocViewMode('fullscreen');
+		openDocumentWithMorph(id, rect ? { left: rect.left, top: rect.top, width: rect.width, height: rect.height } : undefined);
+		setOpenPanelDocId(null);
 	};
 
 	useEffect(() => {
@@ -990,6 +982,10 @@ export default function StackView({ pageId, pageName }: Props) {
 			setOpenPanelDocId(null);
 		}
 	}, [browserMode, documents, isMobileViewport, openPanelDocId, pageId, setOpenPanelDocId]);
+
+  useEffect(() => {
+    setOpenPanelDocId(null);
+  }, [pageId, setOpenPanelDocId]);
 
 	useEffect(() => {
 		if (!openPanelDocId) return;
@@ -1120,14 +1116,14 @@ export default function StackView({ pageId, pageName }: Props) {
 		() => documents.find((doc) => doc.id === openPanelDocId) ?? null,
 		[documents, openPanelDocId],
 	);
-	const panelOpen = !!activePanelDoc && !showingFolders && !isMobileViewport;
+	const panelOpen = false;
 	const workspaceBreadcrumbLabel = (workspaceName?.trim() || boardTitle.trim() || 'Workspace').trim();
-  const stackSurfaceMaxWidth = panelOpen ? 1600 : 1360;
-  const stackContentMaxWidth = showingFolders ? 1120 : panelOpen ? 1060 : 1080;
+  const stackSurfaceMaxWidth = 1360;
+  const stackContentMaxWidth = showingFolders ? 1120 : 1240;
   const contentGridColumns = viewMode === 'grid'
-    ? panelOpen
-      ? 'repeat(2, minmax(0, 1fr))'
-      : 'repeat(2, minmax(0, 1fr))'
+    ? showingFolders
+      ? 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))'
+      : 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))'
     : '1fr';
   const [docMissingImageMap, setDocMissingImageMap] = useState<Record<string, boolean>>({});
 
@@ -1496,7 +1492,7 @@ export default function StackView({ pageId, pageName }: Props) {
             style={{
               display: 'grid',
               gridTemplateColumns: contentGridColumns,
-              gap: viewMode === 'grid' ? 20 : 16,
+              gap: viewMode === 'grid' ? 18 : 16,
               justifyContent: viewMode === 'grid' ? 'start' : 'center',
               justifyItems: viewMode === 'grid' ? 'stretch' : 'center',
             }}
@@ -1516,9 +1512,9 @@ export default function StackView({ pageId, pageName }: Props) {
 						{!showingFolders && visibleDocs.length > 0 && (
 							<div
 								style={{
-									display: 'grid',
+              display: 'grid',
               gridTemplateColumns: contentGridColumns,
-              gap: viewMode === 'grid' ? 20 : 16,
+              gap: viewMode === 'grid' ? 14 : 16,
               justifyContent: viewMode === 'grid' ? 'start' : 'center',
               justifyItems: viewMode === 'grid' ? 'stretch' : 'center',
             }}
@@ -1528,9 +1524,9 @@ export default function StackView({ pageId, pageName }: Props) {
 										key={doc.id}
 										doc={doc}
 										viewMode={viewMode}
-										active={openPanelDocId === doc.id}
+										active={false}
                     hasMissingImages={!!docMissingImageMap[doc.id]}
-                    compactGrid={panelOpen}
+                    compactGrid={false}
 										onOpen={(rect) => handleOpen(doc.id, rect)}
 										onContextOpen={(targetDoc, rect, x, y) => {
 											setNoteMenu({
@@ -1674,7 +1670,7 @@ export default function StackView({ pageId, pageName }: Props) {
               />
             </div>
           )}
-					{activePanelDoc && (
+					{panelOpen && activePanelDoc && (
 						<DocumentMode
 							documentId={activePanelDoc.id}
 							panelMode

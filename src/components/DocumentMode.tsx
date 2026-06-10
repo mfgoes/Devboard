@@ -534,12 +534,7 @@ function getBlockType(savedRange: Range | null): string {
 function applyBlock(format: string, savedRange: Range | null) {
   const range = savedRange;
   if (!range) return;
-  const sel = window.getSelection();
-  if (sel) { sel.removeAllRanges(); sel.addRange(range); }
-
-  let node: Node | null = range.startContainer;
-  while (node && (node as HTMLElement).contentEditable !== 'true') node = node.parentElement;
-  const root = node as HTMLElement | null;
+  const root = restoreRangeSelection(range);
   if (!root) return;
 
   let block: HTMLElement | null = range.startContainer as HTMLElement;
@@ -604,13 +599,50 @@ function rangeBlock(range: Range, root: HTMLElement): HTMLElement | null {
   return block && block !== root ? block : null;
 }
 
+function rangeBlocks(range: Range, root: HTMLElement): HTMLElement[] {
+  const blocks = Array.from(root.children).filter((child): child is HTMLElement => {
+    try {
+      return range.intersectsNode(child);
+    } catch {
+      return false;
+    }
+  });
+  const fallback = rangeBlock(range, root);
+  return blocks.length ? blocks : fallback ? [fallback] : [];
+}
+
+function restoreRangeSelection(range: Range | null): HTMLElement | null {
+  if (!range) return null;
+  const root = rangeRoot(range);
+  if (!root) return null;
+  root.focus({ preventScroll: true });
+  const sel = window.getSelection();
+  if (sel) {
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+  return root;
+}
+
+function applyTextAlignment(align: 'left' | 'center' | 'right', savedRange: Range | null) {
+  const range = savedRange;
+  const root = restoreRangeSelection(range);
+  if (!range || !root) return;
+
+  const command = align === 'left' ? 'justifyLeft' : align === 'center' ? 'justifyCenter' : 'justifyRight';
+  document.execCommand(command, false);
+  rangeBlocks(range, root).forEach((block) => {
+    if (align === 'left') block.style.removeProperty('text-align');
+    else block.style.textAlign = align;
+  });
+  root.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
 // Toggle blockquote wrap on the current block
 function toggleBlockquote(savedRange: Range | null) {
   const range = savedRange;
   if (!range) return;
-  const sel = window.getSelection();
-  if (sel) { sel.removeAllRanges(); sel.addRange(range); }
-  const root = rangeRoot(range);
+  const root = restoreRangeSelection(range);
   if (!root) return;
   const block = rangeBlock(range, root);
   if (!block) return;
@@ -631,9 +663,7 @@ function toggleBlockquote(savedRange: Range | null) {
 function insertCalloutBlock(savedRange: Range | null, emoji = '💡') {
   const range = savedRange;
   if (!range) return;
-  const sel = window.getSelection();
-  if (sel) { sel.removeAllRanges(); sel.addRange(range); }
-  const root = rangeRoot(range);
+  const root = restoreRangeSelection(range);
   if (!root) return;
   const block = rangeBlock(range, root);
   if (!block) return;
@@ -680,9 +710,7 @@ function insertCalloutBlock(savedRange: Range | null, emoji = '💡') {
 function toggleCodeBlock(savedRange: Range | null) {
   const range = savedRange;
   if (!range) return;
-  const sel = window.getSelection();
-  if (sel) { sel.removeAllRanges(); sel.addRange(range); }
-  const root = rangeRoot(range);
+  const root = restoreRangeSelection(range);
   if (!root) return;
   const block = rangeBlock(range, root);
   if (!block) return;
@@ -705,10 +733,9 @@ function toggleCodeBlock(savedRange: Range | null) {
 function toggleInlineCode(savedRange: Range | null) {
   const range = savedRange;
   if (!range) return;
-  const sel = window.getSelection();
-  if (sel) { sel.removeAllRanges(); sel.addRange(range); }
-  const root = rangeRoot(range);
+  const root = restoreRangeSelection(range);
   if (!root) return;
+  const sel = window.getSelection();
 
   const closestCode = (node: Node | null): HTMLElement | null => {
     let current = node;
@@ -779,9 +806,7 @@ function toggleInlineCode(savedRange: Range | null) {
 function insertHorizontalRule(savedRange: Range | null) {
   const range = savedRange;
   if (!range) return;
-  const sel = window.getSelection();
-  if (sel) { sel.removeAllRanges(); sel.addRange(range); }
-  const root = rangeRoot(range);
+  const root = restoreRangeSelection(range);
   if (!root) return;
   const block = rangeBlock(range, root);
   const hr = document.createElement('hr');
@@ -819,6 +844,20 @@ function getLinkHref(savedRange: Range | null): string {
     node = node.parentElement;
   }
   return '';
+}
+
+function resizeDocumentTitleTextarea(el: HTMLTextAreaElement): void {
+  const style = getComputedStyle(el);
+  const fontSize = Number.parseFloat(style.fontSize) || 30;
+  const lineHeight = Number.parseFloat(style.lineHeight) || fontSize * 1.16;
+  const minHeight = Number.parseFloat(style.minHeight) || lineHeight;
+  const maxHeight = Math.max(minHeight, lineHeight * 6);
+
+  el.style.height = '0px';
+  const measured = el.scrollHeight;
+  const nextHeight = Math.min(Math.max(measured, minHeight), maxHeight);
+  el.style.height = `${nextHeight}px`;
+  el.style.overflowY = measured > maxHeight ? 'auto' : 'hidden';
 }
 
 interface FmtBarProps {
@@ -890,10 +929,7 @@ function FormattingBar({
   };
 
   const restoreSelection = () => {
-    const r = savedRangeRef.current;
-    if (!r) return;
-    const sel = window.getSelection();
-    if (sel) { sel.removeAllRanges(); sel.addRange(r); }
+    restoreRangeSelection(savedRangeRef.current);
   };
 
   const fmt = (cmd: string, val?: string) => {
@@ -1381,7 +1417,8 @@ function FormattingBar({
                   title={command.description}
                   onMouseDown={(e) => {
                     e.preventDefault();
-                    saveSelection();
+                    restoreSelection();
+                    onCaptureSelection();
                     closeMenus();
                     onInsertCommand(command);
                   }}
@@ -1420,9 +1457,9 @@ function FormattingBar({
 
       {alignMenuRect && (
         <div ref={alignMenuRef} style={menuShell(alignMenuRect, 168)} onMouseDown={(e) => e.stopPropagation()}>
-          <button style={menuButtonStyle} onMouseDown={(e) => { e.preventDefault(); fmt('justifyLeft'); closeMenus(); }} {...menuHover}><IconAlignLeft /><span>Align left</span></button>
-          <button style={menuButtonStyle} onMouseDown={(e) => { e.preventDefault(); fmt('justifyCenter'); closeMenus(); }} {...menuHover}><IconAlignCenter /><span>Align center</span></button>
-          <button style={menuButtonStyle} onMouseDown={(e) => { e.preventDefault(); fmt('justifyRight'); closeMenus(); }} {...menuHover}><IconAlignRight /><span>Align right</span></button>
+          <button style={menuButtonStyle} onMouseDown={(e) => { e.preventDefault(); applyTextAlignment('left', savedRangeRef.current); closeMenus(); tick((n) => n + 1); }} {...menuHover}><IconAlignLeft /><span>Align left</span></button>
+          <button style={menuButtonStyle} onMouseDown={(e) => { e.preventDefault(); applyTextAlignment('center', savedRangeRef.current); closeMenus(); tick((n) => n + 1); }} {...menuHover}><IconAlignCenter /><span>Align center</span></button>
+          <button style={menuButtonStyle} onMouseDown={(e) => { e.preventDefault(); applyTextAlignment('right', savedRangeRef.current); closeMenus(); tick((n) => n + 1); }} {...menuHover}><IconAlignRight /><span>Align right</span></button>
         </div>
       )}
 
@@ -2454,6 +2491,7 @@ export default function DocumentMode({
   const sourceRef = useRef<HTMLTextAreaElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
+  const bodyTitleTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const headerMenuRef = useRef<HTMLDivElement>(null);
   const editHistoryTimerRef = useRef<number | null>(null);
   const canStartEditHistoryGroupRef = useRef(true);
@@ -2493,6 +2531,12 @@ export default function DocumentMode({
 
   const currentDocumentId = documentId ?? activeDocId;
   const doc = documents.find((d) => d.id === currentDocumentId) as Document | undefined;
+  const setBodyTitleTextarea = useCallback((el: HTMLTextAreaElement | null) => {
+    bodyTitleTextareaRef.current = el;
+    if (!el) return;
+    resizeDocumentTitleTextarea(el);
+    requestAnimationFrame(() => resizeDocumentTitleTextarea(el));
+  }, []);
   const handleClose = onClosePanel ?? onClose ?? closeDocument;
   const openDocumentInSurface = useCallback((id: string) => {
     if (onOpenDocument) {
@@ -2565,6 +2609,18 @@ export default function DocumentMode({
   useEffect(() => {
     setIsEditorFocused(false);
   }, [currentDocumentId, viewMode]);
+
+  useEffect(() => {
+    const titleEl = bodyTitleTextareaRef.current;
+    if (!titleEl) return;
+    resizeDocumentTitleTextarea(titleEl);
+    const frame = requestAnimationFrame(() => resizeDocumentTitleTextarea(titleEl));
+    const timeout = window.setTimeout(() => resizeDocumentTitleTextarea(titleEl), 260);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.clearTimeout(timeout);
+    };
+  }, [currentDocumentId, doc?.title, panelMode]);
 
   const docWordCount = useMemo(() => wordCountFromHtml(doc?.content ?? ''), [doc?.content]);
   const docReadingTime = useMemo(() => readingTimeLabel(docWordCount), [docWordCount]);
@@ -2806,6 +2862,13 @@ export default function DocumentMode({
       ensureDocImageIds(contentRef.current);
       ensureDocumentHeadingIds(contentRef.current);
       updatePlaceholderVisibility(contentRef.current);
+      const resetEditorScroll = () => {
+        if (!editorScrollRef.current) return;
+        editorScrollRef.current.scrollTop = 0;
+        editorScrollRef.current.scrollLeft = 0;
+      };
+      resetEditorScroll();
+      requestAnimationFrame(resetEditorScroll);
       setViewMode('edit');
       contentRef.current.focus();
     };
@@ -3776,6 +3839,7 @@ export default function DocumentMode({
       style={{
         width: '100%',
         height: '100%',
+        minHeight: 0,
         background: 'var(--c-canvas)',
         display: 'flex',
         flexDirection: 'column',
@@ -4324,8 +4388,8 @@ export default function DocumentMode({
       </div>}
 
       {/* Body: editor */}
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden' }}>
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <input
             ref={imageInputRef}
             type="file"
@@ -4382,7 +4446,7 @@ export default function DocumentMode({
           {viewMode === 'edit' && (
             <div
               ref={editorScrollRef}
-              style={{ flex: 1, overflowY: 'auto', position: 'relative' }}
+              style={{ flex: 1, minHeight: 0, overflowY: 'auto', position: 'relative' }}
               onScroll={() => {
                 updateSelectionToolbar();
                 syncSelectedImageOverlay(selectedImageId);
@@ -4527,16 +4591,11 @@ export default function DocumentMode({
                 }}
               >
                 <textarea
-                  ref={(el) => {
-                    if (!el) return;
-                    el.style.height = 'auto';
-                    el.style.height = `${el.scrollHeight}px`;
-                  }}
+                  ref={setBodyTitleTextarea}
                   value={doc.title}
                   onChange={(e) => {
                     const newTitle = e.target.value.replace(/\n/g, ' ');
-                    e.currentTarget.style.height = 'auto';
-                    e.currentTarget.style.height = `${e.currentTarget.scrollHeight}px`;
+                    resizeDocumentTitleTextarea(e.currentTarget);
                     if (newTitle !== doc.title) checkpointDocumentHistory();
                     markDirty();
                     updateDocument(doc.id, { title: newTitle });
@@ -4552,6 +4611,7 @@ export default function DocumentMode({
                   style={{
                     width: '100%',
                     minHeight: panelMode ? 40 : 52,
+                    maxHeight: panelMode ? 210 : 280,
                     resize: 'none',
                     overflow: 'hidden',
                     border: 'none',

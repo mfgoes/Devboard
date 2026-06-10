@@ -168,6 +168,10 @@ pub fn run() {
                 .id("new_note")
                 .accelerator("CmdOrCtrl+N")
                 .build(handle)?;
+            let import_notes = MenuItemBuilder::new("Import Notes…")
+                .id("import_notes")
+                .accelerator("CmdOrCtrl+Shift+I")
+                .build(handle)?;
             let save = MenuItemBuilder::new("Save")
                 .id("save")
                 .accelerator("CmdOrCtrl+S")
@@ -183,6 +187,7 @@ pub fn run() {
             let file_menu = SubmenuBuilder::new(handle, "File")
                 .item(&new_board)
                 .item(&new_note)
+                .item(&import_notes)
                 .separator()
                 .item(&save)
                 .item(&save_as)
@@ -316,6 +321,7 @@ pub fn run() {
                 match event.id().as_ref() {
                     "new_board"     => { let _ = window.emit("menu:new_board", ()); }
                     "new_note"      => { let _ = window.emit("menu:new_note", ()); }
+                    "import_notes"  => { let _ = window.emit("menu:import_notes", ()); }
                     "save"          => { let _ = window.emit("menu:save", ()); }
                     "save_as"       => { let _ = window.emit("menu:save_as", ()); }
                     "export_png"    => { let _ = window.emit("menu:export_png", ()); }

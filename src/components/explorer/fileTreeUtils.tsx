@@ -11,7 +11,7 @@ export const SKIP_DIRS = new Set([
 
 export const IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'avif', 'ico']);
 
-export const DOC_EXTS = new Set(['md']);
+export const DOC_EXTS = new Set(['md', 'markdown', 'txt']);
 
 export const CODE_EXTS: Record<string, CodeLanguage> = {
   ts: 'typescript', tsx: 'typescript',
