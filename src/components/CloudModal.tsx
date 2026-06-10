@@ -135,7 +135,7 @@ function buildWorkspaceConflictGroups(workspaces: CloudWorkspaceSummary[]): Work
     }
   }
 
-  for (const [key, items] of byIdentity) addGroup(`identity:${key}`, 'Same workspace identity', items);
+  for (const [key, items] of byIdentity) addGroup(`identity:${key}`, 'Same project identity', items);
   for (const [key, items] of byTitleAndContent) addGroup(`content:${key}`, 'Same name and matching contents', items);
   for (const [key, items] of byTitle) addGroup(`title:${key}`, 'Same name', items);
 
@@ -500,7 +500,7 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
     ?? 'Account';
   const avatarUrl = typeof user?.user_metadata?.avatar_url === 'string' ? user.user_metadata.avatar_url : null;
 
-  const currentWorkspaceName = boardTitle.trim() || workspaceName || cloudBoardTitle || 'Untitled Workspace';
+  const currentWorkspaceName = boardTitle.trim() || workspaceName || cloudBoardTitle || 'Untitled Project';
   const currentSyncMetadata = getWorkspaceSyncMetadata();
   const currentWorkspaceId = currentSyncMetadata?.workspaceId ?? null;
   const localSyncLink = user ? getLocalSyncLink(user.id, currentWorkspaceName) : null;
@@ -658,7 +658,7 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
     try {
       setLocalRecents(await listLocalRecentWorkspaces());
     } catch (err) {
-      console.warn('Failed to load recent workspaces', err);
+      console.warn('Failed to load recent projects', err);
       setLocalRecents([]);
     }
   };
@@ -677,8 +677,8 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
       });
       return nextWorkspaces;
     } catch (err) {
-      console.warn('Failed to load synced workspaces', err);
-      toast(`Could not load synced workspaces. ${errorMessage(err, '')}`.trim());
+      console.warn('Failed to load synced projects', err);
+      toast(`Could not load synced projects. ${errorMessage(err, '')}`.trim());
       setCloudLocations({});
       return [];
     } finally {
@@ -802,7 +802,7 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
     }
 
     const linkedByIdentityOrTitle = identityCloudWorkspace
-      ?? (exactTitleMatches.length === 1 && currentWorkspaceName !== 'Untitled Workspace' ? exactTitleMatches[0] : null);
+      ?? (exactTitleMatches.length === 1 && currentWorkspaceName !== 'Untitled Project' ? exactTitleMatches[0] : null);
 
     if (linkedByIdentityOrTitle) {
       const linked = linkedByIdentityOrTitle;
@@ -960,7 +960,7 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
   const handleCreateOnlineCopy = async () => {
     if (!user) return;
     if (!cloudBoardId && workspaces.length >= SYNC_WORKSPACE_LIMIT) {
-      toast(`Free beta sync currently supports ${SYNC_WORKSPACE_LIMIT} workspaces. Replace one later if you need to rotate projects.`);
+      toast(`Free beta sync currently supports ${SYNC_WORKSPACE_LIMIT} projects. Replace one later if you need to rotate projects.`);
       return;
     }
 
@@ -972,12 +972,12 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
       rememberSyncLink(saved);
       rememberCloudEvent(saved, 'create', { action: 'create_cloud_copy', lastSyncedAt: cloudTimestamp(saved.updatedAt) });
       setConfirmingFirstSync(false);
-      toast('Created online workspace copy.');
+      toast('Created online project copy.');
       await reloadRecentRows();
       setSelectedWorkspaceId(saved.id);
     } catch (err) {
-      console.warn('Failed to create online workspace copy', err);
-      toast(`Could not sync this workspace. ${errorMessage(err, '')}`.trim());
+      console.warn('Failed to create online project copy', err);
+      toast(`Could not sync this project. ${errorMessage(err, '')}`.trim());
     } finally {
       setActionLoading(null);
     }
@@ -987,7 +987,7 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
     if (!user) return;
     const targetWorkspace = inferredCloudWorkspace ?? selectedWorkspace;
     if (!targetWorkspace) {
-      toast('Pick a synced workspace first, or sync this workspace.');
+      toast('Pick a synced project first, or sync this project.');
       return;
     }
     setSelectedWorkspaceId(targetWorkspace.id);
@@ -1005,7 +1005,7 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
       setCloudBoardState({ boardId: updated.id, title: updated.title, syncedAt });
       rememberSyncLink(updated);
       rememberCloudEvent(updated, 'sync', { action: 'sync_now', lastSyncedAt: syncedAt });
-      toast('Synced current workspace.');
+      toast('Synced current project.');
       const reloadedWorkspaces = await reloadRecentRows();
       const reloadedWorkspace = reloadedWorkspaces.find((workspace) => workspace.id === updated.id);
       const finalSyncedAt = Math.max(
@@ -1021,8 +1021,8 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
       if (syncFeedbackTimerRef.current) clearTimeout(syncFeedbackTimerRef.current);
       syncFeedbackTimerRef.current = setTimeout(() => setSyncJustFinished(false), 2400);
     } catch (err) {
-      console.warn('Failed to sync workspace', err);
-      toast(`Could not sync this workspace. ${errorMessage(err, '')}`.trim());
+      console.warn('Failed to sync project', err);
+      toast(`Could not sync this project. ${errorMessage(err, '')}`.trim());
     } finally {
       setActionLoading(null);
     }
@@ -1041,12 +1041,12 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
       rememberCloudEvent(updated, 'sync', { action: 'replace_with_current', lastSyncedAt: syncedAt });
       setWorkspaceMenuId(null);
       setReplaceConfirmId(null);
-      toast(`Replaced "${workspace.title}" with the current workspace.`);
+      toast(`Replaced "${workspace.title}" with the current project.`);
       await reloadRecentRows();
       setSelectedWorkspaceId(updated.id);
     } catch (err) {
-      console.warn('Failed to replace synced workspace', err);
-      toast(`Could not replace synced workspace. ${errorMessage(err, '')}`.trim());
+      console.warn('Failed to replace synced project', err);
+      toast(`Could not replace synced project. ${errorMessage(err, '')}`.trim());
     } finally {
       setActionLoading(null);
     }
@@ -1076,9 +1076,9 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
       setSelectedWorkspaceId(workspace.id);
       setDetailsRowId(null);
       setConfirmingFirstSync(false);
-      toast(`Connected "${workspace.title}" to this workspace.`);
+      toast(`Connected "${workspace.title}" to this project.`);
     } catch (err) {
-      console.warn('Failed to connect synced workspace', err);
+      console.warn('Failed to connect synced project', err);
       toast(`Could not connect cloud copy. ${errorMessage(err, '')}`.trim());
     } finally {
       setActionLoading(null);
@@ -1131,11 +1131,11 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
       }
       setWorkspaces((current) => current.map((item) => item.id === renamed.id ? renamed : item));
       cancelRenameWorkspace();
-      toast('Renamed synced workspace.');
+      toast('Renamed synced project.');
       await reloadRecentRows();
     } catch (err) {
-      console.warn('Failed to rename synced workspace', err);
-      toast(`Could not rename synced workspace. ${errorMessage(err, '')}`.trim());
+      console.warn('Failed to rename synced project', err);
+      toast(`Could not rename synced project. ${errorMessage(err, '')}`.trim());
     } finally {
       setActionLoading(null);
     }
@@ -1159,7 +1159,7 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
 
   const handleLoadWorkspace = async (workspace: CloudWorkspaceSummary) => {
     if (hasUnsyncedLocalChanges) {
-      const ok = window.confirm('Open this online workspace copy? Your current workspace has local changes that are not synced yet.');
+      const ok = window.confirm('Open this online project copy? Your current project has local changes that are not synced yet.');
       if (!ok) return;
     }
     setActionLoading(`load:${workspace.id}`);
@@ -1181,8 +1181,8 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
       toast(`Opened "${workspace.title}" from DevBoard Sync.`);
       onClose();
     } catch (err) {
-      console.warn('Failed to open synced workspace', err);
-      toast('Could not open that synced workspace.');
+      console.warn('Failed to open synced project', err);
+      toast('Could not open that synced project.');
     } finally {
       setActionLoading(null);
     }
@@ -1201,7 +1201,7 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
 
   const handleDownloadWorkspace = async (workspace: CloudWorkspaceSummary, rowId: string) => {
     if (hasUnsyncedLocalChanges) {
-      const ok = window.confirm('Download this online workspace copy? Your current workspace has local changes that are not synced yet.');
+      const ok = window.confirm('Download this online project copy? Your current project has local changes that are not synced yet.');
       if (!ok) return;
     }
 
@@ -1214,7 +1214,7 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
       progress: {
         totalSteps: 1,
         completedSteps: 0,
-        label: 'Loading synced workspace...',
+        label: 'Loading synced project...',
       },
     });
 
@@ -1240,8 +1240,8 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
       setSelectedWorkspaceId(workspace.id);
       onClose();
     } catch (err) {
-      console.warn('Failed to download synced workspace', err);
-      toast(`Could not download synced workspace. ${errorMessage(err, '')}`.trim());
+      console.warn('Failed to download synced project', err);
+      toast(`Could not download synced project. ${errorMessage(err, '')}`.trim());
     } finally {
       setActionLoading(null);
       setDownloadProgress(null);
@@ -1287,7 +1287,7 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
   const handleCreateLocalFolder = async () => {
     setAddMenuOpen(false);
     if (!localPathHint && currentLocalRecent) {
-      toast('This workspace already has a remembered local folder. Reconnect it, or save an explicit copy.');
+      toast('This project already has a remembered local folder. Reconnect it, or save an explicit copy.');
       return;
     }
 
@@ -1297,13 +1297,13 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
     }
 
     if (!IS_TAURI) {
-      toast('Creating a new workspace folder from here is available in the desktop app.');
+      toast('Creating a new project folder from here is available in the desktop app.');
       return;
     }
 
     setActionLoading('create-local-folder');
     try {
-      const result = await createWorkspace(exportData(), currentWorkspaceName || 'DevBoard Workspace');
+      const result = await createWorkspace(exportData(), currentWorkspaceName || 'DevBoard Project');
       if (!result) return;
 
       useBoardStore.getState().setWorkspaceName(result.name);
@@ -1337,7 +1337,7 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
       try {
         const result = await openRecentWorkspace(row.local.id);
         if (!result) {
-          toast('Could not reopen that local workspace. Relocate the folder to reconnect it.');
+          toast('Could not reopen that local project. Relocate the folder to reconnect it.');
           await reloadLocalRecents();
           return;
         }
@@ -1352,8 +1352,8 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
         onClose();
         return;
       } catch (err) {
-        console.warn('Failed to open recent local workspace', err);
-        toast('Could not reopen that local workspace.');
+        console.warn('Failed to open recent local project', err);
+        toast('Could not reopen that local project.');
       } finally {
         setActionLoading(null);
       }
@@ -1370,7 +1370,7 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
       return;
     }
 
-    if (row.local) toast('Relocate this workspace folder to open it.');
+    if (row.local) toast('Relocate this project folder to open it.');
   };
 
   const handleRelocateRecent = async (recent: LocalRecentWorkspace) => {
@@ -1382,8 +1382,8 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
       await reloadLocalRecents();
       onClose();
     } catch (err) {
-      console.warn('Failed to relocate recent workspace', err);
-      toast('Could not relocate that workspace.');
+      console.warn('Failed to relocate recent project', err);
+      toast('Could not relocate that project.');
     } finally {
       setActionLoading(null);
     }
@@ -1394,11 +1394,11 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
     try {
       await removeLocalRecentWorkspace(recent.id);
       setWorkspaceMenuId(null);
-      toast('Removed workspace from recents. Local files were not changed.');
+      toast('Removed project from recents. Local files were not changed.');
       await reloadLocalRecents();
     } catch (err) {
-      console.warn('Failed to remove recent workspace', err);
-      toast('Could not remove that recent workspace.');
+      console.warn('Failed to remove recent project', err);
+      toast('Could not remove that recent project.');
     } finally {
       setActionLoading(null);
     }
@@ -1418,11 +1418,11 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
       setReplaceConfirmId(null);
       if (renamingWorkspaceId === workspace.id) cancelRenameWorkspace();
       setSelectedWorkspaceId((current) => current === workspace.id ? null : current);
-      toast('Deleted synced workspace. Local files were not changed.');
+      toast('Deleted synced project. Local files were not changed.');
       await reloadRecentRows();
     } catch (err) {
-      console.warn('Failed to delete synced workspace', err);
-      toast(`Could not delete synced workspace. ${errorMessage(err, '')}`.trim());
+      console.warn('Failed to delete synced project', err);
+      toast(`Could not delete synced project. ${errorMessage(err, '')}`.trim());
     } finally {
       setActionLoading(null);
     }
@@ -1431,7 +1431,7 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
   const handleStartNewWorkspace = () => {
     setAddMenuOpen(false);
     loadBoard({
-      boardTitle: 'Untitled Workspace',
+      boardTitle: 'Untitled Project',
       nodes: [],
       pages: [
         {
@@ -1687,9 +1687,9 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
 
         {workspace && choiceOpen && !rowDownloadProgress && (
           <div className="mt-3 rounded-lg border border-[var(--c-border)] px-3 py-2" style={secondSurface}>
-            <p className="font-sans text-[12px] font-semibold text-[var(--c-text-hi)]">Open this synced workspace?</p>
+            <p className="font-sans text-[12px] font-semibold text-[var(--c-text-hi)]">Open this synced project?</p>
             <p className="mt-1 font-sans text-[11px] leading-relaxed text-[var(--c-text-md)]">
-              Open the online snapshot now, or download it into an empty local folder for normal workspace saves.
+              Open the online snapshot now, or download it into an empty local folder for normal project saves.
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
               <button onClick={() => void handleDownloadWorkspace(workspace, row.id)} disabled={actionLoading !== null} className="rounded-lg bg-[var(--c-line)] px-2.5 py-1.5 font-sans text-[11px] font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-default disabled:opacity-60">
@@ -1722,7 +1722,7 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
 
         {workspace && renaming && (
           <div className="mt-3 rounded-lg border border-[var(--c-border)] px-3 py-2" style={secondSurface}>
-            <p className="font-sans text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--c-text-lo)]">Rename synced workspace</p>
+            <p className="font-sans text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--c-text-lo)]">Rename synced project</p>
             <input
               autoFocus
               value={renameDraft}
@@ -1775,14 +1775,14 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
 
         {detailsOpen && (
           <div className="mt-3 rounded-lg border border-[var(--c-border)] px-3 py-2" style={secondSurface}>
-            <p className="font-sans text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--c-text-lo)]">Workspace details</p>
+            <p className="font-sans text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--c-text-lo)]">Project details</p>
             {contentSummary ? (
               <p className="mt-2 font-sans text-[12px] leading-relaxed text-[var(--c-text-hi)]">
                 Pages: {contentSummary.pages} &middot; Notes: {contentSummary.notes} &middot; Canvas items: {contentSummary.canvasItems} &middot; Images: {contentSummary.images}
               </p>
             ) : (
               <p className="mt-2 font-sans text-[12px] leading-relaxed text-[var(--c-text-md)]">
-                Content details will appear after this workspace is opened or synced again.
+                Content details will appear after this project is opened or synced again.
               </p>
             )}
             <div className="mt-2 grid gap-1 font-sans text-[11px] text-[var(--c-text-lo)]">
@@ -1836,7 +1836,7 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
         {workspace && confirmingReplace && (
           <div className="mt-3 rounded-lg border border-[var(--c-line)]/25 bg-[rgba(184,119,80,0.10)] px-3 py-2">
             <p className="font-sans text-[12px] font-semibold text-[var(--c-text-hi)]">Replace this synced copy?</p>
-            <p className="mt-1 font-sans text-[11px] leading-relaxed text-[var(--c-text-md)]">This overwrites the online copy with the workspace currently open here.</p>
+            <p className="mt-1 font-sans text-[11px] leading-relaxed text-[var(--c-text-md)]">This overwrites the online copy with the project currently open here.</p>
             <div className="mt-3 flex flex-wrap gap-2">
               <button onClick={() => void handleReplaceWorkspace(workspace)} disabled={actionLoading !== null} className="rounded-lg bg-[var(--c-line)] px-2.5 py-1.5 font-sans text-[11px] font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-default disabled:opacity-60">
                 {replacing ? 'Replacing...' : 'Replace'}
@@ -1849,7 +1849,7 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
         {workspace && confirmingDelete && (
           <div className="absolute right-4 top-12 z-30 w-64 rounded-xl border border-[#f59e0b]/25 bg-[var(--c-panel)] px-3 py-3 shadow-2xl" onMouseDown={(e) => e.stopPropagation()}>
             <p className="font-sans text-[12px] font-semibold text-[var(--c-text-hi)]">Delete synced copy?</p>
-            <p className="mt-1 font-sans text-[11px] leading-relaxed text-[var(--c-text-md)]">This removes the online copy only. Your local workspace stays on this device.</p>
+            <p className="mt-1 font-sans text-[11px] leading-relaxed text-[var(--c-text-md)]">This removes the online copy only. Your local project stays on this device.</p>
             <div className="mt-3 flex flex-wrap gap-2">
               <button onClick={() => void handleDeleteWorkspace(workspace)} disabled={actionLoading !== null} className="rounded-lg bg-[#b45309] px-2.5 py-1.5 font-sans text-[11px] font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-default disabled:opacity-60">
                 {deleting ? 'Deleting...' : 'Delete'}
@@ -2055,7 +2055,7 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
               ? 'hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]'
               : 'bg-[rgba(255,248,240,0.3)] backdrop-blur-sm hover:bg-[rgba(255,248,240,0.6)] hover:text-[var(--c-text-hi)] md:right-4 md:top-3',
           ].join(' ')}
-          aria-label="Close workspace sync modal"
+          aria-label="Close project sync modal"
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
             <path d="M3.5 3.5 12.5 12.5" />
@@ -2072,15 +2072,15 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
                 className="inline-flex items-center gap-2 rounded-lg px-1 py-1 font-sans text-[13px] font-medium text-[var(--c-text-md)] transition-colors hover:text-[var(--c-text-hi)]"
               >
                 <i className="ti ti-arrow-left text-[14px]" aria-hidden="true" />
-                Back to library
+                Back to all projects
               </button>
             ) : (
               <>
                 <h2 className="font-sans text-[18px] font-semibold text-[var(--c-text-hi)]">
-                  Workspace Sync
+                  Project Sync
                 </h2>
                 <p className="mt-1 font-sans text-[12px] text-[var(--c-text-lo)]">
-                  Your chosen workspaces, ready wherever you need them.
+                  Your chosen projects, ready wherever you need them.
                 </p>
               </>
             )}
@@ -2099,7 +2099,7 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
         {!isConfigured ? (
           <div className="px-6 py-8">
             <p className="font-sans text-[13px] leading-relaxed text-[var(--c-text-md)]">
-              Supabase is not configured yet. Add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` to enable Workspace Sync login and storage.
+              Supabase is not configured yet. Add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` to enable Project Sync login and storage.
             </p>
           </div>
         ) : !user ? (
@@ -2111,12 +2111,12 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
                 </div>
 
                 <p className="mt-5 font-sans text-[28px] font-semibold leading-[1.05] text-[var(--c-text-hi)] sm:text-[36px]">
-                  {authMode === 'signin' ? 'Sync selected workspaces anywhere.' : 'Create your DevBoard account.'}
+                  {authMode === 'signin' ? 'Sync selected projects anywhere.' : 'Create your DevBoard account.'}
                 </p>
                 <p className="mt-3 max-w-[42ch] font-sans text-[14px] leading-relaxed text-[var(--c-text-md)] sm:text-[15px]">
                   {authMode === 'signin'
                     ? 'Local work stays free and yours. Sign in to use free beta sync for selected project folders.'
-                    : 'Create an account to use free beta sync, reopen workspaces on another device, and keep online copies of the projects you choose.'}
+                    : 'Create an account to use free beta sync, reopen projects on another device, and keep online copies of the projects you choose.'}
                 </p>
 
                 <div ref={authTabsRef} className="relative mt-7 flex gap-6 border-b border-[var(--c-border)]">
@@ -2285,7 +2285,7 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
                     Your folder stays yours. Sync is the convenience layer.
                   </h3>
                   <p className="mt-3 font-sans text-[13px] leading-relaxed text-[var(--c-text-md)]">
-                    Sync up to {SYNC_WORKSPACE_LIMIT} selected workspaces, reopen them on another device, and keep working locally whenever you want.
+                    Sync up to {SYNC_WORKSPACE_LIMIT} selected projects, reopen them on another device, and keep working locally whenever you want.
                   </p>
                 </div>
 
@@ -2293,7 +2293,7 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
                   <div className="absolute left-8 top-7 z-10 w-[246px] rounded-[28px] border border-white/60 bg-[rgba(255,255,255,0.72)] p-4 shadow-[0_24px_70px_rgba(54,35,24,0.16)] backdrop-blur" style={{ animation: 'auth-card-float-a 6.4s ease-in-out infinite' }}>
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="font-sans text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--c-text-lo)]">Workspace</p>
+                        <p className="font-sans text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--c-text-lo)]">Project</p>
                         <p className="mt-1 font-sans text-[15px] font-semibold text-[var(--c-text-hi)]">Novel draft</p>
                       </div>
                       <span className="inline-flex items-center gap-1 rounded-full bg-[rgba(120,167,145,0.18)] px-2 py-1 text-[10px] font-semibold text-[rgb(72,112,92)]"><IconCheck /> Synced</span>
@@ -2307,7 +2307,7 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
                   <div className="absolute bottom-11 right-11 z-20 w-[236px] rounded-[28px] border border-[rgba(57,42,30,0.12)] bg-[rgba(43,33,26,0.96)] p-4 text-white shadow-[0_28px_80px_rgba(22,14,10,0.34)]" style={{ animation: 'auth-card-float-b 5.8s ease-in-out infinite 0.6s' }}>
                       <p className="font-sans text-[13px] font-semibold text-white">DevBoard Sync</p>
                       <p className="mt-2 font-sans text-[11px] leading-relaxed text-white/60">
-                      Free during beta while we learn what serious workspace sync needs.
+                      Free during beta while we learn what serious project sync needs.
                       </p>
                   </div>
                 </div>
@@ -2322,8 +2322,8 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
               <div className="flex flex-wrap items-end gap-6">
                 <div className="flex items-end gap-6">
                   {[
-                    { id: 'workspace' as const, label: 'Workspace' },
-                    { id: 'library' as const, label: 'Library' },
+                    { id: 'workspace' as const, label: 'Current' },
+                    { id: 'library' as const, label: 'All projects' },
                   ].map((tab) => (
                     <button
                       key={tab.id}
@@ -2404,7 +2404,7 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
                             onClick={() => {
                               keepCurrentWorkspaceLocalOnly();
                               rememberCloudEvent(newerCloudWorkspace, 'unlink');
-                              toast('Kept the local workspace separate. No cloud copy was deleted.');
+                              toast('Kept the local project separate. No cloud copy was deleted.');
                             }}
                             disabled={actionLoading !== null}
                             className="rounded-lg border border-[var(--c-border)] bg-[var(--c-panel)] px-4 py-2 font-sans text-[12px] font-semibold text-[var(--c-text-hi)] transition-colors hover:bg-[var(--c-hover)] disabled:cursor-default disabled:opacity-60"
@@ -2432,7 +2432,7 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
                       Save a new cloud copy
                     </span>
                     <span className="mt-1 block font-sans text-[12px] leading-snug text-[var(--c-text-md)]">
-                      Snapshot this workspace to cloud as a separate copy. Useful before making big changes.
+                      Snapshot this project to cloud as a separate copy. Useful before making big changes.
                     </span>
                   </span>
                   <span className="shrink-0 text-[var(--c-text-lo)] transition-transform group-hover:translate-x-0.5" aria-hidden="true">
@@ -2483,17 +2483,17 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
               <div className="min-h-0 flex-1 px-5 py-5">
                 <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <p className="font-sans text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--c-text-lo)]">Workspace library</p>
+                    <p className="font-sans text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--c-text-lo)]">All projects</p>
                     <p className="mt-0.5 max-w-[48ch] font-sans text-[11px] leading-snug text-[var(--c-text-md)]">
-                      Browse and open other workspaces here. Current-workspace resolution stays in the first tab.
+                      Browse and open other projects here. Current project resolution stays in the first tab.
                     </p>
                   </div>
                   <div className="relative flex shrink-0 items-center gap-1.5">
                     <button
                       onClick={() => { setAddMenuOpen(false); void reloadRecentRows(); }}
                       className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--c-border)] bg-[var(--c-panel)] text-[var(--c-text-md)] transition-colors hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]"
-                      title="Refresh workspaces"
-                      aria-label="Refresh workspaces"
+                      title="Refresh projects"
+                      aria-label="Refresh projects"
                     >
                       <IconRefresh />
                     </button>
@@ -2524,7 +2524,7 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
                         <div className="my-1 border-t border-[var(--c-border)]" />
                         <button type="button" onClick={handleStartNewWorkspace} className="flex w-full items-center gap-2 px-3 py-2 text-left font-sans text-[12px] font-semibold text-[var(--c-text-md)] transition-colors hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]">
                           <span className="text-[var(--c-text-lo)]"><IconNewWorkspace /></span>
-                          New blank workspace
+                          New blank project
                         </button>
                       </div>
                     )}
@@ -2568,16 +2568,16 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
                     {workspaces.length >= SYNC_WORKSPACE_LIMIT && (
                       <div className="mb-2 rounded-lg border border-[#f59e0b]/30 bg-[#f59e0b]/10 px-3 py-2">
                         <p className="font-sans text-[11px] font-semibold text-[#92400e]">Sync limit reached</p>
-                        <p className="mt-0.5 font-sans text-[10px] leading-snug text-[#b45309]">{workspaces.length}/{SYNC_WORKSPACE_LIMIT} cloud copies used. Move a workspace offline or delete a synced copy to make room.</p>
+                        <p className="mt-0.5 font-sans text-[10px] leading-snug text-[#b45309]">{workspaces.length}/{SYNC_WORKSPACE_LIMIT} cloud copies used. Move a project offline or delete a synced copy to make room.</p>
                       </div>
                     )}
                     <div className="space-y-1.5 overflow-y-auto pr-1" style={{ maxHeight: '360px' }}>
                       {workspacesLoading && cloudWorkspaceRows.length === 0 ? (
-                        <div className="rounded-xl border border-[var(--c-border)] px-4 py-4 font-sans text-[12px] text-[var(--c-text-md)]" style={secondSurface}>Loading cloud workspaces...</div>
+                        <div className="rounded-xl border border-[var(--c-border)] px-4 py-4 font-sans text-[12px] text-[var(--c-text-md)]" style={secondSurface}>Loading cloud projects...</div>
                       ) : cloudWorkspaceRows.length === 0 ? (
                         <div className="rounded-xl border border-[var(--c-border)] px-4 py-4" style={secondSurface}>
                           <p className="font-sans text-[13px] font-semibold text-[var(--c-text-hi)]">Nothing on cloud yet</p>
-                          <p className="mt-1 font-sans text-[11px] leading-relaxed text-[var(--c-text-md)]">Turn on sync for a workspace and it will appear here.</p>
+                          <p className="mt-1 font-sans text-[11px] leading-relaxed text-[var(--c-text-md)]">Turn on sync for a project and it will appear here.</p>
                         </div>
                       ) : (
                         cloudWorkspaceRows.map((row) => renderWorkspaceRow(row, { cloudShelf: true }))
@@ -2590,15 +2590,15 @@ export default function CloudModal({ open, onClose }: { open: boolean; onClose: 
                   <section>
                     <div className="mb-2">
                       <p className="font-sans text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--c-text-lo)]">Local & recent</p>
-                      <p className="mt-0.5 font-sans text-[11px] leading-snug text-[var(--c-text-md)]">Local folders and remembered workspaces on this device.</p>
+                      <p className="mt-0.5 font-sans text-[11px] leading-snug text-[var(--c-text-md)]">Local folders and remembered projects on this device.</p>
                     </div>
                     <div className="space-y-1.5 overflow-y-auto pr-1" style={{ maxHeight: '390px' }}>
                       {workspacesLoading && localAndRecentRows.length === 0 ? (
-                        <div className="rounded-xl border border-[var(--c-border)] px-4 py-4 font-sans text-[12px] text-[var(--c-text-md)]" style={secondSurface}>Loading recent workspaces...</div>
+                        <div className="rounded-xl border border-[var(--c-border)] px-4 py-4 font-sans text-[12px] text-[var(--c-text-md)]" style={secondSurface}>Loading recent projects...</div>
                       ) : localAndRecentRows.length === 0 ? (
                         <div className="rounded-2xl border border-[var(--c-border)] px-4 py-5 text-[var(--c-text-lo)]" style={secondSurface}>
-                          <p className="font-sans text-[14px] font-semibold text-[var(--c-text-hi)]">No recent workspaces yet</p>
-                          <p className="mt-1 font-sans text-[12px] leading-relaxed text-[var(--c-text-md)]">Open a local folder or download a cloud workspace to make it one click away here.</p>
+                          <p className="font-sans text-[14px] font-semibold text-[var(--c-text-hi)]">No recent projects yet</p>
+                          <p className="mt-1 font-sans text-[12px] leading-relaxed text-[var(--c-text-md)]">Open a local folder or download a cloud project to make it one click away here.</p>
                         </div>
                       ) : localAndRecentRows.map((row) => renderWorkspaceRow(row))}
                     </div>
