@@ -889,7 +889,7 @@ function buildFolderDescriptors(data: BoardData, documents: Document[]): FolderD
   const now = Date.now();
   const existing = new Map((data.folderDescriptors ?? []).map((folder) => [folder.id, folder]));
   const pages = data.pages?.length
-    ? data.pages
+    ? data.pages.filter((page) => !page.isCanvasDocument)
     : [{ id: data.activePageId || 'page-1', name: 'Page 1', layoutMode: undefined, noteSort: 'updated' as const }];
 
   return pages.map((page) => {
@@ -913,7 +913,9 @@ function buildFolderDescriptors(data: BoardData, documents: Document[]): FolderD
       lastEditedAt,
       tags,
       files: pageDocs.map((doc) => ({
-        path: doc.linkedFile ?? `notes/${generateMarkdownFilename(doc.title)}`,
+        path: doc.docType === 'canvas'
+          ? `pages/${doc.canvasPageId ?? doc.id}.json`
+          : doc.linkedFile ?? `notes/${generateMarkdownFilename(doc.title)}`,
         title: doc.title || 'Untitled',
         updatedAt: doc.updatedAt,
         tags: doc.tags,
@@ -1111,6 +1113,7 @@ function materializeDocuments(documents: Document[] | undefined): { documents: D
   const usedPaths = new Set<string>();
   const notes: Array<{ path: string; content: string }> = [];
   const materialized = (documents ?? []).map((doc) => {
+    if (doc.docType === 'canvas') return { ...doc, linkedFile: undefined };
     const linkedPath = doc.linkedFile && /\.(md|markdown|txt)$/i.test(doc.linkedFile)
       ? safeRelativePath(doc.linkedFile)
       : null;
@@ -1127,6 +1130,9 @@ function materializePages(data: BoardData): Array<{
   name: string;
   layoutMode?: 'freeform' | 'stack';
   noteSort?: 'updated' | 'custom';
+  isCanvasDocument?: boolean;
+  parentPageId?: string;
+  canvasDocumentId?: string;
   nodes: CanvasNode[];
   camera: { x: number; y: number; scale: number };
 }> {

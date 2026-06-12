@@ -86,6 +86,7 @@ export async function exportBoardAsZip(data: BoardData, title: string): Promise<
   zip.file('board.json', JSON.stringify(strippedData, null, 2));
 
   for (const doc of data.documents ?? []) {
+    if (doc.docType === 'canvas') continue;
     const notePath = uniqueNotePath(doc, notePaths);
     const relativePath = notePath.replace(/^notes\//i, '');
     notesFolder.file(relativePath, documentToMarkdownFile(doc));

@@ -234,8 +234,10 @@ export interface TaskCardNode {
 // ── First-class Document entity (Phase 2 data model) ─────────────────────────
 export interface Document {
   id: string;
+  docType?: 'note' | 'canvas';
   title: string;
   content: string;        // HTML rich text
+  canvasPageId?: string;  // backing freeform page for canvas documents
   emoji?: string;         // optional icon emoji shown above the heading
   pageId?: string;        // which page this document belongs to
   linkedFile?: string;    // workspace-relative path, e.g. "notes/ideas.md"
@@ -280,6 +282,9 @@ export interface PageMeta {
   name: string;
   layoutMode?: 'freeform' | 'stack';
   noteSort?: 'updated' | 'custom';
+  isCanvasDocument?: boolean;
+  parentPageId?: string;
+  canvasDocumentId?: string;
 }
 
 export interface FolderDescriptorFile {
@@ -313,7 +318,7 @@ export interface BoardData {
   boardTitle: string;
   nodes: CanvasNode[];
   // Multi-page (v2) — absent in legacy saves
-  pages?: Array<{ id: string; name: string; layoutMode?: 'freeform' | 'stack'; noteSort?: 'updated' | 'custom'; nodes: CanvasNode[]; camera: Camera }>;
+  pages?: Array<{ id: string; name: string; layoutMode?: 'freeform' | 'stack'; noteSort?: 'updated' | 'custom'; isCanvasDocument?: boolean; parentPageId?: string; canvasDocumentId?: string; nodes: CanvasNode[]; camera: Camera }>;
   activePageId?: string;
   // Phase 2 document entities — absent in legacy saves
   documents?: Document[];

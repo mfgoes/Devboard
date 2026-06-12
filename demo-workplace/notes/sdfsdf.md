@@ -1,4 +1,4 @@
-# Key improvements over the current canvas
+# sdfsdf
 
 - Dot grid background gives spatial context without noise — same as FigJam/Miro
 - Card actions (expand, edit) are hidden until hover, keeping cards clean at a glance

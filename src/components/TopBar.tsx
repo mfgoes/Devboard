@@ -10,7 +10,7 @@ import { openWorkspace, createWorkspace, saveWorkspace, hasWorkspaceHandle, clea
 import { toast } from '../utils/toast';
 import { exportDocumentsAsMarkdown, generateMarkdownFilename } from '../utils/exportMarkdown';
 import exportSound from '../assets/get1.mp3';
-import { IconDoc, IconFreeformPage, IconSaveFile, IconStackPage } from './icons';
+import { IconDoc, IconSaveFile } from './icons';
 import { announceLocalSave } from '../utils/saveStatus';
 import { applyWorkspaceSyncFromOpenResult } from '../utils/applyWorkspaceSync';
 import { DARK_MENU_CLASSES } from './darkMenuTheme';
@@ -70,10 +70,9 @@ function parseCSV(text: string): string[][] {
   return rows;
 }
 
-export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleTimer, explorerOpen, onToggleExplorer, onWorkspaceOpened, jiraOpen, onToggleJira, onToggleSearch, workspaceOffset = 0, templatesOpen, onTemplatesOpenChange }: TopBarProps) {
-  const { boardTitle, exportData, loadBoard, setActiveTool, setActiveShapeKind, addNode, pages, activePageId, setPageLayoutMode, workspaceName, setWorkspaceName, nodes, appMode, cloudBoardId, cloudBoardTitle, cloudSyncedAt, lastLocalSavedAt, lastLocalSaveTarget } = useBoardStore();
+export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleTimer, explorerOpen, onToggleExplorer, onWorkspaceOpened, jiraOpen, onToggleJira, onToggleSearch, workspaceOffset: _workspaceOffset = 0, templatesOpen, onTemplatesOpenChange }: TopBarProps) {
+  const { boardTitle, exportData, loadBoard, setActiveTool, setActiveShapeKind, addNode, pages, activePageId, workspaceName, setWorkspaceName, nodes, appMode, cloudBoardId, cloudBoardTitle, cloudSyncedAt, lastLocalSavedAt, lastLocalSaveTarget } = useBoardStore();
   const { user } = useAuth();
-  const activePage = pages.find((p) => p.id === activePageId);
   const isDocumentContext = appMode === 'document';
   const fileInputRef = useRef<HTMLInputElement>(null);
   const csvInputRef = useRef<HTMLInputElement>(null);
@@ -438,7 +437,14 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
           </div>
         </div>
       )}
-      <div className="pointer-events-none absolute top-0 left-0 right-0 z-[190] h-11 font-sans overflow-visible">
+      <div
+        className="pointer-events-none absolute top-0 left-0 right-0 z-[190] h-11 font-sans overflow-visible"
+        style={{
+          height: 44,
+          background: 'var(--c-topbar)',
+          borderBottom: '0.5px solid var(--c-topbar-border)',
+        }}
+      >
       {/* Left: Logo + dropdown */}
       {!explorerOpen && (
       <div className="pointer-events-auto absolute left-2 sm:left-4 top-1/2 flex max-w-[calc(50vw-132px)] -translate-y-1/2 items-center gap-1.5 sm:gap-2.5 min-w-0 overflow-visible">
@@ -487,45 +493,6 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
         </div>
       </div>
       )}
-
-      {/* Center: Layout mode switcher */}
-      <div
-        className="pointer-events-auto absolute top-1/2 hidden -translate-x-1/2 -translate-y-1/2 md:flex items-center shrink-0"
-        style={{
-          left: workspaceOffset > 0 ? `calc(50% + ${Math.round(workspaceOffset / 2)}px)` : '50%',
-          padding: 2,
-          background: 'color-mix(in srgb, var(--c-panel) 82%, transparent)',
-          border: '1px solid color-mix(in srgb, var(--c-border) 86%, transparent)',
-          borderRadius: 9,
-          height: 28,
-          boxShadow: '0 6px 18px rgba(40,32,26,0.08)',
-          backdropFilter: 'blur(10px)',
-        }}
-      >
-        {(['freeform', 'stack'] as const).map((mode) => {
-          const active = (activePage?.layoutMode ?? 'freeform') === mode;
-          return (
-            <button
-              key={mode}
-              onClick={() => setPageLayoutMode(activePageId, mode)}
-              title={mode === 'freeform' ? 'Canvas' : 'Notes'}
-              className="font-sans px-2 sm:px-3"
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: 6,
-                height: 24, borderRadius: 6, border: 'none',
-                cursor: 'pointer', fontSize: 11, fontWeight: 650,
-                background: active ? 'var(--c-canvas)' : 'transparent',
-                color: active ? 'var(--c-text-hi)' : 'var(--c-text-lo)',
-                boxShadow: active ? '0 1px 2px rgba(40,32,26,.08)' : 'none',
-                transition: 'background 120ms, color 120ms',
-              }}
-            >
-              {mode === 'freeform' ? <IconFreeformPage /> : <IconStackPage />}
-              <span>{mode === 'freeform' ? 'Canvas' : 'Notes'}</span>
-            </button>
-          );
-        })}
-      </div>
 
       {/* Right: Actions */}
       <div className="pointer-events-auto absolute right-2 sm:right-4 top-1/2 flex -translate-y-1/2 shrink-0 items-center gap-0.5 sm:gap-1 whitespace-nowrap">

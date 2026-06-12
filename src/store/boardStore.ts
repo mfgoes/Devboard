@@ -200,10 +200,12 @@ interface BoardState {
 
   // ── Document entity actions ───────────────────────────────────────────────
   addDocument: (partial: Partial<Document>) => string;
+  addCanvasDocument: (parentPageId?: string) => string;
   updateDocument: (id: string, patch: Partial<Document>) => void;
   toggleFavoriteDocument: (id: string) => void;
   deleteDocument: (id: string) => void;
   openDocument: (id: string) => void;
+  openCanvasDocument: (id: string) => void;
   openDocumentWithMorph: (id: string, rect?: { left: number; top: number; width: number; height: number }) => void;
   closeDocument: () => void;
   ensureDocumentNode: (docId: string, pageId?: string) => string | null;
@@ -387,7 +389,7 @@ export const useBoardStore = create<BoardState>()(
         const newName = name ?? `Page ${pages.length + 1}`;
         set({
           pageSnapshots: { ...pageSnapshots, [activePageId]: { nodes, camera } },
-          pages: [...pages, { id: newId, name: newName, layoutMode: 'freeform' as const, noteSort: 'updated' as const }],
+          pages: [...pages, { id: newId, name: newName, layoutMode: 'stack' as const, noteSort: 'updated' as const }],
           activePageId: newId,
           nodes: [],
           camera: { x: 0, y: 0, scale: 1 },
@@ -492,7 +494,15 @@ export const useBoardStore = create<BoardState>()(
             : { nodes: activePg.nodes, pageSnapshots: snapshots, documents: normalizeDocumentPageIds(incomingDocs, activePg.id, activePg.nodes, snapshots) };
           set({
             boardTitle: data.boardTitle,
-            pages: data.pages.map((p) => ({ id: p.id, name: p.name, layoutMode: p.layoutMode, noteSort: p.noteSort ?? 'updated' })),
+            pages: data.pages.map((p) => ({
+              id: p.id,
+              name: p.name,
+              layoutMode: p.layoutMode,
+              noteSort: p.noteSort ?? 'updated',
+              isCanvasDocument: p.isCanvasDocument,
+              parentPageId: p.parentPageId,
+              canvasDocumentId: p.canvasDocumentId,
+            })),
             activePageId: activePg.id,
             pageSnapshots: migratedSnaps,
             nodes: migratedNodes,
@@ -701,8 +711,10 @@ export const useBoardStore = create<BoardState>()(
         const now = Date.now();
         const doc: Document = {
           id,
+          docType: partial.docType ?? 'note',
           title: partial.title ?? 'Untitled',
           content: partial.content ?? '',
+          canvasPageId: partial.canvasPageId,
           pageId: partial.pageId ?? get().activePageId,
           linkedFile: partial.linkedFile,
           orderIndex: partial.orderIndex,
@@ -719,11 +731,69 @@ export const useBoardStore = create<BoardState>()(
         return id;
       },
 
+      addCanvasDocument: (parentPageId) => {
+        const state = get();
+        const parentPage = state.pages.find((page) => page.id === parentPageId && !page.isCanvasDocument)
+          ?? state.pages.find((page) => page.id === state.activePageId && !page.isCanvasDocument)
+          ?? state.pages.find((page) => !page.isCanvasDocument)
+          ?? state.pages[0];
+        const resolvedParentPageId = parentPage?.id ?? state.activePageId;
+        const docId = `doc_${generateId()}`;
+        const canvasPageId = `canvas_${generateId()}`;
+        const now = Date.now();
+        const siblings = state.documents.filter((doc) => doc.pageId === resolvedParentPageId);
+        const doc: Document = {
+          id: docId,
+          docType: 'canvas',
+          title: 'Untitled canvas',
+          content: '',
+          pageId: resolvedParentPageId,
+          canvasPageId,
+          orderIndex: siblings.length,
+          createdAt: now,
+          updatedAt: now,
+        };
+        const page: PageMeta = {
+          id: canvasPageId,
+          name: doc.title,
+          layoutMode: 'freeform',
+          noteSort: 'updated',
+          isCanvasDocument: true,
+          parentPageId: resolvedParentPageId,
+          canvasDocumentId: docId,
+        };
+        set((current) => ({
+          pageSnapshots: {
+            ...current.pageSnapshots,
+            [current.activePageId]: { nodes: current.nodes, camera: current.camera },
+          },
+          pages: [...current.pages, page],
+          documents: [...current.documents, doc],
+          activePageId: canvasPageId,
+          nodes: [],
+          camera: { x: 0, y: 0, scale: 1 },
+          appMode: 'canvas',
+          activeDocId: null,
+          openPanelDocId: null,
+          focusDocumentId: null,
+          selectedIds: [],
+          editingId: null,
+          tableEditState: null,
+          tableSelectionState: null,
+          past: [],
+          future: [],
+        }));
+        return docId;
+      },
+
       updateDocument: (id, patch) =>
         set((state) => ({
           documents: state.documents.map((d) =>
             d.id === id ? { ...d, ...patch, updatedAt: Date.now() } : d
           ),
+          ...(patch.title !== undefined
+            ? { pages: state.pages.map((p) => (p.canvasDocumentId === id ? { ...p, name: patch.title || 'Untitled canvas' } : p)) }
+            : {}),
         })),
 
       toggleFavoriteDocument: (id) =>
@@ -735,6 +805,8 @@ export const useBoardStore = create<BoardState>()(
 
       deleteDocument: (docId) =>
         set((state) => {
+          const deletedDoc = state.documents.find((d) => d.id === docId);
+          const deletedCanvasPageId = deletedDoc?.docType === 'canvas' ? deletedDoc.canvasPageId : undefined;
           // Find all canvas card IDs referencing this document across all pages
           const allNodes = [
             ...state.nodes,
@@ -762,13 +834,23 @@ export const useBoardStore = create<BoardState>()(
             past: pushHistorySnapshot(state.past, createHistorySnapshot(state)),
             future: [],
             documents: state.documents.filter((d) => d.id !== docId),
+            pages: deletedCanvasPageId ? state.pages.filter((p) => p.id !== deletedCanvasPageId) : state.pages,
             nodes: cleanNodes(state.nodes),
             pageSnapshots: Object.fromEntries(
-              Object.entries(state.pageSnapshots).map(([pid, snap]) => [
-                pid,
-                { ...snap, nodes: cleanNodes(snap.nodes) },
-              ]),
+              Object.entries(state.pageSnapshots)
+                .filter(([pid]) => pid !== deletedCanvasPageId)
+                .map(([pid, snap]) => [
+                  pid,
+                  { ...snap, nodes: cleanNodes(snap.nodes) },
+                ]),
             ),
+            ...(state.activePageId === deletedCanvasPageId
+              ? {
+                activePageId: deletedDoc?.pageId ?? state.pages.find((p) => !p.isCanvasDocument)?.id ?? state.activePageId,
+                nodes: state.pageSnapshots[deletedDoc?.pageId ?? '']?.nodes ?? [],
+                camera: state.pageSnapshots[deletedDoc?.pageId ?? '']?.camera ?? { x: 0, y: 0, scale: 1 },
+              }
+              : {}),
             ...(state.activeDocId === docId ? { appMode: 'canvas' as const, activeDocId: null } : {}),
             ...(state.openPanelDocId === docId ? { openPanelDocId: null } : {}),
             selectedIds: state.selectedIds.filter((id) => !cardIds.has(id)),
@@ -785,6 +867,35 @@ export const useBoardStore = create<BoardState>()(
           documentOpenTransition: 'instant',
           recentDocIds: [id, ...state.recentDocIds.filter((r) => r !== id)].slice(0, 10),
         })),
+
+      openCanvasDocument: (id) => {
+        const state = get();
+        const doc = state.documents.find((entry) => entry.id === id);
+        if (!doc?.canvasPageId) return;
+        const snap = state.pageSnapshots[doc.canvasPageId] ?? { nodes: [], camera: { x: 0, y: 0, scale: 1 } };
+        set((current) => ({
+          pageSnapshots: {
+            ...current.pageSnapshots,
+            [current.activePageId]: { nodes: current.nodes, camera: current.camera },
+          },
+          activePageId: doc.canvasPageId!,
+          nodes: snap.nodes,
+          camera: snap.camera,
+          appMode: 'canvas',
+          activeDocId: null,
+          openPanelDocId: null,
+          focusDocumentId: null,
+          morphSourceRect: null,
+          documentOpenTransition: 'instant',
+          recentDocIds: [id, ...current.recentDocIds.filter((r) => r !== id)].slice(0, 10),
+          selectedIds: [],
+          editingId: null,
+          tableEditState: null,
+          tableSelectionState: null,
+          past: [],
+          future: [],
+        }));
+      },
 
       openDocumentWithMorph: (id, rect) =>
         set((state) => ({
@@ -851,41 +962,9 @@ export const useBoardStore = create<BoardState>()(
       },
 
       setPageLayoutMode: (id, mode) =>
-        set((state) => {
-          const updatedPages = state.pages.map((p) => (p.id === id ? { ...p, layoutMode: mode } : p));
-          if (mode !== 'freeform') return { pages: updatedPages };
-
-          // When switching to freeform, materialize any documents that have no canvas node yet.
-          const CARD_W = 280, CARD_H = 176;
-          const existingDocIds = new Set(
-            state.nodes
-              .filter((n) => n.type === 'document')
-              .map((n) => (n as DocumentNode).docId)
-              .filter(Boolean)
-          );
-          const orphans = state.documents.filter(
-            (d) => (d.pageId ?? id) === id && !existingDocIds.has(d.id)
-          );
-          if (orphans.length === 0) return { pages: updatedPages };
-
-          const stagedNodes = [...state.nodes];
-          const newNodes: DocumentNode[] = orphans.map((doc) => {
-            const { x, y } = findDocumentPlacement(stagedNodes, state.camera, CARD_W, CARD_H);
-            const newNode: DocumentNode = {
-              id: generateId(),
-              type: 'document',
-              x,
-              y,
-              width: CARD_W,
-              height: CARD_H,
-              docId: doc.id,
-            };
-            stagedNodes.push(newNode);
-            return newNode;
-          });
-
-          return { pages: updatedPages, nodes: [...state.nodes, ...newNodes] };
-        }),
+        set((state) => ({
+          pages: state.pages.map((p) => (p.id === id ? { ...p, layoutMode: mode } : p)),
+        })),
     }),
     {
       name: 'devboard-v2',

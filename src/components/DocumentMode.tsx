@@ -851,7 +851,10 @@ function resizeDocumentTitleTextarea(el: HTMLTextAreaElement): void {
   const fontSize = Number.parseFloat(style.fontSize) || 30;
   const lineHeight = Number.parseFloat(style.lineHeight) || fontSize * 1.16;
   const minHeight = Number.parseFloat(style.minHeight) || lineHeight;
-  const maxHeight = Math.max(minHeight, lineHeight * 6);
+  const explicitMaxHeight = Number.parseFloat(style.maxHeight);
+  const maxHeight = Number.isFinite(explicitMaxHeight)
+    ? Math.max(minHeight, explicitMaxHeight)
+    : Math.max(minHeight, lineHeight * 6);
 
   el.style.height = '0px';
   const measured = el.scrollHeight;
@@ -2554,6 +2557,10 @@ export default function DocumentMode({
   const [showHeaderMenu, setShowHeaderMenu] = useState(false);
   const [isEditorFocused, setIsEditorFocused] = useState(false);
   const [formattingMenuOpen, setFormattingMenuOpen] = useState(false);
+  const [slashHintCount, setSlashHintCount] = useState(() => {
+    if (typeof window === 'undefined') return 0;
+    return Number(window.localStorage.getItem('devboard.slashCommandCount') ?? '0') || 0;
+  });
   const [, forceSaveStatusTick] = useState(0);
   const savedSelectionRef = useRef<Range | null>(null);
   const wikiRenameInputRef = useRef<HTMLInputElement>(null);
@@ -2693,18 +2700,45 @@ export default function DocumentMode({
     return root.innerHTML;
   }, []);
 
-  const restoreSavedSelection = useCallback(() => {
-    const sel = window.getSelection();
-    if (!sel) return null;
-    const nextRange = savedSelectionRef.current;
-    if (nextRange) {
-      sel.removeAllRanges();
-      sel.addRange(nextRange);
-      return nextRange;
-    }
-    if (sel.rangeCount > 0) return sel.getRangeAt(0);
-    return null;
+  const selectionBelongsToEditor = useCallback((range: Range | null) => {
+    const root = contentRef.current;
+    if (!root || !range) return false;
+    const contains = (node: Node) => node === root || root.contains(node);
+    return contains(range.startContainer) && contains(range.endContainer);
   }, []);
+
+  const createEditorEndRange = useCallback(() => {
+    const root = contentRef.current;
+    if (!root) return null;
+    const range = document.createRange();
+    range.selectNodeContents(root);
+    range.collapse(false);
+    return range;
+  }, []);
+
+  const setEditorSelection = useCallback((range: Range | null) => {
+    const root = contentRef.current;
+    if (!root || !range) return null;
+    root.focus({ preventScroll: true });
+    const sel = window.getSelection();
+    sel?.removeAllRanges();
+    sel?.addRange(range);
+    savedSelectionRef.current = range.cloneRange();
+    return range;
+  }, []);
+
+  const getEditorInsertionRange = useCallback((preferSaved = true) => {
+    const sel = window.getSelection();
+    const liveRange = sel && sel.rangeCount > 0 ? sel.getRangeAt(0) : null;
+    const savedRange = savedSelectionRef.current;
+    const candidate = preferSaved && selectionBelongsToEditor(savedRange)
+      ? savedRange
+      : selectionBelongsToEditor(liveRange)
+        ? liveRange
+        : createEditorEndRange();
+    if (!candidate) return null;
+    return setEditorSelection(candidate.cloneRange());
+  }, [createEditorEndRange, selectionBelongsToEditor, setEditorSelection]);
 
   const syncSelectedImageOverlay = useCallback((imageId: string | null) => {
     if (!contentRef.current || !editorScrollRef.current) {
@@ -2769,9 +2803,8 @@ export default function DocumentMode({
 
   const insertBlockHtmlAtSelection = useCallback((html: string, options?: { replaceCurrentBlock?: boolean }) => {
     if (!contentRef.current || !doc) return;
-    contentRef.current.focus();
-    const range = restoreSavedSelection();
     const root = contentRef.current;
+    const range = getEditorInsertionRange();
     const fragment = document.createRange().createContextualFragment(html);
     const insertedElements = Array.from(fragment.childNodes).filter((node): node is HTMLElement => node.nodeType === Node.ELEMENT_NODE);
     const firstInsertedElement = insertedElements[0] ?? null;
@@ -2801,7 +2834,7 @@ export default function DocumentMode({
     }
 
     root.dispatchEvent(new Event('input', { bubbles: true }));
-  }, [doc, restoreSavedSelection]);
+  }, [doc, getEditorInsertionRange]);
 
   const insertImageFile = useCallback(async (file: File) => {
     if (!doc) return;
@@ -2864,8 +2897,9 @@ export default function DocumentMode({
 
   const captureEditorSelection = useCallback(() => {
     const sel = window.getSelection();
-    if (sel && sel.rangeCount > 0) savedSelectionRef.current = sel.getRangeAt(0).cloneRange();
-  }, []);
+    const range = sel && sel.rangeCount > 0 ? sel.getRangeAt(0) : null;
+    if (range && selectionBelongsToEditor(range)) savedSelectionRef.current = range.cloneRange();
+  }, [selectionBelongsToEditor]);
 
   const openAssetDrawer = useCallback(() => {
     captureEditorSelection();
@@ -3722,15 +3756,15 @@ export default function DocumentMode({
   }, [wikiRename?.chip]);
 
   const openSlashPalette = useCallback(() => {
-    const sel = window.getSelection();
-    if (!sel || sel.rangeCount === 0) return;
-    const range = sel.getRangeAt(0).cloneRange();
-    savedSelectionRef.current = range;
+    const range = getEditorInsertionRange();
+    if (!range) return;
     const rect = range.getBoundingClientRect();
     const editorRect = editorScrollRef.current?.getBoundingClientRect();
+    const fallbackX = editorRect ? editorRect.left + Math.min(editorRect.width / 2, 340) : window.innerWidth / 2 - 180;
+    const fallbackY = editorRect ? Math.min(editorRect.top + 96, editorRect.bottom - 24) : window.innerHeight / 2;
     setSlashPalette({
-      x: rect.left || window.innerWidth / 2 - 180,
-      y: (rect.bottom || window.innerHeight / 2) + 8,
+      x: rect.left || fallbackX,
+      y: (rect.bottom || fallbackY) + 8,
       bounds: editorRect
         ? {
             left: editorRect.left,
@@ -3740,7 +3774,16 @@ export default function DocumentMode({
           }
         : undefined,
     });
-  }, []);
+  }, [getEditorInsertionRange]);
+
+  const handleSlashHintClick = useCallback(() => {
+    getEditorInsertionRange();
+    document.execCommand('insertText', false, '/');
+    openSlashPalette();
+    const nextCount = slashHintCount + 1;
+    setSlashHintCount(nextCount);
+    window.localStorage.setItem('devboard.slashCommandCount', String(nextCount));
+  }, [getEditorInsertionRange, openSlashPalette, slashHintCount]);
 
   const closeSlashPalette = useCallback(() => {
     setSlashPalette(null);
@@ -3751,8 +3794,7 @@ export default function DocumentMode({
     if (command.id !== 'image-upload') checkpointDocumentHistory();
     const linkedTitle = documents.find((entry) => entry.id !== doc?.id)?.title || 'Related Note';
     const linkedNode = nodes.find((entry) => entry.type !== 'connector');
-    const linkedNodeLabel = linkedNode ? getNodeLabel(linkedNode, documents) : 'Canvas Node';
-    const linkedNodeId = linkedNode?.id ?? 'node-id';
+    const linkedNodeLabel = linkedNode ? getNodeLabel(linkedNode, documents) : '';
 
     runDocumentCommand(command.id, {
       insertTextBlock: () => insertBlockHtmlAtSelection('<div data-placeholder="Type something…" data-placeholder-visible="true"><br></div>', { replaceCurrentBlock: true }),
@@ -3775,9 +3817,15 @@ export default function DocumentMode({
       insertWikiLink: () => insertBlockHtmlAtSelection(
         `<div><span class="chip-wiki" data-chip="wiki" data-title="${escapeHtmlAttr(linkedTitle)}">${escapeInlineHtml(linkedTitle)}</span></div><div><br></div>`,
       ),
-      insertNodeLink: () => insertBlockHtmlAtSelection(
-        `<div><span class="chip-node" data-chip="node" data-nodeid="${escapeHtmlAttr(linkedNodeId)}" contenteditable="false">${escapeInlineHtml(linkedNodeLabel)}</span></div><div><br></div>`,
-      ),
+      insertNodeLink: () => {
+        if (!linkedNode) {
+          toast('No canvas nodes to link yet.');
+          return;
+        }
+        insertBlockHtmlAtSelection(
+          `<div><span class="chip-node" data-chip="node" data-nodeid="${escapeHtmlAttr(linkedNode.id)}" contenteditable="false">${escapeInlineHtml(linkedNodeLabel)}</span></div><div><br></div>`,
+        );
+      },
       insertImageUpload: openAssetDrawer,
       insertTag: () => insertBlockHtmlAtSelection('<div><span class="chip-tag" data-chip="tag" contenteditable="false">#tag</span></div><div><br></div>'),
     });
@@ -3790,6 +3838,7 @@ export default function DocumentMode({
   const showOverlayHeader = !!headerBreadcrumb;
   const showSidePanelControl = !!onCollapseToPanel && !panelMode;
   const showPrimaryNavButton = !showOverlayHeader;
+  const showLinkedMentionsColumn = mentionedNodes.length > 0 || backlinks.length > 0;
   const primaryNavTitle = panelMode
     ? 'Collapse note'
     : showSidePanelControl
@@ -3817,14 +3866,14 @@ export default function DocumentMode({
   const headerModeButtonStyle = (active: boolean, side: 'left' | 'right'): React.CSSProperties => ({
     position: 'relative',
     zIndex: 1,
-    height: 30,
-    minWidth: panelMode ? 52 : 74,
-    padding: panelMode ? '0 8px' : '0 12px',
+    height: 28,
+    minWidth: panelMode ? 52 : 72,
+    padding: '0 10px',
     border: 'none',
-    borderRadius: side === 'left' ? '8px 6px 6px 8px' : '6px 8px 8px 6px',
-    background: active ? 'var(--c-panel)' : 'transparent',
-    color: active ? 'var(--c-text-hi)' : 'var(--c-text-md)',
-    boxShadow: active ? '0 1px 5px rgba(0,0,0,0.14)' : 'none',
+    borderRadius: side === 'left' ? '7px 0 0 7px' : '0 7px 7px 0',
+    background: active ? '#1a1714' : 'var(--c-hover)',
+    color: active ? '#fff' : 'var(--c-text-md)',
+    boxShadow: 'none',
     cursor: 'pointer',
     fontFamily: 'inherit',
     fontSize: 12,
@@ -3866,7 +3915,7 @@ export default function DocumentMode({
     fontSize: 12,
     fontWeight: 600,
   };
-  const showFormattingBar = viewMode === 'source' || !simplifyPanelChrome || isEditorFocused;
+  const showFormattingBar = viewMode === 'source';
 
   return (
     <div
@@ -3884,8 +3933,8 @@ export default function DocumentMode({
           style={{
             minHeight: 46,
             padding: '0 14px 0 16px',
-            borderBottom: '1px solid var(--c-border)',
-            background: 'var(--c-panel)',
+            borderBottom: '0.5px solid var(--c-topbar-border)',
+            background: 'var(--c-topbar)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -4089,13 +4138,13 @@ export default function DocumentMode({
       {!simplifyPanelChrome && <div
         className="doc-editor-header"
         style={{
-          minHeight: simplifyPanelChrome ? 46 : 54,
-          borderBottom: '1px solid var(--c-border)',
-          background: 'var(--c-panel)',
+	          minHeight: 44,
+          borderBottom: '0.5px solid var(--c-topbar-border)',
+          background: 'var(--c-topbar)',
           display: 'flex',
           alignItems: 'center',
           padding: simplifyPanelChrome ? '0 12px' : panelMode ? '0 12px' : '0 18px',
-          gap: 12,
+	          gap: 8,
           flexShrink: 0,
         }}
       >
@@ -4190,37 +4239,7 @@ export default function DocumentMode({
             marginLeft: simplifyPanelChrome ? 2 : 0,
           }}
         >
-          <button
-            type="button"
-            onClick={() => toggleFavoriteDocument(doc.id)}
-            title={doc.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-            aria-label={doc.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-            style={{
-              width: 28,
-              height: 28,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              background: 'transparent',
-              border: 'none',
-              borderRadius: 6,
-              color: doc.isFavorite ? '#d6a045' : 'var(--c-text-lo)',
-              cursor: 'pointer',
-              flexShrink: 0,
-              transition: 'background 0.12s, color 0.12s',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'var(--c-hover)';
-              e.currentTarget.style.color = doc.isFavorite ? '#d6a045' : 'var(--c-text-md)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'transparent';
-              e.currentTarget.style.color = doc.isFavorite ? '#d6a045' : 'var(--c-text-lo)';
-            }}
-          >
-            <IconStar filled={!!doc.isFavorite} size={16} />
-          </button>
-          {!simplifyPanelChrome && (
+	          {!simplifyPanelChrome && (
             <input
               className="doc-editor-title-input"
               ref={titleInputRef}
@@ -4235,8 +4254,8 @@ export default function DocumentMode({
               placeholder="Untitled note"
               style={{
                 flex: 1,
-                fontSize: panelMode ? 13 : 15,
-                fontWeight: 720,
+                fontSize: 13,
+                fontWeight: 500,
                 color: 'var(--c-text-hi)',
                 background: 'transparent',
                 border: 'none',
@@ -4286,37 +4305,84 @@ export default function DocumentMode({
               </button>
             </div>
           )}
-          {!simplifyPanelChrome && (
-            <span
-            className="doc-editor-status"
-            title={saveStatus.title}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 7,
-              color: 'var(--c-text-md)',
-              fontSize: 12,
-              fontWeight: 600,
-              whiteSpace: 'nowrap',
-            }}
-          >
-            <span style={{ width: 7, height: 7, borderRadius: 999, background: headerStatusColor, flexShrink: 0 }} />
-            {!panelMode && <span className="doc-editor-status-label">{headerStatusLabel}</span>}
-            </span>
-          )}
-          {!simplifyPanelChrome && (
+	          {!simplifyPanelChrome && viewMode === 'edit' && (
+	            <button
+	              type="button"
+	              title="Insert block or link"
+	              onMouseDown={(e) => {
+	                e.preventDefault();
+	                captureEditorSelection();
+	                openSlashPalette();
+	              }}
+	              style={{
+	                height: 28,
+	                padding: '0 10px',
+	                borderRadius: 7,
+	                border: '0.5px solid var(--c-border)',
+	                background: 'var(--c-hover)',
+	                color: 'var(--c-text-hi)',
+	                cursor: 'pointer',
+	                fontFamily: 'inherit',
+	                fontSize: 12,
+	                fontWeight: 650,
+	              }}
+	              onMouseEnter={(e) => {
+	                e.currentTarget.style.borderColor = '#c9895c';
+	                e.currentTarget.style.background = '#fdf2ea';
+	                e.currentTarget.style.color = '#b87750';
+	              }}
+	              onMouseLeave={(e) => {
+	                e.currentTarget.style.borderColor = 'var(--c-border)';
+	                e.currentTarget.style.background = 'var(--c-hover)';
+	                e.currentTarget.style.color = 'var(--c-text-hi)';
+	              }}
+	            >
+	              + Insert ▾
+	            </button>
+	          )}
+	          {!simplifyPanelChrome && viewMode === 'edit' && slashHintCount < 5 && (
+	            <button
+	              type="button"
+	              title="Trigger slash commands"
+	              onMouseDown={(e) => e.preventDefault()}
+	              onClick={handleSlashHintClick}
+	              style={{
+	                height: 26,
+	                padding: '0 8px',
+	                borderRadius: 7,
+	                border: '0.5px dashed var(--c-border)',
+	                background: 'transparent',
+	                color: 'var(--c-text-md)',
+	                cursor: 'pointer',
+	                fontFamily: 'inherit',
+	                fontSize: 12,
+	                fontWeight: 600,
+	              }}
+	              onMouseEnter={(e) => {
+	                e.currentTarget.style.borderColor = '#b87750';
+	                e.currentTarget.style.color = '#b87750';
+	              }}
+	              onMouseLeave={(e) => {
+	                e.currentTarget.style.borderColor = 'var(--c-border)';
+	                e.currentTarget.style.color = 'var(--c-text-md)';
+	              }}
+	            >
+	              <kbd style={{ fontFamily: 'inherit', fontSize: 11, padding: '0 3px' }}>/</kbd> slash
+	            </button>
+	          )}
+			          {!simplifyPanelChrome && (
             <div
-            className="doc-editor-view-toggle"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 2,
-              padding: 2,
-              borderRadius: 10,
-              border: '1px solid var(--c-border)',
-              background: 'rgba(255,255,255,0.035)',
-              boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.04)',
-            }}
+	            className="doc-editor-view-toggle"
+	            style={{
+	              display: 'flex',
+	              alignItems: 'center',
+	              gap: 0,
+	              padding: 0,
+	              borderRadius: 8,
+	              border: '0.5px solid var(--c-border)',
+	              background: 'var(--c-hover)',
+	              overflow: 'hidden',
+	            }}
             >
               <button
                 className="doc-editor-view-button"
@@ -4484,7 +4550,16 @@ export default function DocumentMode({
           {viewMode === 'edit' && (
             <div
               ref={editorScrollRef}
-              style={{ flex: 1, minHeight: 0, overflowY: 'auto', position: 'relative' }}
+              style={{
+                flex: 1,
+                minHeight: 0,
+                overflowY: 'auto',
+                position: 'relative',
+                background: '#e6ded2',
+                padding: panelMode ? '24px 14px 40px' : '40px 24px 60px',
+                display: 'flex',
+                justifyContent: 'center',
+              }}
               onScroll={() => {
                 updateSelectionToolbar();
                 syncSelectedImageOverlay(selectedImageId);
@@ -4576,9 +4651,21 @@ export default function DocumentMode({
                 }
               }}
             >
+              <div
+                style={{
+                  background: '#fffaf1',
+                  maxWidth: 860,
+                  width: '100%',
+                  minHeight: panelMode ? 'calc(100% - 64px)' : 'calc(100% - 100px)',
+                  padding: panelMode ? '30px 24px' : '42px 48px',
+                  boxSizing: 'border-box',
+                  borderRadius: 4,
+                  boxShadow: '0 1px 4px rgba(0,0,0,0.06), 0 4px 20px rgba(0,0,0,0.05)',
+                }}
+              >
               {/* Emoji area — above the H1, hover-zone scoped to this div */}
               <div
-                style={{ padding: '40px max(48px, calc(50% - 380px)) 0' }}
+                style={{ padding: 0 }}
                 onMouseEnter={() => setIsHoveringDoc(true)}
                 onMouseLeave={() => setIsHoveringDoc(false)}
               >
@@ -4625,7 +4712,7 @@ export default function DocumentMode({
 
               <div
                 style={{
-                  padding: '0 max(48px, calc(50% - 380px))',
+                  padding: 0,
                 }}
               >
                 <textarea
@@ -4648,8 +4735,8 @@ export default function DocumentMode({
                   aria-label="Note title"
                   style={{
                     width: '100%',
-                    minHeight: panelMode ? 40 : 52,
-                    maxHeight: panelMode ? 210 : 280,
+                    minHeight: panelMode ? 32 : 34,
+                    maxHeight: panelMode ? 38 : 40,
                     resize: 'none',
                     overflow: 'hidden',
                     border: 'none',
@@ -4657,14 +4744,26 @@ export default function DocumentMode({
                     background: 'transparent',
                     color: 'var(--c-text-hi)',
                     fontFamily: "'Plus Jakarta Sans', sans-serif",
-                    fontSize: panelMode ? 30 : 40,
+                    fontSize: panelMode ? 24 : 26,
                     fontWeight: 760,
-                    lineHeight: 1.16,
+                    lineHeight: 1.2,
                     letterSpacing: 0,
                     padding: 0,
-                    margin: '0 0 22px',
+                    margin: '0 0 6px',
+                    whiteSpace: 'nowrap',
                   }}
                 />
+                <div
+                  style={{
+                    marginBottom: 24,
+                    color: '#9b8d7f',
+                    fontSize: 12,
+                    lineHeight: 1.5,
+                    fontWeight: 560,
+                  }}
+                >
+                  Last edited {relativeTime(doc.updatedAt)} · {docWordCount} words · {docReadingTime}
+                </div>
               </div>
 
               <div
@@ -4737,7 +4836,7 @@ export default function DocumentMode({
                   void insertImageFile(file);
                 }}
                 style={{
-                  padding: '0 max(48px, calc(50% - 380px)) 48px',
+                  padding: 0,
                   color: 'var(--c-text-hi)',
                   fontSize: '16px',
                   lineHeight: 1.8,
@@ -4745,32 +4844,10 @@ export default function DocumentMode({
                   outline: 'none',
                   overflowX: 'auto',
                   wordWrap: 'break-word',
-                  minHeight: '100%',
+                  minHeight: panelMode ? 360 : 520,
                 }}
               />
 
-              <div
-                style={{
-                  position: 'fixed',
-                  right: panelMode ? 16 : 28,
-                  bottom: 20,
-                  padding: '7px 10px',
-                  borderRadius: 999,
-                  background: 'color-mix(in srgb, var(--c-panel) 92%, transparent)',
-                  border: '1px solid var(--c-border)',
-                  boxShadow: '0 8px 24px rgba(0,0,0,0.22)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  zIndex: 40,
-                  color: 'var(--c-text-lo)',
-                  fontSize: 11,
-                  pointerEvents: 'none',
-                }}
-              >
-                <span>{docWordCount} words</span>
-                <span style={{ opacity: 0.4 }}>·</span>
-                <span>{docReadingTime}</span>
               </div>
 
               {selectedImageRect && selectedImageId && (
@@ -4856,57 +4933,66 @@ export default function DocumentMode({
                 </div>
               )}
 
-              {/* Canvas node mentions panel */}
-              {mentionedNodes.length > 0 && (
-                <div style={{ margin: '0 max(48px, calc(50% - 380px)) 32px', padding: '14px 16px', background: 'var(--c-panel)', border: '1px solid var(--c-border)', borderRadius: 10 }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--c-text-lo)', marginBottom: 8 }}>
-                    Mentioned on canvas
-                  </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {mentionedNodes.map((n) => (
-                      <button
-                        key={n.id}
-                        onClick={() => { handleClose(); focusNode(n.id, 420); }}
-                        className="chip-node"
-                        style={{ cursor: 'pointer', border: 'none', fontFamily: 'inherit', fontSize: 12 }}
-                      >
-                        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" style={{ marginRight: 4, flexShrink: 0 }}>
-                          <rect x="1" y="1.5" width="8" height="6" rx="1" stroke="currentColor" strokeWidth="1.1"/>
-                        </svg>
-                        {getNodeLabel(n, documents)}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Backlinks panel */}
-              <div style={{ margin: '0 max(48px, calc(50% - 380px)) 80px', borderTop: '1px solid var(--c-border)', paddingTop: 24 }}>
-                <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--c-text-lo)', marginBottom: 12 }}>
-                  Linked mentions ({backlinks.length})
-                </div>
-                {backlinks.length === 0 && (
-                  <div style={{ fontSize: 12, color: 'var(--c-text-lo)' }}>No other notes reference this one yet.</div>
-                )}
-                {backlinks.map((bl) => (
-                  <div
-                    key={bl.from.id}
-                    onClick={() => {
-                      if (doc) setDocHistory((h) => [...h, doc.id]);
-                      openDocumentInSurface(bl.from.id);
-                    }}
-                    style={{ padding: '10px 14px', marginBottom: 8, background: 'var(--c-panel)', border: '1px solid var(--c-border)', borderRadius: 8, cursor: 'pointer', transition: 'background 120ms' }}
-                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--c-hover)'; }}
-                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--c-panel)'; }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: 'var(--c-text-hi)', marginBottom: 4 }}>
-                      <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><rect x="1" y="1" width="9" height="9" rx="1.2" stroke="currentColor" strokeWidth="1.1"/><path d="M3 4h5M3 6h5M3 8h3" stroke="currentColor" strokeWidth="1" strokeLinecap="round"/></svg>
-                      {bl.from.title || 'Untitled'}
+              {showLinkedMentionsColumn && (
+                <aside
+                  style={{
+                    width: 244,
+                    flexShrink: 0,
+                    marginLeft: 24,
+                    paddingTop: 2,
+                    color: 'var(--c-text-md)',
+                  }}
+                >
+                  {mentionedNodes.length > 0 && (
+                    <div style={{ marginBottom: 24, padding: '12px 0 0', borderTop: '1px solid var(--c-border)' }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--c-text-lo)', marginBottom: 8 }}>
+                        Mentioned on canvas
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {mentionedNodes.map((n) => (
+                          <button
+                            key={n.id}
+                            onClick={() => { handleClose(); focusNode(n.id, 420); }}
+                            className="chip-node"
+                            style={{ cursor: 'pointer', border: 'none', fontFamily: 'inherit', fontSize: 12 }}
+                          >
+                            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" style={{ marginRight: 4, flexShrink: 0 }}>
+                              <rect x="1" y="1.5" width="8" height="6" rx="1" stroke="currentColor" strokeWidth="1.1"/>
+                            </svg>
+                            {getNodeLabel(n, documents)}
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                    <div style={{ fontSize: 12, color: 'var(--c-text-md)', lineHeight: 1.5 }}>{bl.context}</div>
-                  </div>
-                ))}
-              </div>
+                  )}
+
+                  {backlinks.length > 0 && (
+                    <div style={{ borderTop: '1px solid var(--c-border)', paddingTop: 14 }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--c-text-lo)', marginBottom: 12 }}>
+                        Linked mentions ({backlinks.length})
+                      </div>
+                      {backlinks.map((bl) => (
+                        <div
+                          key={bl.from.id}
+                          onClick={() => {
+                            if (doc) setDocHistory((h) => [...h, doc.id]);
+                            openDocumentInSurface(bl.from.id);
+                          }}
+                          style={{ padding: '10px 12px', marginBottom: 8, background: 'color-mix(in srgb, var(--c-panel) 70%, transparent)', border: '1px solid var(--c-border)', borderRadius: 8, cursor: 'pointer', transition: 'background 120ms' }}
+                          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--c-hover)'; }}
+                          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'color-mix(in srgb, var(--c-panel) 70%, transparent)'; }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: 'var(--c-text-hi)', marginBottom: 4 }}>
+                            <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><rect x="1" y="1" width="9" height="9" rx="1.2" stroke="currentColor" strokeWidth="1.1"/><path d="M3 4h5M3 6h5M3 8h3" stroke="currentColor" strokeWidth="1" strokeLinecap="round"/></svg>
+                            {bl.from.title || 'Untitled'}
+                          </div>
+                          <div style={{ fontSize: 12, color: 'var(--c-text-md)', lineHeight: 1.5 }}>{bl.context}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </aside>
+              )}
             </div>
           )}
 

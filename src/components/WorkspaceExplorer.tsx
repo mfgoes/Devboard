@@ -17,7 +17,7 @@ import { applyWorkspaceSyncFromOpenResult } from '../utils/applyWorkspaceSync';
 import devboardIconUrl from '../assets/devboard_icon.png';
 import { useFilePreview } from '../hooks/useFilePreview';
 import { useTreeState } from '../hooks/useTreeState';
-import { IconArrowRight, IconCloud, IconFolder, IconSidebarToggle, IconStar } from './icons';
+import { IconArrowRight, IconCanvasDoc, IconCloud, IconDoc, IconFolder, IconSidebarToggle, IconStar } from './icons';
 import { DARK_MENU_COLORS } from './darkMenuTheme';
 import ModalCloseButton from './ModalCloseButton';
 import {
@@ -49,12 +49,14 @@ const explorerSectionHeaderStyle: React.CSSProperties = {
   fontSize: 9.5,
   fontWeight: 650,
   letterSpacing: '0.02em',
-  color: 'var(--c-text-md)',
+  color: 'var(--c-sidebar-section)',
 };
 
 const explorerFocusedRowStyle: React.CSSProperties = {
-  background: 'rgba(184,119,80,0.12)',
-  outline: '1px solid rgba(184,119,80,0.26)',
+  background: 'var(--c-sidebar-item-active)',
+  borderLeft: '2px solid var(--c-line)',
+  color: 'var(--c-sidebar-item-active-text)',
+  outline: 'none',
   outlineOffset: -1,
 };
 
@@ -530,6 +532,10 @@ function sortDocumentsForExplorer(docs: Document[], sortMode: PageMeta['noteSort
   });
 }
 
+function isCanvasDocument(doc: Document): boolean {
+  return doc.docType === 'canvas';
+}
+
 function NoteHoverThumbnail({ doc }: { doc: Document }) {
   const plain = stripHtmlPreview(doc.content);
 
@@ -612,9 +618,10 @@ function NoteShortcutRow({
         padding: '5px 9px',
         marginTop: 2,
         border: 'none',
+        borderLeft: active ? '2px solid var(--c-line)' : '2px solid transparent',
         borderRadius: 6,
-        background: active ? 'rgba(184,119,80,0.16)' : hovered ? 'rgba(184,119,80,0.09)' : 'transparent',
-        outline: active ? '1px solid rgba(184,119,80,0.32)' : hovered ? '1px solid rgba(184,119,80,0.18)' : 'none',
+        background: active ? 'var(--c-sidebar-item-active)' : hovered ? 'var(--c-sidebar-item-hover)' : 'transparent',
+        outline: 'none',
         outlineOffset: -1,
         cursor: 'pointer',
         textAlign: 'left',
@@ -673,7 +680,7 @@ function NoteShortcutRow({
           fontFamily: FONTS.ui,
           fontSize: 10,
           fontWeight: active ? 650 : 550,
-          color: active ? 'var(--c-text-hi)' : 'var(--c-text-md)',
+          color: active || hovered ? 'var(--c-sidebar-item-active-text)' : 'var(--c-sidebar-item-text)',
         }}
       >
         {doc.title || 'Untitled note'}
@@ -794,7 +801,8 @@ function TreeRow({
         className="group mx-1 flex items-center gap-1.5 h-[24px] pr-2 rounded-md cursor-pointer"
         style={{
           paddingLeft: 8 + depth * 14,
-          ...(dropActive ? { background: 'rgba(184,119,80,0.16)', outline: '1px solid var(--c-line)', outlineOffset: -1 } : {}),
+          borderLeft: isFocused ? '2px solid var(--c-line)' : '2px solid transparent',
+          ...(dropActive ? { background: 'var(--c-sidebar-item-hover)', outline: '1px solid var(--c-line)', outlineOffset: -1 } : {}),
           ...(isFocused ? explorerFocusedRowStyle : {}),
         }}
         data-focused={isFocused ? 'true' : undefined}
@@ -851,7 +859,7 @@ function TreeRow({
         title={isRenaming ? undefined : tooltip}
       >
         {/* Expand arrow for directories */}
-        <span className="w-3 flex items-center justify-center shrink-0 text-[var(--c-text-off)]" style={{ fontSize: 9 }}>
+        <span className="w-3 flex items-center justify-center shrink-0" style={{ fontSize: 9, color: 'var(--c-sidebar-meta)' }}>
           {isDir ? (entry.loading ? '…' : entry.expanded ? '▾' : '▸') : ' '}
         </span>
 
@@ -897,7 +905,13 @@ function TreeRow({
         ) : (
           // ── Normal name display ───────────────────────────────────────
           (() => {
-            const color = isDir ? 'var(--c-text-hi)' : canOpen ? fileColor(entry.name, isDark) : 'var(--c-text-lo)';
+            const color = isFocused
+              ? 'var(--c-text-hi)'
+              : isDir
+                ? 'var(--c-sidebar-item-text)'
+                : canOpen
+                  ? fileColor(entry.name, isDark)
+                  : 'var(--c-sidebar-meta)';
             const dotIdx = isDir ? -1 : entry.name.lastIndexOf('.');
             const base = dotIdx > 0 ? entry.name.slice(0, dotIdx) : entry.name;
             const extn = dotIdx > 0 ? entry.name.slice(dotIdx) : '';
@@ -1064,6 +1078,7 @@ function PageGroup({
   docs,
   coarsePointer,
   isActive,
+  activePageId,
   isCollapsed,
   activeDocId,
   onRenameDocument,
@@ -1080,7 +1095,9 @@ function PageGroup({
   onOpenPageOverview,
   onCreateFolder,
   onCreateNote,
+  onCreateCanvas,
   onOpenDocument,
+  onAddToCanvas,
   pageFocused,
   focusedDocId,
   onFocusPage,
@@ -1094,6 +1111,7 @@ function PageGroup({
   docs: Document[];
   coarsePointer: boolean;
   isActive: boolean;
+  activePageId: string;
   isCollapsed: boolean;
   activeDocId: string | null;
   onRenameDocument: (docId: string, title: string) => void;
@@ -1110,7 +1128,9 @@ function PageGroup({
   onOpenPageOverview: () => void;
   onCreateFolder: () => void;
   onCreateNote: () => void;
-  onOpenDocument: (docId: string) => void;
+  onCreateCanvas: () => void;
+  onOpenDocument: (doc: Document) => void;
+  onAddToCanvas: (doc: Document) => void;
   pageFocused: boolean;
   focusedDocId: string | null;
   onFocusPage: (pageId: string) => void;
@@ -1223,16 +1243,18 @@ function PageGroup({
           alignItems: 'center',
           gap: 5,
           padding: '3px 8px',
+          borderLeft: isActive ? '2px solid var(--c-line)' : '2px solid transparent',
           borderRadius: 5,
           ...(isActive ? explorerFocusedRowStyle : {}),
           ...(pageFocused ? {
-            background: 'rgba(184,119,80,0.18)',
-            outline: '1px solid rgba(184,119,80,0.42)',
+            background: 'var(--c-sidebar-item-active)',
+            borderLeft: '2px solid var(--c-line)',
+            outline: 'none',
             outlineOffset: -1,
           } : {}),
           ...(!isActive && !pageFocused && pageHovered ? {
-            background: 'rgba(184,119,80,0.09)',
-            outline: '1px solid rgba(184,119,80,0.18)',
+            background: 'var(--c-sidebar-item-hover)',
+            outline: 'none',
             outlineOffset: -1,
           } : {}),
         }}
@@ -1251,7 +1273,7 @@ function PageGroup({
             padding: 0,
             background: 'transparent',
             border: 'none',
-            color: isActive ? 'var(--c-text-md)' : 'var(--c-text-lo)',
+            color: isActive || pageHovered ? 'var(--c-sidebar-item-active-text)' : 'var(--c-sidebar-item-text)',
             flexShrink: 0,
             cursor: 'pointer',
           }}
@@ -1292,7 +1314,7 @@ function PageGroup({
             textAlign: 'left',
           }}
         >
-          <span style={{ width: 14, display: 'flex', justifyContent: 'center', flexShrink: 0, color: isActive ? 'var(--c-line)' : 'var(--c-text-lo)' }}>
+          <span style={{ width: 14, display: 'flex', justifyContent: 'center', flexShrink: 0, color: isActive ? 'var(--c-line)' : 'var(--c-sidebar-item-text)' }}>
             <IconFolder size={12} />
           </span>
           {renamingPage ? (
@@ -1337,7 +1359,7 @@ function PageGroup({
           ) : (
             <span style={{
               fontFamily: FONTS.ui, fontSize: 10.5, fontWeight: isActive ? 600 : 500,
-              color: isActive ? 'var(--c-text-hi)' : 'var(--c-text-lo)',
+              color: isActive || pageHovered ? 'var(--c-sidebar-item-active-text)' : 'var(--c-sidebar-item-text)',
               overflow: 'hidden', textOverflow: 'ellipsis',
               whiteSpace: 'nowrap', flex: 1,
             }}>
@@ -1362,7 +1384,7 @@ function PageGroup({
               padding: '0 2px',
               fontFamily: FONTS.ui,
               fontSize: 8.5,
-              color: isActive ? 'var(--c-text-md)' : 'var(--c-text-lo)',
+              color: isActive || pageHovered ? 'var(--c-sidebar-item-active-text)' : 'var(--c-sidebar-meta)',
               lineHeight: 1,
               textAlign: 'right',
               flexShrink: 0,
@@ -1484,6 +1506,17 @@ function PageGroup({
                 <span>New note</span>
                 <span className="text-[10px] ml-3 text-[var(--c-text-off)]">+</span>
               </button>
+              <button
+                className="w-full flex items-center justify-between px-3 py-1.5 text-[12px] rounded transition-colors text-left text-[var(--c-text-md)] hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]"
+                style={{ fontFamily: FONTS.ui }}
+                onClick={() => {
+                  onCreateCanvas();
+                  setPageMenu(null);
+                }}
+              >
+                <span>New canvas</span>
+                <span className="text-[10px] ml-3 text-[var(--c-text-off)]">▱</span>
+              </button>
               <div style={{ height: 1, background: 'var(--c-border)', margin: '4px 0' }} />
               <div style={{ padding: '2px 10px 4px', fontFamily: FONTS.ui, fontSize: 10, color: 'var(--c-text-off)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                 Sort notes
@@ -1565,11 +1598,12 @@ function PageGroup({
         >
           {docs.length === 0 ? (
             <div style={{ padding: '6px 8px 2px', fontSize: 9.5, color: 'var(--c-text-lo)', fontFamily: FONTS.ui, fontStyle: 'italic' }}>
-              No notes in this folder
+              No documents in this folder
             </div>
           ) : (
-	            docs.map((doc) => {
-	              const isSelected = doc.id === activeDocId;
+		            docs.map((doc) => {
+		              const isCanvasDoc = doc.docType === 'canvas';
+		              const isSelected = isCanvasDoc ? doc.canvasPageId === activePageId : doc.id === activeDocId;
 	              const isFocused = doc.id === focusedDocId;
 	              const isRenaming = doc.id === renamingDocId;
 	              const isDragged = doc.id === draggedDocId;
@@ -1581,7 +1615,7 @@ function PageGroup({
 	                  onClick={() => {
 	                    if (isRenaming) return;
 	                    onFocusDocument(page.id, doc.id);
-	                    onOpenDocument(doc.id);
+		                    onOpenDocument(doc);
 	                  }}
 	                  onFocus={() => onFocusDocument(page.id, doc.id)}
                     onMouseEnter={(e) => {
@@ -1610,20 +1644,17 @@ function PageGroup({
                     marginTop: 2,
                     padding: '4px 8px',
 	                    background: isDragged
-                        ? 'rgba(184,119,80,0.09)'
+                        ? 'var(--c-sidebar-item-hover)'
                         : (isFocused || isSelected)
-                          ? 'rgba(184,119,80,0.16)'
+                          ? 'var(--c-sidebar-item-active)'
                           : isHovered
-                            ? 'rgba(184,119,80,0.09)'
+                            ? 'var(--c-sidebar-item-hover)'
                             : 'none',
 	                    border: 'none',
+                    borderLeft: (isFocused || isSelected) ? '2px solid var(--c-line)' : '2px solid transparent',
 	                    outline: isDropTarget
 	                      ? '1px solid rgba(184,119,80,0.48)'
-	                      : (isFocused || isSelected)
-	                        ? '1px solid rgba(184,119,80,0.32)'
-                          : isHovered
-                            ? '1px solid rgba(184,119,80,0.18)'
-	                        : 'none',
+	                      : 'none',
                     outlineOffset: -1,
                     borderRadius: 5,
                     cursor: isRenaming ? 'text' : 'pointer',
@@ -1632,17 +1663,20 @@ function PageGroup({
 	                    opacity: isDragged ? 0.72 : 1,
 	                  }}
 	                  data-focused={isFocused ? 'true' : undefined}
-                  className="hover:bg-[var(--c-hover)]"
+                  className="hover:bg-[var(--c-sidebar-item-hover)]"
                   draggable={!isRenaming}
-                  onDragStart={(e) => {
-                    if (isRenaming) {
-                      e.preventDefault();
-                      return;
+	                  onDragStart={(e) => {
+	                    if (isRenaming) {
+	                      e.preventDefault();
+	                      return;
+	                    }
+                    if (!isCanvasDoc) {
+                      e.dataTransfer.setData('application/x-devboard-doc', doc.id);
                     }
-                    onEnsureCustomSort(page);
-                    setDraggedDocId(doc.id);
-                    e.dataTransfer.effectAllowed = 'move';
-                    e.dataTransfer.setData('text/plain', doc.id);
+	                    onEnsureCustomSort(page);
+	                    setDraggedDocId(doc.id);
+	                    e.dataTransfer.effectAllowed = isCanvasDoc ? 'move' : 'copyMove';
+	                    e.dataTransfer.setData('text/plain', doc.id);
 
                     const ghost = document.createElement('div');
                     ghost.style.cssText = [
@@ -1665,8 +1699,8 @@ function PageGroup({
                     const textWrap = document.createElement('div');
                     textWrap.style.cssText = 'display:flex;flex-direction:column;min-width:0;';
 
-                    const title = document.createElement('span');
-                    title.textContent = doc.title || 'Untitled note';
+	                    const title = document.createElement('span');
+	                    title.textContent = doc.title || (isCanvasDoc ? 'Untitled canvas' : 'Untitled note');
                     title.style.cssText = 'overflow:hidden;text-overflow:ellipsis;';
                     textWrap.appendChild(title);
 
@@ -1733,15 +1767,23 @@ function PageGroup({
                     />
                   ) : (
                     <span style={{
+                      minWidth: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
                       fontFamily: FONTS.ui, fontSize: 10.25, fontWeight: isSelected ? 600 : 500,
-                      color: 'var(--c-text-hi)',
-                      overflow: 'hidden', textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap', flex: 1,
+                      color: (isFocused || isSelected || isHovered) ? 'var(--c-sidebar-item-active-text)' : 'var(--c-sidebar-item-text)',
+                      overflow: 'hidden',
                     }}>
-                      {doc.title || 'Untitled note'}
+                      <span style={{ width: 14, display: 'inline-flex', justifyContent: 'center', color: isCanvasDoc ? 'var(--c-line)' : 'var(--c-sidebar-item-text)', flexShrink: 0 }}>
+                        {isCanvasDoc ? <IconCanvasDoc size={13} /> : <IconDoc />}
+                      </span>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {doc.title || (isCanvasDoc ? 'Untitled canvas' : 'Untitled note')}
+                      </span>
                     </span>
                   )}
-                  <span style={{ fontFamily: FONTS.ui, fontSize: 8.75, color: isSelected ? 'var(--c-text-md)' : 'var(--c-text-lo)', flexShrink: 0, minWidth: 26, textAlign: 'right' }}>
+                  <span style={{ fontFamily: FONTS.ui, fontSize: 8.75, color: 'var(--c-sidebar-meta)', flexShrink: 0, minWidth: 26, textAlign: 'right' }}>
                     {relativeTime(doc.updatedAt)}
                   </span>
                 </button>
@@ -1764,27 +1806,43 @@ function PageGroup({
               className="py-1.5 rounded-xl border border-[var(--c-border)] bg-[var(--c-panel)] shadow-2xl"
               onMouseDown={(e) => e.stopPropagation()}
             >
-              <button
-                className="w-full flex items-center justify-between px-3 py-1.5 text-[12px] rounded transition-colors text-left text-[var(--c-text-md)] hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]"
-                style={{ fontFamily: FONTS.ui }}
-                onClick={() => {
-                  exportDocumentAsMarkdownFile(noteMenu.doc);
-                  setNoteMenu(null);
-                  setNoteMenuExportOpen(false);
-                }}
-              >
-                <span>Export .md</span>
-              </button>
-              <button
-                className="w-full flex items-center justify-between px-3 py-1.5 text-[12px] rounded transition-colors text-left text-[var(--c-text-md)] hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]"
-                style={{ fontFamily: FONTS.ui }}
-                onMouseEnter={() => setNoteMenuExportOpen(true)}
-                onClick={() => setNoteMenuExportOpen((current) => !current)}
-              >
-                <span>Export as</span>
-                <span className="text-[10px] ml-3 text-[var(--c-text-off)]">›</span>
-              </button>
-              <div style={{ height: 1, background: 'var(--c-border)', margin: '3px 0' }} />
+              {!isCanvasDocument(noteMenu.doc) && (
+                <>
+                  <button
+                    className="w-full flex items-center justify-between px-3 py-1.5 text-[12px] rounded transition-colors text-left text-[var(--c-text-md)] hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]"
+                    style={{ fontFamily: FONTS.ui }}
+                    onClick={() => {
+                      onAddToCanvas(noteMenu.doc);
+                      setNoteMenu(null);
+                      setNoteMenuExportOpen(false);
+                    }}
+                  >
+                    <span>Add to canvas</span>
+                  </button>
+                  <div style={{ height: 1, background: 'var(--c-border)', margin: '3px 0' }} />
+                  <button
+                    className="w-full flex items-center justify-between px-3 py-1.5 text-[12px] rounded transition-colors text-left text-[var(--c-text-md)] hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]"
+                    style={{ fontFamily: FONTS.ui }}
+                    onClick={() => {
+                      exportDocumentAsMarkdownFile(noteMenu.doc);
+                      setNoteMenu(null);
+                      setNoteMenuExportOpen(false);
+                    }}
+                  >
+                    <span>Export .md</span>
+                  </button>
+                  <button
+                    className="w-full flex items-center justify-between px-3 py-1.5 text-[12px] rounded transition-colors text-left text-[var(--c-text-md)] hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]"
+                    style={{ fontFamily: FONTS.ui }}
+                    onMouseEnter={() => setNoteMenuExportOpen(true)}
+                    onClick={() => setNoteMenuExportOpen((current) => !current)}
+                  >
+                    <span>Export as</span>
+                    <span className="text-[10px] ml-3 text-[var(--c-text-off)]">›</span>
+                  </button>
+                  <div style={{ height: 1, background: 'var(--c-border)', margin: '3px 0' }} />
+                </>
+              )}
               <button
                 className="w-full flex items-center justify-between px-3 py-1.5 text-[12px] rounded transition-colors text-left text-[var(--c-text-md)] hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]"
                 style={{ fontFamily: FONTS.ui }}
@@ -1905,11 +1963,14 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
   const switchPage = useBoardStore((s) => s.switchPage);
   const documents = useBoardStore((s) => s.documents);
   const addDocument = useBoardStore((s) => s.addDocument);
+  const addCanvasDocument = useBoardStore((s) => s.addCanvasDocument);
+  const addNode = useBoardStore((s) => s.addNode);
   const updateNode = useBoardStore((s) => s.updateNode);
   const updateDocument = useBoardStore((s) => s.updateDocument);
   const toggleFavoriteDocument = useBoardStore((s) => s.toggleFavoriteDocument);
   const deleteDocument = useBoardStore((s) => s.deleteDocument);
   const openDocument = useBoardStore((s) => s.openDocument);
+  const openCanvasDocument = useBoardStore((s) => s.openCanvasDocument);
   const storeNodes = useBoardStore((s) => s.nodes);
   const pageSnapshots = useBoardStore((s) => s.pageSnapshots);
   const theme = useBoardStore((s) => s.theme);
@@ -2086,21 +2147,24 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
         : 'Saved';
   const bottomSyncStatus = authLoading
     ? null
+    : missingImages.length > 0
+      ? { label: 'Needs attention', tone: 'warning' as const, title: 'Some notes have missing images — open project sync to review.' }
     : !user && !!cloudBoardId
       ? { label: 'Not saved — offline', tone: 'danger' as const, title: syncStatus.title }
       : syncStatus.label === 'Cloud copy newer'
         ? { label: 'Cloud copy is newer — review', tone: 'warning' as const, title: syncStatus.title }
       : hasUnsyncedSyncChanges
         ? { label: 'Not saved — offline', tone: 'danger' as const, title: syncStatus.title }
-        : cloudOnlyWorkspace
+      : cloudOnlyWorkspace
           ? { label: 'Synced to cloud', tone: 'success' as const, title: syncStatus.title }
           : !cloudBoardId
-          ? { label: 'Local only — not backed up', tone: 'neutral' as const, title: syncStatus.title }
-            : null;
+          ? { label: 'Saved', tone: 'success' as const, title: 'This local workspace is saved on this device.' }
+            : { label: 'Synced', tone: 'success' as const, title: syncStatus.title };
   const footerSyncDot = bottomSyncStatus
     ? {
       label: bottomSyncStatus.label,
       title: bottomSyncStatus.title,
+      tone: bottomSyncStatus.tone,
       color: bottomSyncStatus.tone === 'danger'
         ? '#ef4444'
         : bottomSyncStatus.tone === 'warning'
@@ -2113,7 +2177,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
         : bottomSyncStatus.tone === 'warning'
           ? '#a05a00'
           : bottomSyncStatus.tone === 'success'
-            ? '#2f7d57'
+            ? 'var(--c-text-hi)'
             : 'var(--c-text-md)',
     }
     : null;
@@ -2758,7 +2822,9 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
 
   const pageDocs = useMemo(() => {
     const docsByPage = new Map<string, typeof documents>();
-    for (const page of pages) docsByPage.set(page.id, []);
+    for (const page of pages) {
+      if (!page.isCanvasDocument) docsByPage.set(page.id, []);
+    }
     for (const doc of documents) {
       if (!doc.pageId) continue;
       const list = docsByPage.get(doc.pageId);
@@ -2771,6 +2837,8 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
     }
     return docsByPage;
   }, [documents, pages]);
+
+  const folderPages = useMemo(() => pages.filter((page) => !page.isCanvasDocument), [pages]);
 
   const favoriteDocs = useMemo(
     () => documents.filter((doc) => doc.isFavorite).sort((a, b) => b.updatedAt - a.updatedAt),
@@ -2794,18 +2862,31 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
       pageId,
       orderIndex: (page?.noteSort ?? 'updated') === 'custom' ? pageDocList.length : undefined,
     });
-    useBoardStore.getState().ensureDocumentNode(docId, pageId);
     openDocument(docId);
   }, [activePageId, addDocument, documents, openDocument, pages, switchPage]);
 
+  const createCanvasForPage = useCallback((pageId: string) => {
+    addCanvasDocument(pageId);
+  }, [addCanvasDocument]);
+
   const handleCreateNoteFromMenu = useCallback(() => {
-    createNoteForPage(activePageId);
-  }, [activePageId, createNoteForPage]);
+    const activePage = pages.find((entry) => entry.id === activePageId);
+    createNoteForPage(activePage?.isCanvasDocument ? (activePage.parentPageId ?? activePageId) : activePageId);
+  }, [activePageId, createNoteForPage, pages]);
+
+  const handleCreateCanvasFromMenu = useCallback(() => {
+    const activePage = pages.find((entry) => entry.id === activePageId);
+    createCanvasForPage(activePage?.isCanvasDocument ? (activePage.parentPageId ?? activePageId) : activePageId);
+  }, [activePageId, createCanvasForPage, pages]);
 
   const openDocumentFromShortcut = useCallback((doc: Document) => {
+    if (isCanvasDocument(doc)) {
+      openCanvasDocument(doc.id);
+      return;
+    }
     if (doc.pageId && doc.pageId !== activePageId) switchPage(doc.pageId);
     openDocument(doc.id);
-  }, [activePageId, openDocument, switchPage]);
+  }, [activePageId, openCanvasDocument, openDocument, switchPage]);
 
   const toggleFavoriteFromExplorer = useCallback((doc: Document) => {
     toggleFavoriteDocument(doc.id);
@@ -2815,6 +2896,27 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
       }, 0);
     }
   }, [toggleFavoriteDocument]);
+
+  const addDocumentToActiveCanvas = useCallback((doc: Document) => {
+    const activePage = pages.find((page) => page.id === activePageId);
+    if (isCanvasDocument(doc)) return;
+    if (!activePage?.isCanvasDocument) {
+      toast('Open a canvas first');
+      return;
+    }
+    const { camera } = useBoardStore.getState();
+    const cx = (window.innerWidth / 2 - camera.x) / camera.scale;
+    const cy = (window.innerHeight / 2 - camera.y) / camera.scale;
+    addNode({
+      id: generateId(),
+      type: 'document',
+      x: cx - 140,
+      y: cy - 88,
+      width: 280,
+      height: 176,
+      docId: doc.id,
+    });
+  }, [activePageId, addNode, pages]);
 
   const renameDocumentFromExplorer = useCallback((docId: string, title: string) => {
     updateDocument(docId, { title });
@@ -2941,8 +3043,8 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
 
   const keyboardItems = useMemo<ExplorerKeyboardItem[]>(() => {
     const items: ExplorerKeyboardItem[] = [];
-    if (hasWorkspaceContext && pages.length > 0 && pagesSectionOpen) {
-      for (const page of pages) {
+    if (hasWorkspaceContext && folderPages.length > 0 && pagesSectionOpen) {
+      for (const page of folderPages) {
         items.push({ kind: 'page', pageId: page.id });
         const isCollapsed = collapsedPageIds[page.id] ?? !(page.id === activePageId);
         if (isCollapsed) continue;
@@ -2954,7 +3056,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
       for (const entry of assetVisibleEntries) items.push({ kind: 'asset', path: entry.path });
     }
     return items;
-  }, [activePageId, assetVisibleEntries, assetsSectionOpen, collapsedPageIds, hasWorkspaceContext, pageDocs, pages, pagesSectionOpen]);
+  }, [activePageId, assetVisibleEntries, assetsSectionOpen, collapsedPageIds, folderPages, hasWorkspaceContext, pageDocs, pagesSectionOpen]);
 
   visibleEntriesRef.current = assetVisibleEntries;
   const focusedItem = focusedIdx !== null ? keyboardItems[focusedIdx] ?? null : null;
@@ -3033,8 +3135,13 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
         window.dispatchEvent(new CustomEvent('devboard:snap-close-document'));
       } else if (item.kind === 'doc') {
         clearPagePreview();
-        if (item.pageId !== activePageId) switchPage(item.pageId);
-        openDocument(item.docId);
+        const doc = documents.find((entry) => entry.id === item.docId);
+        if (doc && isCanvasDocument(doc)) {
+          openCanvasDocument(doc.id);
+        } else {
+          if (item.pageId !== activePageId) switchPage(item.pageId);
+          openDocument(item.docId);
+        }
       } else {
         const entry = assetVisibleEntries.find((candidate) => candidate.path.join('/') === item.path.join('/'));
         if (!entry) return;
@@ -3062,7 +3169,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
       clearPagePreview();
       clearPreview();
     }
-  }, [activePageId, assetVisibleEntries, clearPagePreview, clearPreview, focusedIdx, focusedItem, handleAssetToggle, keyboardItems, openDocument, openFile, placeFile, searchOpen, startDelete, startRename, switchPage]);
+  }, [activePageId, assetVisibleEntries, clearPagePreview, clearPreview, documents, focusedIdx, focusedItem, handleAssetToggle, keyboardItems, openCanvasDocument, openDocument, openFile, placeFile, searchOpen, startDelete, startRename, switchPage]);
 
   return (
     <>
@@ -3093,11 +3200,11 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
           alignItems: 'center',
           gap: isPreviewPanel ? 6 : 8,
           justifyContent: isPreviewPanel ? 'flex-start' : 'space-between',
-          minHeight: 52,
-          padding: '10px 12px 9px',
+          minHeight: 44,
+          padding: '6px 12px',
           flexShrink: 0,
-          borderBottom: '1px solid var(--c-border)',
-          background: 'color-mix(in srgb, var(--c-sidebar) 96%, var(--c-canvas))',
+          borderBottom: '0.5px solid var(--c-sidebar-border)',
+          background: 'var(--c-topbar)',
         }}
       >
         {/* Main app menu button */}
@@ -3177,8 +3284,9 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
                   onOpen={() => setActiveCommandSubmenu('file')}
                   onClose={() => setActiveCommandSubmenu((current) => current === 'file' ? null : current)}
                 >
-                  <CommandMenuItem icon={<CommandIcon kind="file" />} label="New note" onClick={() => runCommandMenuAction(handleCreateNoteFromMenu)} />
-                  <CommandMenuItem icon={<CommandIcon kind="folder" />} label="New folder" onClick={() => runCommandMenuAction(handleCreatePageFromMenu)} />
+	                  <CommandMenuItem icon={<CommandIcon kind="file" />} label="New note" onClick={() => runCommandMenuAction(handleCreateNoteFromMenu)} />
+                  <CommandMenuItem icon={<IconCanvasDoc size={13} />} label="New canvas" onClick={() => runCommandMenuAction(handleCreateCanvasFromMenu)} />
+	                  <CommandMenuItem icon={<CommandIcon kind="folder" />} label="New folder" onClick={() => runCommandMenuAction(handleCreatePageFromMenu)} />
                   <CommandMenuDivider />
                   <CommandMenuItem icon={<CommandIcon kind="folder" />} label="Switch workspace..." onClick={() => { closeCommandMenu(); void handleOpenFolder(); }} />
                   <CommandMenuItem icon={<CommandIcon kind="view" />} label="Save workspace" onClick={() => runCommandMenuAction(handleSaveWorkspaceFromMenu)} />
@@ -3191,7 +3299,8 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
                   onOpen={() => setActiveCommandSubmenu('edit')}
                   onClose={() => setActiveCommandSubmenu((current) => current === 'edit' ? null : current)}
                 >
-                  <CommandMenuItem icon={<CommandIcon kind="edit" />} label="New note" onClick={() => runCommandMenuAction(handleCreateNoteFromMenu)} />
+	                  <CommandMenuItem icon={<CommandIcon kind="edit" />} label="New note" onClick={() => runCommandMenuAction(handleCreateNoteFromMenu)} />
+                  <CommandMenuItem icon={<IconCanvasDoc size={13} />} label="New canvas" onClick={() => runCommandMenuAction(handleCreateCanvasFromMenu)} />
                   <CommandMenuDivider />
                   <CommandMenuItem icon={<CommandIcon kind="search" />} label="Search..." onClick={() => runCommandMenuAction(handleFocusSearchFromMenu)} />
                 </CommandMenuSubItem>
@@ -3214,20 +3323,20 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
                   <CommandMenuItem
                     icon={<CommandIcon kind="export" />}
                     label="Export active note as Markdown"
-                    disabled={!activeDocumentForMenu}
-                    onClick={() => activeDocumentForMenu && runCommandMenuAction(() => exportDocumentAsMarkdownFile(activeDocumentForMenu))}
+                    disabled={!activeDocumentForMenu || isCanvasDocument(activeDocumentForMenu)}
+                    onClick={() => activeDocumentForMenu && !isCanvasDocument(activeDocumentForMenu) && runCommandMenuAction(() => exportDocumentAsMarkdownFile(activeDocumentForMenu))}
                   />
                   <CommandMenuItem
                     icon={<CommandIcon kind="export" />}
                     label="Export active note as PDF"
-                    disabled={!activeDocumentForMenu}
-                    onClick={() => activeDocumentForMenu && runCommandMenuAction(() => exportDocumentAsPdf(activeDocumentForMenu))}
+                    disabled={!activeDocumentForMenu || isCanvasDocument(activeDocumentForMenu)}
+                    onClick={() => activeDocumentForMenu && !isCanvasDocument(activeDocumentForMenu) && runCommandMenuAction(() => exportDocumentAsPdf(activeDocumentForMenu))}
                   />
                   <CommandMenuItem
                     icon={<CommandIcon kind="export" />}
                     label="Export active note as text"
-                    disabled={!activeDocumentForMenu}
-                    onClick={() => activeDocumentForMenu && runCommandMenuAction(() => exportDocumentAsTextFile(activeDocumentForMenu))}
+                    disabled={!activeDocumentForMenu || isCanvasDocument(activeDocumentForMenu)}
+                    onClick={() => activeDocumentForMenu && !isCanvasDocument(activeDocumentForMenu) && runCommandMenuAction(() => exportDocumentAsTextFile(activeDocumentForMenu))}
                   />
                 </CommandMenuSubItem>
                 <CommandMenuDivider />
@@ -3332,7 +3441,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
         <div
           style={{
             padding: '10px 12px 11px',
-            borderBottom: '1px solid var(--c-border)',
+          borderBottom: '0.5px solid var(--c-sidebar-border)',
             flexShrink: 0,
           }}
         >
@@ -3346,7 +3455,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
               padding: '0 9px',
               border: `1px solid ${searchOpen ? 'rgba(184,119,80,0.32)' : 'transparent'}`,
               borderRadius: 8,
-              background: searchOpen ? 'var(--c-canvas)' : 'color-mix(in srgb, var(--c-hover) 58%, transparent)',
+              background: searchOpen ? '#ffffff' : 'var(--c-sidebar-item-hover)',
               transition: 'border-color 120ms, background 120ms',
             }}
             onMouseDown={() => {
@@ -3389,13 +3498,13 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
                 color: 'var(--c-text-hi)',
                 caretColor: 'var(--c-line)',
               }}
-            />
-          </div>
-        </div>
-      )}
+	            />
+	          </div>
+		        </div>
+	      )}
 
       {hasWorkspaceContext && documents.length > 0 && (
-        <div style={{ borderBottom: '1px solid var(--c-border)', flexShrink: 0 }}>
+        <div style={{ borderBottom: '0.5px solid var(--c-sidebar-border)', flexShrink: 0 }}>
           {favoriteDocs.length > 0 && (
             <>
               <button
@@ -3417,7 +3526,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
               >
                 <span style={explorerSectionHeaderStyle}>Favorites</span>
                 <SectionChevron open={favoritesSectionOpen} />
-                <span style={{ marginLeft: 'auto', fontFamily: FONTS.ui, fontSize: 8.5, color: 'var(--c-text-lo)' }}>{favoriteDocs.length}</span>
+                <span style={{ marginLeft: 'auto', fontFamily: FONTS.ui, fontSize: 8.5, color: 'var(--c-sidebar-meta)' }}>{favoriteDocs.length}</span>
               </button>
               {favoritesSectionOpen && (
                 <div style={{ padding: '0 8px 4px' }}>
@@ -3433,7 +3542,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
                     />
                   ))}
                   {favoriteDocs.length > visibleFavoriteDocs.length && (
-                    <div style={{ padding: '5px 8px 2px', fontFamily: FONTS.ui, fontSize: 9, color: 'var(--c-text-lo)' }}>
+                    <div style={{ padding: '5px 8px 2px', fontFamily: FONTS.ui, fontSize: 9, color: 'var(--c-sidebar-meta)' }}>
                       +{favoriteDocs.length - visibleFavoriteDocs.length} more favorites
                     </div>
                   )}
@@ -3446,7 +3555,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
       )}
 
       {/* ── FOLDERS section ────────────────────────────────────────────────── */}
-      {hasWorkspaceContext && pages.length > 0 && (
+      {hasWorkspaceContext && folderPages.length > 0 && (
         <div style={{ flexShrink: 0 }}>
           {/* Section header */}
           <div
@@ -3461,7 +3570,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
           >
             <span style={explorerSectionHeaderStyle}>Folders</span>
             <SectionChevron open={pagesSectionOpen} />
-            <span style={{ marginLeft: 'auto', fontFamily: FONTS.ui, fontSize: 8.5, color: 'var(--c-text-lo)' }}>{pages.length}</span>
+            <span style={{ marginLeft: 'auto', fontFamily: FONTS.ui, fontSize: 8.5, color: 'var(--c-sidebar-meta)' }}>{folderPages.length}</span>
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -3478,7 +3587,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
                 background: 'transparent',
                 border: 'none',
                 borderRadius: 4,
-                color: 'var(--c-text-lo)',
+                color: 'var(--c-sidebar-item-text)',
                 cursor: 'pointer',
                 flexShrink: 0,
                 fontFamily: FONTS.ui,
@@ -3511,24 +3620,27 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
                 scrollbarWidth: 'thin',
               }}
             >
-              {pages.map((page) => {
-                const isActive = page.id === activePageId;
+              {folderPages.map((page) => {
+                const activePage = pages.find((entry) => entry.id === activePageId);
+                const isActive = page.id === activePageId || activePage?.parentPageId === page.id;
                 const docsForPage = pageDocs.get(page.id) ?? [];
                 const isCollapsed = collapsedPageIds[page.id] ?? !isActive;
                 return (
 	                  <PageGroup
                     key={page.id}
                     page={page}
-                    docs={docsForPage}
-                    coarsePointer={coarsePointer}
-                    isActive={isActive}
-                    isCollapsed={isCollapsed}
+	                    docs={docsForPage}
+	                    coarsePointer={coarsePointer}
+	                    isActive={isActive}
+	                    activePageId={activePageId}
+	                    isCollapsed={isCollapsed}
                     activeDocId={activeDocId}
                     onRenameDocument={renameDocumentFromExplorer}
                     onToggleFavoriteDocument={toggleFavoriteFromExplorer}
                     onReorderDocuments={(docIds) => reorderDocumentsForPage(page.id, docIds)}
-                    onDeleteDocument={deleteDocumentFromExplorer}
-                    onRevealDocument={revealDocumentInFinder}
+	                    onDeleteDocument={deleteDocumentFromExplorer}
+	                    onRevealDocument={revealDocumentInFinder}
+		                    onAddToCanvas={addDocumentToActiveCanvas}
                     onRenamePage={renamePage}
                     onDeletePage={(targetPage) => setDeletePageConfirm({ id: targetPage.id, name: targetPage.name })}
                     onRevealPage={revealPageInFinder}
@@ -3540,11 +3652,9 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
                       window.dispatchEvent(new CustomEvent('devboard:snap-close-document'));
                     }}
 	                    onCreateFolder={() => addPage()}
-	                    onCreateNote={() => createNoteForPage(page.id)}
-	                    onOpenDocument={(docId) => {
-	                      if (!isActive) switchPage(page.id);
-	                      openDocument(docId);
-	                    }}
+		                    onCreateNote={() => createNoteForPage(page.id)}
+		                    onCreateCanvas={() => createCanvasForPage(page.id)}
+		                    onOpenDocument={openDocumentFromShortcut}
 	                    pageFocused={focusedPageId === page.id}
 	                    focusedDocId={focusedDocId}
 	                    onFocusPage={focusPage}
@@ -3564,13 +3674,13 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
       <div
         style={{
           marginTop: 'auto',
-          borderTop: '1px solid var(--c-border)',
+          borderTop: '0.5px solid var(--c-sidebar-border)',
           flexShrink: 0,
           padding: 10,
           position: 'relative',
         }}
       >
-        {missingImages.length > 0 && !missingImagesSuppressed && (
+        {false && missingImages.length > 0 && !missingImagesSuppressed && (
           <div ref={missingImagesPopoverRef} style={{ position: 'relative', marginBottom: 8 }}>
             {missingImagesOpen && (
               <div
@@ -3726,7 +3836,11 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
                 padding: '2px 4px',
                 border: 'none',
                 borderRadius: 6,
-                background: 'transparent',
+                background: footerSyncDot?.tone === 'danger'
+                  ? '#fef0f0'
+                  : footerSyncDot?.tone === 'warning'
+                    ? '#fef5ec'
+                    : 'transparent',
                 color: 'var(--c-text-lo)',
                 cursor: 'pointer',
                 fontFamily: FONTS.ui,
@@ -4064,10 +4178,18 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
                 transition: 'background 120ms, color 120ms',
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'var(--c-hover)';
+                e.currentTarget.style.background = footerSyncDot?.tone === 'danger'
+                  ? '#fee2e2'
+                  : footerSyncDot?.tone === 'warning'
+                    ? '#fdebd8'
+                    : 'var(--c-hover)';
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'transparent';
+                e.currentTarget.style.background = footerSyncDot?.tone === 'danger'
+                  ? '#fef0f0'
+                  : footerSyncDot?.tone === 'warning'
+                    ? '#fef5ec'
+                    : 'transparent';
               }}
             >
               <span style={{ position: 'relative', display: 'inline-flex', color: 'currentColor', flexShrink: 0 }}>
@@ -4484,7 +4606,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
                 {pagePreview.page.name}
               </span>
               <span style={{ fontFamily: FONTS.ui, fontSize: 9, color: 'var(--c-text-off)', marginLeft: 6 }}>
-                {pagePreview.page.layoutMode === 'stack' ? 'notes folder' : 'canvas folder'}
+                folder
               </span>
             </div>
             <div style={{ padding: 8, borderBottom: '1px solid var(--c-border)', background: 'linear-gradient(180deg, rgba(212,131,90,0.08), rgba(212,131,90,0.02))' }}>

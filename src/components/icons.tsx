@@ -14,6 +14,15 @@ export function IconGrip()         { return <GripVertical  size={12} />; }
 export function IconExpand()       { return <Maximize2     size={13} />; }
 export function IconPencil()       { return <Pencil        size={13} />; }
 export function IconDoc()          { return <FileText      size={11} />; }
+export function IconCanvasDoc({ size = 13 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <rect x="2.5" y="3" width="11" height="8.5" rx="1.4" stroke="currentColor" strokeWidth="1.4" />
+      <path d="M5 13.5h6M8 11.5v2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      <path d="M5.2 7.2h2.1M8.7 7.2h2.1M8 5.5v3.4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    </svg>
+  );
+}
 export function IconSaveFile()     { return <Save          size={13} />; }
 export function IconFolder({ size = 13 }: { size?: number }) { return <Folder size={size} />; }
 export function IconCloud({ size = 15 }: { size?: number }) { return <Cloud size={size} />; }

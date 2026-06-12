@@ -1,0 +1,74 @@
+{
+  "version": 1,
+  "generatedAt": 1781257516182,
+  "folders": [
+    {
+      "id": "page-1",
+      "name": "Main docs",
+      "autoDescription": "Story ideas Dot grid background gives spatial context without noise — same as FigJam/Miro Card actions (expand, edit) are hidden until hover, keeping cards clean at a glance Wiki-…",
+      "layoutMode": "stack",
+      "noteSort": "updated",
+      "noteCount": 7,
+      "favoriteCount": 0,
+      "lastEditedAt": 1781257512064,
+      "tags": [],
+      "files": [
+        {
+          "path": "pages/canvas_igfy6v491.json",
+          "title": "Story ideas",
+          "updatedAt": 1781257512064,
+          "isFavorite": false
+        },
+        {
+          "path": "notes/sdfsdf.md",
+          "title": "sdfsdf",
+          "updatedAt": 1781257464407,
+          "isFavorite": false
+        },
+        {
+          "path": "notes/project_overview.md",
+          "title": "Project Overview",
+          "updatedAt": 1777565422058,
+          "isFavorite": false
+        },
+        {
+          "path": "notes/project_overview-2.md",
+          "title": "Project Overvjkjkjiew",
+          "updatedAt": 1777534070923,
+          "isFavorite": false
+        },
+        {
+          "path": "notes/project_overview-3.md",
+          "title": "Project Overview",
+          "updatedAt": 1777481545724,
+          "isFavorite": false
+        },
+        {
+          "path": "notes/untitled_note.md",
+          "title": "Untitled note",
+          "updatedAt": 1777449284539,
+          "isFavorite": false
+        },
+        {
+          "path": "notes/second_page.md",
+          "title": "Second page!",
+          "updatedAt": 1777150236308,
+          "isFavorite": false
+        }
+      ],
+      "generatedAt": 1781257516182
+    },
+    {
+      "id": "lw9twvlr4",
+      "name": "lw9twvlr4",
+      "autoDescription": "",
+      "noteSort": "updated",
+      "noteCount": 0,
+      "favoriteCount": 0,
+      "lastEditedAt": null,
+      "tags": [],
+      "files": [],
+      "generatedAt": 1781257516182
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
 import { useBoardStore } from '../store/boardStore';
-import { IconFreeformPage, IconStackPage } from './icons';
+import { IconCanvasDoc, IconDoc, IconFolder } from './icons';
 
 type ResultKind = 'page' | 'doc' | 'node';
 
@@ -10,6 +10,7 @@ interface Result {
   label: string;
   sub: string;
   layoutMode?: string;
+  docType?: 'note' | 'canvas';
 }
 
 interface Props {
@@ -43,12 +44,12 @@ export default function QuickSwitcher({ open, onClose, onPickPage, onPickDoc, on
   const results = useMemo<Result[]>(() => {
     const q = query.trim().toLowerCase();
 
-    const pageResults: Result[] = pages.map((p) => ({
+    const pageResults: Result[] = pages.filter((p) => !p.isCanvasDocument).map((p) => ({
       kind: 'page',
       id: p.id,
       label: p.name,
-      sub: p.layoutMode === 'stack' ? 'Notes' : 'Canvas',
-      layoutMode: p.layoutMode ?? 'freeform',
+      sub: 'Folder',
+      layoutMode: 'stack',
     }));
 
     const docResults: Result[] = documents.map((d) => {
@@ -56,8 +57,9 @@ export default function QuickSwitcher({ open, onClose, onPickPage, onPickDoc, on
       return {
         kind: 'doc',
         id: d.id,
-        label: d.title || 'Untitled',
-        sub: page?.name ?? '',
+        label: d.title || (d.docType === 'canvas' ? 'Untitled canvas' : 'Untitled'),
+        sub: d.docType === 'canvas' ? `${page?.name ?? ''} · Canvas` : page?.name ?? '',
+        docType: d.docType ?? 'note',
       };
     });
 
@@ -130,16 +132,16 @@ export default function QuickSwitcher({ open, onClose, onPickPage, onPickDoc, on
             <>
               <SectionLabel>Folders</SectionLabel>
               {groups.page.map((r) => (
-                <QSItem key={r.id} active={r.i === activeIdx} icon={r.layoutMode === 'stack' ? <IconStackPage /> : <IconFreeformPage />} label={r.label} sub={r.sub} onClick={() => pick(r)} onHover={() => setActiveIdx(r.i)} />
+                <QSItem key={r.id} active={r.i === activeIdx} icon={<IconFolder size={13} />} label={r.label} sub={r.sub} onClick={() => pick(r)} onHover={() => setActiveIdx(r.i)} />
               ))}
             </>
           )}
 
           {groups.doc.length > 0 && (
             <>
-              <SectionLabel>Notes</SectionLabel>
+              <SectionLabel>Documents</SectionLabel>
               {groups.doc.map((r) => (
-                <QSItem key={r.id} active={r.i === activeIdx} icon={<DocIcon />} label={r.label} sub={r.sub} onClick={() => pick(r)} onHover={() => setActiveIdx(r.i)} />
+                <QSItem key={r.id} active={r.i === activeIdx} icon={r.docType === 'canvas' ? <IconCanvasDoc size={13} /> : <IconDoc />} label={r.label} sub={r.sub} onClick={() => pick(r)} onHover={() => setActiveIdx(r.i)} />
               ))}
             </>
           )}
@@ -202,5 +204,4 @@ function Kbd({ children }: { children: React.ReactNode }) {
   );
 }
 
-function DocIcon() { return <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="1.5" y="1" width="10" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.3"/><path d="M4 5h5M4 7h5M4 9h3" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round"/></svg>; }
 function StickyIcon() { return <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="1.5" y="1.5" width="10" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.3"/><path d="M4 5h5M4 7h4" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round"/></svg>; }

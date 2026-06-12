@@ -93,6 +93,27 @@ export function useCanvasImageDrop({
     (e: React.DragEvent<HTMLDivElement>) => {
       e.preventDefault();
 
+      const docId = e.dataTransfer.getData('application/x-devboard-doc');
+      if (docId) {
+        const rect = e.currentTarget.getBoundingClientRect();
+        const { camera: cam, addNode, selectIds, setActiveTool } = useBoardStore.getState();
+        const worldX = (e.clientX - rect.left - cam.x) / cam.scale;
+        const worldY = (e.clientY - rect.top - cam.y) / cam.scale;
+        const nodeId = generateId();
+        addNode({
+          id: nodeId,
+          type: 'document',
+          x: worldX - 140,
+          y: worldY - 88,
+          width: 280,
+          height: 176,
+          docId,
+        });
+        selectIds([nodeId]);
+        setActiveTool('select');
+        return;
+      }
+
       const entryJson = e.dataTransfer.getData('application/x-devboard-entry');
       if (entryJson) {
         try {

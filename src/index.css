@@ -30,6 +30,15 @@
   --c-panel: #242019;
   --c-hover: #2d2820;
   --c-sidebar: color-mix(in srgb, var(--c-panel) 42%, var(--c-hover));
+  --c-topbar: var(--c-panel);
+  --c-topbar-border: var(--c-border);
+  --c-sidebar-border: var(--c-border);
+  --c-sidebar-item-text: var(--c-text-lo);
+  --c-sidebar-item-hover: var(--c-hover);
+  --c-sidebar-item-active: var(--c-hover);
+  --c-sidebar-item-active-text: var(--c-text-hi);
+  --c-sidebar-section: var(--c-text-md);
+  --c-sidebar-meta: var(--c-text-lo);
   --c-border: #3c3529;
   --c-text-hi: #ece6dd;
   --c-text-md: #afa294;
@@ -58,9 +67,18 @@
 :root.light {
   --c-canvas: #f6f1ea;
   --c-panel: #ede7dd;
-  --c-hover: #e3dbd0;
-  --c-sidebar: color-mix(in srgb, var(--c-panel) 30%, var(--c-hover));
-  --c-border: #cdc4b6;
+  --c-hover: #edeae4;
+  --c-sidebar: #f7f6f4;
+  --c-topbar: #e6ded2;
+  --c-topbar-border: #d7cec2;
+  --c-sidebar-border: #e2e0dc;
+  --c-sidebar-item-text: #7a7670;
+  --c-sidebar-item-hover: #edeae4;
+  --c-sidebar-item-active: #edeae4;
+  --c-sidebar-item-active-text: #1a1714;
+  --c-sidebar-section: #9b9690;
+  --c-sidebar-meta: #b0aba5;
+  --c-border: #e2e0dc;
   --c-text-hi: #28201a;
   --c-text-md: #6b5e52;
   --c-text-lo: #7a6b5a;

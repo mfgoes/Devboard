@@ -1,0 +1,34 @@
+{
+  "name": "Story ideas",
+  "layoutMode": "freeform",
+  "noteSort": "updated",
+  "nodes": [
+    {
+      "id": "5dthrvqht",
+      "type": "sticky",
+      "x": 511,
+      "y": 441,
+      "text": "",
+      "color": "#9BC184",
+      "width": 200,
+      "height": 160,
+      "fontSizeMode": "dynamic"
+    },
+    {
+      "id": "jpzkh1s29",
+      "type": "sticky",
+      "x": 162,
+      "y": 292,
+      "text": "",
+      "color": "#9BC184",
+      "width": 200,
+      "height": 160,
+      "fontSizeMode": "dynamic"
+    }
+  ],
+  "camera": {
+    "x": 0,
+    "y": 0,
+    "scale": 1
+  }
+}

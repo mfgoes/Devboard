@@ -462,6 +462,7 @@ export function markdownToHtml(md: string): string {
  */
 export function documentToMarkdown(node: DocumentNode, documents: Document[] = []): string {
   const doc = node.docId ? documents.find((d) => d.id === node.docId) : undefined;
+  if (doc?.docType === 'canvas') return '';
   const title = doc?.title ?? node.title;
   const content = doc?.content ?? node.content;
   return documentMarkdownFromParts(title, content);
@@ -484,7 +485,7 @@ export function exportDocumentsAsMarkdown(nodes: CanvasNode[], documents: Docume
     return 0; // stable: maintain array order for nodes without orderIndex
   });
 
-  return docs.map((node) => documentToMarkdown(node, documents)).join('\n\n---\n\n');
+  return docs.map((node) => documentToMarkdown(node, documents)).filter(Boolean).join('\n\n---\n\n');
 }
 
 /**

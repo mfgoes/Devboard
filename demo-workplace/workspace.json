@@ -11,23 +11,30 @@
       "id": "lw9twvlr4",
       "name": "lw9twvlr4",
       "noteSort": "updated"
+    },
+    {
+      "id": "canvas_igfy6v491",
+      "name": "Story ideas",
+      "layoutMode": "freeform",
+      "noteSort": "updated"
     }
   ],
-  "activePageId": "page-1",
+  "activePageId": "canvas_igfy6v491",
   "documents": [
     {
       "id": "doc_vaiqiz6n5",
       "title": "sdfsdf",
-      "content": "<div>sfdsafsadf</div>",
+      "content": "<ul><li>Dot grid background gives spatial context without noise — same as FigJam/Miro</li><li>Card actions (expand, edit) are hidden until hover, keeping cards clean at a glance</li><li>Wiki-links [[Tech Stack]]render as inline chips inside card previews — makes the graph nature of DevBoard visible right on the canvas</li><li>Sticky notes get a distinct yellow treatment, differentiating them from regular note cards</li><li>Resize handle appears on hover, bottom-right — consistent with FigJam convention</li><li>Toolbar is pill-shaped and icon-only with a logical grouping: select/pan · content types · add</li><li>Minimap in the bottom-left for spatial orientation when the canvas grows</li><li>Zoom control is separate from the toolbar, bottom-right — same position users expect from Figma/FigJam</li></ul>",
       "pageId": "page-1",
       "linkedFile": "notes/sdfsdf.md",
       "createdAt": 1777757990246,
-      "updatedAt": 1777758375388
+      "updatedAt": 1781257464407,
+      "emoji": "🚀"
     },
     {
       "id": "doc_notes_project_overview_md",
       "title": "Project Overview",
-      "content": "<h1>Project Overview</h1><div>DevBoard is a thinking canvas for solo devs — a place to capture ideas, connect them, and ship faster.</div><h2>Goalsdsfsdf</h2><div>See [[Tech Stack]] for the full technology breakdown. The main design decisions are captured in canvas nodes on the Roadmap page.</div><div>The feature sticky @node:sticky-shipping covers our export and sharing strategy.</div><div><br></div><h2>Status</h2><div>MVP is in progress. Next milestone: launch on itch.io. Sprint details are in [[Sprint Notes]].</div><div><br></div><h1>tag</h1>",
+      "content": "<div>DevBoard is a thinking canvas for solo devs — a place to capture ideas, connect them, and ship faster.</div><h2>Goalsdsfsdf</h2><div>See [[Tech Stack]] for the full technology breakdown. The main design decisions are captured in canvas nodes on the Roadmap page.</div><div>The feature sticky @node:sticky-shipping covers our export and sharing strategy.</div><div><br></div><h2>Status</h2><div>MVP is in progress. Next milestone: launch on itch.io. Sprint details are in [[Sprint Notes]].</div><div><br></div><h1>tag</h1>",
       "linkedFile": "notes/project_overview.md",
       "pageId": "page-1",
       "createdAt": 1777565422058,
@@ -36,7 +43,7 @@
     {
       "id": "doc_notes_project_overview_3_md",
       "title": "Project Overview",
-      "content": "<h1>Project Overview</h1><div>DevBoard is a thinking canvas for solo devs — a place to capture ideas, connect them, and ship faster.</div><h2>Goals</h2><div>See [[Tech Stack]] for the full technology breakdown. The main design decisions are captured in canvas nodes on the Roadmap page.</div><div>The feature sticky @node:sticky-shipping covers our export and sharing strategy.</div><h2>Status</h2><div>MVP is in progress. Next milestone: launch on itch.io. Sprint details are in [[Sprint Notes]].</div>",
+      "content": "<div>DevBoard is a thinking canvas for solo devs — a place to capture ideas, connect them, and ship faster.</div><h2>Goals</h2><div>See [[Tech Stack]] for the full technology breakdown. The main design decisions are captured in canvas nodes on the Roadmap page.</div><div>The feature sticky @node:sticky-shipping covers our export and sharing strategy.</div><h2>Status</h2><div>MVP is in progress. Next milestone: launch on itch.io. Sprint details are in [[Sprint Notes]].</div>",
       "linkedFile": "notes/project_overview-3.md",
       "pageId": "page-1",
       "createdAt": 1777481545724,
@@ -45,7 +52,7 @@
     {
       "id": "doc_notes_project_overview_2_md",
       "title": "Project Overvjkjkjiew",
-      "content": "<h1>Project Overvjkjkjiew</h1><div>DevBoard is a thinking canvas for solo devs — a place to capture ideas, connect them, and ship faster.</div><h2>Goalsdf</h2><div>See [[Tech Stack]] for the full technology breakdown. The main design decisions are captured in canvas nodes on the Roadmap page.</div><div>The feature sticky @node:sticky-shipping covers our export and sharing strategy.</div><h2>Status</h2><div><br></div><div>MVP is in progress. Next milestone: launch on itch.io. Sprint details are in [[Sprint Notes]].</div><div><br></div><hr>",
+      "content": "<div>DevBoard is a thinking canvas for solo devs — a place to capture ideas, connect them, and ship faster.</div><h2>Goalsdf</h2><div>See [[Tech Stack]] for the full technology breakdown. The main design decisions are captured in canvas nodes on the Roadmap page.</div><div>The feature sticky @node:sticky-shipping covers our export and sharing strategy.</div><h2>Status</h2><div><br></div><div>MVP is in progress. Next milestone: launch on itch.io. Sprint details are in [[Sprint Notes]].</div><div><br></div><hr>",
       "linkedFile": "notes/project_overview-2.md",
       "pageId": "page-1",
       "createdAt": 1777534070923,
@@ -54,7 +61,7 @@
     {
       "id": "doc_notes_second_page_md",
       "title": "Second page!",
-      "content": "<h1>Second page!</h1>",
+      "content": "",
       "linkedFile": "notes/second_page.md",
       "pageId": "page-1",
       "createdAt": 1777150236308,
@@ -63,29 +70,42 @@
     {
       "id": "doc_notes_untitled_note_md",
       "title": "Untitled note",
-      "content": "<h1>Untitled note</h1><div>hhhh</div>",
+      "content": "<div>hhhh</div>",
       "linkedFile": "notes/untitled_note.md",
       "pageId": "page-1",
       "createdAt": 1777449284539,
       "updatedAt": 1777449284539
+    },
+    {
+      "id": "doc_1wnavppcw",
+      "docType": "canvas",
+      "title": "Story ideas",
+      "content": "",
+      "pageId": "page-1",
+      "canvasPageId": "canvas_igfy6v491",
+      "orderIndex": 6,
+      "createdAt": 1781257505275,
+      "updatedAt": 1781257512064
     }
   ],
   "sync": {
     "deviceId": "48fee604-dc0c-43e8-8ae4-43b6951b3c1a",
     "deviceLabel": "MacIntel · Chrome",
     "lastLocalPath": "demo-workplace",
-    "lastOpenedAt": 1778090881738,
+    "lastOpenedAt": 1781257516183,
     "locations": {
       "48fee604-dc0c-43e8-8ae4-43b6951b3c1a": {
         "deviceLabel": "MacIntel · Chrome",
         "path": "demo-workplace",
-        "openedAt": 1778090881738,
+        "openedAt": 1781257516183,
         "syncedAt": 1778090881683
       }
     },
-    "cloudBoardId": "64fa9230-1164-4e82-8735-761877e80ae7",
-    "cloudBoardTitle": "bob",
-    "cloudWorkspaceId": "1c5032a1-1d27-46bc-9538-92ec5ceff6b4",
-    "lastSyncedAt": 1778090881683
+    "cloudBoardId": null,
+    "cloudBoardTitle": null,
+    "cloudWorkspaceId": null,
+    "lastSyncedAt": null,
+    "workspaceId": "workspace:09adfac0-634f-48ab-96ca-8683691f86be",
+    "localInstanceId": "local:23adcc6a-a53e-4097-8df6-d7c7a1ba847a"
   }
 }

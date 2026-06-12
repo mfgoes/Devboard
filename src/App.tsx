@@ -128,6 +128,7 @@ export default function App() {
   const documentOpenTransition = useBoardStore((s) => s.documentOpenTransition);
   const closeDocument = useBoardStore((s) => s.closeDocument);
   const addDocument = useBoardStore((s) => s.addDocument);
+  const addCanvasDocument = useBoardStore((s) => s.addCanvasDocument);
   const openDocumentWithMorph = useBoardStore((s) => s.openDocumentWithMorph);
   const docViewMode = useBoardStore((s) => s.docViewMode);
   const setDocViewMode = useBoardStore((s) => s.setDocViewMode);
@@ -152,7 +153,7 @@ export default function App() {
   }, []);
 
   const activePage = pages.find((p) => p.id === activePageId);
-  const isStackPage = activePage?.layoutMode === 'stack';
+  const isStackPage = !activePage?.isCanvasDocument;
 
   useEffect(() => {
     const label = boardTitle.trim() || workspaceName;
@@ -301,12 +302,12 @@ export default function App() {
     return () => window.removeEventListener('pointerdown', onPointerDown);
   }, [appMode, closeDoc, effectiveDocViewMode, panelPhase]);
 
-  // Cmd+N on stack pages → new note
+  // Cmd+N creates a text note in the current folder.
   const handleNewNote = useCallback(() => {
     const state = useBoardStore.getState();
-    const pageId = state.activePageId;
+    const currentPage = state.pages.find((entry) => entry.id === state.activePageId);
+    const pageId = currentPage?.isCanvasDocument ? (currentPage.parentPageId ?? state.activePageId) : state.activePageId;
     const id = addDocument({ title: '', content: '', pageId });
-    state.ensureDocumentNode(id, pageId);
     const page = state.pages.find((entry) => entry.id === pageId);
     if (page?.layoutMode === 'stack' && !isMobileViewport) {
       setOpenPanelDocId(id);
@@ -314,6 +315,12 @@ export default function App() {
     }
     openDocumentWithMorph(id);
   }, [addDocument, isMobileViewport, openDocumentWithMorph, setOpenPanelDocId]);
+
+  const handleNewCanvas = useCallback(() => {
+    const state = useBoardStore.getState();
+    const currentPage = state.pages.find((entry) => entry.id === state.activePageId);
+    addCanvasDocument(currentPage?.isCanvasDocument ? currentPage.parentPageId : state.activePageId);
+  }, [addCanvasDocument]);
 
   // Snap-close doc without animation (used when jumping to a canvas node)
   const snapCloseDoc = useCallback(() => {
@@ -1038,7 +1045,7 @@ export default function App() {
             bottom: 0,
             width: explorerCollapsed ? EXPLORER_COLLAPSED_WIDTH : explorerWidth,
             zIndex: 520,
-            borderRight: '1px solid var(--c-border)',
+            borderRight: '0.5px solid var(--c-sidebar-border)',
             background: 'var(--c-sidebar)',
             boxShadow: 'none',
             overflow: 'hidden',
@@ -1181,7 +1188,7 @@ export default function App() {
             bottom: 12,
             width: Math.min(300, explorerWidth, WORKSPACE_EXPLORER_WIDTH),
             zIndex: 540,
-            border: '1px solid var(--c-border)',
+            border: '0.5px solid var(--c-sidebar-border)',
             borderRadius: '0 12px 12px 0',
             background: 'var(--c-sidebar)',
             boxShadow: 'none',
@@ -1233,8 +1240,7 @@ export default function App() {
           }}
           onStartMapping={() => {
             setShowOnboarding(false);
-            const state = useBoardStore.getState();
-            state.setPageLayoutMode(state.activePageId, 'freeform');
+            handleNewCanvas();
           }}
           onShowTemplates={() => {
             setShowOnboarding(false);
@@ -1256,6 +1262,10 @@ export default function App() {
           setQsOpen(false);
           const state = useBoardStore.getState();
           const doc = state.documents.find((d) => d.id === id);
+          if (doc?.docType === 'canvas') {
+            state.openCanvasDocument(id);
+            return;
+          }
           if (doc?.pageId && doc.pageId !== state.activePageId) state.switchPage(doc.pageId);
           const targetPageId = doc?.pageId ?? state.activePageId;
           const page = state.pages.find((entry) => entry.id === targetPageId);
