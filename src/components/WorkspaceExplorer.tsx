@@ -536,24 +536,30 @@ function isCanvasDocument(doc: Document): boolean {
   return doc.docType === 'canvas';
 }
 
-function NoteHoverThumbnail({ doc }: { doc: Document }) {
+function wordCountFromPreviewText(text: string): number {
+  const trimmed = text.trim();
+  if (!trimmed) return 0;
+  return trimmed.split(/\s+/).filter(Boolean).length;
+}
+
+function NoteHoverThumbnail({ doc, pageName }: { doc: Document; pageName: string }) {
   const plain = stripHtmlPreview(doc.content);
+  const wordCount = wordCountFromPreviewText(plain);
+  const meta = [
+    pageName,
+    relativeTime(doc.updatedAt),
+    `${wordCount} ${wordCount === 1 ? 'word' : 'words'}`,
+  ].filter(Boolean).join(' · ');
 
   return (
     <div
       style={{
-        height: 156,
-        borderRadius: 8,
-        border: '1px solid rgba(138,117,95,0.22)',
-        background: 'linear-gradient(180deg, rgba(255,255,255,0.86), rgba(245,237,227,0.96))',
-        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.65)',
-        padding: '14px 16px',
+        padding: '9px 10px 8px',
         overflow: 'hidden',
-        color: '#2c241f',
+        color: 'var(--c-text-hi)',
       }}
     >
-      {doc.emoji && <div style={{ fontSize: 18, lineHeight: 1, marginBottom: 8 }}>{doc.emoji}</div>}
-      <div style={{ fontFamily: FONTS.ui, fontSize: 15, fontWeight: 800, lineHeight: 1.2, color: '#2c241f', marginBottom: 10 }}>
+      <div style={{ fontFamily: FONTS.ui, fontSize: 11.5, fontWeight: 600, lineHeight: 1.25, color: 'var(--c-text-hi)', marginBottom: 5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {(doc.title || 'Untitled note').slice(0, 70)}
       </div>
       <div
@@ -561,15 +567,18 @@ function NoteHoverThumbnail({ doc }: { doc: Document }) {
           fontFamily: FONTS.ui,
           fontSize: 10.5,
           fontWeight: 500,
-          lineHeight: 1.48,
-          color: 'rgba(44,36,31,0.72)',
+          lineHeight: 1.4,
+          color: 'var(--c-text-md)',
           display: '-webkit-box',
-          WebkitLineClamp: doc.emoji ? 5 : 6,
+          WebkitLineClamp: 2,
           WebkitBoxOrient: 'vertical',
           overflow: 'hidden',
         }}
       >
         {plain || 'No preview text yet'}
+      </div>
+      <div style={{ marginTop: 7, fontFamily: FONTS.ui, fontSize: 9, fontWeight: 500, lineHeight: 1.3, color: 'var(--c-text-off)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {meta}
       </div>
     </div>
   );
@@ -669,6 +678,21 @@ function NoteShortcutRow({
         }}
       >
         <IconStar filled={favorite} size={12} />
+      </span>
+      <span
+        aria-hidden="true"
+        style={{
+          width: 14,
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: doc.emoji ? 'var(--c-sidebar-item-active-text)' : 'var(--c-sidebar-item-text)',
+          flexShrink: 0,
+          fontSize: 12,
+          lineHeight: 1,
+        }}
+      >
+        {doc.emoji || <IconDoc />}
       </span>
       <span
         style={{
@@ -1775,8 +1799,20 @@ function PageGroup({
                       color: (isFocused || isSelected || isHovered) ? 'var(--c-sidebar-item-active-text)' : 'var(--c-sidebar-item-text)',
                       overflow: 'hidden',
                     }}>
-                      <span style={{ width: 14, display: 'inline-flex', justifyContent: 'center', color: isCanvasDoc ? 'var(--c-line)' : 'var(--c-sidebar-item-text)', flexShrink: 0 }}>
-                        {isCanvasDoc ? <IconCanvasDoc size={13} /> : <IconDoc />}
+                      <span
+                        aria-hidden="true"
+                        style={{
+                          width: 14,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: isCanvasDoc ? 'var(--c-line)' : 'var(--c-sidebar-item-text)',
+                          flexShrink: 0,
+                          fontSize: 12,
+                          lineHeight: 1,
+                        }}
+                      >
+                        {isCanvasDoc ? <IconCanvasDoc size={13} /> : (doc.emoji || <IconDoc />)}
                       </span>
                       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {doc.title || (isCanvasDoc ? 'Untitled canvas' : 'Untitled note')}
@@ -2822,8 +2858,9 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
 
   const pageDocs = useMemo(() => {
     const docsByPage = new Map<string, typeof documents>();
+    const canvasPageIds = new Set(documents.filter((doc) => doc.docType === 'canvas' && doc.canvasPageId).map((doc) => doc.canvasPageId));
     for (const page of pages) {
-      if (!page.isCanvasDocument) docsByPage.set(page.id, []);
+      if (!page.isCanvasDocument && !canvasPageIds.has(page.id)) docsByPage.set(page.id, []);
     }
     for (const doc of documents) {
       if (!doc.pageId) continue;
@@ -2838,7 +2875,10 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
     return docsByPage;
   }, [documents, pages]);
 
-  const folderPages = useMemo(() => pages.filter((page) => !page.isCanvasDocument), [pages]);
+  const folderPages = useMemo(() => {
+    const canvasPageIds = new Set(documents.filter((doc) => doc.docType === 'canvas' && doc.canvasPageId).map((doc) => doc.canvasPageId));
+    return pages.filter((page) => !page.isCanvasDocument && !canvasPageIds.has(page.id));
+  }, [documents, pages]);
 
   const favoriteDocs = useMemo(
     () => documents.filter((doc) => doc.isFavorite).sort((a, b) => b.updatedAt - a.updatedAt),
@@ -2899,8 +2939,9 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
 
   const addDocumentToActiveCanvas = useCallback((doc: Document) => {
     const activePage = pages.find((page) => page.id === activePageId);
+    const activeCanvasDoc = documents.find((entry) => entry.docType === 'canvas' && entry.canvasPageId === activePageId);
     if (isCanvasDocument(doc)) return;
-    if (!activePage?.isCanvasDocument) {
+    if (!activePage?.isCanvasDocument && !activeCanvasDoc) {
       toast('Open a canvas first');
       return;
     }
@@ -2916,7 +2957,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
       height: 176,
       docId: doc.id,
     });
-  }, [activePageId, addNode, pages]);
+  }, [activePageId, addNode, documents, pages]);
 
   const renameDocumentFromExplorer = useCallback((docId: string, title: string) => {
     updateDocument(docId, { title });
@@ -3043,10 +3084,12 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
 
   const keyboardItems = useMemo<ExplorerKeyboardItem[]>(() => {
     const items: ExplorerKeyboardItem[] = [];
+    const activePage = pages.find((entry) => entry.id === activePageId);
     if (hasWorkspaceContext && folderPages.length > 0 && pagesSectionOpen) {
       for (const page of folderPages) {
         items.push({ kind: 'page', pageId: page.id });
-        const isCollapsed = collapsedPageIds[page.id] ?? !(page.id === activePageId);
+        const shouldExpand = page.id === activePageId || activePage?.parentPageId === page.id;
+        const isCollapsed = collapsedPageIds[page.id] ?? !shouldExpand;
         if (isCollapsed) continue;
         const docsForPage = pageDocs.get(page.id) ?? [];
         for (const doc of docsForPage) items.push({ kind: 'doc', pageId: page.id, docId: doc.id });
@@ -3056,7 +3099,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
       for (const entry of assetVisibleEntries) items.push({ kind: 'asset', path: entry.path });
     }
     return items;
-  }, [activePageId, assetVisibleEntries, assetsSectionOpen, collapsedPageIds, folderPages, hasWorkspaceContext, pageDocs, pagesSectionOpen]);
+  }, [activePageId, assetVisibleEntries, assetsSectionOpen, collapsedPageIds, folderPages, hasWorkspaceContext, pageDocs, pages, pagesSectionOpen]);
 
   visibleEntriesRef.current = assetVisibleEntries;
   const focusedItem = focusedIdx !== null ? keyboardItems[focusedIdx] ?? null : null;
@@ -3075,6 +3118,14 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
     if (keyboardItems[focusedIdx]) return;
     setFocusedIdx(keyboardItems.length ? Math.min(focusedIdx, keyboardItems.length - 1) : null);
   }, [focusedIdx, keyboardItems]);
+
+  useEffect(() => {
+    const activeCanvasDoc = documents.find((doc) => doc.docType === 'canvas' && doc.canvasPageId === activePageId);
+    if (!activeCanvasDoc) return;
+    if (focusedItem?.kind === 'doc' && focusedItem.docId === activeCanvasDoc.id) return;
+    const idx = keyboardItems.findIndex((item) => item.kind === 'doc' && item.docId === activeCanvasDoc.id);
+    if (idx !== -1) setFocusedIdx(idx);
+  }, [activePageId, documents, focusedItem, keyboardItems]);
 
   // Auto-scroll focused row into view
   useEffect(() => {
@@ -3106,7 +3157,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
   }, [keyboardItems]);
 
   const focusDocument = useCallback((pageId: string, docId: string) => {
-    const idx = keyboardItems.findIndex((item) => item.kind === 'doc' && item.pageId === pageId && item.docId === docId);
+    const idx = keyboardItems.findIndex((item) => item.kind === 'doc' && item.docId === docId && (!pageId || item.pageId === pageId));
     if (idx !== -1) setFocusedIdx(idx);
   }, [keyboardItems]);
 
@@ -3203,8 +3254,8 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
           minHeight: 44,
           padding: '6px 12px',
           flexShrink: 0,
-          borderBottom: '0.5px solid var(--c-sidebar-border)',
-          background: 'var(--c-topbar)',
+          borderBottom: '0.5px solid #e8e6e2',
+          background: '#ffffff',
         }}
       >
         {/* Main app menu button */}
@@ -3622,9 +3673,10 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
             >
               {folderPages.map((page) => {
                 const activePage = pages.find((entry) => entry.id === activePageId);
-                const isActive = page.id === activePageId || activePage?.parentPageId === page.id;
+                const isActive = page.id === activePageId;
+                const shouldExpand = isActive || activePage?.parentPageId === page.id;
                 const docsForPage = pageDocs.get(page.id) ?? [];
-                const isCollapsed = collapsedPageIds[page.id] ?? !isActive;
+                const isCollapsed = collapsedPageIds[page.id] ?? !shouldExpand;
                 return (
 	                  <PageGroup
                     key={page.id}
@@ -4641,13 +4693,13 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
 
       {/* Note preview panel */}
       {notePreview && (() => {
-        const previewW = 280;
+        const previewW = 240;
         const rect = panelRef.current?.getBoundingClientRect();
         const panelLeft = rect?.left ?? 0;
         const panelRight = rect?.right ?? WORKSPACE_EXPLORER_WIDTH;
         const spaceRight = window.innerWidth - (panelRight + 8);
         const left = spaceRight >= previewW ? panelRight + 8 : Math.max(8, panelLeft - previewW - 8);
-        const top = Math.max(8, Math.min(notePreview.anchorY - 96, window.innerHeight - 280));
+        const top = Math.max(8, Math.min(notePreview.anchorY - 48, window.innerHeight - 140));
         return (
           <div
             style={{
@@ -4655,34 +4707,16 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
               left,
               top,
               width: previewW,
-              maxHeight: 320,
               zIndex: 200,
-              borderRadius: 10,
+              borderRadius: 8,
               border: '1px solid var(--c-border)',
               background: 'var(--c-panel)',
-              boxShadow: '0 8px 28px rgba(0,0,0,0.36)',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.22)',
               overflow: 'hidden',
               pointerEvents: 'none',
-              display: 'flex',
-              flexDirection: 'column',
             }}
           >
-            <div style={{ padding: '7px 10px', borderBottom: '1px solid var(--c-border)', flexShrink: 0 }}>
-              <span style={{ fontFamily: FONTS.ui, fontSize: 10, fontWeight: 700, color: 'var(--c-text-hi)' }}>
-                {notePreview.doc.title || 'Untitled note'}
-              </span>
-              <span style={{ fontFamily: FONTS.ui, fontSize: 9, color: 'var(--c-text-off)', marginLeft: 6 }}>
-                {notePreview.page.name}
-              </span>
-            </div>
-            <div style={{ padding: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <NoteHoverThumbnail doc={notePreview.doc} />
-            </div>
-            <div style={{ padding: '5px 10px', borderTop: '1px solid var(--c-border)', flexShrink: 0 }}>
-              <span style={{ fontFamily: FONTS.ui, fontSize: 9, color: 'var(--c-text-off)' }}>
-                click to open note
-              </span>
-            </div>
+            <NoteHoverThumbnail doc={notePreview.doc} pageName={notePreview.page.name} />
           </div>
         );
       })()}

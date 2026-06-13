@@ -473,7 +473,7 @@ export const useBoardStore = create<BoardState>()(
             [activePageId]: { nodes, camera },
             [newId]: { nodes: newNodes, camera: { ...srcData.camera } },
           },
-          pages: [...pages, { id: newId, name: newName, layoutMode: srcMeta?.layoutMode ?? 'freeform', noteSort: srcMeta?.noteSort ?? 'updated' }],
+          pages: [...pages, { id: newId, name: newName, layoutMode: srcMeta?.isCanvasDocument ? 'freeform' : 'stack', noteSort: srcMeta?.noteSort ?? 'updated' }],
         });
       },
 
@@ -492,16 +492,21 @@ export const useBoardStore = create<BoardState>()(
           const { nodes: migratedNodes, pageSnapshots: migratedSnaps, documents } = needsMigration
             ? migrateInlineDocuments(activePg.nodes, snapshots, incomingDocs, activePg.id)
             : { nodes: activePg.nodes, pageSnapshots: snapshots, documents: normalizeDocumentPageIds(incomingDocs, activePg.id, activePg.nodes, snapshots) };
+          const canvasDocsByPage = new Map(
+            documents
+              .filter((doc) => doc.docType === 'canvas' && !!doc.canvasPageId)
+              .map((doc) => [doc.canvasPageId!, doc])
+          );
           set({
             boardTitle: data.boardTitle,
             pages: data.pages.map((p) => ({
               id: p.id,
               name: p.name,
-              layoutMode: p.layoutMode,
+              layoutMode: p.isCanvasDocument || canvasDocsByPage.has(p.id) ? 'freeform' : p.layoutMode,
               noteSort: p.noteSort ?? 'updated',
-              isCanvasDocument: p.isCanvasDocument,
-              parentPageId: p.parentPageId,
-              canvasDocumentId: p.canvasDocumentId,
+              isCanvasDocument: p.isCanvasDocument || canvasDocsByPage.has(p.id),
+              parentPageId: p.parentPageId ?? canvasDocsByPage.get(p.id)?.pageId,
+              canvasDocumentId: p.canvasDocumentId ?? canvasDocsByPage.get(p.id)?.id,
             })),
             activePageId: activePg.id,
             pageSnapshots: migratedSnaps,
@@ -556,10 +561,19 @@ export const useBoardStore = create<BoardState>()(
 
       exportData: () => {
         const { boardTitle, nodes, camera, pages, activePageId, pageSnapshots, documents, folderDescriptors, workspacePreferences, schemaVersion } = get();
+        const canvasDocsByPage = new Map(
+          documents
+            .filter((doc) => doc.docType === 'canvas' && !!doc.canvasPageId)
+            .map((doc) => [doc.canvasPageId!, doc])
+        );
         const allPages = pages.map((p) => {
-          if (p.id === activePageId) return { ...p, nodes, camera };
+          const canvasDoc = canvasDocsByPage.get(p.id);
+          const repairedPage = canvasDoc
+            ? { ...p, layoutMode: 'freeform' as const, isCanvasDocument: true, parentPageId: canvasDoc.pageId, canvasDocumentId: canvasDoc.id }
+            : p;
+          if (p.id === activePageId) return { ...repairedPage, nodes, camera };
           const snap = pageSnapshots[p.id] ?? { nodes: [], camera: { x: 0, y: 0, scale: 1 } };
-          return { ...p, ...snap };
+          return { ...repairedPage, ...snap };
         });
         return { boardTitle, nodes, pages: allPages, activePageId, documents, folderDescriptors, workspacePreferences, schemaVersion };
       },
@@ -733,9 +747,11 @@ export const useBoardStore = create<BoardState>()(
 
       addCanvasDocument: (parentPageId) => {
         const state = get();
-        const parentPage = state.pages.find((page) => page.id === parentPageId && !page.isCanvasDocument)
-          ?? state.pages.find((page) => page.id === state.activePageId && !page.isCanvasDocument)
-          ?? state.pages.find((page) => !page.isCanvasDocument)
+        const canvasPageIds = new Set(state.documents.filter((doc) => doc.docType === 'canvas' && doc.canvasPageId).map((doc) => doc.canvasPageId));
+        const isFolderPage = (page: PageMeta) => !page.isCanvasDocument && !canvasPageIds.has(page.id);
+        const parentPage = state.pages.find((page) => page.id === parentPageId && isFolderPage(page))
+          ?? state.pages.find((page) => page.id === state.activePageId && isFolderPage(page))
+          ?? state.pages.find(isFolderPage)
           ?? state.pages[0];
         const resolvedParentPageId = parentPage?.id ?? state.activePageId;
         const docId = `doc_${generateId()}`;
@@ -846,7 +862,7 @@ export const useBoardStore = create<BoardState>()(
             ),
             ...(state.activePageId === deletedCanvasPageId
               ? {
-                activePageId: deletedDoc?.pageId ?? state.pages.find((p) => !p.isCanvasDocument)?.id ?? state.activePageId,
+                activePageId: deletedDoc?.pageId ?? state.pages.find((p) => !p.isCanvasDocument && !state.documents.some((doc) => doc.id !== docId && doc.docType === 'canvas' && doc.canvasPageId === p.id))?.id ?? state.activePageId,
                 nodes: state.pageSnapshots[deletedDoc?.pageId ?? '']?.nodes ?? [],
                 camera: state.pageSnapshots[deletedDoc?.pageId ?? '']?.camera ?? { x: 0, y: 0, scale: 1 },
               }
@@ -878,6 +894,15 @@ export const useBoardStore = create<BoardState>()(
             ...current.pageSnapshots,
             [current.activePageId]: { nodes: current.nodes, camera: current.camera },
           },
+          pages: current.pages.map((page) => page.id === doc.canvasPageId
+            ? {
+                ...page,
+                layoutMode: 'freeform',
+                isCanvasDocument: true,
+                parentPageId: doc.pageId,
+                canvasDocumentId: doc.id,
+              }
+            : page),
           activePageId: doc.canvasPageId!,
           nodes: snap.nodes,
           camera: snap.camera,

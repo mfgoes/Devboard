@@ -277,6 +277,30 @@ canvas:focus {
 .doc-content ul { list-style: disc;    padding-left: 1.5em; margin: 0.25em 0; }
 .doc-content ol { list-style: decimal; padding-left: 1.5em; margin: 0.25em 0; }
 .doc-content li { margin: 0.1em 0; }
+.doc-content .doc-task-item,
+.doc-content [data-task-list-item="true"] {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55em;
+  margin: 0.18em 0;
+  min-height: 1.45em;
+}
+.doc-content input[type="checkbox"][data-task-checkbox="true"] {
+  flex: 0 0 auto;
+  width: 1em;
+  height: 1em;
+  margin: 0.22em 0 0;
+  accent-color: var(--c-line);
+  cursor: pointer;
+}
+.doc-content .doc-task-text {
+  flex: 1;
+  min-width: 0;
+}
+.doc-content input[type="checkbox"][data-task-checkbox="true"]:checked + .doc-task-text {
+  color: var(--c-text-lo);
+  text-decoration: line-through;
+}
 .doc-content blockquote {
   margin: 0.5em 0;
   padding: 0.4em 0.9em;

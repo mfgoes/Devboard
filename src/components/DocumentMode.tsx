@@ -11,11 +11,13 @@ import { useDocumentAutoSave } from '../hooks/useDocumentAutoSave';
 import { type DocumentCommandDefinition, type DocumentCommandGroup, type DocumentCommandId, getDocumentCommandsForSurface, runDocumentCommand } from './documentCommands';
 import { sanitizeClipboardHtml } from '../utils/richText';
 import { describeNoteSaveStatus, saveLinkedWorkspaceToCloud, type NoteSavePresentation } from '../utils/saveStatus';
+import { taskListItemHtml } from '../utils/taskListHtml';
 import AssetDrawer from './AssetDrawer';
 
 // ── Inline chip utilities ─────────────────────────────────────────────────────
 
 const CHIP_PATTERN = /(\[\[[^\]]+\]\])|(@node:[a-zA-Z0-9_-]+)|(#[a-zA-Z][a-zA-Z0-9_-]*)/g;
+const TODO_LIST_ITEM_HTML = taskListItemHtml({ placeholder: 'Todo item' });
 
 function parseWikiLink(raw: string): { title: string; alias: string } {
   const [titlePart, ...aliasParts] = raw.split('|');
@@ -2521,7 +2523,7 @@ export default function DocumentMode({
   headerBreadcrumb,
   panelMode = false,
 }: DocumentModeProps) {
-  const { documents, activeDocId, updateDocument, toggleFavoriteDocument, addDocument, closeDocument, openDocumentWithMorph, nodes, activePageId, saveHistory, undo, redo, noteAutosaveEnabled, imageAssetFolder } = useBoardStore();
+  const { documents, activeDocId, updateDocument, toggleFavoriteDocument, addDocument, closeDocument, openDocumentWithMorph, nodes, activePageId, pageSnapshots, saveHistory, undo, redo, noteAutosaveEnabled, imageAssetFolder } = useBoardStore();
   const contentRef = useRef<HTMLDivElement>(null);
   const editorScrollRef = useRef<HTMLDivElement>(null);
   const sourceRef = useRef<HTMLTextAreaElement>(null);
@@ -2538,11 +2540,12 @@ export default function DocumentMode({
   const [docHistory, setDocHistory] = useState<string[]>([]);
   const [wikiPreview, setWikiPreview] = useState<{ x: number; y: number; doc: Document; chip: HTMLElement } | null>(null);
   const [wikiContextMenu, setWikiContextMenu] = useState<{ x: number; y: number; doc: Document; chip: HTMLElement } | null>(null);
+  const [nodeContextMenu, setNodeContextMenu] = useState<{ x: number; y: number; nodeId: string; chip: HTMLElement } | null>(null);
   const [wikiRename, setWikiRename] = useState<{ chip: HTMLElement; originalText: string; value: string; rect: DOMRect } | null>(null);
   const wikiPreviewTitle = useRef<string | null>(null);
   const wikiPreviewCloseTimerRef = useRef<number | null>(null);
   const [wikilinkPicker, setWikilinkPicker] = useState<{ x: number; y: number; initialQuery?: string; chip?: HTMLElement } | null>(null);
-  const [nodePicker, setNodePicker] = useState<{ x: number; y: number } | null>(null);
+  const [nodePicker, setNodePicker] = useState<{ x: number; y: number; chip?: HTMLElement } | null>(null);
   const [emojiPicker, setEmojiPicker] = useState<{ x: number; y: number } | null>(null);
   const [isHoveringDoc, setIsHoveringDoc] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
@@ -2587,6 +2590,21 @@ export default function DocumentMode({
     openDocumentWithMorph(id);
   }, [onOpenDocument, openDocumentWithMorph]);
   const docPageId = doc?.pageId ?? activePageId;
+
+  const allCanvasNodes = useMemo(() => {
+    const seen = new Set<string>();
+    const collected: CanvasNode[] = [];
+    const addNodes = (list: CanvasNode[] | undefined) => {
+      for (const node of list ?? []) {
+        if (seen.has(node.id)) continue;
+        seen.add(node.id);
+        collected.push(node);
+      }
+    };
+    addNodes(nodes);
+    Object.values(pageSnapshots).forEach((snapshot) => addNodes(snapshot.nodes));
+    return collected;
+  }, [nodes, pageSnapshots]);
   const isOverlayPanel = !!headerBreadcrumb;
   const simplifyPanelChrome = panelMode && isOverlayPanel;
 
@@ -2637,10 +2655,12 @@ export default function DocumentMode({
     const ids = new Set<string>();
     const re = /@node:([a-zA-Z0-9_-]+)/g;
     let m: RegExpExecArray | null;
+    const chipRe = /data-nodeid=["']([^"']+)["']/g;
+    while ((m = chipRe.exec(doc.content)) !== null) ids.add(m[1]);
     const text = doc.content.replace(/<[^>]+>/g, ' ');
     while ((m = re.exec(text)) !== null) ids.add(m[1]);
-    return nodes.filter((n) => ids.has(n.id));
-  }, [doc?.id, doc?.content, nodes]);
+    return allCanvasNodes.filter((n) => ids.has(n.id));
+  }, [allCanvasNodes, doc?.id, doc?.content]);
 
   useEffect(() => {
     if (viewMode !== 'edit' || !contentRef.current) return;
@@ -2835,6 +2855,60 @@ export default function DocumentMode({
 
     root.dispatchEvent(new Event('input', { bubbles: true }));
   }, [doc, getEditorInsertionRange]);
+
+  const syncTaskCheckbox = useCallback((target: EventTarget | null) => {
+    if (!(target instanceof HTMLInputElement) || target.type !== 'checkbox') return;
+    if (!contentRef.current?.contains(target)) return;
+    if (target.checked) target.setAttribute('checked', '');
+    else target.removeAttribute('checked');
+    target.setAttribute('data-task-checkbox', 'true');
+    target.setAttribute('contenteditable', 'false');
+    contentRef.current.dispatchEvent(new Event('input', { bubbles: true }));
+  }, []);
+
+  const handleTaskItemEnter = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== 'Enter' || event.shiftKey || event.metaKey || event.ctrlKey || event.altKey) return false;
+    const root = contentRef.current;
+    const selection = window.getSelection();
+    const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
+    if (!root || !range || !root.contains(range.startContainer)) return false;
+
+    const startElement = range.startContainer.nodeType === Node.ELEMENT_NODE
+      ? range.startContainer as Element
+      : range.startContainer.parentElement;
+    const taskItem = startElement?.closest?.('[data-task-list-item="true"]') as HTMLElement | null;
+    if (!taskItem || !root.contains(taskItem)) return false;
+
+    event.preventDefault();
+
+    const taskText = taskItem.querySelector<HTMLElement>('.doc-task-text') ?? taskItem;
+    const isEmptyTask = (taskText.textContent ?? '').replace(/\u00a0/g, ' ').trim() === '';
+    let focusTarget: HTMLElement | null = null;
+
+    if (isEmptyTask) {
+      const nextBlock = document.createElement('div');
+      nextBlock.innerHTML = '<br>';
+      taskItem.replaceWith(nextBlock);
+      focusTarget = nextBlock;
+    } else {
+      const nextTask = document.createRange().createContextualFragment(TODO_LIST_ITEM_HTML).firstElementChild as HTMLElement | null;
+      if (!nextTask) return true;
+      taskItem.after(nextTask);
+      focusTarget = nextTask.querySelector<HTMLElement>('.doc-task-text') ?? nextTask;
+    }
+
+    if (focusTarget) {
+      const nextRange = document.createRange();
+      nextRange.selectNodeContents(focusTarget);
+      nextRange.collapse(true);
+      selection?.removeAllRanges();
+      selection?.addRange(nextRange);
+      savedSelectionRef.current = nextRange.cloneRange();
+    }
+
+    root.dispatchEvent(new Event('input', { bubbles: true }));
+    return true;
+  }, []);
 
   const insertImageFile = useCallback(async (file: File) => {
     if (!doc) return;
@@ -3447,6 +3521,22 @@ export default function DocumentMode({
     };
   }, [wikiContextMenu]);
 
+  useEffect(() => {
+    if (!nodeContextMenu) return;
+    const close = () => setNodeContextMenu(null);
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') close();
+    };
+    window.addEventListener('pointerdown', close);
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('scroll', close, true);
+    return () => {
+      window.removeEventListener('pointerdown', close);
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('scroll', close, true);
+    };
+  }, [nodeContextMenu]);
+
   // ── Chip insertion ────────────────────────────────────────────────────────
 
   const insertChipInEditor = useCallback((chipEl: HTMLElement) => {
@@ -3535,6 +3625,15 @@ export default function DocumentMode({
   }, [insertChipInEditor, wikilinkPicker]);
 
   const insertNodeChip = useCallback((nodeId: string, label: string) => {
+    if (nodePicker?.chip) {
+      const chip = nodePicker.chip;
+      chip.dataset.nodeid = nodeId;
+      chip.textContent = label;
+      contentRef.current?.dispatchEvent(new Event('input', { bubbles: true }));
+      setNodePicker(null);
+      setNodeContextMenu(null);
+      return;
+    }
     const span = document.createElement('span');
     span.className = 'chip-node';
     span.dataset.chip = 'node';
@@ -3543,7 +3642,7 @@ export default function DocumentMode({
     span.contentEditable = 'false';
     insertChipInEditor(span);
     setNodePicker(null);
-  }, [insertChipInEditor]);
+  }, [insertChipInEditor, nodePicker]);
 
   const handleCreateAndLink = useCallback((title: string) => {
     const newId = addDocument({ title, content: `<h1>${title}</h1><p><br></p>` });
@@ -3676,6 +3775,34 @@ export default function DocumentMode({
     setWikiContextMenu(null);
   }, [unwrapWikiChip, wikiContextMenu]);
 
+  const openNodeContextTarget = useCallback(() => {
+    if (!nodeContextMenu) return;
+    const { nodeId } = nodeContextMenu;
+    setNodeContextMenu(null);
+    handleClose();
+    focusNode(nodeId, 420);
+  }, [handleClose, nodeContextMenu]);
+
+  const changeNodeContextTarget = useCallback(() => {
+    if (!nodeContextMenu) return;
+    const rect = nodeContextMenu.chip.getBoundingClientRect();
+    setWikiPreview(null);
+    wikiPreviewTitle.current = null;
+    setWikiContextMenu(null);
+    setNodeContextMenu(null);
+    setNodePicker({
+      x: Math.min(rect.left, window.innerWidth - PICKER_WIDTH - 12),
+      y: rect.bottom + 6,
+      chip: nodeContextMenu.chip,
+    });
+  }, [nodeContextMenu]);
+
+  const removeNodeContextLink = useCallback(() => {
+    if (!nodeContextMenu) return;
+    unwrapWikiChip(nodeContextMenu.chip);
+    setNodeContextMenu(null);
+  }, [nodeContextMenu, unwrapWikiChip]);
+
   const startWikiRename = useCallback((chip: HTMLElement, fallbackTitle: string) => {
     const originalText = chip.textContent ?? fallbackTitle;
     chip.style.visibility = 'hidden';
@@ -3802,7 +3929,7 @@ export default function DocumentMode({
       insertHeading2: () => insertBlockHtmlAtSelection('<h2 data-placeholder="Heading 2" data-placeholder-visible="true"><br></h2>', { replaceCurrentBlock: true }),
       insertBulletList: () => insertBlockHtmlAtSelection('<ul><li data-placeholder="List item" data-placeholder-visible="true"><br></li></ul>', { replaceCurrentBlock: true }),
       insertNumberedList: () => insertBlockHtmlAtSelection('<ol><li data-placeholder="List item" data-placeholder-visible="true"><br></li></ol>', { replaceCurrentBlock: true }),
-      insertTodoList: () => insertBlockHtmlAtSelection('<div data-placeholder="Todo item" data-placeholder-visible="true">☐ <br></div>', { replaceCurrentBlock: true }),
+      insertTodoList: () => insertBlockHtmlAtSelection(TODO_LIST_ITEM_HTML, { replaceCurrentBlock: true }),
       insertQuote: () => insertBlockHtmlAtSelection('<blockquote data-placeholder="Quoted text…" data-placeholder-visible="true"><br></blockquote>', { replaceCurrentBlock: true }),
       insertCallout: () => insertBlockHtmlAtSelection(
         '<blockquote class="doc-callout" data-callout="true" data-callout-emoji="💡">' +
@@ -4139,8 +4266,8 @@ export default function DocumentMode({
         className="doc-editor-header"
         style={{
 	          minHeight: 44,
-          borderBottom: '0.5px solid var(--c-topbar-border)',
-          background: 'var(--c-topbar)',
+          borderBottom: '0.5px solid #e8e6e2',
+          background: '#ffffff',
           display: 'flex',
           alignItems: 'center',
           padding: simplifyPanelChrome ? '0 12px' : panelMode ? '0 12px' : '0 18px',
@@ -4567,15 +4694,46 @@ export default function DocumentMode({
               }}
               onMouseLeave={() => closeWikiPreview()}
               onContextMenu={(e) => {
-                const chip = (e.target as HTMLElement).closest?.('[data-chip="wiki"]') as HTMLElement | null;
+                const target = e.target as HTMLElement;
+                const nodeChip = target.closest?.('[data-chip="node"]') as HTMLElement | null;
+                if (nodeChip) {
+                  const nodeId = nodeChip.dataset.nodeid;
+                  if (!nodeId) return;
+                  e.preventDefault();
+                  e.stopPropagation();
+                  closeWikiPreview(0);
+                  setSelectionToolbarAnchor(null);
+                  setWikilinkPicker(null);
+                  setNodePicker(null);
+                  setWikiContextMenu(null);
+                  setNodeContextMenu({
+                    x: Math.min(e.clientX, window.innerWidth - 220),
+                    y: Math.min(e.clientY, window.innerHeight - 150),
+                    nodeId,
+                    chip: nodeChip,
+                  });
+                  return;
+                }
+                const chip = target.closest?.('[data-chip="wiki"]') as HTMLElement | null;
                 if (!chip) return;
                 const title = getWikiChipTitle(chip);
                 const linked = findDocumentByTitle(documents, title);
-                if (!linked) return;
                 e.preventDefault();
                 e.stopPropagation();
                 closeWikiPreview(0);
                 setSelectionToolbarAnchor(null);
+                setNodeContextMenu(null);
+                if (!linked) {
+                  setWikiContextMenu(null);
+                  setNodePicker(null);
+                  setWikilinkPicker({
+                    x: Math.min(e.clientX, window.innerWidth - PICKER_WIDTH - 12),
+                    y: e.clientY + 6,
+                    initialQuery: title,
+                    chip,
+                  });
+                  return;
+                }
                 setWikiContextMenu({
                   x: Math.min(e.clientX, window.innerWidth - 240),
                   y: Math.min(e.clientY, window.innerHeight - 180),
@@ -4777,7 +4935,10 @@ export default function DocumentMode({
                   setIsEditorFocused(false);
                 }}
                 onInput={handleInput}
+                onClick={(e) => syncTaskCheckbox(e.target)}
+                onChange={(e) => syncTaskCheckbox(e.target)}
                 onKeyDown={(e) => {
+                  if (handleTaskItemEnter(e)) return;
                   if ((e.key === 'Backspace' || e.key === 'Delete') && selectedImageId) {
                     e.preventDefault();
                     removeSelectedImage();
@@ -5479,6 +5640,119 @@ export default function DocumentMode({
         </div>
       )}
 
+      {nodeContextMenu && (
+        <div
+          onPointerDown={(e) => e.stopPropagation()}
+          style={{
+            position: 'fixed',
+            left: nodeContextMenu.x,
+            top: nodeContextMenu.y,
+            width: 220,
+            padding: 6,
+            background: 'var(--c-panel)',
+            border: '1px solid var(--c-border)',
+            borderRadius: 10,
+            boxShadow: '0 10px 32px rgba(0,0,0,0.35)',
+            zIndex: 10000,
+          }}
+        >
+          <button
+            type="button"
+            onClick={openNodeContextTarget}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'var(--c-hover)';
+              e.currentTarget.style.color = 'var(--c-text-hi)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.color = 'var(--c-text-hi)';
+            }}
+            style={{
+              width: '100%',
+              border: 0,
+              background: 'transparent',
+              color: 'var(--c-text-hi)',
+              borderRadius: 7,
+              padding: '8px 9px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 9,
+              fontFamily: 'inherit',
+              fontSize: 13,
+              fontWeight: 650,
+              textAlign: 'left',
+              cursor: 'pointer',
+            }}
+          >
+            <IconArrowRight size={14} />
+            Jump to node
+          </button>
+          <button
+            type="button"
+            onClick={changeNodeContextTarget}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'var(--c-hover)';
+              e.currentTarget.style.color = 'var(--c-text-hi)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.color = 'var(--c-text-hi)';
+            }}
+            style={{
+              width: '100%',
+              border: 0,
+              background: 'transparent',
+              color: 'var(--c-text-hi)',
+              borderRadius: 7,
+              padding: '8px 9px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 9,
+              fontFamily: 'inherit',
+              fontSize: 13,
+              fontWeight: 650,
+              textAlign: 'left',
+              cursor: 'pointer',
+            }}
+          >
+            <IconNodeLink />
+            Change node link
+          </button>
+          <div style={{ height: 1, background: 'var(--c-border)', margin: '5px 2px' }} />
+          <button
+            type="button"
+            onClick={removeNodeContextLink}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(248,113,113,0.12)';
+              e.currentTarget.style.color = '#f87171';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.color = '#f87171';
+            }}
+            style={{
+              width: '100%',
+              border: 0,
+              background: 'transparent',
+              color: '#f87171',
+              borderRadius: 7,
+              padding: '8px 9px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 9,
+              fontFamily: 'inherit',
+              fontSize: 13,
+              fontWeight: 650,
+              textAlign: 'left',
+              cursor: 'pointer',
+            }}
+          >
+            <IconUnlink size={14} />
+            Unlink
+          </button>
+        </div>
+      )}
+
       {/* Wikilink picker */}
       {wikilinkPicker && (
         <WikilinkPicker
@@ -5496,7 +5770,7 @@ export default function DocumentMode({
       {nodePicker && (
         <NodePicker
           pos={nodePicker}
-          nodes={nodes}
+          nodes={allCanvasNodes}
           documents={documents}
           onSelect={insertNodeChip}
           onClose={() => setNodePicker(null)}

@@ -1,14 +1,15 @@
 import { useRef, useState, useEffect } from 'react';
 import { useBoardStore } from '../store/boardStore';
-import { IconFreeformPage, IconStackPage } from './icons';
+import { IconFolder } from './icons';
 
 interface Props {
   onClose: () => void;
 }
 
 export default function PagesPanel({ onClose }: Props) {
-  const { pages, activePageId, addPage, deletePage, renamePage, switchPage, duplicatePage, setPageLayoutMode } =
+  const { pages, activePageId, addPage, deletePage, renamePage, switchPage, duplicatePage } =
     useBoardStore();
+  const documents = useBoardStore((s) => s.documents);
 
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState('');
@@ -18,7 +19,8 @@ export default function PagesPanel({ onClose }: Props) {
   ));
   const panelRef = useRef<HTMLDivElement>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
-  const activePage = pages.find((page) => page.id === activePageId);
+  const canvasPageIds = new Set(documents.filter((doc) => doc.docType === 'canvas' && doc.canvasPageId).map((doc) => doc.canvasPageId));
+  const visiblePages = pages.filter((page) => !page.isCanvasDocument && !canvasPageIds.has(page.id));
 
   // Close kebab menu on outside click
   useEffect(() => {
@@ -178,54 +180,12 @@ export default function PagesPanel({ onClose }: Props) {
         </div>
       </div>
 
-      {isMobile && activePage && (
-        <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--c-border)' }}>
-          <div style={{ fontFamily: 'var(--font-ui)', fontSize: 11, color: 'var(--c-text-lo)', marginBottom: 8 }}>
-            Folder view
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            {([
-              { mode: 'stack' as const, label: 'Notes', icon: <IconStackPage /> },
-              { mode: 'freeform' as const, label: 'Canvas', icon: <IconFreeformPage /> },
-            ]).map(({ mode, label, icon }) => {
-              const active = (activePage.layoutMode ?? 'freeform') === mode;
-              return (
-                <button
-                  key={mode}
-                  onClick={() => setPageLayoutMode(activePageId, mode)}
-                  title={label}
-                  style={{
-                    minHeight: 42,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 8,
-                    borderRadius: 12,
-                    border: `1px solid ${active ? 'var(--c-line)' : 'var(--c-border)'}`,
-                    background: active ? 'rgba(var(--c-line-pre-rgb),0.16)' : 'var(--c-canvas)',
-                    color: active ? 'var(--c-text-hi)' : 'var(--c-text-md)',
-                    fontFamily: 'var(--font-ui)',
-                    fontSize: 13,
-                    fontWeight: 650,
-                    cursor: 'pointer',
-                  }}
-                >
-                  {icon}
-                  {label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
       {/* Folder list */}
       <div style={{ padding: isMobile ? '8px 10px' : '4px 0' }}>
-        {pages.map((page) => {
+        {visiblePages.map((page) => {
           const isActive = page.id === activePageId;
           const isRenaming = renamingId === page.id;
           const isMenuOpen = menuOpenId === page.id;
-          const isStack = page.layoutMode === 'stack';
           return (
             <div
               key={page.id}
@@ -256,7 +216,7 @@ export default function PagesPanel({ onClose }: Props) {
               }}
             >
               <span style={{ flexShrink: 0, color: isActive ? 'var(--c-line)' : 'var(--c-text-lo)', display: 'inline-flex' }}>
-                {isStack ? <IconStackPage /> : <IconFreeformPage />}
+                <IconFolder />
               </span>
 
               {/* Name or rename input */}
@@ -300,22 +260,6 @@ export default function PagesPanel({ onClose }: Props) {
                   }}
                 >
                   {page.name}
-                </span>
-              )}
-
-              {!isRenaming && isMobile && (
-                <span
-                  style={{
-                    flexShrink: 0,
-                    borderRadius: 999,
-                    padding: '3px 7px',
-                    border: '1px solid var(--c-border)',
-                    color: 'var(--c-text-lo)',
-                    fontFamily: 'var(--font-ui)',
-                    fontSize: 10,
-                  }}
-                >
-                  {isStack ? 'Notes' : 'Canvas'}
                 </span>
               )}
 
@@ -389,7 +333,7 @@ export default function PagesPanel({ onClose }: Props) {
                         {
                           label: 'Delete',
                           action: () => { deletePage(page.id); setMenuOpenId(null); },
-                          disabled: pages.length <= 1,
+                          disabled: visiblePages.length <= 1,
                           danger: true,
                         },
                       ].map((item) => (

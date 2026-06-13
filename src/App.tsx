@@ -54,6 +54,7 @@ import { useBoardStore } from './store/boardStore';
 import { useAuth } from './contexts/AuthContext';
 import { applyTheme } from './theme';
 import { IconSidebarToggle } from './components/icons';
+import { createWelcomeBoard } from './templates/welcomeBoard';
 
 const EXPLORER_COLLAPSED_WIDTH = 44;
 const EXPLORER_EXPAND_HIT_WIDTH = 64;
@@ -124,6 +125,7 @@ export default function App() {
   const appMode = useBoardStore((s) => s.appMode);
   const pages = useBoardStore((s) => s.pages);
   const activePageId = useBoardStore((s) => s.activePageId);
+  const documents = useBoardStore((s) => s.documents);
   const morphSourceRect = useBoardStore((s) => s.morphSourceRect);
   const documentOpenTransition = useBoardStore((s) => s.documentOpenTransition);
   const closeDocument = useBoardStore((s) => s.closeDocument);
@@ -153,7 +155,8 @@ export default function App() {
   }, []);
 
   const activePage = pages.find((p) => p.id === activePageId);
-  const isStackPage = !activePage?.isCanvasDocument;
+  const activeCanvasDocument = documents.find((doc) => doc.docType === 'canvas' && doc.canvasPageId === activePageId);
+  const isStackPage = !activePage?.isCanvasDocument && !activeCanvasDocument;
 
   useEffect(() => {
     const label = boardTitle.trim() || workspaceName;
@@ -309,7 +312,7 @@ export default function App() {
     const pageId = currentPage?.isCanvasDocument ? (currentPage.parentPageId ?? state.activePageId) : state.activePageId;
     const id = addDocument({ title: '', content: '', pageId });
     const page = state.pages.find((entry) => entry.id === pageId);
-    if (page?.layoutMode === 'stack' && !isMobileViewport) {
+    if (page && !page.isCanvasDocument && !isMobileViewport) {
       setOpenPanelDocId(id);
       return;
     }
@@ -603,83 +606,7 @@ export default function App() {
       const store = useBoardStore.getState();
       if (store.nodes.length > 0) return; // board was loaded from hash
       localStorage.setItem('devboard-visited', '1');
-      const now = Date.now();
-      const stackPageId = 'page-1';
-      const canvasPageId = 'page-2';
-
-      store.loadBoard({
-        boardTitle: 'Welcome to DevBoard',
-        nodes: [],
-        pages: [
-          {
-            id: stackPageId,
-            name: 'Start here',
-            layoutMode: 'stack',
-            noteSort: 'custom',
-            nodes: [],
-            camera: { x: 0, y: 0, scale: 1 },
-          },
-          {
-            id: canvasPageId,
-            name: 'Canvas',
-            layoutMode: 'freeform',
-            noteSort: 'updated',
-            nodes: [
-              {
-                id: generateId(),
-                type: 'textblock',
-                x: 120,
-                y: 110,
-                text: 'Use this page when notes need a spatial layout.',
-                fontSize: 16,
-                width: 320,
-                color: 'auto',
-                bold: false,
-                italic: true,
-                underline: false,
-              } as import('./types').TextBlockNode,
-            ],
-            camera: { x: 0, y: 0, scale: 1 },
-          },
-        ],
-        activePageId: stackPageId,
-        documents: [
-          {
-            id: 'doc_welcome_workspace',
-            title: 'Open or create a workspace folder',
-            emoji: '📁',
-            pageId: stackPageId,
-            orderIndex: 0,
-            createdAt: now,
-            updatedAt: now,
-            tags: ['workspace'],
-            content: '<p>Start by attaching a real workspace folder so your board, notes, and files live together.</p><p>Use the top bar to <strong>Open workspace folder</strong> for an existing project, or <strong>Create workspace folder</strong> to start fresh.</p><p>Once connected, DevBoard can keep notes beside your project files instead of in a throwaway canvas.</p>',
-          },
-          {
-            id: 'doc_welcome_notes',
-            title: 'Jot down notes first',
-            emoji: '📝',
-            pageId: stackPageId,
-            orderIndex: 1,
-            createdAt: now,
-            updatedAt: now,
-            tags: ['notes'],
-            content: '<p>This page opens in <strong>Stack mode</strong> so new ideas start as simple notes, not scattered stickies.</p><p>Use <strong>⌘N</strong> to make a note and capture:</p><ul><li>next steps</li><li>questions</li><li>ideas worth keeping</li></ul><p>Think of this as your project notebook.</p>',
-          },
-          {
-            id: 'doc_welcome_canvas',
-            title: 'Switch to canvas when ideas need space',
-            emoji: '🗺️',
-            pageId: stackPageId,
-            orderIndex: 2,
-            createdAt: now,
-            updatedAt: now,
-            tags: ['canvas'],
-            content: '<p>Canvas is still there when you need it.</p><p>Use it for spatial work like arranging stickies, drawing flows, or mapping relationships. Start with notes, then switch a page to <strong>Canvas</strong> mode when the work becomes visual.</p>',
-          },
-        ],
-        schemaVersion: 3,
-      });
+      store.loadBoard(createWelcomeBoard());
     }, 0);
   }, []);
 
@@ -1234,8 +1161,6 @@ export default function App() {
           onClose={() => setShowOnboarding(false)}
           onStartWriting={() => {
             setShowOnboarding(false);
-            const state = useBoardStore.getState();
-            state.setPageLayoutMode(state.activePageId, 'stack');
             handleNewNote();
           }}
           onStartMapping={() => {
@@ -1269,7 +1194,7 @@ export default function App() {
           if (doc?.pageId && doc.pageId !== state.activePageId) state.switchPage(doc.pageId);
           const targetPageId = doc?.pageId ?? state.activePageId;
           const page = state.pages.find((entry) => entry.id === targetPageId);
-          if (page?.layoutMode === 'stack' && !isMobileViewport) {
+          if (page && !page.isCanvasDocument && !isMobileViewport) {
             state.setDocViewMode('fullscreen');
             state.setOpenPanelDocId(null);
             state.openDocumentWithMorph(id);

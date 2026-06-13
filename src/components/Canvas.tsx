@@ -542,6 +542,7 @@ export default function Canvas({ onBackgroundInteract }: CanvasProps) {
           onAnchorEnter={handleAnchorEnter}
           onAnchorLeave={handleAnchorLeave}
           snapAnchor={snapTarget?.nodeId === n.id ? snapTarget.side : null}
+          onContextMenu={handleNodeContextMenu}
         />
       ))}
 

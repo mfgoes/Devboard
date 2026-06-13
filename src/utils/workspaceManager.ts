@@ -541,6 +541,9 @@ type WorkspacePageData = {
   name: string;
   layoutMode?: 'freeform' | 'stack';
   noteSort?: 'updated' | 'custom';
+  isCanvasDocument?: boolean;
+  parentPageId?: string;
+  canvasDocumentId?: string;
   nodes: CanvasNode[];
   camera: { x: number; y: number; scale: number };
 };
@@ -613,7 +616,7 @@ async function readBrowserNoteDocuments(dirHandle: FileSystemDirectoryHandle, fa
 
 async function readBrowserPageFile(
   pagesDir: FileSystemDirectoryHandle | null,
-  pageMeta: { id: string; name?: string; layoutMode?: 'freeform' | 'stack'; noteSort?: 'updated' | 'custom' },
+  pageMeta: WorkspacePageMeta,
 ): Promise<WorkspacePageData> {
   try {
     if (!pagesDir) throw new Error('No pages directory');
@@ -624,6 +627,9 @@ async function readBrowserPageFile(
       name: pageMeta.name || pageData.name || pageMeta.id,
       layoutMode: pageMeta.layoutMode ?? pageData.layoutMode,
       noteSort: pageMeta.noteSort ?? pageData.noteSort,
+      isCanvasDocument: pageMeta.isCanvasDocument ?? pageData.isCanvasDocument,
+      parentPageId: pageMeta.parentPageId ?? pageData.parentPageId,
+      canvasDocumentId: pageMeta.canvasDocumentId ?? pageData.canvasDocumentId,
       nodes: pageData.nodes ?? [],
       camera: pageData.camera ?? { x: 0, y: 0, scale: 1 },
     };
@@ -633,6 +639,9 @@ async function readBrowserPageFile(
       name: pageMeta.name || pageMeta.id,
       layoutMode: pageMeta.layoutMode,
       noteSort: pageMeta.noteSort,
+      isCanvasDocument: pageMeta.isCanvasDocument,
+      parentPageId: pageMeta.parentPageId,
+      canvasDocumentId: pageMeta.canvasDocumentId,
       nodes: [],
       camera: { x: 0, y: 0, scale: 1 },
     };
@@ -816,10 +825,32 @@ async function tauriFsRename(oldPath: string, newPath: string): Promise<void> {
 
 interface WorkspaceManifest {
   title: string;
-  pages: Array<{ id: string; name: string; layoutMode?: 'freeform' | 'stack'; noteSort?: 'updated' | 'custom' }>;
+  pages: WorkspacePageMeta[];
   activePageId: string;
   documents?: Document[];
   sync?: WorkspaceSyncMetadata;
+}
+
+type WorkspacePageMeta = {
+  id: string;
+  name: string;
+  layoutMode?: 'freeform' | 'stack';
+  noteSort?: 'updated' | 'custom';
+  isCanvasDocument?: boolean;
+  parentPageId?: string;
+  canvasDocumentId?: string;
+};
+
+function serializePageMeta(page: WorkspacePageMeta): WorkspacePageMeta {
+  return {
+    id: page.id,
+    name: page.name,
+    layoutMode: page.layoutMode,
+    noteSort: page.noteSort,
+    isCanvasDocument: page.isCanvasDocument,
+    parentPageId: page.parentPageId,
+    canvasDocumentId: page.canvasDocumentId,
+  };
 }
 
 interface FolderDescriptorDocument {
@@ -888,8 +919,9 @@ function normalizeFolderDescriptors(raw: unknown): FolderDescriptor[] {
 function buildFolderDescriptors(data: BoardData, documents: Document[]): FolderDescriptor[] {
   const now = Date.now();
   const existing = new Map((data.folderDescriptors ?? []).map((folder) => [folder.id, folder]));
+  const canvasPageIds = new Set(documents.filter((doc) => doc.docType === 'canvas' && doc.canvasPageId).map((doc) => doc.canvasPageId));
   const pages = data.pages?.length
-    ? data.pages.filter((page) => !page.isCanvasDocument)
+    ? data.pages.filter((page) => !page.isCanvasDocument && !canvasPageIds.has(page.id))
     : [{ id: data.activePageId || 'page-1', name: 'Page 1', layoutMode: undefined, noteSort: 'updated' as const }];
 
   return pages.map((page) => {
@@ -971,7 +1003,7 @@ async function readTauriNoteDocuments(workspacePath: string, fallbackPageId: str
 
 async function readTauriPageFile(
   pagesDir: string,
-  pageMeta: { id: string; name?: string; layoutMode?: 'freeform' | 'stack'; noteSort?: 'updated' | 'custom' },
+  pageMeta: WorkspacePageMeta,
 ): Promise<WorkspacePageData> {
   try {
     const pageText = await tauriFsReadText(joinPath(pagesDir, `${pageMeta.id}.json`));
@@ -981,6 +1013,9 @@ async function readTauriPageFile(
       name: pageMeta.name || pageData.name || pageMeta.id,
       layoutMode: pageMeta.layoutMode ?? pageData.layoutMode,
       noteSort: pageMeta.noteSort ?? pageData.noteSort,
+      isCanvasDocument: pageMeta.isCanvasDocument ?? pageData.isCanvasDocument,
+      parentPageId: pageMeta.parentPageId ?? pageData.parentPageId,
+      canvasDocumentId: pageMeta.canvasDocumentId ?? pageData.canvasDocumentId,
       nodes: pageData.nodes ?? [],
       camera: pageData.camera ?? { x: 0, y: 0, scale: 1 },
     };
@@ -990,6 +1025,9 @@ async function readTauriPageFile(
       name: pageMeta.name || pageMeta.id,
       layoutMode: pageMeta.layoutMode,
       noteSort: pageMeta.noteSort,
+      isCanvasDocument: pageMeta.isCanvasDocument,
+      parentPageId: pageMeta.parentPageId,
+      canvasDocumentId: pageMeta.canvasDocumentId,
       nodes: [],
       camera: { x: 0, y: 0, scale: 1 },
     };
@@ -1598,12 +1636,7 @@ export async function downloadCloudWorkspaceToFolder({
   };
   const manifest: WorkspaceManifest = {
     title: selectedTitle,
-    pages: pages.map((page) => ({
-      id: page.id,
-      name: page.name,
-      layoutMode: page.layoutMode,
-      noteSort: page.noteSort,
-    })),
+    pages: pages.map(serializePageMeta),
     activePageId: data.activePageId && pages.some((page) => page.id === data.activePageId) ? data.activePageId : pages[0]?.id ?? '',
     documents,
     sync,
@@ -1639,6 +1672,9 @@ export async function downloadCloudWorkspaceToFolder({
         name: page.name,
         layoutMode: page.layoutMode,
         noteSort: page.noteSort,
+        isCanvasDocument: page.isCanvasDocument,
+        parentPageId: page.parentPageId,
+        canvasDocumentId: page.canvasDocumentId,
         nodes: page.nodes,
         camera: page.camera,
       }, null, 2));
@@ -1707,6 +1743,9 @@ export async function downloadCloudWorkspaceToFolder({
       name: page.name,
       layoutMode: page.layoutMode,
       noteSort: page.noteSort,
+      isCanvasDocument: page.isCanvasDocument,
+      parentPageId: page.parentPageId,
+      canvasDocumentId: page.canvasDocumentId,
       nodes: page.nodes,
       camera: page.camera,
     }, null, 2));
@@ -1778,7 +1817,7 @@ export async function saveWorkspace(data: BoardData, options: SaveWorkspaceOptio
     if (!tauriWorkspacePath) return { saved: false };
     const manifest: WorkspaceManifest = {
       title: data.boardTitle,
-      pages: (data.pages ?? []).map((p) => ({ id: p.id, name: p.name, layoutMode: p.layoutMode, noteSort: p.noteSort })),
+      pages: (data.pages ?? []).map(serializePageMeta),
       activePageId: data.activePageId ?? '',
       documents,
       sync: setWorkspaceSyncMetadata(workspaceSyncMetadata ?? {}) ?? undefined,
@@ -1792,6 +1831,9 @@ export async function saveWorkspace(data: BoardData, options: SaveWorkspaceOptio
         name: page.name,
         layoutMode: page.layoutMode,
         noteSort: page.noteSort,
+        isCanvasDocument: page.isCanvasDocument,
+        parentPageId: page.parentPageId,
+        canvasDocumentId: page.canvasDocumentId,
         nodes: stripImageSrc(page.nodes),
         camera: page.camera,
       };
@@ -1815,7 +1857,7 @@ export async function saveWorkspace(data: BoardData, options: SaveWorkspaceOptio
 
   const manifest: WorkspaceManifest = {
     title: data.boardTitle,
-    pages: (data.pages ?? []).map((p) => ({ id: p.id, name: p.name, layoutMode: p.layoutMode, noteSort: p.noteSort })),
+    pages: (data.pages ?? []).map(serializePageMeta),
     activePageId: data.activePageId ?? '',
     documents,
     sync: setWorkspaceSyncMetadata(workspaceSyncMetadata ?? {}) ?? undefined,
@@ -1829,6 +1871,9 @@ export async function saveWorkspace(data: BoardData, options: SaveWorkspaceOptio
       name: page.name,
       layoutMode: page.layoutMode,
       noteSort: page.noteSort,
+      isCanvasDocument: page.isCanvasDocument,
+      parentPageId: page.parentPageId,
+      canvasDocumentId: page.canvasDocumentId,
       nodes: stripImageSrc(page.nodes),
       camera: page.camera,
     };

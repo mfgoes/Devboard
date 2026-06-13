@@ -113,7 +113,7 @@ function sanitizeClipboardNode(node: Node): Node | null {
 
   const allowedTags = new Set([
     'a', 'blockquote', 'br', 'code', 'caption', 'colgroup', 'del', 'div', 'em', 'h1', 'h2', 'h3',
-    'hr', 'li', 'ol', 'p', 'pre', 's', 'strong', 'table', 'tbody', 'td', 'tfoot', 'th', 'thead', 'tr', 'u', 'ul',
+    'hr', 'input', 'li', 'ol', 'p', 'pre', 's', 'strong', 'table', 'tbody', 'td', 'tfoot', 'th', 'thead', 'tr', 'u', 'ul',
   ]);
 
   if (!allowedTags.has(outputTag)) {
@@ -126,6 +126,12 @@ function sanitizeClipboardNode(node: Node): Node | null {
   if (outputTag === 'a') {
     const href = (el as HTMLAnchorElement).getAttribute('href') ?? '';
     if (isSafeClipboardHref(href)) clean.setAttribute('href', href);
+  } else if (outputTag === 'input') {
+    if ((el as HTMLInputElement).type !== 'checkbox') return null;
+    clean.setAttribute('type', 'checkbox');
+    clean.setAttribute('data-task-checkbox', 'true');
+    clean.setAttribute('contenteditable', 'false');
+    if ((el as HTMLInputElement).checked || el.hasAttribute('checked')) clean.setAttribute('checked', '');
   }
   appendSanitizedChildren(el, clean);
   return clean;
@@ -176,8 +182,9 @@ export interface PreviewSegment {
 }
 
 export interface PreviewLine {
-  kind: 'h1' | 'h2' | 'h3' | 'bullet' | 'numbered' | 'callout' | 'text';
+  kind: 'h1' | 'h2' | 'h3' | 'bullet' | 'numbered' | 'task' | 'callout' | 'text';
   emoji?: string;
+  checked?: boolean;
   segments: PreviewSegment[];
 }
 
@@ -231,7 +238,7 @@ export function htmlToPreviewStructured(html: string, maxLines = 5): PreviewLine
       } else if (child.nodeType === Node.ELEMENT_NODE) {
         const el = child as HTMLElement;
         const tag = el.tagName.toLowerCase();
-        if (tag === 'br') continue;
+        if (tag === 'br' || tag === 'input') continue;
         if (el.dataset.chip === 'wiki' || el.classList.contains('chip-wiki')) {
           const title = (el.dataset.title ?? el.textContent ?? '').trim();
           const label = (el.dataset.alias ?? el.textContent ?? title).trim();
@@ -289,6 +296,16 @@ export function htmlToPreviewStructured(html: string, maxLines = 5): PreviewLine
   function walk(el: Element) {
     if (lines.length >= maxLines) return;
     const tag = el.tagName.toLowerCase();
+    const taskCheckbox = el.querySelector<HTMLInputElement>('input[type="checkbox"]');
+
+    if (taskCheckbox) {
+      const segments = mergeSegs(extractSegs(el, false, false));
+      const text = segments.map(s => s.text).join('').trim();
+      if (text) {
+        lines.push({ kind: 'task', checked: taskCheckbox.checked || taskCheckbox.hasAttribute('checked'), segments });
+      }
+      return;
+    }
 
     if (tag === 'h1') { pushLine(el, 'h1'); return; }
     if (tag === 'h2') { pushLine(el, 'h2'); return; }

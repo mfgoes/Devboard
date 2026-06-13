@@ -1,4 +1,5 @@
 import { CanvasNode, Document, DocumentNode } from '../types';
+import { taskListItemHtml } from './taskListHtml';
 
 // ── HTML → Markdown ───────────────────────────────────────────────────────────
 
@@ -16,6 +17,7 @@ function inlineToMd(node: Node, bold = false, italic = false, strike = false): s
       const el = child as HTMLElement;
       const tag = el.tagName.toLowerCase();
       if (tag === 'br') { out += '\n'; continue; }
+      if (tag === 'input') continue;
       if (tag === 'hr') { out += '\n---\n'; continue; }
       if (tag === 'img') {
         const src = el.getAttribute('data-workspace-src') ?? el.getAttribute('src') ?? '';
@@ -166,6 +168,12 @@ export function htmlToMarkdown(html: string): string {
 
   function walk(el: Element) {
     const tag = el.tagName.toLowerCase();
+    const taskCheckbox = el.querySelector<HTMLInputElement>('input[type="checkbox"]');
+    if (taskCheckbox) {
+      const checked = taskCheckbox.checked || taskCheckbox.hasAttribute('checked');
+      lines.push(`- [${checked ? 'x' : ' '}] ${inlineToMd(el).trim()}`);
+      return;
+    }
     if (tag === 'h1') { lines.push(`# ${el.textContent?.trim() ?? ''}`); return; }
     if (tag === 'h2') { lines.push(`## ${el.textContent?.trim() ?? ''}`); return; }
     if (tag === 'h3') { lines.push(`### ${el.textContent?.trim() ?? ''}`); return; }
@@ -434,6 +442,15 @@ export function markdownToHtml(md: string): string {
     const h3 = line.match(/^### (.+)/);  if (h3)  { closeList(); parts.push(`<h3>${inlineMdToHtml(h3[1])}</h3>`);  continue; }
     const h2 = line.match(/^## (.+)/);   if (h2)  { closeList(); parts.push(`<h2>${inlineMdToHtml(h2[1])}</h2>`);  continue; }
     const h1 = line.match(/^# (.+)/);    if (h1)  { closeList(); parts.push(`<h1>${inlineMdToHtml(h1[1])}</h1>`);  continue; }
+    const task = line.match(/^[-*]\s+\[([ xX])\]\s*(.*)$/);
+    if (task) {
+      closeList();
+      parts.push(taskListItemHtml({
+        checked: task[1].toLowerCase() === 'x',
+        bodyHtml: inlineMdToHtml(task[2]) || '<br>',
+      }));
+      continue;
+    }
     const ul = line.match(/^[-*] (.+)/); if (ul)  { if (inOl) closeList(); if (!inUl) { parts.push('<ul>'); inUl = true; } parts.push(`<li>${inlineMdToHtml(ul[1])}</li>`); continue; }
     const ol = line.match(/^\d+\. (.+)/);if (ol)  { if (inUl) closeList(); if (!inOl) { parts.push('<ol>'); inOl = true; } parts.push(`<li>${inlineMdToHtml(ol[1])}</li>`); continue; }
 

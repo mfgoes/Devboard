@@ -9,7 +9,6 @@ interface Result {
   id: string;
   label: string;
   sub: string;
-  layoutMode?: string;
   docType?: 'note' | 'canvas';
 }
 
@@ -43,13 +42,13 @@ export default function QuickSwitcher({ open, onClose, onPickPage, onPickDoc, on
 
   const results = useMemo<Result[]>(() => {
     const q = query.trim().toLowerCase();
+    const canvasPageIds = new Set(documents.filter((doc) => doc.docType === 'canvas' && doc.canvasPageId).map((doc) => doc.canvasPageId));
 
-    const pageResults: Result[] = pages.filter((p) => !p.isCanvasDocument).map((p) => ({
+    const pageResults: Result[] = pages.filter((p) => !p.isCanvasDocument && !canvasPageIds.has(p.id)).map((p) => ({
       kind: 'page',
       id: p.id,
       label: p.name,
       sub: 'Folder',
-      layoutMode: 'stack',
     }));
 
     const docResults: Result[] = documents.map((d) => {

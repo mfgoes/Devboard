@@ -534,9 +534,24 @@ type FolderSummary = {
   preview: string;
   noteTitles: string[];
   fileLabels: string[];
+  previewItems: Array<{
+    id: string;
+    title: string;
+    updatedAt: number;
+    isFavorite: boolean;
+  }>;
   tags: string[];
   descriptor?: FolderDescriptor;
 };
+
+function cleanFolderPreviewText(value: string) {
+  return value
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_, page: string, label?: string) => label || page)
+    .replace(/[#*_`>]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 
 function FolderCard({
   folder,
@@ -552,7 +567,7 @@ function FolderCard({
   const [hovered, setHovered] = useState(false);
   const isGrid = viewMode === 'grid';
   const description = folder.description || folder.preview;
-  const files = folder.fileLabels.length > 0 ? folder.fileLabels : folder.noteTitles;
+  const previewItems = folder.previewItems.slice(0, isGrid ? 3 : 2);
   const cardBorder = active
     ? 'rgba(184,119,80,0.42)'
     : hovered
@@ -652,46 +667,47 @@ function FolderCard({
               fontStyle: description ? 'normal' : 'italic',
             }}
           >
-            {description || 'No Markdown files in this folder yet.'}
+            {description || 'No files yet.'}
           </div>
         </div>
 
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 7,
-            marginTop: isGrid ? 'auto' : 0,
-            paddingTop: isGrid ? 2 : 4,
-            minWidth: 0,
-          }}
-        >
-          {files.slice(0, isGrid ? 3 : 2).map((title) => (
-            <div
-              key={title}
-              style={{
-                minHeight: 28,
-                display: 'grid',
-                gridTemplateColumns: '16px minmax(0, 1fr)',
-                alignItems: 'center',
-                gap: 7,
-                padding: '0 8px',
-                borderRadius: 6,
-                background: 'rgba(138,117,95,0.075)',
-                color: 'var(--c-text-md)',
-              }}
-            >
-              <span style={{ display: 'inline-flex', color: 'var(--c-text-lo)' }}><IconDoc /></span>
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11, fontWeight: 700 }}>
-                {title}
-              </span>
-            </div>
-          ))}
-          {files.length === 0 && (
-            <div style={{ minHeight: 28, display: 'flex', alignItems: 'center', padding: '0 8px', borderRadius: 6, background: 'rgba(138,117,95,0.06)', color: 'var(--c-text-lo)', fontSize: 11, fontWeight: 650 }}>
-              Empty folder
-            </div>
-          )}
+        {(previewItems.length > 0 || folder.favoriteCount > 0) && (
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 7,
+              marginTop: isGrid ? 'auto' : 0,
+              paddingTop: isGrid ? 2 : 4,
+              minWidth: 0,
+            }}
+          >
+            {previewItems.map((item) => (
+              <div
+                key={item.id}
+                style={{
+                  minHeight: 28,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '0 8px',
+                  borderRadius: 6,
+                  background: 'rgba(138,117,95,0.075)',
+                  color: 'var(--c-text-md)',
+                  minWidth: 0,
+                }}
+              >
+                <span style={{ display: 'inline-flex', color: item.isFavorite ? 'var(--c-line)' : 'var(--c-text-lo)', flexShrink: 0 }}>
+                  {item.isFavorite ? <IconStar filled size={12} /> : <IconDoc />}
+                </span>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11, fontWeight: 700, minWidth: 0 }}>
+                  {item.title}
+                </span>
+                <span style={{ marginLeft: 'auto', flexShrink: 0, fontSize: 10, fontWeight: 650, color: 'var(--c-text-lo)' }}>
+                  {formatDate(item.updatedAt)}
+                </span>
+              </div>
+            ))}
           {folder.favoriteCount > 0 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', minHeight: 22, marginTop: 1 }}>
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 999, background: 'rgba(226,190,114,0.12)', fontSize: 9.5, fontWeight: 750, color: 'var(--c-text-md)' }}>
@@ -700,7 +716,8 @@ function FolderCard({
               </span>
             </div>
           )}
-        </div>
+          </div>
+        )}
       </div>
     </button>
   );
@@ -729,7 +746,6 @@ export default function StackView({ pageId, pageName }: Props) {
 	const openPanelDocId = useBoardStore((s) => s.openPanelDocId);
 	const setOpenPanelDocId = useBoardStore((s) => s.setOpenPanelDocId);
 	const setDocViewMode = useBoardStore((s) => s.setDocViewMode);
-	const setPageLayoutMode = useBoardStore((s) => s.setPageLayoutMode);
 	const setPageNoteSort = useBoardStore((s) => s.setPageNoteSort);
   const switchPage = useBoardStore((s) => s.switchPage);
   const toggleFavoriteDocument = useBoardStore((s) => s.toggleFavoriteDocument);
@@ -1035,11 +1051,21 @@ export default function StackView({ pageId, pageName }: Props) {
   const activeMenuDoc = noteMenu ? documents.find((doc) => doc.id === noteMenu.docId) : null;
   const folderDescriptorById = useMemo(() => new Map(folderDescriptors.map((descriptor) => [descriptor.id, descriptor])), [folderDescriptors]);
   const folderSummaries = useMemo<FolderSummary[]>(() => {
-    return pages.map((entry) => {
+    const canvasPageIds = new Set(documents.filter((doc) => doc.docType === 'canvas' && doc.canvasPageId).map((doc) => doc.canvasPageId));
+    return pages.filter((entry) => !entry.isCanvasDocument && !canvasPageIds.has(entry.id)).map((entry) => {
       const docs = sortDocumentsForPage(documents.filter((doc) => doc.pageId === entry.id), 'updated');
-      const previewDoc = docs.find((doc) => stripHtml(doc.content));
+      const previewDoc = docs.find((doc) => doc.docType !== 'canvas' && stripHtml(doc.content)) ?? docs.find((doc) => stripHtml(doc.content));
       const descriptor = folderDescriptorById.get(entry.id);
       const descriptorFiles = descriptor?.files?.map((file) => file.title || file.path.split('/').pop() || file.path) ?? [];
+      const previewItems = [...docs]
+        .sort((a, b) => Number(!!b.isFavorite) - Number(!!a.isFavorite) || b.updatedAt - a.updatedAt)
+        .slice(0, 3)
+        .map((doc) => ({
+          id: doc.id,
+          title: cleanFolderPreviewText(doc.title || (doc.docType === 'canvas' ? 'Untitled canvas' : 'Untitled')),
+          updatedAt: doc.updatedAt,
+          isFavorite: !!doc.isFavorite,
+        }));
       const tags = Array.from(new Set([
         ...(descriptor?.tags ?? []),
         ...docs.flatMap((doc) => doc.tags ?? []),
@@ -1050,10 +1076,11 @@ export default function StackView({ pageId, pageName }: Props) {
         noteCount: docs.length,
         favoriteCount: docs.filter((doc) => !!doc.isFavorite).length,
         lastEditedAt: docs.length > 0 ? Math.max(...docs.map((doc) => doc.updatedAt)) : null,
-        description: descriptor?.description?.trim() || descriptor?.autoDescription?.trim() || '',
-        preview: previewDoc ? stripHtml(previewDoc.content).slice(0, 220) : '',
+        description: cleanFolderPreviewText(descriptor?.description?.trim() || descriptor?.autoDescription?.trim() || ''),
+        preview: previewDoc ? clampAtWordBoundary(cleanFolderPreviewText(stripHtml(previewDoc.content)), 220) : '',
         noteTitles: docs.slice(0, 3).map((doc) => doc.title || 'Untitled'),
         fileLabels: descriptorFiles.length > 0 ? descriptorFiles : docs.slice(0, 3).map((doc) => doc.linkedFile?.split('/').pop() ?? (doc.title || 'Untitled')),
+        previewItems,
         tags,
         descriptor,
       };
@@ -1127,8 +1154,6 @@ export default function StackView({ pageId, pageName }: Props) {
 	};
   const handleNewFolder = () => {
     addPage('Untitled folder');
-    const state = useBoardStore.getState();
-    setPageLayoutMode(state.activePageId, 'stack');
     setBrowserMode('notes');
   };
 	const showingFolders = browserMode === 'folders';

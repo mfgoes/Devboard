@@ -43,6 +43,7 @@ interface Props {
   onAnchorEnter?: (nodeId: string, side: AnchorSide) => void;
   onAnchorLeave?: () => void;
   snapAnchor?: AnchorSide | null;
+  onContextMenu?: (nodeId: string, x: number, y: number) => void;
 }
 
 function renderPreviewLine(line: PreviewLine, idx: number): React.ReactNode {
@@ -106,6 +107,31 @@ function renderPreviewLine(line: PreviewLine, idx: number): React.ReactNode {
       <span style={{ ...ellipsis }}>{renderSegs(line.segments)}</span>
     </div>
   );
+  if (line.kind === 'task') return (
+    <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden', color: line.checked ? 'var(--c-text-lo)' : 'var(--c-text-md)' }}>
+      <span
+        aria-hidden="true"
+        style={{
+          width: 10,
+          height: 10,
+          borderRadius: 2.5,
+          border: line.checked ? '1px solid var(--c-line)' : '1px solid var(--c-text-lo)',
+          background: line.checked ? 'var(--c-line)' : 'transparent',
+          color: 'white',
+          flexShrink: 0,
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: 8,
+          lineHeight: 1,
+          marginTop: 1,
+        }}
+      >
+        {line.checked ? '✓' : ''}
+      </span>
+      <span style={{ ...ellipsis, textDecoration: line.checked ? 'line-through' : undefined }}>{renderSegs(line.segments)}</span>
+    </div>
+  );
   if (line.kind === 'callout') return (
     <div
       key={idx}
@@ -136,7 +162,7 @@ function renderPreviewLine(line: PreviewLine, idx: number): React.ReactNode {
   );
 }
 
-export default function DocumentNodeComponent({ node, isSelected, isDrawingLine, onAnchorDown, onAnchorUp, onAnchorEnter, onAnchorLeave, snapAnchor }: Props) {
+export default function DocumentNodeComponent({ node, isSelected, isDrawingLine, onAnchorDown, onAnchorUp, onAnchorEnter, onAnchorLeave, snapAnchor, onContextMenu }: Props) {
   const { camera, updateNode, selectIds, setFocusDocument, openDocument, openDocumentWithMorph, activeTool, documents, activeDocId, focusDocumentId, noteAutosaveEnabled, saveHistory, setDocViewMode } = useBoardStore();
 
   // Post-migration: read title/content from Document entity; fall back to inline fields
@@ -269,6 +295,12 @@ export default function DocumentNodeComponent({ node, isSelected, isDrawingLine,
       <div
         ref={cardRef}
         onMouseDown={handleCardMouseDown}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          selectIds([node.id]);
+          onContextMenu?.(node.id, e.clientX, e.clientY);
+        }}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
         style={{

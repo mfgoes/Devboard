@@ -3,8 +3,28 @@ import { useBoardStore } from '../store/boardStore';
 export function focusNode(nodeId: string, afterMs = 0) {
   const run = () => {
     const state = useBoardStore.getState();
-    const node = state.nodes.find((n) => n.id === nodeId);
+    let pageId = state.activePageId;
+    let node = state.nodes.find((n) => n.id === nodeId);
+
+    if (!node) {
+      for (const [snapshotPageId, snapshot] of Object.entries(state.pageSnapshots)) {
+        const match = snapshot.nodes.find((n) => n.id === nodeId);
+        if (match) {
+          pageId = snapshotPageId;
+          node = match;
+          break;
+        }
+      }
+    }
+
     if (!node) return;
+
+    if (pageId !== state.activePageId) {
+      state.switchPage(pageId);
+      window.setTimeout(() => focusNode(nodeId), 0);
+      return;
+    }
+
     const n = node as { x: number; y: number; width?: number; height?: number };
     const w = n.width ?? 200;
     const h = n.height ?? 120;
