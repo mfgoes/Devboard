@@ -7,7 +7,8 @@ import {
   AlignLeft, AlignCenter, AlignRight,
   Code, Eye, CircleDot, Copy, TextWrap,
   Quote, Code2, Minus, Cloud, Pencil,
-  Link2, Star, ArrowRight, Unlink, Brackets, MoreHorizontal,
+  Link2, Star, ArrowLeft, ArrowRight, Unlink, Brackets, MoreHorizontal,
+  Search, Plus, User,
 } from 'lucide-react';
 
 export function IconGrip()         { return <GripVertical  size={12} />; }
@@ -26,6 +27,9 @@ export function IconCanvasDoc({ size = 13 }: { size?: number }) {
 export function IconSaveFile()     { return <Save          size={13} />; }
 export function IconFolder({ size = 13 }: { size?: number }) { return <Folder size={size} />; }
 export function IconCloud({ size = 15 }: { size?: number }) { return <Cloud size={size} />; }
+export function IconSearch({ size = 15 }: { size?: number }) { return <Search size={size} />; }
+export function IconPlus({ size = 16 }: { size?: number }) { return <Plus size={size} />; }
+export function IconUser({ size = 15 }: { size?: number }) { return <User size={size} />; }
 export function IconList()         { return <List          size={14} />; }
 export function IconListOrdered()  { return <ListOrdered   size={14} />; }
 export function IconAlignLeft()    { return <AlignLeft     size={13} />; }
@@ -42,6 +46,7 @@ export function IconHorizontalRule() { return <Minus        size={14} />; }
 export function IconLink()         { return <Link2         size={13} />; }
 export function IconWikiLink()     { return <Brackets      size={14} />; }
 export function IconMoreHorizontal({ size = 15 }: { size?: number }) { return <MoreHorizontal size={size} />; }
+export function IconArrowLeft({ size = 14 }: { size?: number }) { return <ArrowLeft size={size} />; }
 export function IconArrowRight({ size = 14 }: { size?: number }) { return <ArrowRight size={size} />; }
 export function IconUnlink({ size = 14 }: { size?: number }) { return <Unlink size={size} />; }
 export function IconStar({ filled = false, size = 13 }: { filled?: boolean; size?: number }) {

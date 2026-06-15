@@ -1970,7 +1970,7 @@ function PageGroup({
   );
 }
 
-export const WORKSPACE_EXPLORER_WIDTH = 340;
+export const WORKSPACE_EXPLORER_WIDTH = 240;
 
 // ── Main component ────────────────────────────────────────────────────────────
 interface Props {
@@ -3453,39 +3453,29 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
           </div>
         )}
 
-        {/* Sidebar expand/collapse button - always visible but secondary when expanded */}
+        {/* Sidebar collapse button */}
         <button
           onClick={onCollapse}
           title={isPreviewPanel ? 'Expand sidebar' : 'Collapse sidebar'}
-          className="flex items-center justify-center transition-all"
+          className="flex items-center justify-center transition-colors"
           style={{
-            width: 32,
-            height: 32,
-            border: isPreviewPanel ? '1px solid var(--c-border)' : '1px solid color-mix(in srgb, var(--c-border) 70%, transparent)',
-            borderRadius: 9,
-            background: isPreviewPanel
-              ? 'color-mix(in srgb, var(--c-canvas) 42%, transparent)'
-              : 'color-mix(in srgb, var(--c-canvas) 30%, transparent)',
-            color: 'var(--c-text-md)',
+            width: 28,
+            height: 28,
+            border: 'none',
+            borderRadius: 'var(--border-radius-md)',
+            background: 'transparent',
+            color: 'var(--color-text-secondary)',
             cursor: 'pointer',
-            opacity: isPreviewPanel ? 1 : 0.84,
             flexShrink: 0,
-            boxShadow: isPreviewPanel ? 'none' : 'inset 0 1px 0 color-mix(in srgb, white 42%, transparent)',
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.opacity = '1';
-            e.currentTarget.style.color = 'var(--c-text-hi)';
-            e.currentTarget.style.background = 'color-mix(in srgb, var(--c-hover) 82%, transparent)';
+            e.currentTarget.style.background = 'var(--color-background-secondary)';
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.opacity = isPreviewPanel ? '1' : '0.84';
-            e.currentTarget.style.color = 'var(--c-text-md)';
-            e.currentTarget.style.background = isPreviewPanel
-              ? 'color-mix(in srgb, var(--c-canvas) 42%, transparent)'
-              : 'color-mix(in srgb, var(--c-canvas) 30%, transparent)';
+            e.currentTarget.style.background = 'transparent';
           }}
         >
-          {isPreviewPanel ? <IconArrowRight size={15} /> : <IconSidebarToggle size={16} />}
+          <i className={`ti ${isPreviewPanel ? 'ti-layout-sidebar-left-expand' : 'ti-layout-sidebar-left-collapse'}`} aria-hidden="true" />
         </button>
       </div>
       {hasWorkspaceContext && (

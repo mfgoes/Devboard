@@ -4685,6 +4685,7 @@ export default function DocumentMode({
                 background: '#e6ded2',
                 padding: panelMode ? '24px 14px 40px' : '40px 24px 60px',
                 display: 'flex',
+                alignItems: 'flex-start',
                 justifyContent: 'center',
               }}
               onScroll={() => {

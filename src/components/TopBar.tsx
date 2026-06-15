@@ -10,7 +10,7 @@ import { openWorkspace, createWorkspace, saveWorkspace, hasWorkspaceHandle, clea
 import { toast } from '../utils/toast';
 import { exportDocumentsAsMarkdown, generateMarkdownFilename } from '../utils/exportMarkdown';
 import exportSound from '../assets/get1.mp3';
-import { IconDoc, IconSaveFile } from './icons';
+import { IconDoc, IconSaveFile, IconSidebarToggle } from './icons';
 import { announceLocalSave } from '../utils/saveStatus';
 import { applyWorkspaceSyncFromOpenResult } from '../utils/applyWorkspaceSync';
 import { DARK_MENU_CLASSES } from './darkMenuTheme';
@@ -445,53 +445,20 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
           borderBottom: '0.5px solid var(--c-topbar-border)',
         }}
       >
-      {/* Left: Logo + dropdown */}
+      {/* Left: sidebar entry point for narrow screens when the explorer is closed */}
       {!explorerOpen && (
-      <div className="pointer-events-auto absolute left-2 sm:left-4 top-1/2 flex max-w-[calc(50vw-132px)] -translate-y-1/2 items-center gap-1.5 sm:gap-2.5 min-w-0 overflow-visible">
-
-        {/* Logo + chevron */}
-        <div className="relative flex items-center shrink-0" ref={menuRef}>
+        <div className="pointer-events-auto absolute left-2 sm:left-4 top-1/2 flex -translate-y-1/2 items-center">
           <button
-            onClick={() => setMenuOpen((v) => !v)}
-            title="Menu"
-            className={[
-              'flex items-center gap-0.5 px-1.5 h-7 rounded transition-colors',
-              menuOpen
-                ? 'text-[var(--c-text-hi)] bg-[var(--c-hover)]'
-                : 'text-[var(--c-line)] hover:opacity-80 hover:bg-[var(--c-hover)]',
-            ].join(' ')}
+            type="button"
+            onClick={onToggleExplorer}
+            title="Open sidebar"
+            aria-label="Open sidebar"
+            className="flex h-8 w-8 items-center justify-center rounded-[9px] border border-[var(--c-border)] text-[var(--c-text-md)] transition-colors hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]"
+            style={{ background: 'color-mix(in srgb, var(--c-canvas) 42%, transparent)' }}
           >
-            <span className="font-sans text-[11px] font-semibold truncate max-w-[132px]">
-              {(workspaceFolderLabel ?? boardTitle.trim()) || 'DevBoard'}
-            </span>
-            <IconChevronDown />
+            <IconSidebarToggle size={16} />
           </button>
-
-          {/* Dropdown */}
-          {menuOpen && (
-            <div className={`absolute top-full left-0 mt-1.5 w-52 py-1.5 z-[220] ${DARK_MENU_CLASSES.panel}`}>
-              <MenuItem onClick={handleImportNotes} icon={<IconDoc />}>
-                Import notes...
-              </MenuItem>
-              <MenuDivider />
-              <MenuItem onClick={handleOpenFolder} icon={<IconFolder />}>
-                Switch workspace...
-              </MenuItem>
-              <MenuDivider />
-              <MenuItem
-                onClick={() => {
-                  setMenuOpen(false);
-                  window.dispatchEvent(new CustomEvent('devboard:open-preferences'));
-                }}
-                icon={<IconSettings />}
-              >
-                Preferences...
-              </MenuItem>
-              <MenuItem onClick={() => menuAction(onShowAbout)} icon={<IconAbout />}>Help & about</MenuItem>
-            </div>
-          )}
         </div>
-      </div>
       )}
 
       {/* Right: Actions */}

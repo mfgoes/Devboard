@@ -139,6 +139,7 @@ interface BoardState {
   lastLocalSavedAt: number | null;
   lastLocalSaveTarget: { kind: 'workspace' | 'file' | 'note'; name?: string | null } | null;
   explorerOpen: boolean;
+  sidebarCollapsed: boolean;
   imageAssetFolder: string;
   workspacePreferences: WorkspacePreferences;
   noteAutosaveEnabled: boolean;
@@ -172,6 +173,7 @@ interface BoardState {
   bumpWorkspaceSaved: () => void;
   markLocalSaved: (savedAt?: number, target?: { kind: 'workspace' | 'file' | 'note'; name?: string | null }) => void;
   setExplorerOpen: (open: boolean) => void;
+  setSidebarCollapsed: (collapsed: boolean) => void;
   setImageAssetFolder: (folder: string) => void;
   setWorkspacePreferences: (preferences: WorkspacePreferences) => void;
   setIgnoredMissingImagesSignature: (signature: string | null) => void;
@@ -251,6 +253,7 @@ export const useBoardStore = create<BoardState>()(
       lastLocalSavedAt: null,
       lastLocalSaveTarget: null,
       explorerOpen: false,
+      sidebarCollapsed: false,
       imageAssetFolder: 'assets',
       workspacePreferences: {},
       noteAutosaveEnabled: true,
@@ -354,6 +357,7 @@ export const useBoardStore = create<BoardState>()(
         ...(target ? { lastLocalSaveTarget: target } : {}),
       }),
       setExplorerOpen: (open) => set({ explorerOpen: open }),
+      setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
       setImageAssetFolder: (folder) => set({ imageAssetFolder: folder }),
       setWorkspacePreferences: (preferences) => set({ workspacePreferences: preferences }),
       setIgnoredMissingImagesSignature: (signature) => set((state) => ({
@@ -1023,6 +1027,7 @@ export const useBoardStore = create<BoardState>()(
           pages: state.pages,
           activePageId: state.activePageId,
           explorerOpen: state.explorerOpen,
+          sidebarCollapsed: state.sidebarCollapsed,
           imageAssetFolder: state.imageAssetFolder,
           workspacePreferences: state.workspacePreferences,
           noteAutosaveEnabled: state.noteAutosaveEnabled,

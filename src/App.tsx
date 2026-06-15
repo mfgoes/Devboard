@@ -40,6 +40,7 @@ import Canvas from './components/Canvas';
 import Toolbar from './components/Toolbar';
 import ZoomToolbar from './components/ZoomToolbar';
 import TopBar from './components/TopBar';
+import MobileNav from './components/MobileNav';
 import WelcomeModal from './components/WelcomeModal';
 import OnboardingModal from './components/OnboardingModal';
 import FocusMode from './components/FocusMode';
@@ -53,16 +54,15 @@ import SearchBar from './components/SearchBar';
 import { useBoardStore } from './store/boardStore';
 import { useAuth } from './contexts/AuthContext';
 import { applyTheme } from './theme';
-import { IconSidebarToggle } from './components/icons';
 import { createWelcomeBoard } from './templates/welcomeBoard';
 
-const EXPLORER_COLLAPSED_WIDTH = 44;
-const EXPLORER_EXPAND_HIT_WIDTH = 64;
-const DESKTOP_EXPLORER_BREAKPOINT = 1024;
+const EXPLORER_COLLAPSED_WIDTH = 48;
 const MOBILE_NOTE_BREAKPOINT = 768;
 const TOP_BAR_HEIGHT = 44;
 const NOTICE_HEIGHT = 40;
 const DOCUMENT_FULLSCREEN_Z = 210;
+const MORPH_MS = 380;
+const PANEL_SLIDE_MS = 220;
 const IS_WINDOWS = typeof navigator !== 'undefined' && navigator.userAgent.includes('Windows');
 
 function shouldKeepSidePanelOpenForTarget(target: EventTarget | null): boolean {
@@ -122,6 +122,8 @@ export default function App() {
   const [mobileCanvasToolsExpanded, setMobileCanvasToolsExpanded] = useState(false);
   const explorerOpen = useBoardStore((s) => s.explorerOpen);
   const setExplorerOpen = useBoardStore((s) => s.setExplorerOpen);
+  const sidebarCollapsed = useBoardStore((s) => s.sidebarCollapsed);
+  const setSidebarCollapsed = useBoardStore((s) => s.setSidebarCollapsed);
   const appMode = useBoardStore((s) => s.appMode);
   const pages = useBoardStore((s) => s.pages);
   const activePageId = useBoardStore((s) => s.activePageId);
@@ -135,6 +137,9 @@ export default function App() {
   const docViewMode = useBoardStore((s) => s.docViewMode);
   const setDocViewMode = useBoardStore((s) => s.setDocViewMode);
   const setOpenPanelDocId = useBoardStore((s) => s.setOpenPanelDocId);
+  const cloudBoardId = useBoardStore((s) => s.cloudBoardId);
+  const cloudSyncedAt = useBoardStore((s) => s.cloudSyncedAt);
+  const lastLocalSavedAt = useBoardStore((s) => s.lastLocalSavedAt);
 
   const boardTitle = useBoardStore((s) => s.boardTitle);
   const workspaceName = useBoardStore((s) => s.workspaceName);
@@ -164,20 +169,16 @@ export default function App() {
   }, [boardTitle, workspaceName]);
   const activeNoticeCount = Number(showBraveNotice) + Number(showMobileWorkspaceNotice);
   const contentTop = TOP_BAR_HEIGHT + activeNoticeCount * NOTICE_HEIGHT;
-  const [explorerWidth, setExplorerWidth] = useState(WORKSPACE_EXPLORER_WIDTH);
-  const [explorerCollapsed, setExplorerCollapsed] = useState(false);
-  const [explorerPreviewOpen, setExplorerPreviewOpen] = useState(false);
-  const [desktopExplorerPinned, setDesktopExplorerPinned] = useState(() => (
-    typeof window !== 'undefined' ? window.innerWidth >= DESKTOP_EXPLORER_BREAKPOINT : true
-  ));
+  const explorerCollapsed = sidebarCollapsed;
+  const setExplorerCollapsed = useCallback((next: boolean | ((current: boolean) => boolean)) => {
+    setSidebarCollapsed(typeof next === 'function' ? next(useBoardStore.getState().sidebarCollapsed) : next);
+  }, [setSidebarCollapsed]);
   const [isMobileViewport, setIsMobileViewport] = useState(() => (
     typeof window !== 'undefined' ? window.innerWidth < MOBILE_NOTE_BREAKPOINT : false
   ));
-  const explorerVisible = desktopExplorerPinned || explorerOpen;
-  const explorerOffset = explorerVisible ? (explorerCollapsed ? EXPLORER_COLLAPSED_WIDTH : explorerWidth) : 0;
+  const explorerVisible = !isMobileViewport;
+  const explorerOffset = explorerVisible ? (explorerCollapsed ? EXPLORER_COLLAPSED_WIDTH : WORKSPACE_EXPLORER_WIDTH) : 0;
   const documentFrameOffset = isMobileViewport ? 0 : explorerOffset;
-  const explorerDragRef = useRef(false);
-  const explorerPreviewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sidePanelDragRef = useRef(false);
   const documentTransitionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const docPanelRef = useRef<HTMLDivElement>(null);
@@ -187,10 +188,9 @@ export default function App() {
       : 420
   ));
   const effectiveDocViewMode = isMobileViewport || isStackPage ? 'fullscreen' : docViewMode;
+  const showMobileNavigator = isMobileViewport && appMode !== 'document' && !activePage?.isCanvasDocument;
 
   // ── Zoom-morph state machine ─────────────────────────────────────────────
-  const MORPH_MS = 380;
-  const PANEL_SLIDE_MS = 220;
   const [morphPhase, setMorphPhase] = useState<'idle' | 'opening' | 'open' | 'closing'>('idle');
   const [panelPhase, setPanelPhase] = useState<'idle' | 'open' | 'closing'>('idle');
   const [morphRectOverride, setMorphRectOverride] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
@@ -357,37 +357,16 @@ export default function App() {
     }, MORPH_MS);
   }, [getPanelRect, setDocViewMode]);
 
-  const openExplorerPreview = useCallback(() => {
-    if (!explorerCollapsed) return;
-    if (explorerPreviewTimerRef.current) {
-      clearTimeout(explorerPreviewTimerRef.current);
-      explorerPreviewTimerRef.current = null;
-    }
-    setExplorerPreviewOpen(true);
-  }, [explorerCollapsed]);
-
-  const scheduleExplorerPreviewClose = useCallback(() => {
-    if (explorerPreviewTimerRef.current) clearTimeout(explorerPreviewTimerRef.current);
-    explorerPreviewTimerRef.current = setTimeout(() => {
-      setExplorerPreviewOpen(false);
-      explorerPreviewTimerRef.current = null;
-    }, 120);
-  }, []);
-
-  useEffect(() => () => {
-    if (explorerPreviewTimerRef.current) clearTimeout(explorerPreviewTimerRef.current);
-  }, []);
-
-  useEffect(() => {
-    if (explorerVisible && explorerCollapsed) return;
-    setExplorerPreviewOpen(false);
-  }, [explorerCollapsed, explorerVisible]);
-
   const dismissSidePanelFromCanvas = useCallback(() => {
     if (appMode === 'document' && effectiveDocViewMode === 'panel' && !isStackPage && panelPhase === 'open') {
       closeDoc();
     }
   }, [appMode, closeDoc, effectiveDocViewMode, isStackPage, panelPhase]);
+
+  const openExplorer = useCallback(() => {
+    setExplorerCollapsed(false);
+    setExplorerOpen(true);
+  }, [setExplorerCollapsed, setExplorerOpen]);
 
   useEffect(() => {
     const handleSnapClose = () => snapCloseDoc();
@@ -416,6 +395,22 @@ export default function App() {
     if (useBoardStore.getState().appMode !== 'document') return false;
     window.dispatchEvent(new CustomEvent('devboard:save-active-document'));
     return true;
+  }, []);
+
+  const saveCurrentBoardQuietly = useCallback(() => {
+    const data = useBoardStore.getState().exportData();
+    if (getWorkspaceName()) {
+      void saveWorkspace(data, { notify: false }).then((result) => {
+        if (!result.saved) return;
+        announceLocalSave('workspace', result.workspaceName);
+      });
+      return;
+    }
+
+    void saveBoard(data, { notify: false }).then((result) => {
+      if (!result.saved) return;
+      announceLocalSave('file', result.targetName);
+    });
   }, []);
 
   const openExternalUrl = useCallback((url: string) => {
@@ -536,12 +531,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!desktopExplorerPinned && !explorerOpen) setExplorerCollapsed(false);
-  }, [desktopExplorerPinned, explorerOpen]);
-
-  useEffect(() => {
     const onResize = () => {
-      setDesktopExplorerPinned(window.innerWidth >= DESKTOP_EXPLORER_BREAKPOINT);
       setIsMobileViewport(window.innerWidth < MOBILE_NOTE_BREAKPOINT);
       setDocPanelWidth((current) => {
         const maxWidth = Math.max(380, window.innerWidth - (window.innerWidth < MOBILE_NOTE_BREAKPOINT ? 0 : explorerOffset) - 120);
@@ -637,18 +627,7 @@ export default function App() {
       if ((e.metaKey || e.ctrlKey) && e.key === 's') {
         e.preventDefault();
         if (requestActiveDocumentSave()) return;
-        const data = useBoardStore.getState().exportData();
-        if (getWorkspaceName()) {
-          saveWorkspace(data, { notify: false }).then((result) => {
-            if (!result.saved) return;
-            announceLocalSave('workspace', result.workspaceName);
-          });
-        } else {
-          saveBoard(data, { notify: false }).then((result) => {
-            if (!result.saved) return;
-            announceLocalSave('file', result.targetName);
-          });
-        }
+        saveCurrentBoardQuietly();
         return;
       }
 
@@ -665,6 +644,7 @@ export default function App() {
       // E — open file explorer (open-only; close requires the in-panel confirmation)
       if (!mod && e.key === 'e') {
         e.preventDefault();
+        useBoardStore.getState().setSidebarCollapsed(false);
         useBoardStore.getState().setExplorerOpen(true);
         return;
       }
@@ -782,7 +762,7 @@ export default function App() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, []);
+  }, [handleNewNote, requestActiveDocumentSave, saveCurrentBoardQuietly]);
 
   // Wire macOS native menu events → app actions
   useEffect(() => {
@@ -793,18 +773,7 @@ export default function App() {
       'menu:import_notes': () => { void promptAndImportMarkdownNotes(); },
       'menu:save':         () => {
         if (requestActiveDocumentSave()) return;
-        const data = useBoardStore.getState().exportData();
-        if (getWorkspaceName()) {
-          void saveWorkspace(data, { notify: false }).then((result) => {
-            if (!result.saved) return;
-            announceLocalSave('workspace', result.workspaceName);
-          });
-        } else {
-          void saveBoard(data, { notify: false }).then((result) => {
-            if (!result.saved) return;
-            announceLocalSave('file', result.targetName);
-          });
-        }
+        saveCurrentBoardQuietly();
       },
       'menu:save_as':      () => import('./utils/fileSave').then((m) => {
         void m.saveBoardAs(useBoardStore.getState().exportData(), { notify: false }).then((result) => {
@@ -826,7 +795,7 @@ export default function App() {
       'menu:check_updates': () => { void runUpdateCheck(true); },
     }).then(fn => { cleanup = fn; });
     return () => cleanup();
-  }, [handleNewNote, requestActiveDocumentSave, runUpdateCheck]);
+  }, [handleNewNote, requestActiveDocumentSave, runUpdateCheck, saveCurrentBoardQuietly]);
 
   useEffect(() => {
     const onDragOver = (event: DragEvent) => {
@@ -876,6 +845,37 @@ export default function App() {
   }, [installUpdate]);
 
   const handleCloseWelcome = () => setShowWelcome(false);
+  const syncDotColor = !cloudBoardId
+    ? null
+    : (!user || !cloudSyncedAt || (!!lastLocalSavedAt && lastLocalSavedAt > cloudSyncedAt + 1000))
+      ? '#d4900a'
+      : '#52a772';
+  const railButtonStyle = (active = false, tinted = false): React.CSSProperties => ({
+    width: 36,
+    height: 36,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    padding: 0,
+    border: 'none',
+    borderRadius: 8,
+    background: active ? '#fdf2ea' : 'transparent',
+    color: active || tinted ? '#b87750' : 'var(--color-text-secondary)',
+    cursor: 'pointer',
+    fontSize: 20,
+    transition: 'background 0.12s ease, color 0.12s ease',
+  });
+  const railHoverHandlers = (active = false, tinted = false) => ({
+    onMouseEnter: (e: React.MouseEvent<HTMLButtonElement>) => {
+      e.currentTarget.style.background = '#fdf2ea';
+      e.currentTarget.style.color = active || tinted ? '#b87750' : 'var(--c-text-hi)';
+    },
+    onMouseLeave: (e: React.MouseEvent<HTMLButtonElement>) => {
+      e.currentTarget.style.background = active ? '#fdf2ea' : 'transparent';
+      e.currentTarget.style.color = active || tinted ? '#b87750' : 'var(--color-text-secondary)';
+    },
+  });
 
   return (
     <div className="relative w-full h-full overflow-hidden bg-[var(--c-canvas)] font-sans">
@@ -892,33 +892,28 @@ export default function App() {
           )}
         </div>
       )}
-      <TopBar
-        onShowAbout={() => setShowWelcome(true)}
-        onNewNote={handleNewNote}
-        timerVisible={showTimer}
-        onToggleTimer={() => setShowTimer((v) => !v)}
-        explorerOpen={explorerVisible}
-        onToggleExplorer={() => {
-          if (desktopExplorerPinned) {
+      {!isMobileViewport && (
+        <TopBar
+          onShowAbout={() => setShowWelcome(true)}
+          onNewNote={handleNewNote}
+          timerVisible={showTimer}
+          onToggleTimer={() => setShowTimer((v) => !v)}
+          explorerOpen={explorerVisible}
+          onToggleExplorer={() => {
             setExplorerCollapsed((v) => !v);
-          } else if (explorerOpen) {
-            setExplorerOpen(false);
-          } else {
+          }}
+          onWorkspaceOpened={() => {
             setExplorerCollapsed(false);
             setExplorerOpen(true);
-          }
-        }}
-        onWorkspaceOpened={() => {
-          setExplorerCollapsed(false);
-          setExplorerOpen(true);
-        }}
-        jiraOpen={jiraOpen}
-        onToggleJira={() => setJiraOpen((v) => !v)}
-        onToggleSearch={() => setSearchOpen((v) => !v)}
-        workspaceOffset={documentFrameOffset}
-        templatesOpen={templatesOpen}
-        onTemplatesOpenChange={setTemplatesOpen}
-      />
+          }}
+          jiraOpen={jiraOpen}
+          onToggleJira={() => setJiraOpen((v) => !v)}
+          onToggleSearch={() => setSearchOpen((v) => !v)}
+          workspaceOffset={documentFrameOffset}
+          templatesOpen={templatesOpen}
+          onTemplatesOpenChange={setTemplatesOpen}
+        />
+      )}
       {showTimer && <TimerWidget onClose={() => setShowTimer(false)} />}
       {jiraOpen && <JiraPanel onClose={() => setJiraOpen(false)} />}
       {searchOpen && <SearchBar onClose={() => setSearchOpen(false)} />}
@@ -970,12 +965,13 @@ export default function App() {
             top: 0,
             left: 0,
             bottom: 0,
-            width: explorerCollapsed ? EXPLORER_COLLAPSED_WIDTH : explorerWidth,
+            width: explorerCollapsed ? EXPLORER_COLLAPSED_WIDTH : WORKSPACE_EXPLORER_WIDTH,
             zIndex: 520,
-            borderRight: '0.5px solid var(--c-sidebar-border)',
+            borderRight: explorerCollapsed ? 'none' : '0.5px solid var(--c-sidebar-border)',
             background: 'var(--c-sidebar)',
             boxShadow: 'none',
             overflow: 'hidden',
+            transition: 'width 0.2s ease',
           }}
         >
           {explorerCollapsed ? (
@@ -986,22 +982,52 @@ export default function App() {
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
-                padding: '10px 0',
+                gap: 2,
+                padding: '8px 0',
+                background: '#f7f6f4',
+                borderRight: '0.5px solid #e2e0dc',
               }}
             >
               <button
                 type="button"
-                onMouseEnter={openExplorerPreview}
-                onClick={() => {
-                  setExplorerPreviewOpen(false);
-                  setExplorerCollapsed(false);
-                }}
-                title="Open sidebar"
+                onClick={openExplorer}
+                title="Expand"
                 aria-label="Open sidebar"
-                className="w-8 h-8 flex items-center justify-center rounded-lg text-[var(--c-text-md)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] transition-colors"
-                style={{ border: '1px solid var(--c-border)', background: 'color-mix(in srgb, var(--c-canvas) 42%, transparent)', cursor: 'pointer' }}
+                style={railButtonStyle()}
+                {...railHoverHandlers()}
               >
-                <IconSidebarToggle size={16} />
+                <i className="ti ti-layout-sidebar-left-expand" aria-hidden="true" />
+              </button>
+              <div style={{ width: 24, height: 0.5, background: '#e2e0dc', flexShrink: 0 }} />
+	              <button
+	                type="button"
+	                onClick={() => setSearchOpen(false)}
+	                title="Folders"
+	                aria-label="Folders"
+	                style={railButtonStyle(!searchOpen)}
+                {...railHoverHandlers(!searchOpen)}
+              >
+                <i className="ti ti-folder" aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setSearchOpen(true)}
+                title="Search"
+                aria-label="Search"
+                style={railButtonStyle(searchOpen)}
+                {...railHoverHandlers(searchOpen)}
+              >
+                <i className="ti ti-search" aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                onClick={handleNewNote}
+                title="New"
+                aria-label="New"
+                style={railButtonStyle(false, true)}
+                {...railHoverHandlers(false, true)}
+              >
+                <i className="ti ti-plus" aria-hidden="true" />
               </button>
               <button
                 type="button"
@@ -1009,17 +1035,37 @@ export default function App() {
                   e.stopPropagation();
                   openCloudModal();
                 }}
-                title={accountLabel}
+                title="Sync"
                 aria-label="Open Workspace Sync"
-                className="mt-auto flex items-center justify-center rounded-full transition-colors hover:bg-[var(--c-hover)]"
-                style={{
-                  width: 34,
-                  height: 34,
-                  padding: 3,
-                  border: 'none',
-                  background: 'transparent',
-                  cursor: 'pointer',
+                style={{ ...railButtonStyle(false), marginTop: 'auto' }}
+                {...railHoverHandlers()}
+              >
+                <i className="ti ti-cloud" aria-hidden="true" />
+                {syncDotColor && (
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      position: 'absolute',
+                      top: 7,
+                      right: 7,
+                      width: 5,
+                      height: 5,
+                      borderRadius: 999,
+                      background: syncDotColor,
+                    }}
+                  />
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openCloudModal();
                 }}
+                title="Account"
+                aria-label="Account"
+                style={railButtonStyle()}
+                {...railHoverHandlers()}
               >
                 <span
                   style={{
@@ -1030,7 +1076,7 @@ export default function App() {
                     alignItems: 'center',
                     justifyContent: 'center',
                     overflow: 'hidden',
-                    background: 'var(--c-line)',
+                    background: '#c9895c',
                     color: '#fff',
                     fontFamily: 'var(--font-ui)',
                     fontSize: 10,
@@ -1048,96 +1094,18 @@ export default function App() {
             </div>
           ) : (
             <>
-              <WorkspaceExplorer onClose={() => setExplorerOpen(false)} onCollapse={() => setExplorerCollapsed(true)} canClose={!desktopExplorerPinned} />
-              {/* Resize handle */}
-              <div
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  right: -3,
-                  width: 6,
-                  bottom: 0,
-                  cursor: 'col-resize',
-                  zIndex: 10,
-                }}
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  explorerDragRef.current = true;
-                  const startX = e.clientX;
-                  const startW = explorerWidth;
-                  const onMove = (ev: MouseEvent) => {
-                    if (!explorerDragRef.current) return;
-                    const next = Math.max(180, Math.min(560, startW + ev.clientX - startX));
-                    setExplorerWidth(next);
-                  };
-                  const onUp = () => {
-                    explorerDragRef.current = false;
-                    window.removeEventListener('mousemove', onMove);
-                    window.removeEventListener('mouseup', onUp);
-                  };
-                  window.addEventListener('mousemove', onMove);
-                  window.addEventListener('mouseup', onUp);
-                }}
-              />
+              <WorkspaceExplorer onClose={() => setExplorerCollapsed(true)} onCollapse={() => setExplorerCollapsed(true)} canClose={false} />
             </>
           )}
         </div>
       )}
-      {explorerVisible && explorerCollapsed && (
-        <div
-          onClick={() => {
-            setExplorerPreviewOpen(false);
-            setExplorerCollapsed(false);
-          }}
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            bottom: 0,
-            width: EXPLORER_EXPAND_HIT_WIDTH,
-            zIndex: 175,
-            border: 'none',
-            padding: 0,
-            background: 'transparent',
-            cursor: 'pointer',
-          }}
+      {showMobileNavigator ? (
+        <MobileNav
+          onOpenSync={() => openCloudModal()}
+          onOpenAccount={() => openCloudModal()}
         />
-      )}
-      {explorerVisible && explorerCollapsed && explorerPreviewOpen && (
+      ) : (
         <div
-          onMouseEnter={openExplorerPreview}
-          onMouseLeave={scheduleExplorerPreviewClose}
-          className="animate-sidebar-preview-in"
-          style={{
-            position: 'absolute',
-            top: 8,
-            left: EXPLORER_COLLAPSED_WIDTH - 1,
-            bottom: 12,
-            width: Math.min(300, explorerWidth, WORKSPACE_EXPLORER_WIDTH),
-            zIndex: 540,
-            border: '0.5px solid var(--c-sidebar-border)',
-            borderRadius: '0 12px 12px 0',
-            background: 'var(--c-sidebar)',
-            boxShadow: 'none',
-            overflow: 'hidden',
-            transformOrigin: 'left center',
-          }}
-        >
-          <WorkspaceExplorer
-            onClose={() => {
-              setExplorerPreviewOpen(false);
-              setExplorerOpen(false);
-            }}
-            onCollapse={() => {
-              setExplorerPreviewOpen(false);
-              setExplorerCollapsed(false);
-            }}
-            canClose={!desktopExplorerPinned}
-            collapseIcon="open"
-          />
-        </div>
-      )}
-      <div
         style={{
           position: 'absolute',
           top: contentTop,
@@ -1152,9 +1120,10 @@ export default function App() {
         ) : (
           <Canvas onBackgroundInteract={dismissSidePanelFromCanvas} />
         )}
-      </div>
-      {!isStackPage && appMode !== 'document' && <Toolbar onMobileExpandedChange={setMobileCanvasToolsExpanded} />}
-      {!isStackPage && appMode !== 'document' && <ZoomToolbar hideOnMobile={mobileCanvasToolsExpanded} />}
+        </div>
+      )}
+      {!showMobileNavigator && !isStackPage && appMode !== 'document' && <Toolbar onMobileExpandedChange={setMobileCanvasToolsExpanded} />}
+      {!showMobileNavigator && !isStackPage && appMode !== 'document' && <ZoomToolbar hideOnMobile={mobileCanvasToolsExpanded} />}
       {appMode !== 'document' && <FocusMode />}
       {showOnboarding && (
         <OnboardingModal
