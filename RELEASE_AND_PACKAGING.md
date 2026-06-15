@@ -1,4 +1,4 @@
-# DevBoard — Build & Release Guide
+# DevBoard - Release and Packaging Guide
 
 ## Prerequisites
 
@@ -10,7 +10,7 @@
 
 ---
 
-## Local development
+## Local Development
 
 ```bash
 npm run dev          # browser dev server
@@ -19,16 +19,18 @@ npm run tauri:dev    # Tauri desktop window (hot-reload)
 
 ---
 
-## Building
+## Build Outputs
 
-### Web (itch.io HTML)
+### Web Bundle
 
 ```bash
 npm run zip
 # → devboard-itchio.zip + docs/app.html updated
 ```
 
-### Desktop — current platform
+Use `npm run release:html` when you want to build the web bundle and push both itch.io HTML channels.
+
+### Desktop - Current Platform
 
 ```bash
 npm run tauri:build
@@ -37,10 +39,10 @@ npm run tauri:build
 | Platform | Output |
 |----------|--------|
 | macOS (ARM) | `src-tauri/target/release/bundle/dmg/DevBoard_*.dmg` |
-| Windows | `src-tauri/target/release/bundle/nsis/DevBoard_*_x64-setup.exe` |
+| Windows | `src-tauri/target/release/bundle/nsis/DevBoard_*-setup.exe` |
 | Linux | `src-tauri/target/release/bundle/deb/*.deb` / `appimage/*.AppImage` |
 
-### macOS ARM cross-build (explicit target)
+### macOS ARM Cross-Build
 
 ```bash
 npm run tauri:build:mac-arm
@@ -50,12 +52,11 @@ npm run tauri:build:mac-arm
 
 ---
 
-## Releasing to itch.io
+## Release to itch.io
 
-### HTML web build
+### HTML Web Build
 ```bash
-npm run zip
-butler push devboard-itchio.zip mischa/devboard:html
+npm run release:html
 ```
 
 ### macOS ARM
@@ -78,20 +79,25 @@ gh run list --workflow=tauri-build.yml --repo mfgoes/Devboard --limit=5
 
 Download and push Windows:
 ```bash
-gh run download <RUN_ID> --repo mfgoes/Devboard --name devboard-windows-x64 --dir /tmp/win-build
-butler push "/tmp/win-build/DevBoard_*_x64-setup.exe" mischa/devboard:windows
+gh run download <RUN_ID> --repo mfgoes/Devboard --name devboard-windows-x64 --dir /tmp/devboard-win-build
+butler push "/tmp/devboard-win-build/DevBoard-Windows.exe" mischa/devboard:windows
 ```
 
-> Each build also produces fixed-name artifacts (`DevBoard-macOS.dmg`, `DevBoard-Windows.exe`,
-> `DevBoard-Linux.AppImage`) alongside the versioned ones. These are used as stable
-> `releases/latest/download/` URLs on the download page.
+Each CI build also produces fixed-name artifacts:
 
-### Linux — local build (no CI required)
+- `DevBoard-macOS.dmg`
+- `DevBoard-macOS.app.tar.gz`
+- `DevBoard-Windows.exe`
+- `DevBoard-Linux.AppImage`
+
+Tagged releases include updater signatures where applicable. The fixed names are used as stable `releases/latest/download/` URLs on the download page.
+
+### Linux - Local Build
 
 Linux requires the GTK/WebKit system libraries that aren't available on macOS.
-Two options: **Docker** (from any machine) or **native Linux**.
+CI builds Linux automatically. Use these local options only when you need to test or publish a Linux build outside CI.
 
-#### Option A — Docker (from macOS or any host)
+#### Option A - Docker
 
 ```bash
 # Pull the Tauri community Linux builder image
@@ -107,19 +113,19 @@ docker run --rm \
 
 The AppImage lands at:
 ```
-src-tauri/target/release/bundle/appimage/devboard_*.AppImage
+src-tauri/target/release/bundle/appimage/DevBoard_*.AppImage
 ```
 
 Copy it to a fixed name and push:
 ```bash
-cp src-tauri/target/release/bundle/appimage/devboard_*.AppImage DevBoard-Linux.AppImage
+cp src-tauri/target/release/bundle/appimage/DevBoard_*.AppImage DevBoard-Linux.AppImage
 butler push DevBoard-Linux.AppImage mischa/devboard:linux
 ```
 
 > **First time with Docker?** `docker login ghcr.io` shouldn't be needed for this public image.
 > If the pull fails, use the alternative Debian-based approach below.
 
-#### Option A (alternative) — Debian slim + manual deps
+#### Option A Alternative - Debian Slim
 
 ```bash
 docker run --rm \
@@ -133,11 +139,11 @@ docker run --rm \
       libayatana-appindicator3-dev librsvg2-dev patchelf && \
     npm ci && npm run tauri:build
   "
-cp src-tauri/target/release/bundle/appimage/devboard_*.AppImage DevBoard-Linux.AppImage
+cp src-tauri/target/release/bundle/appimage/DevBoard_*.AppImage DevBoard-Linux.AppImage
 butler push DevBoard-Linux.AppImage mischa/devboard:linux
 ```
 
-#### Option B — native Linux machine
+#### Option B - Native Linux
 
 Install system deps (Ubuntu/Debian):
 ```bash
@@ -151,7 +157,7 @@ Then build and push exactly like macOS:
 ```bash
 npm ci
 npm run tauri:build
-cp src-tauri/target/release/bundle/appimage/devboard_*.AppImage DevBoard-Linux.AppImage
+cp src-tauri/target/release/bundle/appimage/DevBoard_*.AppImage DevBoard-Linux.AppImage
 butler push DevBoard-Linux.AppImage mischa/devboard:linux
 ```
 
@@ -165,17 +171,17 @@ butler push DevBoard-Linux.AppImage mischa/devboard:linux
 
 ---
 
-## CI (GitHub Actions)
+## CI and GitHub Releases
 
 Workflow: `.github/workflows/tauri-build.yml`
 
 **Triggers:**
-- Push to `main` — builds all platforms, uploads as artifacts
-- Tag `v*` — builds all platforms and creates a GitHub Release
+- Push to `main`: builds all platforms and uploads artifacts
+- Tag `v*`: builds all platforms and creates a GitHub Release
 
 ```bash
-git tag v0.2.0 && git push origin v0.2.0
-# ~10–15 min → binaries in the GitHub Release
+git tag vX.Y.Z && git push origin vX.Y.Z
+# About 10-15 min later, binaries appear in the GitHub Release.
 ```
 
 **Platforms built:** macOS ARM, Windows x64, Linux x64.
@@ -194,9 +200,9 @@ npx tauri icon path/to/icon-1024.png
 
 ---
 
-## Version bumps
+## Version Bumps and Updater Signing
 
-Update `version` in `package.json` **and** `src-tauri/tauri.conf.json` before each release.
+Update `version` in `package.json` and `src-tauri/tauri.conf.json` before each release.
 
 The desktop app's built-in updater now uses Tauri's signed updater flow and checks `https://github.com/mfgoes/Devboard/releases/latest/download/latest.json`.
 

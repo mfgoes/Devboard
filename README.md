@@ -28,73 +28,33 @@ It is for ideas that start as messy notes, grow through links and backlinks, and
 
 DevBoard works without an account. Your workspace is a folder of Markdown and JSON files on your machine.
 
-When you want backup or multi-device access, you can sign in with GitHub or Google and sync up to 10 selected workspaces through EU-hosted Supabase storage.
+When you want backup or multi-device access, you can sign in with GitHub or Google and sync selected workspaces through EU-hosted Supabase storage.
 
 Cloud sync is optional. Local ownership stays the default.
 
-Recent sync work includes:
-
-- GitHub and Google authentication
-- Cloud workspace picker for creating, opening, renaming, and deleting synced workspaces
-- Push/pull sync for selected workspaces, including updates to existing cloud copies
-- Save status in the app chrome, with local save and cloud sync timestamps
-- Device identity tracking for clearer multi-device sync state
-- Supabase row-level security policies and workspace sync history/location tables
-- Local folder materialization for Markdown notes, canvas pages, assets, and workspace metadata
-
 ---
 
-## Future subscriptions
+## Local and cloud
 
 DevBoard is free to use locally. The core note-taking, canvas, linking, and export features are not meant to sit behind a subscription.
 
-In the future, paid plans will focus on convenience, storage, and continuity — the parts that cost money to run — while keeping the local-first workflow intact.
+Cloud sync is the convenience layer: backup, continuity, and access from more than one device. Local files remain the source of trust.
 
-### Free / Local
-
-For people who want a private, offline workspace.
+Local use includes:
 
 - Unlimited local workspaces
-- Markdown notes and canvas pages
-- `[[wikilinks]]`, backlinks, and `@node:` references
-- Local folder storage
-- Manual backup and `git` workflows
-- Export to Markdown, JSON, and PNG
+- Markdown notes, canvas pages, and local assets
+- `[[wikilinks]]`, backlinks, favorites, and `@node:` references
+- Export to Markdown, JSON, PNG, and zip
 - No account required
 
-### Sync
+Optional sync adds:
 
-For people who want backup and access across devices.
-
-**Proposed price:** €5/month, or €48/year  
-**Early supporter price:** €4/month, or €36/year
-
-Includes:
-
-- Cloud sync for up to 10 workspaces
-- GitHub or Google login
+- GitHub and Google login
 - EU-hosted cloud storage
-- Automatic backup
-- Multi-device access
-- Future version history / restore points
-
-This pricing is intentionally close to other local-first sync products rather than full SaaS whiteboard tools. The goal is to make cloud sync sustainable without making DevBoard feel like another subscription-first app.
-
-### Possible future paid extras
-
-These are not part of the core promise, but may become paid add-ons later:
-
-- More synced workspaces
-- More cloud storage
-- Longer version history
-- Publishing or shareable read-only spaces
-- Collaboration features
-- Team or project workspaces
-- Priority support
-
-The goal is simple: DevBoard should be sustainable without turning into a lock-in SaaS product.
-
-Local stays free. Cloud convenience pays for the infrastructure.
+- Cloud workspace picker for create/open/rename/delete
+- Push/pull sync for selected workspaces
+- Local save and cloud sync status indicators
 
 
 ## Who it's for
@@ -135,10 +95,10 @@ Keep architecture diagrams, planning boards, and notes next to your project file
 - Favorites, recents, and quick switcher (`⌘K`)  
 
 ### ☁️ Sync (optional)
-- Cloud backup & sync (up to 10 workspaces)  
+- Cloud backup and sync for selected workspaces  
 - GitHub / Google login  
 - Hosted in EU (NL) infrastructure  
-- Built on Supabase → AWS (EU region)  
+- Built on Supabase with EU-region storage  
 - Create, open, rename, delete, push, and pull synced workspaces  
 - Local save and cloud sync status indicators  
 
@@ -168,8 +128,8 @@ macOS · Windows · Linux
 | [Manual](https://mfgoes.github.io/Devboard/manual.html) | Full feature guide |
 | [Download page](https://mfgoes.github.io/Devboard/download.html) | Desktop builds |
 | [Self-hosting](https://mfgoes.github.io/Devboard/self-hosting.html) | Run your own instance |
-| [Development guide](DEVELOPMENT.md) | Tech stack, architecture, project structure, roadmap |
-| [Build & release guide](BUILD.md) | Packaging & deployment |
+| [Engineering guide](DEVBOARD_ENGINEERING_GUIDE.md) | Development setup, tech stack, architecture, project structure, roadmap |
+| [Release and packaging guide](RELEASE_AND_PACKAGING.md) | Desktop packaging, updater artifacts, itch.io, and GitHub releases |
 
 ---
 

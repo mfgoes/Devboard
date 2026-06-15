@@ -1,4 +1,4 @@
-# DevBoard - Development and Tech Stack
+# DevBoard - Engineering Guide
 
 DevBoard is a local-first note app for connected thinking. The product flow is:
 
@@ -30,7 +30,7 @@ npm run tauri:build:win
 npm run tauri:build:linux
 ```
 
-For desktop packaging and release details, see [BUILD.md](BUILD.md).
+For desktop packaging, updater artifacts, and release steps, see [RELEASE_AND_PACKAGING.md](RELEASE_AND_PACKAGING.md).
 
 ---
 
