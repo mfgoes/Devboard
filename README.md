@@ -1,7 +1,7 @@
 # DevBoard
 
 **The note app that thinks visually.**  
-Write notes, connect ideas, and map the bigger picture in one local-first workspace — with Markdown, `[[wikilinks]]`, backlinks, favorites, and a real infinite canvas.
+Write Markdown notes, connect ideas with links and backlinks, then map the bigger picture on an infinite canvas.
 
 [Open in browser](https://mfgoes.github.io/Devboard/) · [Download](https://mfgoes.github.io/Devboard/download.html) · [Manual](https://mfgoes.github.io/Devboard/manual.html)
 
@@ -13,11 +13,12 @@ DevBoard starts with a simple goal: help you clear your head by writing things d
 
 Most note apps are good at pages. Most whiteboard tools are good at diagrams. But real thinking moves between both: a quick note becomes a related note, a backlink reveals a pattern, and eventually the pieces need a visual map.
 
-DevBoard keeps that flow in one local-first workspace:
+DevBoard starts with notes and keeps the canvas close by:
 
-- **Write** in Markdown with `[[wikilinks]]`, backlinks, and focus mode
-- **Link** notes together so one thought can lead naturally to the next
-- **Map** connected notes on an infinite canvas with stickies, shapes, sections, connectors, images, and code blocks
+- **Write** Markdown notes before the thought disappears
+- **Link** related notes with `[[wikilinks]]`, backlinks, favorites, recents, and quick navigation
+- **Focus** on one note or browse related notes in stack view
+- **Map** connected ideas on an infinite canvas with stickies, shapes, sections, connectors, images, and code blocks
 - **Reference** canvas nodes from documents with `@node:` mentions
 
 It is for ideas that start as messy notes, grow through links and backlinks, and eventually need to become a visible system.
@@ -72,14 +73,12 @@ Keep architecture diagrams, planning boards, and notes next to your project file
 
 ## Key features
 
-### ✍️ Notes and knowledge graph
-- Clean Markdown editor with formatting toolbar  
-- `[[Wikilinks]]` between notes  
-- Backlinks panel (bi-directional linking)  
-- Favorite notes for quick access in the sidebar  
-- `@node:` mentions — reference canvas nodes inside documents  
-- Focus mode for deep work  
-- Stack view for browsing notes  
+### ✍️ Notes-first workflow
+- Markdown notes are the starting point
+- `[[Wikilinks]]`, backlinks, favorites, recents, and quick switcher
+- Focus mode for deep writing
+- Stack view for browsing related notes
+- `@node:` mentions — reference canvas nodes inside documents
 
 ### 🧠 Canvas (visual thinking)
 - Infinite canvas — no limits  
@@ -93,6 +92,12 @@ Keep architecture diagrams, planning boards, and notes next to your project file
 - File explorer (VS Code-style)  
 - Multiple canvas pages + Markdown notes  
 - Favorites, recents, and quick switcher (`⌘K`)  
+
+### 📱 Mobile-friendly notes
+- Responsive note browsing and writing views
+- Dedicated mobile navigation for folders, notes, search, sync, and account access
+- Touch-friendly access to core note and canvas workflows
+- Folder-based local workspaces still work best on desktop browsers or the desktop app
 
 ### ☁️ Sync (optional)
 - Cloud backup and sync for selected workspaces  

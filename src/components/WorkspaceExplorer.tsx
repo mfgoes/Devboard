@@ -1978,10 +1978,12 @@ interface Props {
   onCollapse: () => void;
   canClose?: boolean;
   collapseIcon?: 'close' | 'open';
+  compactHeader?: boolean;
 }
 
-export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true, collapseIcon = 'close' }: Props) {
+export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true, collapseIcon = 'close', compactHeader = false }: Props) {
   const isPreviewPanel = collapseIcon === 'open';
+  const useOpenSidebarIcon = isPreviewPanel || compactHeader;
   const { isConfigured: authConfigured, isLoading: authLoading, user, signOut } = useAuth();
   const imageAssetFolder = useBoardStore((s) => s.imageAssetFolder);
   const boardTitle = useBoardStore((s) => s.boardTitle);
