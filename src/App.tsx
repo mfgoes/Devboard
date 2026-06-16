@@ -55,6 +55,7 @@ import { useBoardStore } from './store/boardStore';
 import { useAuth } from './contexts/AuthContext';
 import { applyTheme } from './theme';
 import { createWelcomeBoard } from './templates/welcomeBoard';
+import devboardIconUrl from './assets/devboard_icon.png';
 
 const EXPLORER_COLLAPSED_WIDTH = 48;
 const MOBILE_NOTE_BREAKPOINT = 768;
@@ -362,11 +363,6 @@ export default function App() {
       closeDoc();
     }
   }, [appMode, closeDoc, effectiveDocViewMode, isStackPage, panelPhase]);
-
-  const openExplorer = useCallback(() => {
-    setExplorerCollapsed(false);
-    setExplorerOpen(true);
-  }, [setExplorerCollapsed, setExplorerOpen]);
 
   useEffect(() => {
     const handleSnapClose = () => snapCloseDoc();
@@ -898,7 +894,7 @@ export default function App() {
           onNewNote={handleNewNote}
           timerVisible={showTimer}
           onToggleTimer={() => setShowTimer((v) => !v)}
-          explorerOpen={explorerVisible}
+          explorerOpen={!explorerCollapsed}
           onToggleExplorer={() => {
             setExplorerCollapsed((v) => !v);
           }}
@@ -990,16 +986,19 @@ export default function App() {
             >
               <button
                 type="button"
-                onClick={openExplorer}
-                title="Expand"
-                aria-label="Open sidebar"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  window.dispatchEvent(new CustomEvent('devboard:toggle-app-menu', { detail: { left: 8 } }));
+                }}
+                title="App menu"
+                aria-label="App menu"
                 style={railButtonStyle()}
                 {...railHoverHandlers()}
               >
-                <i className="ti ti-layout-sidebar-left-expand" aria-hidden="true" />
+                <img src={devboardIconUrl} alt="" draggable={false} style={{ width: 19, height: 19, borderRadius: 4 }} />
               </button>
               <div style={{ width: 24, height: 0.5, background: '#e2e0dc', flexShrink: 0 }} />
-	              <button
+              <button
 	                type="button"
 	                onClick={() => setSearchOpen(false)}
 	                title="Folders"

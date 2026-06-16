@@ -2,7 +2,7 @@
  * Pure utilities for the file tree: icons, colors, constants, and data structures.
  * No dependencies on component state or hooks.
  */
-import { CodeLanguage } from '../../types';
+import type { Camera, CanvasNode, CodeLanguage, Document, PageMeta } from '../../types';
 
 export const SKIP_DIRS = new Set([
   'node_modules', '.git', '.next', 'dist', 'build', '.cache',
@@ -113,6 +113,13 @@ export function buildEntry(name: string, kind: 'file' | 'directory', parentPath:
   return { name, kind, path: [...parentPath, name], expanded: false, loading: false };
 }
 
+export function sortTreeEntries(entries: TreeEntry[]): TreeEntry[] {
+  return [...entries].sort((a, b) => {
+    if (a.kind !== b.kind) return a.kind === 'directory' ? -1 : 1;
+    return a.name.localeCompare(b.name, undefined, { numeric: true });
+  });
+}
+
 export function flatVisible(entries: TreeEntry[]): TreeEntry[] {
   const result: TreeEntry[] = [];
   for (const e of entries) {
@@ -120,4 +127,95 @@ export function flatVisible(entries: TreeEntry[]): TreeEntry[] {
     if (e.kind === 'directory' && e.expanded && e.children) result.push(...flatVisible(e.children));
   }
   return result;
+}
+
+export const HIDDEN_ASSET_ROOTS = new Set(['notes', 'documents', 'pages']);
+export const HIDDEN_ASSET_FILES = new Set(['workspace.json']);
+export const WORKSPACE_MANAGED_ROOTS = new Set(['notes', 'documents', 'pages']);
+export const WORKSPACE_MANAGED_FILES = new Set(['workspace.json']);
+
+export function buildVirtualCloudTree({
+  pages,
+  documents,
+  nodes,
+  pageSnapshots,
+  expandedPaths,
+}: {
+  pages: PageMeta[];
+  documents: Document[];
+  nodes: CanvasNode[];
+  pageSnapshots: Record<string, { nodes: CanvasNode[]; camera: Camera }>;
+  expandedPaths: Set<string>;
+}): TreeEntry[] {
+  const roots = new Map<string, TreeEntry>();
+  const ensureDir = (path: string[]): TreeEntry => {
+    const name = path[path.length - 1];
+    const parentPath = path.slice(0, -1);
+    const target = path.join('/');
+    const parent = parentPath.length ? ensureDir(parentPath) : null;
+    const siblings = parent ? (parent.children ??= []) : Array.from(roots.values());
+    let entry = siblings.find((item) => item.name === name && item.kind === 'directory');
+    if (!entry) {
+      entry = {
+        ...buildEntry(name, 'directory', parentPath),
+        expanded: expandedPaths.has(target),
+        loading: false,
+        children: [],
+      };
+      if (parent) parent.children = sortTreeEntries([...(parent.children ?? []), entry]);
+      else roots.set(name, entry);
+    } else {
+      entry.expanded = expandedPaths.has(target);
+      entry.children ??= [];
+    }
+    return entry;
+  };
+  const addFile = (path: string[]) => {
+    if (path.length === 0) return;
+    const fileName = path[path.length - 1];
+    const parentPath = path.slice(0, -1);
+    const parent = parentPath.length ? ensureDir(parentPath) : null;
+    const entry = buildEntry(fileName, 'file', parentPath);
+    if (parent) {
+      if (!(parent.children ?? []).some((item) => item.path.join('/') === entry.path.join('/'))) {
+        parent.children = sortTreeEntries([...(parent.children ?? []), entry]);
+      }
+    } else if (!roots.has(fileName)) {
+      roots.set(fileName, entry);
+    }
+  };
+
+  addFile(['workspace.json']);
+  for (const page of pages) addFile(['pages', `${page.id}.json`]);
+  for (const doc of documents) {
+    if (!doc.linkedFile) continue;
+    addFile(doc.linkedFile.split('/').filter(Boolean));
+  }
+
+  const allNodes = [
+    ...nodes,
+    ...Object.values(pageSnapshots).flatMap((snapshot) => snapshot.nodes),
+  ];
+  for (const node of allNodes) {
+    if (node.type !== 'image' || !node.assetName) continue;
+    const folder = node.assetFolder || 'assets';
+    addFile([...folder.split('/').filter(Boolean), node.assetName]);
+  }
+
+  return sortTreeEntries(Array.from(roots.values()));
+}
+
+export function isVisibleInAssets(entry: TreeEntry): boolean {
+  if (entry.path.length === 0) return true;
+  const root = entry.path[0];
+  if (!root) return true;
+  if (HIDDEN_ASSET_ROOTS.has(root)) return false;
+  if (entry.path.length === 1 && HIDDEN_ASSET_FILES.has(entry.name)) return false;
+  return true;
+}
+
+export function isWorkspaceManagedEntry(entry: TreeEntry): boolean {
+  const root = entry.path[0];
+  if (!root) return false;
+  return WORKSPACE_MANAGED_ROOTS.has(root) || (entry.path.length === 1 && WORKSPACE_MANAGED_FILES.has(entry.name));
 }

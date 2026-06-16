@@ -1,8 +1,25 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { type CSSProperties, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useBoardStore } from '../store/boardStore';
 import { AccountMenu } from './AccountMenu';
+import {
+  IconAsset,
+  IconCheck,
+  IconChevronDown,
+  IconDevice,
+  IconEmptyCloud,
+  IconFolderOpen,
+  IconGitHub,
+  IconGoogle,
+  IconMore,
+  IconNewWorkspace,
+  IconNote,
+  IconPage,
+  IconRefresh,
+  tablerDeviceClass,
+} from './CloudModalIcons';
 import ModalCloseButton from './ModalCloseButton';
+import { cx, DropdownMenu, DropdownMenuItem, InlinePanel, ModalActionButton, ProgressPanel, SURFACE_CLASS } from './modalUi';
 import {
   createCloudBoard as createCloudWorkspaceSnapshot,
   deleteCloudBoard as deleteCloudWorkspaceSnapshot,
@@ -224,25 +241,6 @@ function workspaceContentsLabel(workspace: CloudWorkspaceSummary): string {
   return `${summary.notes} notes · ${summary.canvasItems} canvas items`;
 }
 
-function IconGitHub() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-      <path d="M8 1.2a6.8 6.8 0 0 0-2.15 13.25c.34.06.47-.15.47-.33v-1.18c-1.9.41-2.3-.8-2.3-.8-.3-.78-.74-.99-.74-.99-.6-.41.05-.4.05-.4.67.05 1.03.69 1.03.69.6 1.02 1.57.72 1.95.55.06-.43.24-.72.43-.89-1.52-.17-3.13-.76-3.13-3.38 0-.75.27-1.36.7-1.84-.07-.17-.3-.87.07-1.82 0 0 .58-.19 1.9.7a6.6 6.6 0 0 1 3.46 0c1.32-.89 1.89-.7 1.89-.7.38.95.15 1.65.08 1.82.44.48.7 1.09.7 1.84 0 2.63-1.61 3.2-3.15 3.37.25.21.46.62.46 1.26v1.87c0 .18.12.39.48.33A6.8 6.8 0 0 0 8 1.2Z" />
-    </svg>
-  );
-}
-
-function IconGoogle() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 18 18" fill="none" aria-hidden="true">
-      <path d="M16.45 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.18a3.58 3.58 0 0 1-1.55 2.35v2h2.52c1.48-1.36 2.3-3.37 2.3-5.99Z" fill="currentColor" />
-      <path d="M9 16.75c2.09 0 3.85-.69 5.14-1.87l-2.52-2c-.7.47-1.6.75-2.62.75-2.01 0-3.71-1.36-4.32-3.19H2.08v2.06A7.75 7.75 0 0 0 9 16.75Z" fill="currentColor" opacity="0.9" />
-      <path d="M4.68 10.44A4.66 4.66 0 0 1 4.44 9c0-.5.08-.99.24-1.44V5.5H2.08A7.75 7.75 0 0 0 1.25 9c0 1.24.3 2.42.83 3.5l2.6-2.06Z" fill="currentColor" opacity="0.75" />
-      <path d="M9 4.37c1.14 0 2.16.39 2.96 1.16l2.22-2.22C12.84 2.06 11.09 1.25 9 1.25A7.75 7.75 0 0 0 2.08 5.5l2.6 2.06C5.29 5.73 6.99 4.37 9 4.37Z" fill="currentColor" opacity="0.6" />
-    </svg>
-  );
-}
-
 function errorMessage(err: unknown, fallback: string): string {
   if (err instanceof Error && err.message) return err.message;
   if (typeof err === 'object' && err !== null && 'message' in err && typeof (err as { message?: unknown }).message === 'string') {
@@ -299,142 +297,8 @@ function mergeWorkspaceLocations(
   return Array.from(merged.values()).sort((a, b) => bestLocationTime(b) - bestLocationTime(a));
 }
 
-function IconDevice({ kind }: { kind: DeviceKind }) {
-  if (kind === 'mac') {
-    return (
-      <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center text-[var(--c-text-lo)]" aria-label="Mac">
-        <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-          <path d="M11.9 8.5c0-1.5 1.2-2.2 1.3-2.3-.7-1-1.8-1.1-2.2-1.1-.9-.1-1.8.5-2.3.5s-1.2-.5-2-.5c-1 0-2 .6-2.5 1.5-1.1 1.9-.3 4.8.8 6.3.5.8 1.1 1.6 2 1.6.8 0 1.1-.5 2-.5s1.2.5 2 .5.1.1 2-1.7c.4-.6.6-1.2.7-1.3-.1 0-1.6-.6-1.6-2.5ZM10.4 4.1c.4-.5.7-1.2.6-1.9-.6 0-1.3.4-1.7.9-.4.5-.7 1.2-.6 1.8.6.1 1.3-.3 1.7-.8Z" />
-        </svg>
-      </span>
-    );
-  }
-  if (kind === 'windows') {
-    return (
-      <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center text-[var(--c-text-lo)]" aria-label="Windows">
-        <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-          <path d="M1.7 3.1 7 2.4v5.1H1.7V3.1Zm6-.8 6.6-.9v6.1H7.7V2.3ZM1.7 8.2H7v5.2l-5.3-.7V8.2Zm6 0h6.6v6.1l-6.6-.9V8.2Z" />
-        </svg>
-      </span>
-    );
-  }
-  if (kind === 'mobile') {
-    return (
-      <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center text-[var(--c-text-lo)]" aria-label="Mobile">
-        <svg width="12" height="13" viewBox="0 0 12 16" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true">
-          <rect x="2.2" y="1.4" width="7.6" height="13.2" rx="1.6" />
-          <path d="M5 12.2h2" strokeLinecap="round" />
-        </svg>
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center text-[var(--c-text-lo)]" aria-label="Device">
-      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true">
-        <rect x="2" y="3" width="12" height="8" rx="1.2" />
-        <path d="M6 13h4M8 11v2" strokeLinecap="round" />
-      </svg>
-    </span>
-  );
-}
-
-function tablerDeviceClass(kind: DeviceKind | null | undefined): string {
-  return kind === 'mac' ? 'ti-brand-apple' : 'ti-device-desktop';
-}
-
 function duplicateCopyLabel(count: number): string {
   return `${count} older ${count === 1 ? 'copy' : 'copies'} with the same name found`;
-}
-
-function IconRefresh() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
-      <path d="M10.2 4.2a4.1 4.1 0 1 0 .2 4.1" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" />
-      <path d="M10.4 1.9v2.6H7.8" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function IconFolderOpen() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
-      <path d="M1.4 4.3a1 1 0 0 1 1-1h2.2l1 1h5a1 1 0 0 1 1 1v.5" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
-      <path d="M1.8 5.6h9.8l-1 4.4a1 1 0 0 1-1 .8H2.8a1 1 0 0 1-1-.8l-.6-3.2a1 1 0 0 1 .6-1.2Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function IconChevronDown() {
-  return (
-    <svg width="11" height="11" viewBox="0 0 11 11" fill="none" aria-hidden="true">
-      <path d="M3 4.3 5.5 6.8 8 4.3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function IconNewWorkspace() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
-      <path d="M1.5 4.1a1 1 0 0 1 1-1h2.2l1 1h4.8a1 1 0 0 1 1 1v4.4a1 1 0 0 1-1 1h-8a1 1 0 0 1-1-1V4.1Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
-      <path d="M6.5 5.7v3M5 7.2h3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function IconEmptyCloud() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
-      <path d="M5.8 13.4H13a3 3 0 0 0 .3-6 4.3 4.3 0 0 0-8.2-1.1A3.6 3.6 0 0 0 5.8 13.4Z" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M9 8.2v3.2M7.4 9.8h3.2" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function IconCheck() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-      <circle cx="6" cy="6" r="5" fill="currentColor" opacity="0.18" />
-      <path d="M3.2 6.1 5.1 7.9 8.9 4" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function IconPage() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.35" aria-hidden="true">
-      <path d="M3 2h5.1L11 4.9V12H3V2Z" />
-      <path d="M8 2v3h3M4.8 7.2h4.4M4.8 9.2h3" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function IconNote() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.35" aria-hidden="true">
-      <path d="M3 2.5h8v9H3z" />
-      <path d="M5 5h4M5 7h4M5 9h2.5" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function IconAsset() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.35" aria-hidden="true">
-      <rect x="2.5" y="3" width="9" height="8" rx="1.4" />
-      <path d="M4.3 9.2 6.2 7.3l1.3 1.2.9-1 1.4 1.7" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx="9.2" cy="5.4" r=".7" fill="currentColor" stroke="none" />
-    </svg>
-  );
-}
-
-function IconMore() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true">
-      <circle cx="3" cy="7" r="1.15" />
-      <circle cx="7" cy="7" r="1.15" />
-      <circle cx="11" cy="7" r="1.15" />
-    </svg>
-  );
 }
 
 export default function CloudModal({ open, onClose, initialTab = 'workspace' }: { open: boolean; onClose: () => void; initialTab?: 'workspace' | 'library' }) {
@@ -489,11 +353,6 @@ export default function CloudModal({ open, onClose, initialTab = 'workspace' }: 
   const signUpTabRef = useRef<HTMLButtonElement>(null);
   const syncFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [authTabIndicator, setAuthTabIndicator] = useState<{ left: number; width: number }>({ left: 0, width: 0 });
-  const modalHeaderSurface = { background: 'color-mix(in srgb, var(--c-panel) 78%, var(--c-canvas))' };
-  const leftPaneSurface = { background: 'color-mix(in srgb, var(--c-canvas) 82%, var(--c-panel))' };
-  const secondSurface = { background: 'color-mix(in srgb, var(--c-canvas) 58%, var(--c-panel))' };
-  const quietSurface = { background: 'color-mix(in srgb, var(--c-canvas) 42%, var(--c-panel))' };
-  const betaSurface = { background: 'color-mix(in srgb, var(--c-canvas) 50%, var(--c-panel))' };
   const accountLabel = user?.user_metadata?.user_name
     ?? user?.user_metadata?.preferred_username
     ?? user?.user_metadata?.name
@@ -631,10 +490,10 @@ export default function CloudModal({ open, onClose, initialTab = 'workspace' }: 
     ? ['Synced to cloud', `Last synced ${lastSyncedLabel}`, currentDeviceLabel]
     : [currentStatus, currentDeviceLabel];
   const workspaceStatusDotClass = syncEnabled
-    ? 'bg-[rgb(72,112,92)]'
+    ? 'bg-[var(--c-green)]'
     : currentStatus === 'Local changes not synced' || currentStatus === 'Sync paused' || currentStatus === 'Folder access needed'
-      ? 'bg-[#f59e0b]'
-      : 'bg-[rgb(54,137,151)]';
+      ? 'bg-[var(--c-yellow)]'
+      : 'bg-[var(--c-line)]';
   const newerCloudWorkspace = hasNewerCloudCopy
     ? linkedCloudWorkspace ?? inferredCloudWorkspace ?? workspaces.find((workspace) => workspace.id === effectiveCloudBoardId) ?? null
     : null;
@@ -1610,7 +1469,7 @@ export default function CloudModal({ open, onClose, initialTab = 'workspace' }: 
       ? `Cloud ${formatExactDate(workspace.updatedAt)}${recent ? ` · Local ${formatExactDate(localUpdatedAt)}` : ''}`
       : `${recent ? `Local ${formatExactDate(localUpdatedAt)}` : `Updated ${formatExactDate(workspace?.updatedAt ?? null)}`}${workspace && recent ? ` · Cloud ${formatExactDate(workspace.updatedAt)}` : ''}`;
     const syncLabel = workspace && recent ? 'Synced' : workspace && !recent ? 'Cloud only' : 'Local only';
-    const syncDotColor = syncLabel === 'Synced' ? '#52a772' : '#888';
+    const syncDotClass = syncLabel === 'Synced' ? 'bg-[var(--c-green)]' : 'bg-[var(--c-text-lo)]';
     const metaDate = workspace ? formatExactDate(workspace.updatedAt) : formatExactDate(localUpdatedAt);
     const metaDeviceKind = primaryLocationLabel?.deviceKind ?? (recent ? formatWorkspaceLocationLabel({
       deviceId: getDeviceId(),
@@ -1629,7 +1488,7 @@ export default function CloudModal({ open, onClose, initialTab = 'workspace' }: 
           selected
             ? 'border-[var(--c-text-lo)] bg-[var(--c-hover)]'
             : options.cloudShelf
-              ? 'border-[rgba(120,167,145,0.34)] bg-[rgba(120,167,145,0.08)] hover:bg-[rgba(120,167,145,0.12)]'
+              ? 'border-[var(--c-green)]/35 bg-[color-mix(in_srgb,var(--c-green)_8%,transparent)] hover:bg-[color-mix(in_srgb,var(--c-green)_12%,transparent)]'
               : 'border-[var(--c-border)] bg-[var(--c-panel)] hover:bg-[var(--c-hover)]',
         ].join(' ')}
       >
@@ -1645,7 +1504,7 @@ export default function CloudModal({ open, onClose, initialTab = 'workspace' }: 
               <p className="truncate font-sans text-[12px] font-semibold text-[var(--c-text-hi)]">{row.title}</p>
             </div>
             <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5 font-sans text-[12px] text-[var(--color-text-secondary)]" title={primaryLocationLabel?.fullPath ?? undefined}>
-              <span className="h-[7px] w-[7px] shrink-0 rounded-full" style={{ background: syncDotColor }} aria-hidden="true" />
+              <span className={cx('h-[7px] w-[7px] shrink-0 rounded-full', syncDotClass)} aria-hidden="true" />
               <span className="shrink-0">{syncLabel}</span>
               {workspace && (
                 <>
@@ -1693,42 +1552,36 @@ export default function CloudModal({ open, onClose, initialTab = 'workspace' }: 
         </div>
 
         {workspace && choiceOpen && !rowDownloadProgress && (
-          <div className="mt-3 rounded-lg border border-[var(--c-border)] px-3 py-2" style={secondSurface}>
+          <InlinePanel className="mt-3">
             <p className="font-sans text-[12px] font-semibold text-[var(--c-text-hi)]">Open this synced project?</p>
             <p className="mt-1 font-sans text-[11px] leading-relaxed text-[var(--c-text-md)]">
               Open the online snapshot now, or download it into an empty local folder for normal project saves.
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
-              <button onClick={() => void handleDownloadWorkspace(workspace, row.id)} disabled={actionLoading !== null} className="rounded-lg bg-[var(--c-line)] px-2.5 py-1.5 font-sans text-[11px] font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-default disabled:opacity-60">
+              <ModalActionButton onClick={() => void handleDownloadWorkspace(workspace, row.id)} disabled={actionLoading !== null} variant="primary">
                 Download to folder...
-              </button>
-              <button onClick={() => void handleLoadWorkspace(workspace)} disabled={actionLoading !== null} className="rounded-lg border border-[var(--c-border)] px-2.5 py-1.5 font-sans text-[11px] font-semibold text-[var(--c-text-md)] transition-colors hover:bg-[var(--c-canvas)] hover:text-[var(--c-text-hi)] disabled:cursor-default disabled:opacity-60">
+              </ModalActionButton>
+              <ModalActionButton onClick={() => void handleLoadWorkspace(workspace)} disabled={actionLoading !== null}>
                 Open cloud
-              </button>
-              <button onClick={() => setDownloadChoiceRowId(null)} disabled={actionLoading !== null} className="px-1 py-1.5 font-sans text-[11px] text-[var(--c-text-lo)] transition-colors hover:text-[var(--c-text-hi)] disabled:cursor-default disabled:opacity-60">
+              </ModalActionButton>
+              <ModalActionButton onClick={() => setDownloadChoiceRowId(null)} disabled={actionLoading !== null} variant="ghost" className="px-1">
                 Cancel
-              </button>
+              </ModalActionButton>
             </div>
-          </div>
+          </InlinePanel>
         )}
 
         {rowDownloadProgress && (
-          <div className="mt-3 rounded-lg border border-[rgba(54,137,151,0.26)] bg-[rgba(54,137,151,0.08)] px-3 py-2">
-            <div className="flex items-center justify-between gap-3">
-              <p className="truncate font-sans text-[11px] font-semibold text-[var(--c-text-hi)]">{rowDownloadProgress.label}</p>
-              <span className="shrink-0 font-sans text-[11px] font-semibold text-[rgb(38,103,116)]">{progressPercent}%</span>
-            </div>
-            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[var(--c-border)]/60">
-              <div className="h-full rounded-full bg-[var(--c-line)] transition-[width] duration-200" style={{ width: `${progressPercent}%` }} />
-            </div>
-            {rowDownloadProgress.warning && (
-              <p className="mt-2 font-sans text-[11px] leading-relaxed text-[#b45309]">{rowDownloadProgress.warning}</p>
-            )}
-          </div>
+          <ProgressPanel
+            className="mt-3"
+            label={rowDownloadProgress.label}
+            percent={progressPercent}
+            warning={rowDownloadProgress.warning}
+          />
         )}
 
         {workspace && renaming && (
-          <div className="mt-3 rounded-lg border border-[var(--c-border)] px-3 py-2" style={secondSurface}>
+          <InlinePanel className="mt-3">
             <p className="font-sans text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--c-text-lo)]">Rename synced project</p>
             <input
               autoFocus
@@ -1742,46 +1595,45 @@ export default function CloudModal({ open, onClose, initialTab = 'workspace' }: 
               className="mt-2 w-full rounded-lg border border-[var(--c-border)] bg-[var(--c-panel)] px-3 py-2 font-sans text-[12px] text-[var(--c-text-hi)] outline-none focus:border-[var(--c-line)]"
             />
             <div className="mt-2 flex flex-wrap gap-2">
-              <button onClick={() => void handleRenameWorkspace(workspace)} disabled={actionLoading !== null} className="rounded-lg bg-[var(--c-line)] px-2.5 py-1.5 font-sans text-[11px] font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-default disabled:opacity-60">
+              <ModalActionButton onClick={() => void handleRenameWorkspace(workspace)} disabled={actionLoading !== null} variant="primary">
                 {renameBusy ? 'Renaming...' : 'Rename'}
-              </button>
-              <button onClick={cancelRenameWorkspace} disabled={actionLoading !== null} className="px-1 py-1.5 font-sans text-[11px] text-[var(--c-text-lo)] transition-colors hover:text-[var(--c-text-hi)] disabled:cursor-default disabled:opacity-60">
+              </ModalActionButton>
+              <ModalActionButton onClick={cancelRenameWorkspace} disabled={actionLoading !== null} variant="ghost" className="px-1">
                 Cancel
-              </button>
+              </ModalActionButton>
             </div>
-          </div>
+          </InlinePanel>
         )}
 
         {menuOpen && !confirmingDelete && !confirmingReplace && !renaming && (
-          <div className="absolute right-4 top-12 z-30 w-52 rounded-xl border border-[var(--c-border)] bg-[var(--c-panel)] p-1.5 shadow-2xl" onMouseDown={(e) => e.stopPropagation()}>
-            <button
+          <DropdownMenu className="w-52 p-1.5" onMouseDown={(e) => e.stopPropagation()}>
+            <DropdownMenuItem
               onClick={() => {
                 setDetailsRowId((current) => current === row.id ? null : row.id);
                 setWorkspaceMenuId(null);
               }}
-              className="w-full rounded-lg px-2.5 py-2 text-left font-sans text-[11px] font-semibold text-[var(--c-text-md)] transition-colors hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]"
             >
               {detailsOpen ? 'Hide details' : 'See details'}
-            </button>
+            </DropdownMenuItem>
             {workspace && (
               <>
-                <button onClick={() => startRenameWorkspace(workspace)} className="w-full rounded-lg px-2.5 py-2 text-left font-sans text-[11px] font-semibold text-[var(--c-text-md)] transition-colors hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]">Rename</button>
-                <button onClick={() => setReplaceConfirmId(workspace.id)} className="w-full rounded-lg px-2.5 py-2 text-left font-sans text-[11px] font-semibold text-[var(--c-text-md)] transition-colors hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]">Replace with current</button>
-                <button onClick={() => void handleDownloadWorkspace(workspace, row.id)} className="w-full rounded-lg px-2.5 py-2 text-left font-sans text-[11px] font-semibold text-[var(--c-text-md)] transition-colors hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]">Download to folder...</button>
-                <button onClick={() => setDeleteConfirmId(workspace.id)} className="w-full rounded-lg px-2.5 py-2 text-left font-sans text-[11px] font-semibold text-[#b45309] transition-colors hover:bg-[#f59e0b]/10 hover:text-[#92400e]">Delete synced copy</button>
+                <DropdownMenuItem onClick={() => startRenameWorkspace(workspace)}>Rename</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setReplaceConfirmId(workspace.id)}>Replace with current</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => void handleDownloadWorkspace(workspace, row.id)}>Download to folder...</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setDeleteConfirmId(workspace.id)} tone="danger">Delete synced copy</DropdownMenuItem>
               </>
             )}
             {recent && localUnavailable && (
-              <button onClick={() => void handleRelocateRecent(recent)} className="w-full rounded-lg px-2.5 py-2 text-left font-sans text-[11px] font-semibold text-[var(--c-text-md)] transition-colors hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]">Relocate folder</button>
+              <DropdownMenuItem onClick={() => void handleRelocateRecent(recent)}>Relocate folder</DropdownMenuItem>
             )}
             {canRemoveRecent && (
-              <button onClick={() => void handleRemoveRecent(recent)} className="w-full rounded-lg px-2.5 py-2 text-left font-sans text-[11px] font-semibold text-[#b45309] transition-colors hover:bg-[#f59e0b]/10 hover:text-[#92400e]">Remove from recents</button>
+              <DropdownMenuItem onClick={() => void handleRemoveRecent(recent)} tone="danger">Remove from recents</DropdownMenuItem>
             )}
-          </div>
+          </DropdownMenu>
         )}
 
         {detailsOpen && (
-          <div className="mt-3 rounded-lg border border-[var(--c-border)] px-3 py-2" style={secondSurface}>
+          <InlinePanel className="mt-3">
             <p className="font-sans text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--c-text-lo)]">Project details</p>
             {contentSummary ? (
               <p className="mt-2 font-sans text-[12px] leading-relaxed text-[var(--c-text-hi)]">
@@ -1797,9 +1649,9 @@ export default function CloudModal({ open, onClose, initialTab = 'workspace' }: 
               {workspace && <p>Cloud: <span className="text-[var(--c-text-md)]">{formatExactDate(workspace.updatedAt)}</span></p>}
             </div>
             {workspaceConflicts.length > 0 && (
-              <div className="mt-3 rounded-lg border border-[#f59e0b]/25 bg-[#f59e0b]/10 px-3 py-2">
-                <p className="font-sans text-[11px] font-semibold text-[#92400e]">Possible merge conflict</p>
-                <p className="mt-1 font-sans text-[11px] leading-relaxed text-[#b45309]">
+              <InlinePanel className="mt-3" tone="warning">
+                <p className="font-sans text-[11px] font-semibold text-[var(--c-text-hi)]">Possible merge conflict</p>
+                <p className="mt-1 font-sans text-[11px] leading-relaxed text-[var(--c-text-md)]">
                   {workspaceConflicts.map((group) => group.reason).join(', ')} with {conflictPeers.length} other cloud {conflictPeers.length === 1 ? 'copy' : 'copies'}.
                 </p>
                 {conflictPeers.length > 0 && (
@@ -1807,7 +1659,7 @@ export default function CloudModal({ open, onClose, initialTab = 'workspace' }: 
                     Also found: {conflictPeers.map((peer) => peer.title).join(', ')}
                   </p>
                 )}
-              </div>
+              </InlinePanel>
             )}
             {displayLocations.length > 0 && (
               <div className="mt-3 border-t border-[var(--c-border)]/70 pt-2">
@@ -1822,7 +1674,7 @@ export default function CloudModal({ open, onClose, initialTab = 'workspace' }: 
                         : 'Last opened';
                     const lastValue = location.lastLocalSavedAt ?? location.lastSyncedAt ?? location.lastOpenedAt ?? null;
                     return (
-                      <div key={location.key} className="rounded-lg border border-[var(--c-border)]/70 px-2.5 py-2" style={quietSurface}>
+                      <InlinePanel key={location.key} className="px-2.5 py-2" tone="quiet">
                         <div className="flex min-w-0 items-center gap-1.5">
                           <IconDevice kind={label.deviceKind} />
                           <p className="truncate font-sans text-[11px] font-semibold text-[var(--c-text-hi)]" title={label.fullPath ?? undefined}>{label.label}</p>
@@ -1831,56 +1683,55 @@ export default function CloudModal({ open, onClose, initialTab = 'workspace' }: 
                           <p>{lastLabel}: <span className="text-[var(--c-text-md)]">{formatExactDate(lastValue)}</span></p>
                           {label.fullPath && <p className="truncate" title={label.fullPath}>Path: <span className="text-[var(--c-text-md)]">{label.fullPath}</span></p>}
                         </div>
-                      </div>
+                      </InlinePanel>
                     );
                   })}
                 </div>
               </div>
             )}
-          </div>
+          </InlinePanel>
         )}
 
         {workspace && confirmingReplace && (
-          <div className="mt-3 rounded-lg border border-[var(--c-line)]/25 bg-[rgba(184,119,80,0.10)] px-3 py-2">
+          <InlinePanel className="mt-3" tone="accent">
             <p className="font-sans text-[12px] font-semibold text-[var(--c-text-hi)]">Replace this synced copy?</p>
             <p className="mt-1 font-sans text-[11px] leading-relaxed text-[var(--c-text-md)]">This overwrites the online copy with the project currently open here.</p>
             <div className="mt-3 flex flex-wrap gap-2">
-              <button onClick={() => void handleReplaceWorkspace(workspace)} disabled={actionLoading !== null} className="rounded-lg bg-[var(--c-line)] px-2.5 py-1.5 font-sans text-[11px] font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-default disabled:opacity-60">
+              <ModalActionButton onClick={() => void handleReplaceWorkspace(workspace)} disabled={actionLoading !== null} variant="primary">
                 {replacing ? 'Replacing...' : 'Replace'}
-              </button>
-              <button onClick={() => { setReplaceConfirmId(null); setWorkspaceMenuId(null); }} disabled={actionLoading !== null} className="px-1 py-1.5 font-sans text-[11px] text-[var(--c-text-lo)] transition-colors hover:text-[var(--c-text-hi)] disabled:cursor-default disabled:opacity-60">Cancel</button>
+              </ModalActionButton>
+              <ModalActionButton onClick={() => { setReplaceConfirmId(null); setWorkspaceMenuId(null); }} disabled={actionLoading !== null} variant="ghost" className="px-1">Cancel</ModalActionButton>
             </div>
-          </div>
+          </InlinePanel>
         )}
 
         {workspace && confirmingDelete && (
-          <div className="absolute right-4 top-12 z-30 w-64 rounded-xl border border-[#f59e0b]/25 bg-[var(--c-panel)] px-3 py-3 shadow-2xl" onMouseDown={(e) => e.stopPropagation()}>
+          <DropdownMenu className="w-64 border-[var(--c-red)]/25 px-3 py-3" onMouseDown={(e) => e.stopPropagation()}>
             <p className="font-sans text-[12px] font-semibold text-[var(--c-text-hi)]">Delete synced copy?</p>
             <p className="mt-1 font-sans text-[11px] leading-relaxed text-[var(--c-text-md)]">This removes the online copy only. Your local project stays on this device.</p>
             <div className="mt-3 flex flex-wrap gap-2">
-              <button onClick={() => void handleDeleteWorkspace(workspace)} disabled={actionLoading !== null} className="rounded-lg bg-[#b45309] px-2.5 py-1.5 font-sans text-[11px] font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-default disabled:opacity-60">
+              <ModalActionButton onClick={() => void handleDeleteWorkspace(workspace)} disabled={actionLoading !== null} variant="danger">
                 {deleting ? 'Deleting...' : 'Delete'}
-              </button>
-              <button onClick={() => { setDeleteConfirmId(null); setWorkspaceMenuId(null); }} disabled={actionLoading !== null} className="px-1 py-1.5 font-sans text-[11px] text-[var(--c-text-lo)] transition-colors hover:text-[var(--c-text-hi)] disabled:cursor-default disabled:opacity-60">Cancel</button>
+              </ModalActionButton>
+              <ModalActionButton onClick={() => { setDeleteConfirmId(null); setWorkspaceMenuId(null); }} disabled={actionLoading !== null} variant="ghost" className="px-1">Cancel</ModalActionButton>
             </div>
-          </div>
+          </DropdownMenu>
         )}
 
         {showDuplicateBar && (
-          <div className="-mx-3 -mb-2.5 mt-3 flex flex-wrap items-center justify-between gap-2 bg-[#fef5ec] px-[14px] py-2" style={{ borderTop: '0.5px solid #f0c090' }}>
-            <div className="flex min-w-0 items-center gap-2 font-sans text-[12px] text-[#7a5230]">
+          <div className="-mx-3 -mb-2.5 mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-[var(--c-line)]/30 bg-[color-mix(in_srgb,var(--c-line)_10%,var(--c-panel))] px-[14px] py-2">
+            <div className="flex min-w-0 items-center gap-2 font-sans text-[12px] text-[var(--c-text-md)]">
               <i className="ti ti-copy shrink-0 text-[14px]" aria-hidden="true" />
               <span className="truncate">{duplicateCopyLabel(duplicateReviewIds.length)}</span>
             </div>
-            <button
+            <ModalActionButton
               type="button"
               onClick={() => void handleReviewDuplicates(workspace, duplicateReviewIds)}
-              className="rounded-[var(--border-radius-md)] bg-transparent px-2.5 py-1 font-sans text-[12px] font-semibold text-[#b87750] transition-colors hover:bg-[#fffaf5] disabled:cursor-default disabled:opacity-60"
-              style={{ border: '0.5px solid #d0955c' }}
+              className="border-[var(--c-line)]/40 bg-transparent px-2.5 py-1 text-[12px] text-[var(--c-line)] hover:bg-[color-mix(in_srgb,var(--c-line)_10%,transparent)]"
               disabled={actionLoading !== null}
             >
               Review {duplicateReviewIds.length === 1 ? 'duplicate' : 'duplicates'}
-            </button>
+            </ModalActionButton>
           </div>
         )}
       </div>
@@ -1896,10 +1747,10 @@ export default function CloudModal({ open, onClose, initialTab = 'workspace' }: 
     const selected = duplicateReviewSelection === copyKey;
     const device = getDuplicateReviewDevice(workspace);
     const newer = cloudTimestamp(workspace.updatedAt) > cloudTimestamp(otherWorkspace.updatedAt);
-    const headerClass = selected ? 'bg-[#fdf2ea]' : 'bg-[var(--color-background-secondary)]';
-    const labelClass = selected ? 'text-[#b87750]' : 'text-[var(--color-text-secondary)]';
-    const cardStyle = {
-      border: selected ? '1.5px solid #c9895c' : '1px solid var(--color-border-tertiary)',
+    const headerClass = selected ? 'bg-[color-mix(in_srgb,var(--c-line)_12%,var(--c-panel))]' : SURFACE_CLASS.second;
+    const labelClass = selected ? 'text-[var(--c-line)]' : 'text-[var(--color-text-secondary)]';
+    const cardStyle: CSSProperties = {
+      border: selected ? '1.5px solid var(--c-line)' : '1px solid var(--color-border-tertiary)',
     };
     const rows = [
       {
@@ -1907,7 +1758,7 @@ export default function CloudModal({ open, onClose, initialTab = 'workspace' }: 
         label: 'Last updated',
         value: formatDuplicateReviewDate(workspace.updatedAt),
         extra: newer ? (
-          <span className="ml-2 inline-flex items-center gap-1 rounded-md bg-[#edf7f1] px-1.5 py-0.5 font-sans text-[11px] font-medium text-[#52a772]">
+          <span className="ml-2 inline-flex items-center gap-1 rounded-md bg-[color-mix(in_srgb,var(--c-green)_16%,transparent)] px-1.5 py-0.5 font-sans text-[11px] font-medium text-[var(--c-green)]">
             <i className="ti ti-arrow-up text-[11px]" aria-hidden="true" />
             Newer
           </span>
@@ -1938,7 +1789,7 @@ export default function CloudModal({ open, onClose, initialTab = 'workspace' }: 
             <span
               className={[
                 'inline-flex h-4 w-4 items-center justify-center rounded-full border transition-colors',
-                selected ? 'border-[#b87750] bg-[#b87750] text-white' : 'border-[var(--color-text-secondary)] bg-transparent',
+                selected ? 'border-[var(--c-line)] bg-[var(--c-line)] text-white' : 'border-[var(--color-text-secondary)] bg-transparent',
               ].join(' ')}
               aria-hidden="true"
             >
@@ -1947,7 +1798,7 @@ export default function CloudModal({ open, onClose, initialTab = 'workspace' }: 
             <span className={`font-sans text-[11px] font-semibold uppercase ${labelClass}`}>{label}</span>
           </div>
           {selected && (
-            <span className="inline-flex items-center gap-1 font-sans text-[12px] font-medium text-[#b87750]">
+            <span className="inline-flex items-center gap-1 font-sans text-[12px] font-medium text-[var(--c-line)]">
               <i className="ti ti-check text-[12px]" aria-hidden="true" />
               Keep this
             </span>
@@ -2014,22 +1865,23 @@ export default function CloudModal({ open, onClose, initialTab = 'workspace' }: 
         </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-3">
-          <button
+          <ModalActionButton
             type="button"
             onClick={() => void handleConfirmDuplicateReview()}
             disabled={actionLoading !== null}
-            className="rounded-lg bg-[#b87750] px-4 py-2.5 font-sans text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-default disabled:opacity-60"
+            variant="primary"
+            size="md"
           >
             {deletingDuplicate ? 'Deleting...' : 'Delete and keep selected'}
-          </button>
-          <button
+          </ModalActionButton>
+          <ModalActionButton
             type="button"
             onClick={handleBackToLibrary}
             disabled={actionLoading !== null}
-            className="rounded-lg border border-[var(--c-border)] bg-transparent px-4 py-2.5 font-sans text-[13px] font-medium text-[var(--c-text-md)] transition-colors hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)] disabled:cursor-default disabled:opacity-60"
+            size="md"
           >
             Cancel
-          </button>
+          </ModalActionButton>
           <span className="ml-auto inline-flex items-center gap-1.5 font-sans text-[12px] text-[var(--color-text-secondary)]">
             <i className="ti ti-shield-check text-[14px]" aria-hidden="true" />
             Nothing deleted until you confirm
@@ -2065,7 +1917,7 @@ export default function CloudModal({ open, onClose, initialTab = 'workspace' }: 
           ].join(' ')}
         />
 
-        <div className={user ? 'flex items-center justify-between gap-4 border-b border-[var(--c-border)] px-5 py-4 pr-16' : 'hidden'} style={user ? modalHeaderSurface : undefined}>
+        <div className={user ? cx('flex items-center justify-between gap-4 border-b border-[var(--c-border)] px-5 py-4 pr-16', SURFACE_CLASS.header) : 'hidden'}>
           <div className="min-w-0">
             {duplicateReviewOpen ? (
               <button
@@ -2319,7 +2171,7 @@ export default function CloudModal({ open, onClose, initialTab = 'workspace' }: 
         ) : duplicateReviewOpen ? (
           renderDuplicateReviewView()
         ) : (
-          <div className="flex min-h-[560px] flex-col" style={leftPaneSurface}>
+          <div className={cx('flex min-h-[560px] flex-col', SURFACE_CLASS.leftPane)}>
             <div className="border-b border-[var(--c-border)] px-5 pt-4">
               <div className="flex flex-wrap items-end gap-6">
                 <div className="flex items-end gap-6">
@@ -2374,34 +2226,34 @@ export default function CloudModal({ open, onClose, initialTab = 'workspace' }: 
                 </section>
 
                 {newerCloudWorkspace && (
-                  <section className="rounded-2xl border border-[#f59e0b]/35 bg-[#f59e0b]/10 p-4">
+                  <section className="rounded-2xl border border-[var(--c-yellow)]/35 bg-[color-mix(in_srgb,var(--c-yellow)_10%,transparent)] p-4">
                     <div className="flex gap-3">
-                      <span className="mt-1 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[#f59e0b]/30 bg-[#f59e0b]/10 text-[#b45309]">
+                      <span className="mt-1 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[var(--c-yellow)]/30 bg-[color-mix(in_srgb,var(--c-yellow)_10%,transparent)] text-[var(--c-line)]">
                         <IconEmptyCloud />
                       </span>
                       <div className="min-w-0 flex-1">
-                        <p className="font-sans text-[14px] font-semibold text-[#6f4220]">Cloud copy is newer than your local version</p>
-                        <p className="mt-1 font-sans text-[12px] leading-relaxed text-[#80522c]">
+                        <p className="font-sans text-[14px] font-semibold text-[var(--c-text-hi)]">Cloud copy is newer than your local version</p>
+                        <p className="mt-1 font-sans text-[12px] leading-relaxed text-[var(--c-text-md)]">
                           The cloud was updated more recently. Review before syncing to avoid overwriting local changes.
                         </p>
                         <div className="mt-4 flex flex-wrap gap-2">
-                          <button
+                          <ModalActionButton
                             type="button"
                             onClick={() => void handleLoadWorkspace(newerCloudWorkspace)}
                             disabled={actionLoading !== null}
-                            className="rounded-lg border border-[var(--c-border)] bg-[var(--c-panel)] px-4 py-2 font-sans text-[12px] font-semibold text-[var(--c-text-hi)] transition-colors hover:bg-[var(--c-hover)] disabled:cursor-default disabled:opacity-60"
+                            size="sm"
                           >
                             {actionLoading === `load:${newerCloudWorkspace.id}` ? 'Opening...' : 'Review cloud copy'}
-                          </button>
-                          <button
+                          </ModalActionButton>
+                          <ModalActionButton
                             type="button"
                             onClick={() => void handleCreateOnlineCopy()}
                             disabled={actionLoading !== null}
-                            className="rounded-lg border border-[var(--c-border)] bg-[var(--c-panel)] px-4 py-2 font-sans text-[12px] font-semibold text-[var(--c-text-hi)] transition-colors hover:bg-[var(--c-hover)] disabled:cursor-default disabled:opacity-60"
+                            size="sm"
                           >
                             {actionLoading === 'save-new' ? 'Uploading...' : 'Save new copy first'}
-                          </button>
-                          <button
+                          </ModalActionButton>
+                          <ModalActionButton
                             type="button"
                             onClick={() => {
                               keepCurrentWorkspaceLocalOnly();
@@ -2409,10 +2261,10 @@ export default function CloudModal({ open, onClose, initialTab = 'workspace' }: 
                               toast('Kept the local project separate. No cloud copy was deleted.');
                             }}
                             disabled={actionLoading !== null}
-                            className="rounded-lg border border-[var(--c-border)] bg-[var(--c-panel)] px-4 py-2 font-sans text-[12px] font-semibold text-[var(--c-text-hi)] transition-colors hover:bg-[var(--c-hover)] disabled:cursor-default disabled:opacity-60"
+                            size="sm"
                           >
                             Keep local
-                          </button>
+                          </ModalActionButton>
                         </div>
                       </div>
                     </div>
@@ -2423,10 +2275,9 @@ export default function CloudModal({ open, onClose, initialTab = 'workspace' }: 
                   type="button"
                   onClick={() => void handleCreateOnlineCopy()}
                   disabled={actionLoading !== null}
-                  className="group flex w-full items-center gap-3 rounded-2xl border border-[var(--c-border)] p-4 text-left transition-colors hover:bg-[var(--c-hover)] disabled:cursor-default disabled:opacity-60"
-                  style={secondSurface}
+                  className={cx('group flex w-full items-center gap-3 rounded-2xl border border-[var(--c-border)] p-4 text-left transition-colors hover:bg-[var(--c-hover)] disabled:cursor-default disabled:opacity-60', SURFACE_CLASS.second)}
                 >
-                  <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[var(--c-border)] text-[var(--c-text-md)]" style={quietSurface}>
+                  <span className={cx('inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[var(--c-border)] text-[var(--c-text-md)]', SURFACE_CLASS.quiet)}>
                     <IconNewWorkspace />
                   </span>
                   <span className="min-w-0 flex-1">
@@ -2445,9 +2296,9 @@ export default function CloudModal({ open, onClose, initialTab = 'workspace' }: 
                 </button>
 
                 {!localFolderConnected && (
-                  <section className="rounded-2xl border border-[var(--c-border)] p-4" style={quietSurface}>
+                  <section className={cx('rounded-2xl border border-[var(--c-border)] p-4', SURFACE_CLASS.quiet)}>
                     <div className="flex flex-wrap items-center gap-3">
-                      <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#f59e0b]/30 bg-[#f59e0b]/10 text-[#b45309]">
+                      <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[var(--c-yellow)]/30 bg-[color-mix(in_srgb,var(--c-yellow)_10%,transparent)] text-[var(--c-line)]">
                         <IconFolderOpen />
                       </span>
                       <div className="min-w-[220px] flex-1">
@@ -2456,14 +2307,14 @@ export default function CloudModal({ open, onClose, initialTab = 'workspace' }: 
                           Connect a folder to keep a local backup alongside the cloud copy.
                         </p>
                       </div>
-                      <button
+                      <ModalActionButton
                         type="button"
                         onClick={() => void handleReconnectLocalFolder()}
                         disabled={actionLoading !== null}
-                        className="rounded-lg border border-[var(--c-border)] bg-[var(--c-panel)] px-4 py-2 font-sans text-[12px] font-semibold text-[var(--c-text-hi)] transition-colors hover:bg-[var(--c-hover)] disabled:cursor-default disabled:opacity-60"
+                        size="sm"
                       >
                         {reconnectingLocalFolder ? 'Reconnecting...' : 'Reconnect folder'}
-                      </button>
+                      </ModalActionButton>
                     </div>
                     {currentFolderDownloadProgress && (
                       <div className="mt-3">
@@ -2560,27 +2411,27 @@ export default function CloudModal({ open, onClose, initialTab = 'workspace' }: 
                 </div>
 
                 {libraryTab === 'cloud' && (
-                  <section className="rounded-2xl border border-[rgba(120,167,145,0.22)] bg-[rgba(120,167,145,0.06)] p-3">
+                  <section className="rounded-2xl border border-[var(--c-green)]/25 bg-[color-mix(in_srgb,var(--c-green)_7%,transparent)] p-3">
                     <div className="mb-2 flex flex-wrap items-center gap-2">
                       <p className="font-sans text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--c-text-lo)]">On cloud</p>
-                      <span className={['rounded-full px-2 py-0.5 font-sans text-[10px] font-semibold', workspaces.length >= SYNC_WORKSPACE_LIMIT ? 'bg-[#f59e0b]/15 text-[#b45309]' : 'bg-[rgba(120,167,145,0.16)] text-[rgb(72,112,92)]'].join(' ')}>
+                      <span className={cx('rounded-full px-2 py-0.5 font-sans text-[10px] font-semibold', workspaces.length >= SYNC_WORKSPACE_LIMIT ? 'bg-[var(--c-yellow)]/15 text-[var(--c-line)]' : 'bg-[var(--c-green)]/15 text-[var(--c-green)]')}>
                         {workspaces.length}/{SYNC_WORKSPACE_LIMIT}
                       </span>
                     </div>
                     {workspaces.length >= SYNC_WORKSPACE_LIMIT && (
-                      <div className="mb-2 rounded-lg border border-[#f59e0b]/30 bg-[#f59e0b]/10 px-3 py-2">
-                        <p className="font-sans text-[11px] font-semibold text-[#92400e]">Sync limit reached</p>
-                        <p className="mt-0.5 font-sans text-[10px] leading-snug text-[#b45309]">{workspaces.length}/{SYNC_WORKSPACE_LIMIT} cloud copies used. Move a project offline or delete a synced copy to make room.</p>
-                      </div>
+                      <InlinePanel className="mb-2" tone="warning">
+                        <p className="font-sans text-[11px] font-semibold text-[var(--c-text-hi)]">Sync limit reached</p>
+                        <p className="mt-0.5 font-sans text-[10px] leading-snug text-[var(--c-text-md)]">{workspaces.length}/{SYNC_WORKSPACE_LIMIT} cloud copies used. Move a project offline or delete a synced copy to make room.</p>
+                      </InlinePanel>
                     )}
                     <div className="space-y-1.5 overflow-y-auto pr-1" style={{ maxHeight: '360px' }}>
                       {workspacesLoading && cloudWorkspaceRows.length === 0 ? (
-                        <div className="rounded-xl border border-[var(--c-border)] px-4 py-4 font-sans text-[12px] text-[var(--c-text-md)]" style={secondSurface}>Loading cloud projects...</div>
+                        <InlinePanel className="rounded-xl px-4 py-4 font-sans text-[12px] text-[var(--c-text-md)]">Loading cloud projects...</InlinePanel>
                       ) : cloudWorkspaceRows.length === 0 ? (
-                        <div className="rounded-xl border border-[var(--c-border)] px-4 py-4" style={secondSurface}>
+                        <InlinePanel className="rounded-xl px-4 py-4">
                           <p className="font-sans text-[13px] font-semibold text-[var(--c-text-hi)]">Nothing on cloud yet</p>
                           <p className="mt-1 font-sans text-[11px] leading-relaxed text-[var(--c-text-md)]">Turn on sync for a project and it will appear here.</p>
-                        </div>
+                        </InlinePanel>
                       ) : (
                         cloudWorkspaceRows.map((row) => renderWorkspaceRow(row, { cloudShelf: true }))
                       )}
@@ -2596,12 +2447,12 @@ export default function CloudModal({ open, onClose, initialTab = 'workspace' }: 
                     </div>
                     <div className="space-y-1.5 overflow-y-auto pr-1" style={{ maxHeight: '390px' }}>
                       {workspacesLoading && localAndRecentRows.length === 0 ? (
-                        <div className="rounded-xl border border-[var(--c-border)] px-4 py-4 font-sans text-[12px] text-[var(--c-text-md)]" style={secondSurface}>Loading recent projects...</div>
+                        <InlinePanel className="rounded-xl px-4 py-4 font-sans text-[12px] text-[var(--c-text-md)]">Loading recent projects...</InlinePanel>
                       ) : localAndRecentRows.length === 0 ? (
-                        <div className="rounded-2xl border border-[var(--c-border)] px-4 py-5 text-[var(--c-text-lo)]" style={secondSurface}>
+                        <InlinePanel className="rounded-2xl px-4 py-5 text-[var(--c-text-lo)]">
                           <p className="font-sans text-[14px] font-semibold text-[var(--c-text-hi)]">No recent projects yet</p>
                           <p className="mt-1 font-sans text-[12px] leading-relaxed text-[var(--c-text-md)]">Open a local folder or download a cloud project to make it one click away here.</p>
-                        </div>
+                        </InlinePanel>
                       ) : localAndRecentRows.map((row) => renderWorkspaceRow(row))}
                     </div>
                   </section>

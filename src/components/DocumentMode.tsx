@@ -13,6 +13,7 @@ import { sanitizeClipboardHtml } from '../utils/richText';
 import { describeNoteSaveStatus, saveLinkedWorkspaceToCloud, type NoteSavePresentation } from '../utils/saveStatus';
 import { taskListItemHtml } from '../utils/taskListHtml';
 import AssetDrawer from './AssetDrawer';
+import './DocumentMode.css';
 
 // ── Inline chip utilities ─────────────────────────────────────────────────────
 
@@ -1942,14 +1943,10 @@ function WikilinkPicker({ pos, documents, activeDocId, initialQuery = '', onSele
 
   return (
     <>
-      <div style={{ position: 'fixed', inset: 0, zIndex: 9998 }} onMouseDown={onClose} />
-      <div style={{
-        position: 'fixed', left, top, width, zIndex: 9999,
-        background: 'var(--c-panel)', border: '1px solid var(--c-border)',
-        borderRadius: 10, boxShadow: '0 8px 28px rgba(0,0,0,0.4)', overflow: 'hidden',
-      }}>
-        <div style={{ padding: '8px 10px', borderBottom: '1px solid var(--c-border)', display: 'flex', alignItems: 'center', gap: 6 }}>
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ flexShrink: 0, opacity: 0.5 }}>
+      <div className="document-mode-overlay" onMouseDown={onClose} />
+      <div className="document-picker" style={{ left, top, width }}>
+        <div className="document-picker__header">
+          <svg className="document-picker__header-icon" width="12" height="12" viewBox="0 0 12 12" fill="none">
             <rect x="1" y="1" width="10" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.2"/>
             <path d="M3 4.5h6M3 6.5h6M3 8.5h4" stroke="currentColor" strokeWidth="1" strokeLinecap="round"/>
           </svg>
@@ -1966,22 +1963,20 @@ function WikilinkPicker({ pos, documents, activeDocId, initialQuery = '', onSele
               }
             }}
             placeholder="Search notes…"
-            style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: 'var(--c-text-hi)', fontSize: 13, fontFamily: 'inherit' }}
+            className="document-picker__input"
           />
         </div>
-        <div style={{ maxHeight: 220, overflowY: 'auto' }}>
+        <div className="document-picker__list">
           {filtered.map((d) => (
             <div
               key={d.id}
               onMouseDown={(e) => { e.preventDefault(); onSelect(d.title); }}
-              style={{ padding: '8px 12px', cursor: 'pointer', transition: 'background 0.1s' }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--c-hover)'; }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+              className="document-picker__row"
             >
-              <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--c-text-hi)', marginBottom: 2, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
+              <div className="document-picker__title">
                 {d.title || 'Untitled'}
               </div>
-              <div style={{ fontSize: 11, color: 'var(--c-text-lo)', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
+              <div className="document-picker__subtitle">
                 {stripHtml(d.content).slice(0, 80) || 'Empty'}
               </div>
             </div>
@@ -1989,21 +1984,20 @@ function WikilinkPicker({ pos, documents, activeDocId, initialQuery = '', onSele
           {query.trim() && !exactMatch && (
             <div
               onMouseDown={(e) => { e.preventDefault(); onCreate(query.trim()); }}
-              style={{ padding: '8px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 7, borderTop: filtered.length > 0 ? '1px solid var(--c-border)' : 'none', transition: 'background 0.1s' }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--c-hover)'; }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+              className="document-picker__row document-picker__row--create"
+              data-has-results={filtered.length > 0}
             >
-              <span style={{ fontSize: 15, lineHeight: 1, color: 'var(--c-line)' }}>+</span>
-              <span style={{ fontSize: 13, color: 'var(--c-text-md)' }}>New note: <b style={{ color: 'var(--c-text-hi)' }}>"{query.trim()}"</b></span>
+              <span className="document-picker__create-icon">+</span>
+              <span className="document-picker__create-label">New note: <b className="document-picker__create-title">"{query.trim()}"</b></span>
             </div>
           )}
           {filtered.length === 0 && query.trim() && (
-            <div style={{ padding: '10px 12px', fontSize: 11, color: 'var(--c-text-lo)', lineHeight: 1.45 }}>
+            <div className="document-picker__hint">
               No matching notes. Clear the search to browse existing notes.
             </div>
           )}
           {filtered.length === 0 && !query.trim() && (
-            <div style={{ padding: '12px', fontSize: 12, color: 'var(--c-text-lo)', textAlign: 'center' }}>No other notes yet</div>
+            <div className="document-picker__empty">No other notes yet</div>
           )}
         </div>
       </div>
@@ -2051,14 +2045,10 @@ function NodePicker({ pos, nodes, documents, onSelect, onClose }: NodePickerProp
 
   return (
     <>
-      <div style={{ position: 'fixed', inset: 0, zIndex: 9998 }} onMouseDown={onClose} />
-      <div style={{
-        position: 'fixed', left: pickerLeft, top: pickerTop, width, zIndex: 9999,
-        background: 'var(--c-panel)', border: '1px solid var(--c-border)',
-        borderRadius: 10, boxShadow: '0 8px 28px rgba(0,0,0,0.4)', overflow: 'hidden',
-      }}>
-        <div style={{ padding: '8px 10px', borderBottom: '1px solid var(--c-border)', display: 'flex', alignItems: 'center', gap: 6 }}>
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ flexShrink: 0, opacity: 0.5 }}>
+      <div className="document-mode-overlay" onMouseDown={onClose} />
+      <div className="document-picker" style={{ left: pickerLeft, top: pickerTop, width }}>
+        <div className="document-picker__header">
+          <svg className="document-picker__header-icon" width="12" height="12" viewBox="0 0 12 12" fill="none">
             <rect x="1" y="2" width="10" height="8" rx="1.2" stroke="currentColor" strokeWidth="1.2"/>
           </svg>
           <input
@@ -2073,25 +2063,23 @@ function NodePicker({ pos, nodes, documents, onSelect, onClose }: NodePickerProp
               }
             }}
             placeholder="Search canvas nodes…"
-            style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: 'var(--c-text-hi)', fontSize: 13, fontFamily: 'inherit' }}
+            className="document-picker__input"
           />
         </div>
-        <div style={{ maxHeight: 220, overflowY: 'auto' }}>
+        <div className="document-picker__list">
           {filtered.map(({ node, label }) => (
             <div
               key={node.id}
               onMouseDown={(e) => { e.preventDefault(); onSelect(node.id, label); }}
-              style={{ padding: '8px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, transition: 'background 0.1s' }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--c-hover)'; }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+              className="document-picker__row document-picker__row--node"
             >
-              <span style={{ fontSize: 12, opacity: 0.6, flexShrink: 0, fontFamily: 'monospace' }}>{typeIcon(node.type)}</span>
-              <span style={{ fontSize: 13, color: 'var(--c-text-hi)', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{label}</span>
-              <span style={{ fontSize: 10, color: 'var(--c-text-lo)', flexShrink: 0, marginLeft: 'auto' }}>{node.type}</span>
+              <span className="document-picker__node-type-icon">{typeIcon(node.type)}</span>
+              <span className="document-picker__node-label">{label}</span>
+              <span className="document-picker__node-type">{node.type}</span>
             </div>
           ))}
           {filtered.length === 0 && (
-            <div style={{ padding: '12px', fontSize: 12, color: 'var(--c-text-lo)', textAlign: 'center' }}>No canvas nodes found</div>
+            <div className="document-picker__empty">No canvas nodes found</div>
           )}
         </div>
       </div>
@@ -2126,42 +2114,23 @@ function DocEmojiPicker({ pos, current, onSelect, onRemove, onClose }: DocEmojiP
   const top = Math.min(pos.y, window.innerHeight - 260 - 12);
   return (
     <>
-      <div style={{ position: 'fixed', inset: 0, zIndex: 9998 }} onMouseDown={onClose} />
-      <div style={{
-        position: 'fixed', left, top, zIndex: 9999,
-        background: 'var(--c-panel)', border: '1px solid var(--c-border)',
-        borderRadius: 12, boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-        padding: 10,
-      }}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2, width: COLS * 34 }}>
+      <div className="document-mode-overlay" onMouseDown={onClose} />
+      <div className="doc-emoji-picker" style={{ left, top }}>
+        <div className="doc-emoji-picker__grid" style={{ width: COLS * 34 }}>
           {DOC_EMOJIS.map((e) => (
             <button
               key={e}
               onMouseDown={(ev) => { ev.preventDefault(); onSelect(e); }}
-              style={{
-                width: 32, height: 32, fontSize: 18, lineHeight: 1,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                borderRadius: 6, cursor: 'pointer', transition: 'background 0.1s',
-                border: e === current ? '1.5px solid var(--c-line)' : '1.5px solid transparent',
-                background: e === current ? 'rgba(184,119,80,0.15)' : 'transparent',
-              }}
-              onMouseEnter={(ev) => { if (e !== current) (ev.currentTarget as HTMLElement).style.background = 'var(--c-hover)'; }}
-              onMouseLeave={(ev) => { (ev.currentTarget as HTMLElement).style.background = e === current ? 'rgba(184,119,80,0.15)' : 'transparent'; }}
+              className="doc-emoji-picker__button"
+              data-current={e === current}
             >{e}</button>
           ))}
         </div>
         {current && (
-          <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--c-border)' }}>
+          <div className="doc-emoji-picker__remove-wrap">
             <button
               onMouseDown={(e) => { e.preventDefault(); onRemove(); }}
-              style={{
-                width: '100%', padding: '6px', background: 'transparent',
-                border: '1px solid var(--c-border)', borderRadius: 7,
-                color: 'var(--c-text-lo)', cursor: 'pointer', fontSize: 12, fontFamily: 'inherit',
-                transition: 'background 0.1s, color 0.1s',
-              }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--c-hover)'; (e.currentTarget as HTMLElement).style.color = 'var(--c-red)'; }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = 'var(--c-text-lo)'; }}
+              className="doc-emoji-picker__remove"
             >Remove icon</button>
           </div>
         )}
@@ -2228,12 +2197,12 @@ function SlashCommandPalette({ pos, commands, onSelect, onClose }: SlashCommandP
 
   const renderSlashIcon = (command: SlashCommand) => {
     switch (command.id) {
-      case 'text': return <span style={{ fontSize: 12, fontWeight: 700 }}>T</span>;
-      case 'heading-1': return <span style={{ fontSize: 10, fontWeight: 700 }}>H1</span>;
-      case 'heading-2': return <span style={{ fontSize: 10, fontWeight: 700 }}>H2</span>;
+      case 'text': return <span className="doc-slash-icon-text doc-slash-icon-text--body">T</span>;
+      case 'heading-1': return <span className="doc-slash-icon-text doc-slash-icon-text--heading">H1</span>;
+      case 'heading-2': return <span className="doc-slash-icon-text doc-slash-icon-text--heading">H2</span>;
       case 'bullet-list': return <IconList />;
       case 'numbered-list': return <IconListOrdered />;
-      case 'todo-list': return <span style={{ fontSize: 11, fontWeight: 700 }}>☐</span>;
+      case 'todo-list': return <span className="doc-slash-icon-text doc-slash-icon-text--todo">☐</span>;
       case 'quote': return <IconQuote />;
       case 'callout': return <IconQuote />;
       case 'code-block': return <IconCodeBlock />;
@@ -2241,7 +2210,7 @@ function SlashCommandPalette({ pos, commands, onSelect, onClose }: SlashCommandP
       case 'external-link': return <IconLink />;
       case 'wiki-link': return <IconWikiLink />;
       case 'node-link': return <IconNodeLink />;
-      case 'tag': return <span style={{ fontSize: 11, fontWeight: 700 }}>#</span>;
+      case 'tag': return <span className="doc-slash-icon-text doc-slash-icon-text--tag">#</span>;
       case 'image-upload':
         return (
           <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
@@ -2250,68 +2219,57 @@ function SlashCommandPalette({ pos, commands, onSelect, onClose }: SlashCommandP
             <circle cx="4.1" cy="4.5" r="0.8" fill="currentColor" />
           </svg>
         );
-      default: return <span style={{ fontSize: 12, fontWeight: 700 }}>{command.glyph}</span>;
+      default: return <span className="doc-slash-icon-text doc-slash-icon-text--default">{command.glyph}</span>;
     }
   };
 
   const renderPreview = (command: SlashCommand | null) => {
     if (!command) return null;
     if (command.id === 'heading-2') {
-      return <div style={{ fontSize: 24, fontWeight: 700, lineHeight: 1.2, color: 'var(--c-text-hi)' }}>Heading 2</div>;
+      return <div className="doc-slash-preview-heading">Heading 2</div>;
     }
     if (command.id === 'bullet-list') {
-      return <div style={{ color: 'var(--c-text-hi)', lineHeight: 1.6 }}>• First item<br />• Second item</div>;
+      return <div className="doc-slash-preview-list">• First item<br />• Second item</div>;
     }
     if (command.id === 'numbered-list') {
-      return <div style={{ color: 'var(--c-text-hi)', lineHeight: 1.6 }}>1. First step<br />2. Second step</div>;
+      return <div className="doc-slash-preview-list">1. First step<br />2. Second step</div>;
     }
     if (command.id === 'todo-list') {
-      return <div style={{ color: 'var(--c-text-hi)', lineHeight: 1.6 }}>☐ First task<br />☐ Second task</div>;
+      return <div className="doc-slash-preview-list">☐ First task<br />☐ Second task</div>;
     }
     if (command.id === 'quote') {
-      return <div style={{ padding: '10px 12px', borderLeft: '3px solid var(--c-line)', color: 'var(--c-text-md)' }}>Quoted idea or passage</div>;
+      return <div className="doc-slash-preview-quote">Quoted idea or passage</div>;
     }
     if (command.id === 'callout') {
-      return <div style={{ padding: '10px 12px', borderRadius: 12, background: 'rgba(255,255,255,0.06)', color: 'var(--c-text-hi)' }}>Callout block</div>;
+      return <div className="doc-slash-preview-callout">Callout block</div>;
     }
     if (command.id === 'code-block') {
-      return <div style={{ padding: '10px 12px', borderRadius: 10, background: 'rgba(0,0,0,0.22)', fontFamily: 'var(--font-code)', fontSize: 12, color: 'var(--c-text-hi)' }}>const note = "code";</div>;
+      return <div className="doc-slash-preview-code">const note = "code";</div>;
     }
     if (command.id === 'divider') {
-      return <div style={{ borderTop: '1px solid var(--c-border)', marginTop: 12 }} />;
+      return <div className="doc-slash-preview-rule" />;
     }
     if (command.id === 'external-link') {
-      return <div style={{ color: 'var(--c-line)', textDecoration: 'underline' }}>https://example.com</div>;
+      return <div className="doc-slash-preview-link">https://example.com</div>;
     }
     if (command.id === 'tag') {
-      return <div style={{ color: 'var(--c-line)', fontWeight: 600 }}>#tag</div>;
+      return <div className="doc-slash-preview-tag">#tag</div>;
     }
     if (command.id === 'image-upload') {
-      return <div style={{ padding: '16px 12px', borderRadius: 12, border: '1px dashed var(--c-border)', color: 'var(--c-text-lo)', textAlign: 'center' }}>Paste, drop, or pick an image</div>;
+      return <div className="doc-slash-preview-image">Paste, drop, or pick an image</div>;
     }
-    return <div style={{ color: 'var(--c-text-hi)' }}>{command.label}</div>;
+    return <div className="doc-slash-preview-default">{command.label}</div>;
   };
 
   return (
     <>
-      <div style={{ position: 'fixed', inset: 0, zIndex: 9998 }} onMouseDown={onClose} />
+      <div className="document-mode-overlay" onMouseDown={onClose} />
       <div
-        style={{
-          position: 'fixed',
-          left,
-          top,
-          width: paletteWidth,
-          maxHeight: paletteHeight,
-          zIndex: 9999,
-          background: 'var(--c-panel)',
-          border: '1px solid var(--c-border)',
-          borderRadius: 14,
-          boxShadow: '0 16px 48px rgba(0,0,0,0.35)',
-          overflow: 'hidden',
-        }}
+        className="doc-slash-palette"
+        style={{ left, top }}
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <div style={{ padding: '8px 10px', borderBottom: '1px solid var(--c-border)', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div className="doc-slash-palette__header">
           <input
             ref={inputRef}
             value={query}
@@ -2339,51 +2297,26 @@ function SlashCommandPalette({ pos, commands, onSelect, onClose }: SlashCommandP
               }
             }}
             placeholder="Type to search"
-            style={{
-              flex: 1,
-              height: 32,
-              padding: '0 10px',
-              borderRadius: 9,
-              border: '1px solid var(--c-border)',
-              background: 'rgba(255,255,255,0.03)',
-              color: 'var(--c-text-hi)',
-              fontSize: 13,
-              fontFamily: 'inherit',
-              outline: 'none',
-            }}
+            className="doc-slash-palette__input"
           />
           <button
             onMouseDown={(e) => {
               e.preventDefault();
               onClose();
             }}
-            style={{
-              width: 28,
-              height: 28,
-              padding: 0,
-              border: '1px solid var(--c-border)',
-              borderRadius: 8,
-              background: 'transparent',
-              color: 'var(--c-text-lo)',
-              cursor: 'pointer',
-              flexShrink: 0,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              lineHeight: 1,
-            }}
+            className="doc-slash-palette__close"
             title="Close menu"
           >
             ×
           </button>
         </div>
-        <div style={{ maxHeight: 308, overflowY: 'auto', padding: 6 }}>
+        <div className="doc-slash-palette__list">
           {(['Basic', 'Link', 'Media', 'Meta'] as const).map((group) => {
             const groupCommands = grouped[group] ?? [];
             if (groupCommands.length === 0) return null;
             return (
-              <div key={group} style={{ marginBottom: 8 }}>
-                <div style={{ padding: '5px 8px', fontSize: 10, fontWeight: 700, color: 'var(--c-text-lo)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+              <div key={group} className="doc-slash-palette__group">
+                <div className="doc-slash-palette__group-label">
                   {group}
                 </div>
                 {groupCommands.map((command) => {
@@ -2398,44 +2331,17 @@ function SlashCommandPalette({ pos, commands, onSelect, onClose }: SlashCommandP
                         onSelect(command);
                       }}
                       onMouseEnter={() => setActiveIndex(commandIndex)}
-                      style={{
-                        width: '100%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 9,
-                        minHeight: 36,
-                        padding: '0 9px',
-                        border: 'none',
-                        borderRadius: 9,
-                        background: active ? 'rgba(184,119,80,0.16)' : 'transparent',
-                        color: active ? 'var(--c-text-hi)' : 'var(--c-text-md)',
-                        textAlign: 'left',
-                        cursor: 'pointer',
-                        transition: 'background 0.12s ease, color 0.12s ease',
-                      }}
+                      className="doc-slash-palette__command"
+                      data-active={active}
                     >
-                      <span
-                        style={{
-                          width: 22,
-                          height: 22,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          borderRadius: 6,
-                          border: '1px solid rgba(255,255,255,0.12)',
-                          background: active ? 'rgba(184,119,80,0.16)' : 'rgba(255,255,255,0.03)',
-                          color: active ? 'var(--c-line)' : 'var(--c-text-lo)',
-                          fontSize: 10,
-                          flexShrink: 0,
-                        }}
-                      >
+                      <span className="doc-slash-palette__command-icon">
                         {renderSlashIcon(command)}
                       </span>
-                      <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, fontWeight: 500, color: active ? 'var(--c-text-hi)' : 'inherit' }}>
+                      <span className="doc-slash-palette__command-label">
                         {command.label}
                       </span>
                       {command.hint && (
-                        <span style={{ fontSize: 10.5, color: 'var(--c-text-lo)', flexShrink: 0 }}>
+                        <span className="doc-slash-palette__command-hint">
                           {command.hint}
                         </span>
                       )}
@@ -2446,19 +2352,19 @@ function SlashCommandPalette({ pos, commands, onSelect, onClose }: SlashCommandP
             );
           })}
           {filtered.length === 0 && (
-            <div style={{ padding: '16px 12px', textAlign: 'center', fontSize: 12, color: 'var(--c-text-lo)' }}>
+            <div className="doc-slash-palette__empty">
               No matching blocks
             </div>
           )}
         </div>
-        <div style={{ padding: '7px 10px', borderTop: '1px solid var(--c-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 10.5, color: 'var(--c-text-lo)' }}>
+        <div className="doc-slash-palette__footer">
           <span>Enter to insert</span>
           <button
             onMouseDown={(e) => {
               e.preventDefault();
               onClose();
             }}
-            style={{ border: 'none', background: 'transparent', color: 'var(--c-text-lo)', cursor: 'pointer', padding: 0, fontSize: 10.5, fontFamily: 'inherit' }}
+            className="doc-slash-palette__footer-close"
           >
             Close menu · Esc
           </button>
@@ -2466,29 +2372,15 @@ function SlashCommandPalette({ pos, commands, onSelect, onClose }: SlashCommandP
       </div>
       {previewLeft !== null && activeCommand && (
         <div
-          style={{
-            position: 'fixed',
-            left: previewLeft,
-            top: Math.min(top + 88, (bounds ? bounds.bottom : window.innerHeight) - 188),
-            width: previewWidth,
-            zIndex: 9999,
-            background: 'var(--c-panel)',
-            border: '1px solid var(--c-border)',
-            borderRadius: 14,
-            boxShadow: '0 16px 48px rgba(0,0,0,0.28)',
-            padding: '12px 14px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 10,
-            pointerEvents: 'none',
-          }}
+          className="doc-slash-preview-card"
+          style={{ left: previewLeft, top: Math.min(top + 88, (bounds ? bounds.bottom : window.innerHeight) - 188) }}
         >
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--c-text-lo)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+          <div className="doc-slash-preview-card__eyebrow">
             Preview
           </div>
-          <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--c-text-hi)' }}>{activeCommand.label}</div>
-          <div style={{ fontSize: 12, lineHeight: 1.5, color: 'var(--c-text-lo)' }}>{activeCommand.description}</div>
-          <div style={{ marginTop: 2 }}>{renderPreview(activeCommand)}</div>
+          <div className="doc-slash-preview-card__title">{activeCommand.label}</div>
+          <div className="doc-slash-preview-card__description">{activeCommand.description}</div>
+          <div className="doc-slash-preview-card__sample">{renderPreview(activeCommand)}</div>
         </div>
       )}
     </>

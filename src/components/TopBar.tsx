@@ -13,7 +13,7 @@ import exportSound from '../assets/get1.mp3';
 import { IconDoc, IconSaveFile, IconSidebarToggle } from './icons';
 import { announceLocalSave } from '../utils/saveStatus';
 import { applyWorkspaceSyncFromOpenResult } from '../utils/applyWorkspaceSync';
-import { DARK_MENU_CLASSES } from './darkMenuTheme';
+import { DARK_MENU_CLASSES, DARK_MENU_COLORS } from './darkMenuTheme';
 import { promptAndImportMarkdownNotes } from '../utils/noteImport';
 
 const playExportSound = () => new Audio(exportSound).play().catch(() => {});
@@ -70,13 +70,15 @@ function parseCSV(text: string): string[][] {
   return rows;
 }
 
-export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleTimer, explorerOpen, onToggleExplorer, onWorkspaceOpened, jiraOpen, onToggleJira, onToggleSearch, workspaceOffset: _workspaceOffset = 0, templatesOpen, onTemplatesOpenChange }: TopBarProps) {
+export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleTimer, explorerOpen, onToggleExplorer, onWorkspaceOpened, jiraOpen, onToggleJira, onToggleSearch, workspaceOffset = 0, templatesOpen, onTemplatesOpenChange }: TopBarProps) {
   const { boardTitle, exportData, loadBoard, setActiveTool, setActiveShapeKind, addNode, pages, activePageId, workspaceName, setWorkspaceName, nodes, appMode, cloudBoardId, cloudBoardTitle, cloudSyncedAt, lastLocalSavedAt, lastLocalSaveTarget } = useBoardStore();
   const { user } = useAuth();
   const isDocumentContext = appMode === 'document';
   const fileInputRef = useRef<HTMLInputElement>(null);
   const csvInputRef = useRef<HTMLInputElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [menuAnchorLeft, setMenuAnchorLeft] = useState<number | null>(null);
+  const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const [confirmDialog, setConfirmDialog] = useState<{
     message: string;
@@ -95,16 +97,33 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
 
   const workspacePathHint = getWorkspacePathHint();
   const workspaceFolderLabel = workspaceName ?? workspacePathHint?.replace(/\\/g, '/').split('/').pop() ?? null;
+  const titleLabel = workspaceFolderLabel || cloudBoardTitle || boardTitle.trim() || 'Untitled Workspace';
+  const titleStripLeft = Math.max(8, workspaceOffset + 10);
+  const appMenuLeft = menuAnchorLeft ?? titleStripLeft;
 
   // Close menu on outside click
   useEffect(() => {
     if (!menuOpen) return;
     const handler = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+      const target = e.target as Node;
+      if (menuRef.current?.contains(target)) return;
+      setMenuOpen(false);
+      setActiveMenuId(null);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [menuOpen]);
+
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<{ left?: number }>).detail;
+      setMenuAnchorLeft(typeof detail?.left === 'number' ? detail.left : titleStripLeft);
+      setMenuOpen(true);
+      setActiveMenuId(null);
+    };
+    window.addEventListener('devboard:toggle-app-menu', handler);
+    return () => window.removeEventListener('devboard:toggle-app-menu', handler);
+  }, [titleStripLeft]);
 
   useEffect(() => {
     const handler = (event: Event) => {
@@ -445,19 +464,78 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
           borderBottom: '0.5px solid var(--c-topbar-border)',
         }}
       >
-      {/* Left: sidebar entry point for narrow screens when the explorer is closed */}
+      {/* Left: persistent project menu when the sidebar is collapsed */}
       {!explorerOpen && (
-        <div className="pointer-events-auto absolute left-2 sm:left-4 top-1/2 flex -translate-y-1/2 items-center">
-          <button
-            type="button"
-            onClick={onToggleExplorer}
-            title="Open sidebar"
-            aria-label="Open sidebar"
-            className="flex h-8 w-8 items-center justify-center rounded-[9px] border border-[var(--c-border)] text-[var(--c-text-md)] transition-colors hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]"
-            style={{ background: 'color-mix(in srgb, var(--c-canvas) 42%, transparent)' }}
+        <div
+          ref={menuRef}
+          className="pointer-events-auto absolute top-1/2 flex -translate-y-1/2 items-center gap-2"
+          style={{
+            left: titleStripLeft,
+            maxWidth: 'min(360px, calc(100vw - 116px))',
+          }}
+        >
+          <div
+            className="flex min-w-0 items-center gap-2 rounded-[11px] border border-[var(--c-border)] bg-[var(--c-panel)] py-1 pl-3 pr-2 shadow-sm"
+            style={{ height: 36 }}
           >
-            <IconSidebarToggle size={16} />
-          </button>
+            <span
+              className="min-w-0 flex-1 truncate pr-1 font-sans text-[12px] font-semibold text-[var(--c-text-hi)]"
+              title={titleLabel}
+            >
+              {titleLabel}
+            </span>
+            <button
+              type="button"
+              onClick={onToggleExplorer}
+              title="Expand sidebar"
+              aria-label="Expand sidebar"
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] text-[var(--c-text-md)] transition-colors hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]"
+            >
+              <IconSidebarToggle size={16} />
+            </button>
+          </div>
+          {menuOpen && (
+            <div
+              className="fixed z-[10001] w-[238px] rounded-[10px] border p-1.5 shadow-2xl"
+              style={{
+                left: appMenuLeft,
+                top: 46,
+                borderColor: DARK_MENU_COLORS.border,
+                background: DARK_MENU_COLORS.surface,
+                boxShadow: DARK_MENU_COLORS.shadow,
+              }}
+            >
+              <ActiveSubMenuCtx.Provider value={{ activeId: activeMenuId, setActiveId: setActiveMenuId as (id: string | null | ((prev: string | null) => string | null)) => void }}>
+                <MenuItemSub icon={<IconFolder />} label="File">
+                  <MenuItem icon={<IconDoc />} onClick={() => menuAction(onNewNote)}>New note</MenuItem>
+                  <MenuItem icon={<IconNewBoard />} onClick={() => menuAction(handleNewBoard)}>New board</MenuItem>
+                  <MenuItem icon={<IconFolder />} onClick={() => { void handleOpenFolder(); }}>Switch workspace...</MenuItem>
+                  <MenuItem icon={<IconSaveFile />} onClick={() => menuAction(handleSaveJSON)}>Save workspace</MenuItem>
+                  <MenuItem icon={<IconSettings />} onClick={() => menuAction(() => window.dispatchEvent(new CustomEvent('devboard:open-cloud-modal')))}>Project Sync...</MenuItem>
+                </MenuItemSub>
+                <MenuItemSub icon={<IconTools />} label="Edit">
+                  <MenuItem icon={<IconDoc />} onClick={() => menuAction(onNewNote)}>New note</MenuItem>
+                  <MenuItem icon={<IconSearchMenu />} onClick={() => menuAction(onToggleSearch)}>Search...</MenuItem>
+                </MenuItemSub>
+                <MenuItemSub icon={<IconSettings />} label="View">
+                  <MenuItem icon={<IconSearchMenu />} onClick={() => menuAction(onToggleSearch)}>Search...</MenuItem>
+                  <MenuItem icon={<IconTimerMenu />} onClick={() => menuAction(onToggleTimer)} checked={timerVisible}>Timer</MenuItem>
+                  <MenuItem icon={<IconJiraMenu />} onClick={() => menuAction(onToggleJira)} checked={jiraOpen}>Jira panel</MenuItem>
+                </MenuItemSub>
+                <MenuItemSub icon={<IconDownload />} label="Export">
+                  <MenuItem icon={<IconDownload />} onClick={() => menuAction(handleExportDocumentsMarkdown)}>Export notes as Markdown</MenuItem>
+                  <MenuItem icon={<IconImg />} onClick={() => menuAction(handleExportPNG)}>Export board as PNG</MenuItem>
+                  <MenuItem icon={<IconZip />} onClick={() => menuAction(handleExportZip)}>Export workspace ZIP</MenuItem>
+                </MenuItemSub>
+                <MenuDivider />
+                <MenuItem icon={<IconDownload />} onClick={() => menuAction(() => window.open('https://devboard.app/download', '_blank'))}>Download desktop app</MenuItem>
+                <MenuDivider />
+                <MenuItem icon={<IconSettings />} onClick={() => menuAction(onShowAbout)}>Help & about</MenuItem>
+                <MenuDivider />
+                <MenuItem icon={<IconFolder />} onClick={() => { void handleOpenFolder(); }}>Switch workspace...</MenuItem>
+              </ActiveSubMenuCtx.Provider>
+            </div>
+          )}
         </div>
       )}
 
@@ -515,26 +593,45 @@ function MenuItem({
   return (
     <button
       onClick={disabled ? undefined : onClick}
-      className={[
-        DARK_MENU_CLASSES.itemBase,
-        disabled ? DARK_MENU_CLASSES.itemDisabled : DARK_MENU_CLASSES.itemEnabled,
-      ].join(' ')}
+      disabled={disabled}
+      className="w-full flex items-center gap-2.5 px-3 py-1.5 font-sans text-[12px] text-left transition-colors rounded"
+      style={{
+        color: disabled ? DARK_MENU_COLORS.textDisabled : DARK_MENU_COLORS.text,
+        cursor: disabled ? 'default' : 'pointer',
+      }}
+      onMouseEnter={(e) => {
+        if (disabled) return;
+        e.currentTarget.style.background = DARK_MENU_COLORS.hover;
+        e.currentTarget.style.color = DARK_MENU_COLORS.textHi;
+      }}
+      onMouseLeave={(e) => {
+        if (disabled) return;
+        e.currentTarget.style.background = 'transparent';
+        e.currentTarget.style.color = DARK_MENU_COLORS.text;
+      }}
     >
       {icon && (
-        <span className={disabled ? DARK_MENU_CLASSES.itemDisabled : DARK_MENU_CLASSES.accent}>
+        <span style={{ color: disabled ? DARK_MENU_COLORS.textDisabled : DARK_MENU_COLORS.accent }}>
           {icon}
         </span>
       )}
       <span className="flex-1">{children}</span>
       {checked !== undefined && (
-        <span className={checked ? DARK_MENU_CLASSES.accent : 'text-transparent'}>
+        <span style={{ color: checked ? DARK_MENU_COLORS.accent : 'transparent' }}>
           <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
             <path d="M1.5 5l2.5 2.5 5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </span>
       )}
       {badge && (
-        <span className={DARK_MENU_CLASSES.badge}>
+        <span
+          className="text-[9px] font-sans rounded px-1 py-0.5 uppercase tracking-wide"
+          style={{
+            color: DARK_MENU_COLORS.textMuted,
+            border: `1px solid ${DARK_MENU_COLORS.border}`,
+            background: DARK_MENU_COLORS.hover,
+          }}
+        >
           {badge}
         </span>
       )}
@@ -788,19 +885,33 @@ function MenuItemSub({ label, icon, children }: { label: string; icon?: React.Re
   return (
     <div className="relative" onMouseEnter={show} onMouseLeave={hide}>
       <button
-        className={[
-          DARK_MENU_CLASSES.itemBase,
-          open ? DARK_MENU_CLASSES.itemActive : DARK_MENU_CLASSES.itemEnabled,
-        ].join(' ')}
+        className="w-full flex items-center gap-2.5 px-3 py-1.5 font-sans text-[12px] text-left transition-colors rounded"
+        style={{
+          background: open ? DARK_MENU_COLORS.hover : 'transparent',
+          color: open ? DARK_MENU_COLORS.textHi : DARK_MENU_COLORS.text,
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = DARK_MENU_COLORS.hover;
+          e.currentTarget.style.color = DARK_MENU_COLORS.textHi;
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = open ? DARK_MENU_COLORS.hover : 'transparent';
+          e.currentTarget.style.color = open ? DARK_MENU_COLORS.textHi : DARK_MENU_COLORS.text;
+        }}
       >
-        {icon && <span className={DARK_MENU_CLASSES.accent}>{icon}</span>}
+        {icon && <span style={{ color: DARK_MENU_COLORS.accent }}>{icon}</span>}
         <span className="flex-1">{label}</span>
-        <span className={DARK_MENU_CLASSES.muted}><IconChevronRight /></span>
+        <span style={{ color: DARK_MENU_COLORS.textMuted }}><IconChevronRight /></span>
       </button>
       {open && (
         <div
-          className={`absolute left-full top-0 ml-1 w-48 py-1.5 z-[230] ${DARK_MENU_CLASSES.panel}`}
-          style={{ animation: 'submenu-in 0.13s ease-out' }}
+          className="absolute left-full top-0 ml-1 w-48 rounded-xl border py-1.5 shadow-2xl z-[230]"
+          style={{
+            animation: 'submenu-in 0.13s ease-out',
+            borderColor: DARK_MENU_COLORS.border,
+            background: DARK_MENU_COLORS.surface,
+            boxShadow: DARK_MENU_COLORS.shadow,
+          }}
           onMouseEnter={show}
           onMouseLeave={hide}
         >

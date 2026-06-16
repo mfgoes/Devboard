@@ -6,18 +6,17 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useBoardStore } from '../store/boardStore';
 import { useAuth } from '../contexts/AuthContext';
-import type { Camera, CanvasNode, Document, ImageNode, PageMeta } from '../types';
-import { listDirectory, readWorkspaceFile, readWorkspaceFileAsUrl, readWorkspaceFileInfo, getWorkspaceName, openWorkspace, openRecentWorkspace, listLocalRecentWorkspaces, renameEntry, createDirectory, deleteEntry, FSA_DIR_SUPPORTED, IN_IFRAME, IS_TAURI, revealInFinder, saveTextFileToWorkspace, saveWorkspace, loadImageAsset, findImageInWorkspace, hasWorkspaceHandle, type LocalRecentWorkspace, type WorkspaceOpenResult } from '../utils/workspaceManager';
+import type { CanvasNode, Document, ImageNode, PageMeta } from '../types';
+import { listDirectory, readWorkspaceFile, readWorkspaceFileAsUrl, readWorkspaceFileInfo, getWorkspaceName, openWorkspace, openRecentWorkspace, listLocalRecentWorkspaces, renameEntry, createDirectory, deleteEntry, IS_TAURI, revealInFinder, saveTextFileToWorkspace, saveWorkspace, loadImageAsset, findImageInWorkspace, hasWorkspaceHandle, type LocalRecentWorkspace, type WorkspaceOpenResult } from '../utils/workspaceManager';
 import { FONTS } from '../utils/fonts';
 import { placeCodeFile, placeImageFile, placeDocumentFile, openDocumentFile } from '../utils/canvasPlacement';
 import { markdownBodyToHtml, titleFromMarkdown } from '../utils/exportMarkdown';
 import { exportDocumentAsMarkdownFile, exportDocumentAsPdf, exportDocumentAsTextFile, stripHtmlPreview } from '../utils/documentExport';
 import { toast } from '../utils/toast';
 import { applyWorkspaceSyncFromOpenResult } from '../utils/applyWorkspaceSync';
-import devboardIconUrl from '../assets/devboard_icon.png';
 import { useFilePreview } from '../hooks/useFilePreview';
 import { useTreeState } from '../hooks/useTreeState';
-import { IconArrowRight, IconCanvasDoc, IconCloud, IconDoc, IconFolder, IconSidebarToggle, IconStar } from './icons';
+import { IconArrowRight, IconCanvasDoc, IconCloud, IconDoc, IconFolder, IconSidebarToggle } from './icons';
 import { DARK_MENU_COLORS } from './darkMenuTheme';
 import ModalCloseButton from './ModalCloseButton';
 import {
@@ -32,17 +31,24 @@ import {
   FileIcon,
   TreeEntry,
   buildEntry,
+  buildVirtualCloudTree,
   flatVisible,
+  isVisibleInAssets,
+  isWorkspaceManagedEntry,
 } from './explorer/fileTreeUtils';
-
-function relativeTime(ms: number): string {
-  const diff = Date.now() - ms;
-  if (diff < 60_000) return 'just now';
-  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m`;
-  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h`;
-  if (diff < 7 * 86_400_000) return `${Math.floor(diff / 86_400_000)}d`;
-  return new Date(ms).toLocaleDateString();
-}
+import PageMiniMap from './explorer/PageMiniMap';
+import {
+  CommandIcon,
+  CommandMenuDivider,
+  CommandMenuItem,
+  CommandMenuSubItem,
+  DarkMenuActionItem,
+  MenuIcon,
+  NoWorkspaceState,
+  NoteShortcutRow,
+  SectionChevron,
+} from './explorer/WorkspaceExplorerParts';
+import { isCanvasDocument, relativeTime, sortDocumentsForExplorer, wordCountFromPreviewText } from './explorer/workspaceExplorerUtils';
 
 const explorerSectionHeaderStyle: React.CSSProperties = {
   fontFamily: FONTS.ui,
@@ -62,275 +68,7 @@ const explorerFocusedRowStyle: React.CSSProperties = {
 
 const SIDEBAR_SELECTABLE_ROW_HEIGHT = 32;
 
-function SectionChevron({ open }: { open: boolean }) {
-  return (
-    <span
-      className="opacity-0 group-hover:opacity-100 group-focus:opacity-100 group-hover:bg-[var(--c-hover)] group-focus:bg-[var(--c-hover)] transition-opacity"
-      style={{
-        width: 18,
-        height: 18,
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderRadius: 5,
-        fontSize: 14,
-        fontWeight: 800,
-        lineHeight: 1,
-        color: 'var(--c-text-md)',
-        transition: 'opacity 0.14s ease, background 0.14s ease',
-        marginLeft: 4,
-        transform: 'translateY(0.5px)',
-      }}
-      aria-hidden="true"
-    >
-      <span
-        style={{
-          display: 'block',
-          lineHeight: 1,
-          transform: `${open ? 'rotate(0deg)' : 'rotate(-90deg)'} translateY(-0.5px)`,
-          transition: 'transform 0.14s ease',
-        }}
-      >
-        ▾
-      </span>
-    </span>
-  );
-}
-
-function MenuIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-      <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-
-function CommandIcon({ kind }: { kind: 'search' | 'folder' | 'file' | 'edit' | 'view' | 'export' | 'settings' | 'download' | 'help' }) {
-  if (kind === 'search') {
-    return (
-      <svg width="13" height="13" viewBox="0 0 17 17" fill="none" aria-hidden="true">
-        <circle cx="7.2" cy="7.2" r="4.8" stroke="currentColor" strokeWidth="1.8" />
-        <path d="M10.8 10.8 14.3 14.3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-      </svg>
-    );
-  }
-  if (kind === 'folder') return <IconFolder size={13} />;
-  if (kind === 'file') {
-    return (
-      <svg width="13" height="13" viewBox="0 0 17 17" fill="none" aria-hidden="true">
-        <path d="M4.2 2.5h5.1l3.5 3.5v8.5H4.2V2.5Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-        <path d="M9.2 2.8v3.5h3.3" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-      </svg>
-    );
-  }
-  if (kind === 'edit') {
-    return (
-      <svg width="13" height="13" viewBox="0 0 17 17" fill="none" aria-hidden="true">
-        <path d="M4 12.3 4.6 9.5l6.8-6.8 2.2 2.2-6.8 6.8-2.8.6Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-        <path d="M10.5 3.6 12.7 5.8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-      </svg>
-    );
-  }
-  if (kind === 'view') {
-    return (
-      <svg width="13" height="13" viewBox="0 0 17 17" fill="none" aria-hidden="true">
-        <path d="M2.2 8.5s2.3-4 6.3-4 6.3 4 6.3 4-2.3 4-6.3 4-6.3-4-6.3-4Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-        <circle cx="8.5" cy="8.5" r="1.8" stroke="currentColor" strokeWidth="1.5" />
-      </svg>
-    );
-  }
-  if (kind === 'export') {
-    return (
-      <svg width="13" height="13" viewBox="0 0 17 17" fill="none" aria-hidden="true">
-        <path d="M8.5 3v7" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-        <path d="M5.8 7.8 8.5 10.5l2.7-2.7" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-        <path d="M3.5 13.5h10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-      </svg>
-    );
-  }
-  if (kind === 'settings') {
-    return (
-      <svg width="13" height="13" viewBox="0 0 17 17" fill="none" aria-hidden="true">
-        <path d="M8.5 5.8a2.7 2.7 0 1 1 0 5.4 2.7 2.7 0 0 1 0-5.4Z" stroke="currentColor" strokeWidth="1.5" />
-        <path d="M8.5 2.2v1.7M8.5 13.1v1.7M2.2 8.5h1.7M13.1 8.5h1.7M4.1 4.1l1.2 1.2M11.7 11.7l1.2 1.2M4.1 12.9l1.2-1.2M11.7 5.3l1.2-1.2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-      </svg>
-    );
-  }
-  if (kind === 'download') {
-    return (
-      <svg width="13" height="13" viewBox="0 0 17 17" fill="none" aria-hidden="true">
-        <path d="M8.5 2.5v8M5.6 7.9l2.9 2.9 2.9-2.9" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-        <path d="M3.2 14.2h10.6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-      </svg>
-    );
-  }
-  return (
-    <svg width="13" height="13" viewBox="0 0 17 17" fill="none" aria-hidden="true">
-      <circle cx="8.5" cy="8.5" r="6.2" stroke="currentColor" strokeWidth="1.5" />
-      <path d="M6.8 6.5a1.8 1.8 0 0 1 3.4.8c0 1.7-1.8 1.7-1.8 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-      <circle cx="8.5" cy="12.6" r=".6" fill="currentColor" />
-    </svg>
-  );
-}
-
-function CommandMenuItem({
-  icon,
-  label,
-  onClick,
-  disabled = false,
-  trailing,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
-  disabled?: boolean;
-  trailing?: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={disabled ? undefined : onClick}
-      disabled={disabled}
-      style={{
-        width: '100%',
-        minHeight: 31,
-        display: 'grid',
-        gridTemplateColumns: trailing ? '17px minmax(0, 1fr) auto' : '17px minmax(0, 1fr)',
-        alignItems: 'center',
-        gap: 10,
-        padding: '0 12px',
-        border: 'none',
-        background: 'transparent',
-        color: disabled ? DARK_MENU_COLORS.textMuted : DARK_MENU_COLORS.text,
-        cursor: disabled ? 'default' : 'pointer',
-        textAlign: 'left',
-        fontFamily: FONTS.ui,
-        opacity: disabled ? 0.58 : 1,
-      }}
-      onMouseEnter={(e) => {
-        if (disabled) return;
-        e.currentTarget.style.background = DARK_MENU_COLORS.hover;
-        e.currentTarget.style.color = DARK_MENU_COLORS.textHi;
-      }}
-      onMouseLeave={(e) => {
-        if (disabled) return;
-        e.currentTarget.style.background = 'transparent';
-        e.currentTarget.style.color = DARK_MENU_COLORS.text;
-      }}
-    >
-      <span style={{ display: 'inline-flex', color: DARK_MENU_COLORS.accent }}>{icon}</span>
-      <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12, fontWeight: 560 }}>{label}</span>
-      {trailing && <span style={{ color: DARK_MENU_COLORS.textMuted, fontSize: 10.5 }}>{trailing}</span>}
-    </button>
-  );
-}
-
-function CommandMenuDivider() {
-  return <div style={{ height: 1, margin: '4px 10px', background: DARK_MENU_COLORS.border }} />;
-}
-
-function CommandMenuSubItem({
-  icon,
-  label,
-  open,
-  onOpen,
-  onClose,
-  children,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  open: boolean;
-  onOpen: () => void;
-  onClose: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <div style={{ position: 'relative' }} onMouseEnter={onOpen} onMouseLeave={onClose}>
-      <CommandMenuItem
-        icon={icon}
-        label={label}
-        trailing="›"
-        onClick={(e) => {
-          e.preventDefault();
-          open ? onClose() : onOpen();
-        }}
-      />
-      {open && (
-        <div
-          style={{
-            position: 'absolute',
-            left: 'calc(100% - 2px)',
-            top: -6,
-            zIndex: 10002,
-            width: 220,
-            padding: '6px 0',
-            border: `1px solid ${DARK_MENU_COLORS.border}`,
-            borderRadius: 10,
-            background: DARK_MENU_COLORS.surface,
-            boxShadow: DARK_MENU_COLORS.shadow,
-            overflow: 'hidden',
-            animation: 'submenu-in 0.13s ease-out',
-          }}
-          onMouseDown={(e) => e.stopPropagation()}
-        >
-          {children}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function DarkMenuActionItem({
-  label,
-  onClick,
-  trailing,
-}: {
-  label: React.ReactNode;
-  onClick: () => void;
-  trailing?: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      style={{
-        width: '100%',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: trailing ? 'space-between' : 'flex-start',
-        gap: 10,
-        padding: '8px 9px',
-        border: 'none',
-        borderRadius: 8,
-        background: 'transparent',
-        color: DARK_MENU_COLORS.text,
-        cursor: 'pointer',
-        fontFamily: FONTS.ui,
-        fontSize: 12,
-        textAlign: 'left',
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.background = DARK_MENU_COLORS.hover;
-        e.currentTarget.style.color = DARK_MENU_COLORS.textHi;
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.background = 'transparent';
-        e.currentTarget.style.color = DARK_MENU_COLORS.text;
-      }}
-    >
-      <span style={{ minWidth: 0, flex: 1 }}>{label}</span>
-      {trailing && <span style={{ flexShrink: 0 }}>{trailing}</span>}
-    </button>
-  );
-}
-
 const ADVANCED_FILES_STORAGE_KEY = 'devboard-advanced-files-visible';
-
-const HIDDEN_ASSET_ROOTS = new Set(['notes', 'documents', 'pages']);
-const HIDDEN_ASSET_FILES = new Set(['workspace.json']);
-const WORKSPACE_MANAGED_ROOTS = new Set(['notes', 'documents', 'pages']);
-const WORKSPACE_MANAGED_FILES = new Set(['workspace.json']);
 
 type ExplorerKeyboardItem =
   | { kind: 'page'; pageId: string }
@@ -351,196 +89,6 @@ type NotePreview = {
   doc: Document;
   anchorY: number;
 };
-
-function sortTreeEntries(entries: TreeEntry[]): TreeEntry[] {
-  return [...entries].sort((a, b) => {
-    if (a.kind !== b.kind) return a.kind === 'directory' ? -1 : 1;
-    return a.name.localeCompare(b.name, undefined, { numeric: true });
-  });
-}
-
-function buildVirtualCloudTree({
-  pages,
-  documents,
-  nodes,
-  pageSnapshots,
-  expandedPaths,
-}: {
-  pages: PageMeta[];
-  documents: Document[];
-  nodes: CanvasNode[];
-  pageSnapshots: Record<string, { nodes: CanvasNode[]; camera: Camera }>;
-  expandedPaths: Set<string>;
-}): TreeEntry[] {
-  const roots = new Map<string, TreeEntry>();
-  const ensureDir = (path: string[]): TreeEntry => {
-    const name = path[path.length - 1];
-    const parentPath = path.slice(0, -1);
-    const target = path.join('/');
-    const parent = parentPath.length ? ensureDir(parentPath) : null;
-    const siblings = parent ? (parent.children ??= []) : Array.from(roots.values());
-    let entry = siblings.find((item) => item.name === name && item.kind === 'directory');
-    if (!entry) {
-      entry = {
-        ...buildEntry(name, 'directory', parentPath),
-        expanded: expandedPaths.has(target),
-        loading: false,
-        children: [],
-      };
-      if (parent) parent.children = sortTreeEntries([...(parent.children ?? []), entry]);
-      else roots.set(name, entry);
-    } else {
-      entry.expanded = expandedPaths.has(target);
-      entry.children ??= [];
-    }
-    return entry;
-  };
-  const addFile = (path: string[]) => {
-    if (path.length === 0) return;
-    const fileName = path[path.length - 1];
-    const parentPath = path.slice(0, -1);
-    const parent = parentPath.length ? ensureDir(parentPath) : null;
-    const entry = buildEntry(fileName, 'file', parentPath);
-    if (parent) {
-      if (!(parent.children ?? []).some((item) => item.path.join('/') === entry.path.join('/'))) {
-        parent.children = sortTreeEntries([...(parent.children ?? []), entry]);
-      }
-    } else if (!roots.has(fileName)) {
-      roots.set(fileName, entry);
-    }
-  };
-
-  addFile(['workspace.json']);
-  for (const page of pages) addFile(['pages', `${page.id}.json`]);
-  for (const doc of documents) {
-    if (!doc.linkedFile) continue;
-    addFile(doc.linkedFile.split('/').filter(Boolean));
-  }
-
-  const allNodes = [
-    ...nodes,
-    ...Object.values(pageSnapshots).flatMap((snapshot) => snapshot.nodes),
-  ];
-  for (const node of allNodes) {
-    if (node.type !== 'image' || !node.assetName) continue;
-    const folder = node.assetFolder || 'assets';
-    addFile([...folder.split('/').filter(Boolean), node.assetName]);
-  }
-
-  return sortTreeEntries(Array.from(roots.values()));
-}
-
-function isVisibleInAssets(entry: TreeEntry): boolean {
-  if (entry.path.length === 0) return true;
-  const root = entry.path[0];
-  if (!root) return true;
-  if (HIDDEN_ASSET_ROOTS.has(root)) return false;
-  if (entry.path.length === 1 && HIDDEN_ASSET_FILES.has(entry.name)) return false;
-  return true;
-}
-
-function isWorkspaceManagedEntry(entry: TreeEntry): boolean {
-  const root = entry.path[0];
-  if (!root) return false;
-  return WORKSPACE_MANAGED_ROOTS.has(root) || (entry.path.length === 1 && WORKSPACE_MANAGED_FILES.has(entry.name));
-}
-
-function nodeBounds(node: CanvasNode): { x: number; y: number; w: number; h: number } | null {
-  if (node.type === 'connector') {
-    const x = Math.min(node.fromX, node.toX);
-    const y = Math.min(node.fromY, node.toY);
-    return { x, y, w: Math.max(8, Math.abs(node.toX - node.fromX)), h: Math.max(8, Math.abs(node.toY - node.fromY)) };
-  }
-  if (node.type === 'sticker') return { x: node.x - node.width / 2, y: node.y - node.height / 2, w: node.width, h: node.height };
-  if (node.type === 'textblock') return { x: node.x, y: node.y, w: node.width, h: Math.max(40, node.fontSize * 3.2) };
-  if (node.type === 'table') return { x: node.x, y: node.y, w: node.colWidths.reduce((a, b) => a + b, 0), h: node.rowHeights.reduce((a, b) => a + b, 0) };
-  if (node.type === 'taskcard') return { x: node.x, y: node.y, w: node.width, h: node.height ?? 160 };
-  if (node.type === 'sticky' || node.type === 'shape' || node.type === 'section' || node.type === 'codeblock' || node.type === 'image' || node.type === 'link' || node.type === 'document') {
-    return { x: node.x, y: node.y, w: node.width, h: node.height };
-  }
-  return null;
-}
-
-function PageMiniMap({ nodes }: { nodes: CanvasNode[] }) {
-  const drawableNodes = nodes.slice(0, 28);
-  const bounds = drawableNodes
-    .map(nodeBounds)
-    .filter(Boolean) as Array<{ x: number; y: number; w: number; h: number }>;
-  const minX = bounds.length ? Math.min(...bounds.map((b) => b.x)) : 0;
-  const minY = bounds.length ? Math.min(...bounds.map((b) => b.y)) : 0;
-  const maxX = bounds.length ? Math.max(...bounds.map((b) => b.x + b.w)) : 320;
-  const maxY = bounds.length ? Math.max(...bounds.map((b) => b.y + b.h)) : 220;
-  const pad = 32;
-  const viewBox = `${minX - pad} ${minY - pad} ${Math.max(220, maxX - minX + pad * 2)} ${Math.max(150, maxY - minY + pad * 2)}`;
-
-  return (
-    <svg viewBox={viewBox} width="100%" height="150" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-      <rect x={minX - pad} y={minY - pad} width={Math.max(220, maxX - minX + pad * 2)} height={Math.max(150, maxY - minY + pad * 2)} rx="20" fill="rgba(212,131,90,0.05)" />
-      {drawableNodes.map((node) => {
-        if (node.type === 'connector') {
-          return (
-            <line
-              key={node.id}
-              x1={node.fromX}
-              y1={node.fromY}
-              x2={node.toX}
-              y2={node.toY}
-              stroke={node.color || '#b87750'}
-              strokeWidth={Math.max(1.5, Math.min(4, node.strokeWidth))}
-              strokeLinecap="round"
-              opacity="0.75"
-            />
-          );
-        }
-        const box = nodeBounds(node);
-        if (!box) return null;
-        const common = {
-          key: node.id,
-          x: box.x,
-          y: box.y,
-          width: box.w,
-          height: box.h,
-          rx: 14,
-          opacity: 0.9,
-        };
-        if (node.type === 'sticky') return <rect {...common} fill={node.color || '#f5e2b8'} stroke="rgba(74,53,37,0.14)" strokeWidth="2" />;
-        if (node.type === 'shape') return <rect {...common} fill={node.fill || 'rgba(212,131,90,0.18)'} stroke={node.stroke || 'rgba(138,117,95,0.45)'} strokeWidth={Math.max(1, node.strokeWidth ?? 1)} />;
-        if (node.type === 'section') return <rect {...common} fill="transparent" stroke={node.color || '#d4835a'} strokeWidth="3" strokeDasharray="8 6" />;
-        if (node.type === 'image' || node.type === 'sticker') return <rect {...common} fill="rgba(212,131,90,0.14)" stroke="rgba(212,131,90,0.3)" strokeWidth="2" />;
-        if (node.type === 'codeblock') return <rect {...common} fill="rgba(44,36,31,0.8)" stroke="rgba(138,117,95,0.35)" strokeWidth="2" />;
-        if (node.type === 'document' || node.type === 'textblock') return <rect {...common} fill="rgba(255,255,255,0.82)" stroke="rgba(138,117,95,0.22)" strokeWidth="2" />;
-        if (node.type === 'link') return <rect {...common} fill="rgba(133,186,156,0.16)" stroke="rgba(133,186,156,0.38)" strokeWidth="2" />;
-        if (node.type === 'table') return <rect {...common} fill="rgba(212,131,90,0.08)" stroke="rgba(138,117,95,0.3)" strokeWidth="2" />;
-        if (node.type === 'taskcard') return <rect {...common} fill="rgba(255,247,237,0.95)" stroke="rgba(212,131,90,0.32)" strokeWidth="2" />;
-        return <rect {...common} fill="rgba(212,131,90,0.12)" stroke="rgba(138,117,95,0.28)" strokeWidth="2" />;
-      })}
-    </svg>
-  );
-}
-
-function sortDocumentsForExplorer(docs: Document[], sortMode: PageMeta['noteSort'] = 'updated'): Document[] {
-  if (sortMode === 'custom') {
-    return [...docs].sort((a, b) => {
-      if (a.orderIndex != null && b.orderIndex != null) return a.orderIndex - b.orderIndex;
-      if (a.orderIndex != null) return -1;
-      if (b.orderIndex != null) return 1;
-      return b.updatedAt - a.updatedAt;
-    });
-  }
-  return [...docs].sort((a, b) => {
-    return b.updatedAt - a.updatedAt;
-  });
-}
-
-function isCanvasDocument(doc: Document): boolean {
-  return doc.docType === 'canvas';
-}
-
-function wordCountFromPreviewText(text: string): number {
-  const trimmed = text.trim();
-  if (!trimmed) return 0;
-  return trimmed.split(/\s+/).filter(Boolean).length;
-}
 
 function NoteHoverThumbnail({ doc, pageName }: { doc: Document; pageName: string }) {
   const plain = stripHtmlPreview(doc.content);
@@ -581,135 +129,6 @@ function NoteHoverThumbnail({ doc, pageName }: { doc: Document; pageName: string
         {meta}
       </div>
     </div>
-  );
-}
-
-function NoteShortcutRow({
-  doc,
-  active,
-  onOpen,
-  onToggleFavorite,
-  onPreview,
-  onPreviewEnd,
-}: {
-  doc: Document;
-  active: boolean;
-  onOpen: (doc: Document) => void;
-  onToggleFavorite: (doc: Document) => void;
-  onPreview: (doc: Document, clientY: number) => void;
-  onPreviewEnd: () => void;
-}) {
-  const [hovered, setHovered] = useState(false);
-  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const favorite = !!doc.isFavorite;
-  return (
-    <button
-      type="button"
-      onClick={() => onOpen(doc)}
-      onMouseEnter={(e) => {
-        setHovered(true);
-        if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
-        hoverTimerRef.current = setTimeout(() => onPreview(doc, e.clientY), 380);
-      }}
-      onMouseLeave={() => {
-        setHovered(false);
-        if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
-        hoverTimerRef.current = null;
-        onPreviewEnd();
-      }}
-      title={doc.title || 'Untitled note'}
-      style={{
-        width: '100%',
-        minHeight: SIDEBAR_SELECTABLE_ROW_HEIGHT,
-        display: 'flex',
-        alignItems: 'center',
-        gap: 6,
-        padding: '5px 9px',
-        marginTop: 2,
-        border: 'none',
-        borderLeft: active ? '2px solid var(--c-line)' : '2px solid transparent',
-        borderRadius: 6,
-        background: active ? 'var(--c-sidebar-item-active)' : hovered ? 'var(--c-sidebar-item-hover)' : 'transparent',
-        outline: 'none',
-        outlineOffset: -1,
-        cursor: 'pointer',
-        textAlign: 'left',
-      }}
-    >
-      <span
-        role="button"
-        tabIndex={0}
-        onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          onToggleFavorite(doc);
-        }}
-        onKeyDown={(e) => {
-          if (e.key !== 'Enter' && e.key !== ' ') return;
-          e.preventDefault();
-          e.stopPropagation();
-          onToggleFavorite(doc);
-        }}
-        title={favorite ? 'Remove from favorites' : 'Add to favorites'}
-        aria-label={favorite ? `Remove ${doc.title || 'Untitled note'} from favorites` : `Add ${doc.title || 'Untitled note'} to favorites`}
-        style={{
-          width: 18,
-          height: 18,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: 0,
-          border: 'none',
-          borderRadius: 4,
-          background: 'transparent',
-          color: favorite ? '#d6a045' : 'var(--c-text-off)',
-          opacity: favorite || hovered ? 1 : 0,
-          cursor: 'pointer',
-          flexShrink: 0,
-          transition: 'opacity 0.12s ease, background 0.12s ease, color 0.12s ease',
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.background = 'var(--c-hover)';
-          e.currentTarget.style.color = favorite ? '#d6a045' : 'var(--c-text-md)';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = 'transparent';
-          e.currentTarget.style.color = favorite ? '#d6a045' : 'var(--c-text-off)';
-        }}
-      >
-        <IconStar filled={favorite} size={12} />
-      </span>
-      <span
-        aria-hidden="true"
-        style={{
-          width: 14,
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: doc.emoji ? 'var(--c-sidebar-item-active-text)' : 'var(--c-sidebar-item-text)',
-          flexShrink: 0,
-          fontSize: 12,
-          lineHeight: 1,
-        }}
-      >
-        {doc.emoji || <IconDoc />}
-      </span>
-      <span
-        style={{
-          flex: 1,
-          minWidth: 0,
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-          fontFamily: FONTS.ui,
-          fontSize: 10,
-          fontWeight: active ? 650 : 550,
-          color: active || hovered ? 'var(--c-sidebar-item-active-text)' : 'var(--c-sidebar-item-text)',
-        }}
-      >
-        {doc.title || 'Untitled note'}
-      </span>
-    </button>
   );
 }
 
@@ -1002,101 +421,6 @@ function TreeRow({
 }
 
 // ── Empty / no-workspace state ────────────────────────────────────────────────
-function NoWorkspaceState({ onOpen, onCreate }: { onOpen: () => void; onCreate?: () => void }) {
-  const [isBrave, setIsBrave] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    const braveApi = (navigator as Navigator & { brave?: { isBrave?: () => Promise<boolean> } }).brave;
-    if (!braveApi?.isBrave) return;
-    braveApi.isBrave().then((value) => {
-      if (!cancelled) setIsBrave(Boolean(value));
-    }).catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const browserWorkspaceUnavailable = !IS_TAURI && !FSA_DIR_SUPPORTED;
-  const title = browserWorkspaceUnavailable
-    ? 'Folder access is unavailable here'
-    : isBrave
-      ? 'Open a folder to start'
-      : 'No folder open';
-  const body = browserWorkspaceUnavailable
-    ? IN_IFRAME
-      ? 'This embedded browser view cannot grant folder access. Open DevBoard in its own tab or use the desktop app to work with workspace folders.'
-      : 'This browser session cannot open workspace folders. Use the desktop app or a desktop Chromium browser with File System Access support.'
-    : isBrave
-      ? 'Brave desktop can usually open workspace folders, but Shields or privacy settings may block the folder picker on some setups.'
-      : 'A workspace is a normal folder where DevBoard keeps your pages, notes, and assets so everything reopens together later.';
-  const tip = browserWorkspaceUnavailable
-    ? 'Workspace folders need desktop browser support or the desktop app.'
-    : isBrave
-      ? 'If Open folder does nothing in Brave, click the lion icon in the address bar, disable Shields for this page, and try again.'
-      : 'Tip: use a dedicated project folder so workspace.json, pages/, notes/, and assets/ stay together.';
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px 16px', gap: 12, textAlign: 'center' }}>
-      <svg width="36" height="36" viewBox="0 0 36 36" fill="none" style={{ opacity: 0.35 }}>
-        <path d="M3 9a3 3 0 0 1 3-3h8l4 4H30a3 3 0 0 1 3 3v15a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V9z" stroke="var(--c-text-hi)" strokeWidth="2" strokeLinejoin="round" />
-        <line x1="18" y1="16" x2="18" y2="24" stroke="var(--c-text-hi)" strokeWidth="2" strokeLinecap="round" />
-        <line x1="14" y1="20" x2="22" y2="20" stroke="var(--c-text-hi)" strokeWidth="2" strokeLinecap="round" />
-      </svg>
-      <div>
-        <p style={{ fontFamily: FONTS.ui, fontSize: 11, color: 'var(--c-text-hi)', fontWeight: 600, margin: '0 0 4px' }}>{title}</p>
-        <p style={{ fontFamily: FONTS.ui, fontSize: 10, color: 'var(--c-text-lo)', margin: 0, lineHeight: 1.5 }}>
-          {body}
-        </p>
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%', maxWidth: 220 }}>
-        {onCreate && !browserWorkspaceUnavailable && (
-          <button
-            onClick={onCreate}
-            style={{
-              marginTop: 4,
-              padding: '7px 16px',
-              borderRadius: 8,
-              border: 'none',
-              background: 'var(--c-line)',
-              color: '#fff',
-              fontFamily: FONTS.ui,
-              fontSize: 11,
-              fontWeight: 600,
-              cursor: 'pointer',
-              letterSpacing: '0.02em',
-            }}
-          >
-            Create workspace…
-          </button>
-        )}
-        <button
-          onClick={onOpen}
-          disabled={browserWorkspaceUnavailable}
-          style={{
-            padding: '7px 16px',
-            borderRadius: 8,
-            border: onCreate ? '1px solid var(--c-border)' : 'none',
-            background: browserWorkspaceUnavailable ? 'var(--c-hover)' : onCreate ? 'transparent' : 'var(--c-line)',
-            color: browserWorkspaceUnavailable ? 'var(--c-text-lo)' : onCreate ? 'var(--c-text-hi)' : '#fff',
-            fontFamily: FONTS.ui,
-            fontSize: 11,
-            fontWeight: 600,
-            cursor: browserWorkspaceUnavailable ? 'default' : 'pointer',
-            opacity: browserWorkspaceUnavailable ? 0.7 : 1,
-            letterSpacing: '0.02em',
-          }}
-        >
-          {onCreate ? 'Open existing folder…' : 'Open folder…'}
-        </button>
-      </div>
-      <p style={{ fontFamily: FONTS.ui, fontSize: 9.5, color: 'var(--c-text-lo)', margin: 0, lineHeight: 1.5, maxWidth: 240 }}>
-        {tip}
-      </p>
-    </div>
-  );
-}
-
 function PageGroup({
   page,
   docs,
@@ -1978,12 +1302,10 @@ interface Props {
   onCollapse: () => void;
   canClose?: boolean;
   collapseIcon?: 'close' | 'open';
-  compactHeader?: boolean;
 }
 
-export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true, collapseIcon = 'close', compactHeader = false }: Props) {
+export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true, collapseIcon = 'close' }: Props) {
   const isPreviewPanel = collapseIcon === 'open';
-  const useOpenSidebarIcon = isPreviewPanel || compactHeader;
   const { isConfigured: authConfigured, isLoading: authLoading, user, signOut } = useAuth();
   const imageAssetFolder = useBoardStore((s) => s.imageAssetFolder);
   const boardTitle = useBoardStore((s) => s.boardTitle);
@@ -3459,6 +2781,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
         <button
           onClick={onCollapse}
           title={isPreviewPanel ? 'Expand sidebar' : 'Collapse sidebar'}
+          aria-label={isPreviewPanel ? 'Expand sidebar' : 'Collapse sidebar'}
           className="flex items-center justify-center transition-colors"
           style={{
             width: 28,
@@ -3477,7 +2800,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
             e.currentTarget.style.background = 'transparent';
           }}
         >
-          <i className={`ti ${isPreviewPanel ? 'ti-layout-sidebar-left-expand' : 'ti-layout-sidebar-left-collapse'}`} aria-hidden="true" />
+          <IconSidebarToggle size={16} />
         </button>
       </div>
       {hasWorkspaceContext && (
