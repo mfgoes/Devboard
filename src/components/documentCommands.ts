@@ -1,4 +1,4 @@
-export type DocumentCommandSurface = 'slash' | 'bubble' | 'toolbar';
+export type DocumentCommandSurface = 'slash' | 'bubble' | 'toolbar' | 'turn-into';
 
 export type DocumentCommandGroup = 'Basic' | 'Link' | 'Media' | 'Meta';
 
@@ -49,15 +49,15 @@ export interface DocumentCommandContext {
 }
 
 export const DOCUMENT_COMMANDS: DocumentCommandDefinition[] = [
-  { id: 'text', group: 'Basic', surfaces: ['slash'], label: 'Text', glyph: 'T', search: 'text paragraph basic body', description: 'Start with a normal body paragraph.' },
-  { id: 'heading-1', group: 'Basic', surfaces: ['slash'], label: 'Heading 1', glyph: 'H1', hint: '#', search: 'heading 1 title basic h1', description: 'Large section heading for major note sections.' },
-  { id: 'heading-2', group: 'Basic', surfaces: ['slash'], label: 'Heading 2', glyph: 'H2', hint: '##', search: 'heading 2 subtitle basic h2', description: 'Medium heading for subsections inside the current note.' },
-  { id: 'bullet-list', group: 'Basic', surfaces: ['slash'], label: 'Bullet list', glyph: '•', search: 'bullet list todo checklist basic', description: 'Create a simple unordered list for ideas or references.' },
-  { id: 'numbered-list', group: 'Basic', surfaces: ['slash'], label: 'Numbered list', glyph: '1.', search: 'numbered ordered list basic', description: 'Create an ordered list for steps, sequences, or priorities.' },
-  { id: 'todo-list', group: 'Basic', surfaces: ['slash'], label: 'Todo list', glyph: '☐', search: 'todo checklist task basic', description: 'Insert a lightweight checklist block for action items.' },
-  { id: 'quote', group: 'Basic', surfaces: ['slash'], label: 'Quote', glyph: '"', search: 'quote blockquote citation basic', description: 'Set off a quoted passage or referenced note.' },
-  { id: 'callout', group: 'Basic', surfaces: ['slash'], label: 'Callout', glyph: '!', search: 'callout quote basic note tip', description: 'Draw attention to an important note, decision, or warning.' },
-  { id: 'code-block', group: 'Basic', surfaces: ['slash'], label: 'Code block', glyph: '</>', search: 'code block basic snippet pre', description: 'Insert a fixed-width code block for commands or snippets.' },
+  { id: 'text', group: 'Basic', surfaces: ['slash', 'turn-into'], label: 'Text', glyph: 'T', search: 'text paragraph basic body', description: 'Start with a normal body paragraph.' },
+  { id: 'heading-1', group: 'Basic', surfaces: ['slash', 'turn-into'], label: 'Heading 1', glyph: 'H1', hint: '#', search: 'heading 1 title basic h1', description: 'Large section heading for major note sections.' },
+  { id: 'heading-2', group: 'Basic', surfaces: ['slash', 'turn-into'], label: 'Heading 2', glyph: 'H2', hint: '##', search: 'heading 2 subtitle basic h2', description: 'Medium heading for subsections inside the current note.' },
+  { id: 'bullet-list', group: 'Basic', surfaces: ['slash', 'turn-into'], label: 'Bullet list', glyph: '•', search: 'bullet list todo checklist basic', description: 'Create a simple unordered list for ideas or references.' },
+  { id: 'numbered-list', group: 'Basic', surfaces: ['slash', 'turn-into'], label: 'Numbered list', glyph: '1.', search: 'numbered ordered list basic', description: 'Create an ordered list for steps, sequences, or priorities.' },
+  { id: 'todo-list', group: 'Basic', surfaces: ['slash', 'turn-into'], label: 'Todo list', glyph: '☐', search: 'todo checklist task basic', description: 'Insert a lightweight checklist block for action items.' },
+  { id: 'quote', group: 'Basic', surfaces: ['slash', 'turn-into'], label: 'Quote', glyph: '"', search: 'quote blockquote citation basic', description: 'Set off a quoted passage or referenced note.' },
+  { id: 'callout', group: 'Basic', surfaces: ['slash', 'turn-into'], label: 'Callout', glyph: '!', search: 'callout quote basic note tip', description: 'Draw attention to an important note, decision, or warning.' },
+  { id: 'code-block', group: 'Basic', surfaces: ['slash', 'turn-into'], label: 'Code block', glyph: '</>', search: 'code block basic snippet pre', description: 'Insert a fixed-width code block for commands or snippets.' },
   { id: 'divider', group: 'Basic', surfaces: ['slash'], label: 'Divider', glyph: '—', search: 'divider rule hr separator basic', description: 'Break a note into sections with a horizontal divider.' },
   { id: 'external-link', group: 'Link', surfaces: ['slash'], label: 'External link', glyph: '↗', search: 'link external url reference', description: 'Add a link to a website or document outside the board.' },
   { id: 'wiki-link', group: 'Link', surfaces: ['slash', 'bubble'], label: 'Wiki link', glyph: '[]', search: 'wiki link note reference related note', description: 'Link to another note inside this workspace.' },

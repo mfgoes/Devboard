@@ -1,4 +1,4 @@
-import { forwardRef, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch, type ReactNode, type RefObject, type SetStateAction } from 'react';
+import { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch, type ReactNode, type RefObject, type SetStateAction } from 'react';
 import { useBoardStore } from '../store/boardStore';
 import { Document, FolderDescriptor } from '../types';
 import { IconCanvasDoc, IconDoc, IconFolder, IconFreeformPage, IconStackPage, IconStar } from './icons';
@@ -57,6 +57,29 @@ function sortDocumentsForPage(docs: Document[], sortMode: 'updated' | 'custom' =
   return [...docs].sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
+function CanvasMiniThumbnail() {
+  return (
+    <div
+      aria-hidden="true"
+      style={{
+        position: 'relative',
+        height: 78,
+        width: '100%',
+        border: '1px solid #e7cfb1',
+        borderRadius: 6,
+        background: '#fbf6ef',
+        overflow: 'hidden',
+      }}
+    >
+      <div style={{ position: 'absolute', left: 17, top: 14, width: 28, height: 22, borderRadius: 4, background: '#f0cf91', border: '1px solid rgba(184,119,80,0.16)', transform: 'rotate(-3deg)' }} />
+      <div style={{ position: 'absolute', left: 57, top: 21, width: 25, height: 20, borderRadius: 4, background: '#d5e4cf', border: '1px solid rgba(91,122,83,0.13)', transform: 'rotate(3deg)' }} />
+      <div style={{ position: 'absolute', left: 110, top: 11, width: 24, height: 17, borderRadius: 4, background: '#edc982', border: '1px solid rgba(184,119,80,0.12)' }} />
+      <div style={{ position: 'absolute', left: 34, top: 40, width: 32, height: 1.5, borderRadius: 999, background: '#d59660', transform: 'rotate(8deg)', opacity: 0.72 }} />
+      <div style={{ position: 'absolute', left: 88, top: 49, width: 14, height: 14, borderRadius: 999, background: '#dec099', border: '1px solid rgba(184,119,80,0.14)' }} />
+    </div>
+  );
+}
+
 type StackSort = 'updated' | 'custom' | 'az' | 'tag';
 type StackViewMode = 'grid' | 'list';
 type StackBrowserMode = 'folders' | 'notes';
@@ -99,19 +122,23 @@ function StackCard({
   const isGrid = viewMode === 'grid';
   const isCanvasDoc = doc.docType === 'canvas';
   const denseGrid = isGrid || compactGrid;
-  const preview = useMemo(() => isCanvasDoc ? 'Freeform canvas' : clampAtWordBoundary(stripHtml(doc.content), isGrid ? 84 : 300), [doc.content, isCanvasDoc, isGrid]);
+  const preview = useMemo(() => isCanvasDoc ? '' : clampAtWordBoundary(stripHtml(doc.content), isGrid ? 84 : 300), [doc.content, isCanvasDoc, isGrid]);
   const wordCount = useMemo(() => wordCountFromHtml(doc.content), [doc.content]);
 	const [hovered, setHovered] = useState(false);
 	const borderColor = active
 		? 'rgba(184,119,80,0.8)'
-		: hovered
-			? 'rgba(184,119,80,0.3)'
-			: 'var(--c-border)';
+		: isCanvasDoc
+			? (hovered ? '#d7b383' : '#e0c4a0')
+			: hovered
+				? 'rgba(184,119,80,0.3)'
+				: 'var(--c-border)';
 	const background = active
 		? 'color-mix(in srgb, rgba(201,137,92,0.22) 72%, var(--c-panel))'
-		: hovered
-			? 'color-mix(in srgb, var(--c-hover) 65%, var(--c-panel))'
-			: 'var(--c-panel)';
+		: isCanvasDoc
+			? (hovered ? '#f7efe5' : '#f4ece1')
+			: hovered
+				? 'color-mix(in srgb, var(--c-hover) 65%, var(--c-panel))'
+				: 'var(--c-panel)';
 	const boxShadow = active
 		? (isGrid ? '0 18px 34px rgba(25,18,14,0.12), 0 0 0 2px rgba(184,119,80,0.12)' : '0 10px 22px rgba(25,18,14,0.09), 0 0 0 2px rgba(184,119,80,0.12)')
 		: hovered
@@ -231,7 +258,7 @@ function StackCard({
               }}
             >
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
-                <span style={{ display: 'inline-flex', color: isCanvasDoc ? 'var(--c-line)' : 'var(--c-text-lo)', flexShrink: 0 }}>
+                <span style={{ display: 'inline-flex', color: isCanvasDoc ? '#b87750' : 'var(--c-text-lo)', flexShrink: 0 }}>
                   {isCanvasDoc ? <IconCanvasDoc size={15} /> : <IconDoc />}
                 </span>
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -292,10 +319,12 @@ function StackCard({
           padding: isGrid ? '0 10px 10px' : '7px 12px 10px',
           flex: 1,
           minWidth: 0,
-          justifyContent: isGrid ? 'flex-start' : 'center',
+          justifyContent: isCanvasDoc ? 'flex-start' : (isGrid ? 'flex-start' : 'center'),
         }}
       >
-        {preview && (
+        {isCanvasDoc ? (
+          <CanvasMiniThumbnail />
+        ) : preview && (
           <div
             style={{
               fontSize: isGrid ? 12 : 12.5,
@@ -313,7 +342,7 @@ function StackCard({
             {preview}
           </div>
         )}
-        {!preview && isGrid && (
+        {!isCanvasDoc && !preview && isGrid && (
           <div
             style={{
               minHeight: '1.45em',
@@ -357,13 +386,32 @@ function StackCard({
             gap: isGrid ? 10 : 12,
             marginTop: isGrid ? 'auto' : 0,
             fontSize: isGrid ? 11 : 11,
-            color: 'var(--c-text-lo)',
-            fontWeight: 400,
+            color: isCanvasDoc ? '#b87750' : 'var(--c-text-lo)',
+            fontWeight: isCanvasDoc ? 650 : 400,
             flexWrap: 'wrap',
           }}
         >
           <span>{formatDate(doc.updatedAt)}</span>
-          <span>{isCanvasDoc ? 'canvas' : `${wordCount} words`}</span>
+          {isCanvasDoc ? (
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                padding: '1px 7px',
+                border: '1px solid #e0ad7c',
+                borderRadius: 5,
+                color: '#b87750',
+                background: 'rgba(255,248,239,0.7)',
+                lineHeight: 1.25,
+              }}
+            >
+              <span style={{ width: 5, height: 5, borderRadius: 999, border: '1px solid currentColor' }} />
+              canvas
+            </span>
+          ) : (
+            <span>{`${wordCount} words`}</span>
+          )}
         </div>
       </div>
     </div>
@@ -1877,15 +1925,40 @@ function StackNoteContextMenu({
   onDelete,
 }: StackNoteContextMenuProps) {
   const MENU_W = 188;
-  const left = Math.min(menu.x, window.innerWidth - MENU_W - 8);
-  const top = Math.min(menu.y, window.innerHeight - 236);
-  const exportMenuLeft = Math.min(left + MENU_W - 8, window.innerWidth - 172 - 8);
-  const exportMenuTop = Math.min(top + 96, window.innerHeight - 92);
+  const EXPORT_MENU_W = 172;
+  const VIEWPORT_GAP = 8;
+  const clampMenuPosition = useCallback((x: number, y: number, width: number, height: number) => ({
+    left: Math.max(VIEWPORT_GAP, Math.min(x, window.innerWidth - width - VIEWPORT_GAP)),
+    top: Math.max(VIEWPORT_GAP, Math.min(y, window.innerHeight - height - VIEWPORT_GAP)),
+  }), []);
+  const [position, setPosition] = useState(() => clampMenuPosition(menu.x, menu.y, MENU_W, 320));
+  const [exportPosition, setExportPosition] = useState(() => ({
+    left: Math.max(VIEWPORT_GAP, Math.min(menu.x + MENU_W - VIEWPORT_GAP, window.innerWidth - EXPORT_MENU_W - VIEWPORT_GAP)),
+    top: Math.max(VIEWPORT_GAP, Math.min(menu.y + 96, window.innerHeight - 92)),
+  }));
   const isCanvasDoc = doc.docType === 'canvas';
   const itemStyle: CSSProperties = {
     fontFamily: 'inherit',
   };
   const sep = <div style={{ height: 1, background: 'var(--c-border)', margin: '3px 0' }} />;
+
+  useLayoutEffect(() => {
+    const rect = menuRef.current?.getBoundingClientRect();
+    const height = rect?.height ?? 320;
+    setPosition(clampMenuPosition(menu.x, menu.y, MENU_W, height));
+  }, [clampMenuPosition, doc.docType, doc.isFavorite, doc.linkedFile, menu.x, menu.y, menuRef]);
+
+  useLayoutEffect(() => {
+    if (!exportOpen || isCanvasDoc) return;
+
+    const rect = exportRef.current?.getBoundingClientRect();
+    const exportHeight = rect?.height ?? 92;
+    const hasRoomRight = window.innerWidth - (position.left + MENU_W) >= EXPORT_MENU_W + VIEWPORT_GAP;
+    const left = hasRoomRight
+      ? position.left + MENU_W - VIEWPORT_GAP
+      : position.left - EXPORT_MENU_W + VIEWPORT_GAP;
+    setExportPosition(clampMenuPosition(left, position.top + 96, EXPORT_MENU_W, exportHeight));
+  }, [clampMenuPosition, exportOpen, exportRef, isCanvasDoc, position.left, position.top]);
 
   const MenuButton = ({
     children,
@@ -1920,7 +1993,15 @@ function StackNoteContextMenu({
     <>
       <div
         ref={menuRef}
-        style={{ position: 'fixed', left, top, zIndex: 9100, minWidth: MENU_W }}
+        style={{
+          position: 'fixed',
+          left: position.left,
+          top: position.top,
+          zIndex: 9100,
+          minWidth: MENU_W,
+          maxHeight: `calc(100vh - ${VIEWPORT_GAP * 2}px)`,
+          overflowY: 'auto',
+        }}
         className="py-1.5 rounded-xl border border-[var(--c-border)] bg-[var(--c-panel)] shadow-2xl"
         onMouseDown={(e) => e.stopPropagation()}
       >
@@ -1954,7 +2035,15 @@ function StackNoteContextMenu({
       {exportOpen && !isCanvasDoc && (
         <div
           ref={exportRef}
-          style={{ position: 'fixed', left: exportMenuLeft, top: exportMenuTop, zIndex: 9101, minWidth: 172 }}
+          style={{
+            position: 'fixed',
+            left: exportPosition.left,
+            top: exportPosition.top,
+            zIndex: 9101,
+            minWidth: EXPORT_MENU_W,
+            maxHeight: `calc(100vh - ${VIEWPORT_GAP * 2}px)`,
+            overflowY: 'auto',
+          }}
           className="py-1.5 rounded-xl border border-[var(--c-border)] bg-[var(--c-panel)] shadow-2xl"
           onMouseDown={(e) => e.stopPropagation()}
           onMouseLeave={() => setExportOpen(false)}

@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { saveBoard } from './utils/fileSave';
 import { saveWorkspace, getWorkspaceName, restoreWorkspace, setOnWorkspaceSavedCallback, MOBILE_WORKSPACE_WARNING_EVENT } from './utils/workspaceManager';
 import { setToastListener, toast, ToastPayload } from './utils/toast';
@@ -51,11 +52,13 @@ import TimerWidget from './components/TimerWidget';
 import WorkspaceExplorer, { WORKSPACE_EXPLORER_WIDTH } from './components/WorkspaceExplorer';
 import JiraPanel from './components/JiraPanel';
 import SearchBar from './components/SearchBar';
+import { IconArrowLeft } from './components/icons';
 import { useBoardStore } from './store/boardStore';
 import { useAuth } from './contexts/AuthContext';
 import { applyTheme } from './theme';
 import { createWelcomeBoard } from './templates/welcomeBoard';
 import devboardIconUrl from './assets/devboard_icon.png';
+import { DARK_MENU_COLORS } from './components/darkMenuTheme';
 
 const EXPLORER_COLLAPSED_WIDTH = 48;
 const MOBILE_NOTE_BREAKPOINT = 768;
@@ -106,6 +109,103 @@ async function isBraveBrowser(): Promise<boolean> {
 
 function generateId() { return Math.random().toString(36).slice(2, 11); }
 
+function CollapsedRailTooltip({
+  label,
+  children,
+  style,
+}: {
+  label: string;
+  children: React.ReactNode;
+  style?: React.CSSProperties;
+}) {
+  const anchorRef = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+
+  const updatePosition = useCallback(() => {
+    const rect = anchorRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    setPosition({
+      x: rect.right,
+      y: rect.top + rect.height / 2,
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
+    return () => {
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
+    };
+  }, [open, updatePosition]);
+
+  return (
+    <div
+      ref={anchorRef}
+      style={{ position: 'relative', display: 'inline-flex', ...style }}
+      onMouseEnter={() => { updatePosition(); setOpen(true); }}
+      onMouseLeave={() => setOpen(false)}
+      onFocusCapture={() => { updatePosition(); setOpen(true); }}
+      onBlurCapture={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOpen(false);
+      }}
+    >
+      {children}
+      {open && typeof document !== 'undefined' && createPortal(
+        <div
+          style={{
+            position: 'fixed',
+            left: position.x,
+            top: position.y,
+            zIndex: 99999,
+            transform: 'translate(10px, -50%)',
+            pointerEvents: 'none',
+          }}
+        >
+          <div
+            style={{
+              position: 'relative',
+              padding: '6px 10px',
+              borderRadius: 8,
+              background: DARK_MENU_COLORS.surface,
+              color: DARK_MENU_COLORS.textHi,
+              fontFamily: 'var(--font-ui)',
+              fontSize: 12,
+              fontWeight: 600,
+              lineHeight: 1,
+              whiteSpace: 'nowrap',
+              boxShadow: '0 12px 28px rgba(0,0,0,0.28)',
+              border: `1px solid ${DARK_MENU_COLORS.border}`,
+            }}
+          >
+            {label}
+            <span
+              aria-hidden="true"
+              style={{
+                position: 'absolute',
+                right: '100%',
+                top: '50%',
+                width: 8,
+                height: 8,
+                transform: 'translate(4px, -50%) rotate(45deg)',
+                borderLeft: `1px solid ${DARK_MENU_COLORS.border}`,
+                borderBottom: `1px solid ${DARK_MENU_COLORS.border}`,
+                background: DARK_MENU_COLORS.surface,
+                borderRadius: 1,
+              }}
+            />
+          </div>
+        </div>,
+        document.body,
+      )}
+    </div>
+  );
+}
+
 export default function App() {
   const { user } = useAuth();
   // Only show welcome modal when explicitly triggered (logo click)
@@ -138,6 +238,7 @@ export default function App() {
   const docViewMode = useBoardStore((s) => s.docViewMode);
   const setDocViewMode = useBoardStore((s) => s.setDocViewMode);
   const setOpenPanelDocId = useBoardStore((s) => s.setOpenPanelDocId);
+  const switchPage = useBoardStore((s) => s.switchPage);
   const cloudBoardId = useBoardStore((s) => s.cloudBoardId);
   const cloudSyncedAt = useBoardStore((s) => s.cloudSyncedAt);
   const lastLocalSavedAt = useBoardStore((s) => s.lastLocalSavedAt);
@@ -162,14 +263,16 @@ export default function App() {
 
   const activePage = pages.find((p) => p.id === activePageId);
   const activeCanvasDocument = documents.find((doc) => doc.docType === 'canvas' && doc.canvasPageId === activePageId);
+  const activeCanvasParentPage = activePage?.isCanvasDocument && activePage.parentPageId
+    ? pages.find((p) => p.id === activePage.parentPageId)
+    : null;
   const isStackPage = !activePage?.isCanvasDocument && !activeCanvasDocument;
+  const canvasDocumentOwnsTop = appMode !== 'document' && !!activeCanvasDocument;
 
   useEffect(() => {
     const label = boardTitle.trim() || workspaceName;
     document.title = label ? `${label} — DevBoard` : 'DevBoard';
   }, [boardTitle, workspaceName]);
-  const activeNoticeCount = Number(showBraveNotice) + Number(showMobileWorkspaceNotice);
-  const contentTop = TOP_BAR_HEIGHT + activeNoticeCount * NOTICE_HEIGHT;
   const explorerCollapsed = sidebarCollapsed;
   const setExplorerCollapsed = useCallback((next: boolean | ((current: boolean) => boolean)) => {
     setSidebarCollapsed(typeof next === 'function' ? next(useBoardStore.getState().sidebarCollapsed) : next);
@@ -177,6 +280,9 @@ export default function App() {
   const [isMobileViewport, setIsMobileViewport] = useState(() => (
     typeof window !== 'undefined' ? window.innerWidth < MOBILE_NOTE_BREAKPOINT : false
   ));
+  const topBarVisible = !isMobileViewport && !canvasDocumentOwnsTop;
+  const activeNoticeCount = Number(showBraveNotice) + Number(showMobileWorkspaceNotice);
+  const contentTop = (topBarVisible ? TOP_BAR_HEIGHT : 0) + activeNoticeCount * NOTICE_HEIGHT;
   const explorerVisible = !isMobileViewport;
   const explorerOffset = explorerVisible ? (explorerCollapsed ? EXPLORER_COLLAPSED_WIDTH : WORKSPACE_EXPLORER_WIDTH) : 0;
   const documentFrameOffset = isMobileViewport ? 0 : explorerOffset;
@@ -313,6 +419,10 @@ export default function App() {
     const pageId = currentPage?.isCanvasDocument ? (currentPage.parentPageId ?? state.activePageId) : state.activePageId;
     const id = addDocument({ title: '', content: '', pageId });
     const page = state.pages.find((entry) => entry.id === pageId);
+    if (state.appMode === 'document') {
+      state.openDocument(id);
+      return;
+    }
     if (page && !page.isCanvasDocument && !isMobileViewport) {
       setOpenPanelDocId(id);
       return;
@@ -325,6 +435,16 @@ export default function App() {
     const currentPage = state.pages.find((entry) => entry.id === state.activePageId);
     addCanvasDocument(currentPage?.isCanvasDocument ? currentPage.parentPageId : state.activePageId);
   }, [addCanvasDocument]);
+
+  const handleExportBoardPng = useCallback(() => {
+    const canvas = document.querySelector<HTMLCanvasElement>('.konvajs-content canvas');
+    canvas?.toBlob((blob) => {
+      if (!blob) return;
+      import('file-saver').then(({ saveAs }) => {
+        saveAs(blob, `${useBoardStore.getState().boardTitle}.png`);
+      });
+    });
+  }, []);
 
   // Snap-close doc without animation (used when jumping to a canvas node)
   const snapCloseDoc = useCallback(() => {
@@ -777,13 +897,7 @@ export default function App() {
           announceLocalSave('file', result.targetName);
         });
       }),
-      'menu:export_png':   () => {
-        const c = document.querySelector<HTMLCanvasElement>('.konvajs-content canvas');
-        c?.toBlob(b => {
-          if (!b) return;
-          import('file-saver').then(({ saveAs }) => saveAs(b, `${useBoardStore.getState().boardTitle}.png`));
-        });
-      },
+      'menu:export_png':   () => handleExportBoardPng(),
       'menu:zoom_in':      () => { const s = useBoardStore.getState(); s.setCamera({ scale: Math.min(s.camera.scale * 1.2, 8) }); },
       'menu:zoom_out':     () => { const s = useBoardStore.getState(); s.setCamera({ scale: Math.max(s.camera.scale / 1.2, 0.08) }); },
       'menu:zoom_reset':   () => useBoardStore.getState().setCamera({ scale: 1, x: 0, y: 0 }),
@@ -791,7 +905,7 @@ export default function App() {
       'menu:check_updates': () => { void runUpdateCheck(true); },
     }).then(fn => { cleanup = fn; });
     return () => cleanup();
-  }, [handleNewNote, requestActiveDocumentSave, runUpdateCheck, saveCurrentBoardQuietly]);
+  }, [handleExportBoardPng, handleNewNote, requestActiveDocumentSave, runUpdateCheck, saveCurrentBoardQuietly]);
 
   useEffect(() => {
     const onDragOver = (event: DragEvent) => {
@@ -888,11 +1002,10 @@ export default function App() {
           )}
         </div>
       )}
-      {!isMobileViewport && (
+      {topBarVisible && (
         <TopBar
           onShowAbout={() => setShowWelcome(true)}
           onNewNote={handleNewNote}
-          timerVisible={showTimer}
           onToggleTimer={() => setShowTimer((v) => !v)}
           explorerOpen={!explorerCollapsed}
           onToggleExplorer={() => {
@@ -902,7 +1015,6 @@ export default function App() {
             setExplorerCollapsed(false);
             setExplorerOpen(true);
           }}
-          jiraOpen={jiraOpen}
           onToggleJira={() => setJiraOpen((v) => !v)}
           onToggleSearch={() => setSearchOpen((v) => !v)}
           workspaceOffset={documentFrameOffset}
@@ -917,7 +1029,7 @@ export default function App() {
         <div
           className="absolute left-0 right-0 z-50 flex items-center justify-between gap-3 bg-orange-500 text-white text-xs px-4 py-2"
           style={{
-            top: documentFullscreenOwnsTop ? 0 : TOP_BAR_HEIGHT,
+            top: documentFullscreenOwnsTop || canvasDocumentOwnsTop ? 0 : TOP_BAR_HEIGHT,
             zIndex: documentFullscreenOwnsTop ? DOCUMENT_FULLSCREEN_Z + 20 : 50,
           }}
         >
@@ -936,7 +1048,7 @@ export default function App() {
         <div
           className="absolute left-0 right-0 z-50 flex items-center justify-between gap-3 bg-amber-600 text-white text-xs px-4 py-2"
           style={{
-            top: documentFullscreenOwnsTop
+            top: documentFullscreenOwnsTop || canvasDocumentOwnsTop
               ? (showBraveNotice ? NOTICE_HEIGHT : 0)
               : TOP_BAR_HEIGHT + (showBraveNotice ? NOTICE_HEIGHT : 0),
             zIndex: documentFullscreenOwnsTop ? DOCUMENT_FULLSCREEN_Z + 20 : 50,
@@ -984,116 +1096,130 @@ export default function App() {
                 borderRight: '0.5px solid #e2e0dc',
               }}
             >
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  window.dispatchEvent(new CustomEvent('devboard:toggle-app-menu', { detail: { left: 8 } }));
-                }}
-                title="App menu"
-                aria-label="App menu"
-                style={railButtonStyle()}
-                {...railHoverHandlers()}
-              >
-                <img src={devboardIconUrl} alt="" draggable={false} style={{ width: 19, height: 19, borderRadius: 4 }} />
-              </button>
-              <div style={{ width: 24, height: 0.5, background: '#e2e0dc', flexShrink: 0 }} />
-              <button
-	                type="button"
-	                onClick={() => setSearchOpen(false)}
-	                title="Folders"
-	                aria-label="Folders"
-	                style={railButtonStyle(!searchOpen)}
-                {...railHoverHandlers(!searchOpen)}
-              >
-                <i className="ti ti-folder" aria-hidden="true" />
-              </button>
-              <button
-                type="button"
-                onClick={() => setSearchOpen(true)}
-                title="Search"
-                aria-label="Search"
-                style={railButtonStyle(searchOpen)}
-                {...railHoverHandlers(searchOpen)}
-              >
-                <i className="ti ti-search" aria-hidden="true" />
-              </button>
-              <button
-                type="button"
-                onClick={handleNewNote}
-                title="New"
-                aria-label="New"
-                style={railButtonStyle(false, true)}
-                {...railHoverHandlers(false, true)}
-              >
-                <i className="ti ti-plus" aria-hidden="true" />
-              </button>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  openCloudModal();
-                }}
-                title="Sync"
-                aria-label="Open Workspace Sync"
-                style={{ ...railButtonStyle(false), marginTop: 'auto' }}
-                {...railHoverHandlers()}
-              >
-                <i className="ti ti-cloud" aria-hidden="true" />
-                {syncDotColor && (
-                  <span
-                    aria-hidden="true"
-                    style={{
-                      position: 'absolute',
-                      top: 7,
-                      right: 7,
-                      width: 5,
-                      height: 5,
-                      borderRadius: 999,
-                      background: syncDotColor,
-                    }}
-                  />
-                )}
-              </button>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  openCloudModal();
-                }}
-                title="Account"
-                aria-label="Account"
-                style={railButtonStyle()}
-                {...railHoverHandlers()}
-              >
-                <span
-                  style={{
-                    width: 28,
-                    height: 28,
-                    borderRadius: 999,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    overflow: 'hidden',
-                    background: '#c9895c',
-                    color: '#fff',
-                    fontFamily: 'var(--font-ui)',
-                    fontSize: 10,
-                    fontWeight: 800,
-                    lineHeight: 1,
+              <CollapsedRailTooltip label="App menu">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    window.dispatchEvent(new CustomEvent('devboard:toggle-app-menu', { detail: { left: 8 } }));
                   }}
+                  aria-label="App menu"
+                  style={railButtonStyle()}
+                  {...railHoverHandlers()}
                 >
-                  {avatarUrl ? (
-                    <img src={avatarUrl} alt="" referrerPolicy="no-referrer" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  ) : (
-                    accountInitials
+                  <img src={devboardIconUrl} alt="" draggable={false} style={{ width: 19, height: 19, borderRadius: 4 }} />
+                </button>
+              </CollapsedRailTooltip>
+              <div style={{ width: 24, height: 0.5, background: '#e2e0dc', flexShrink: 0 }} />
+              <CollapsedRailTooltip label="Folders">
+                <button
+                  type="button"
+                  onClick={() => setSearchOpen(false)}
+                  aria-label="Folders"
+                  style={railButtonStyle(!searchOpen)}
+                  {...railHoverHandlers(!searchOpen)}
+                >
+                  <i className="ti ti-folder" aria-hidden="true" />
+                </button>
+              </CollapsedRailTooltip>
+              <CollapsedRailTooltip label="Search">
+                <button
+                  type="button"
+                  onClick={() => setSearchOpen(true)}
+                  aria-label="Search"
+                  style={railButtonStyle(searchOpen)}
+                  {...railHoverHandlers(searchOpen)}
+                >
+                  <i className="ti ti-search" aria-hidden="true" />
+                </button>
+              </CollapsedRailTooltip>
+              <CollapsedRailTooltip label="New note">
+                <button
+                  type="button"
+                  onClick={handleNewNote}
+                  aria-label="New note"
+                  style={railButtonStyle(false, true)}
+                  {...railHoverHandlers(false, true)}
+                >
+                  <i className="ti ti-plus" aria-hidden="true" />
+                </button>
+              </CollapsedRailTooltip>
+              <CollapsedRailTooltip label="Sync" style={{ marginTop: 'auto' }}>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openCloudModal();
+                  }}
+                  aria-label="Open Workspace Sync"
+                  style={railButtonStyle(false)}
+                  {...railHoverHandlers()}
+                >
+                  <i className="ti ti-cloud" aria-hidden="true" />
+                  {syncDotColor && (
+                    <span
+                      aria-hidden="true"
+                      style={{
+                        position: 'absolute',
+                        top: 7,
+                        right: 7,
+                        width: 5,
+                        height: 5,
+                        borderRadius: 999,
+                        background: syncDotColor,
+                      }}
+                    />
                   )}
-                </span>
-              </button>
+                </button>
+              </CollapsedRailTooltip>
+              <CollapsedRailTooltip label="Account">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openCloudModal();
+                  }}
+                  aria-label="Account"
+                  style={railButtonStyle()}
+                  {...railHoverHandlers()}
+                >
+                  <span
+                    style={{
+                      width: 28,
+                      height: 28,
+                      borderRadius: 999,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      overflow: 'hidden',
+                      background: '#c9895c',
+                      color: '#fff',
+                      fontFamily: 'var(--font-ui)',
+                      fontSize: 10,
+                      fontWeight: 800,
+                      lineHeight: 1,
+                    }}
+                  >
+                    {avatarUrl ? (
+                      <img src={avatarUrl} alt="" referrerPolicy="no-referrer" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      accountInitials
+                    )}
+                  </span>
+                </button>
+              </CollapsedRailTooltip>
             </div>
           ) : (
             <>
-              <WorkspaceExplorer onClose={() => setExplorerCollapsed(true)} onCollapse={() => setExplorerCollapsed(true)} canClose={false} />
+              <WorkspaceExplorer
+                onClose={() => setExplorerCollapsed(true)}
+                onCollapse={() => setExplorerCollapsed(true)}
+                onToggleSearch={() => setSearchOpen((v) => !v)}
+                onToggleTimer={() => setShowTimer((v) => !v)}
+                onToggleJira={() => setJiraOpen((v) => !v)}
+                onExportBoardPng={handleExportBoardPng}
+                canClose={false}
+              />
             </>
           )}
         </div>
@@ -1117,7 +1243,52 @@ export default function App() {
         {isStackPage ? (
           <StackView pageId={activePageId} pageName={activePage?.name ?? ''} />
         ) : (
-          <Canvas onBackgroundInteract={dismissSidePanelFromCanvas} />
+          <>
+            <Canvas onBackgroundInteract={dismissSidePanelFromCanvas} />
+            {activeCanvasDocument && activeCanvasParentPage && (
+              <button
+                type="button"
+                onClick={() => switchPage(activeCanvasParentPage.id)}
+                title={`Back to ${activeCanvasParentPage.name}`}
+                aria-label={`Back to ${activeCanvasParentPage.name}`}
+                style={{
+                  position: 'absolute',
+                  top: 14,
+                  left: 14,
+                  zIndex: 30,
+                  height: 32,
+                  maxWidth: 'min(320px, calc(100% - 28px))',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 7,
+                  padding: '0 11px 0 9px',
+                  border: '0.5px solid var(--c-border)',
+                  borderRadius: 7,
+                  background: 'var(--c-topbar)',
+                  color: 'var(--c-text-md)',
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.14)',
+                  cursor: 'pointer',
+                  fontFamily: 'var(--font-ui)',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  whiteSpace: 'nowrap',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'var(--c-hover)';
+                  e.currentTarget.style.color = 'var(--c-text-hi)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'var(--c-topbar)';
+                  e.currentTarget.style.color = 'var(--c-text-md)';
+                }}
+              >
+                <IconArrowLeft size={14} />
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  Back to {activeCanvasParentPage.name}
+                </span>
+              </button>
+            )}
+          </>
         )}
         </div>
       )}

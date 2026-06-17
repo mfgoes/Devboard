@@ -18,6 +18,7 @@ import { useFilePreview } from '../hooks/useFilePreview';
 import { useTreeState } from '../hooks/useTreeState';
 import { IconArrowRight, IconCanvasDoc, IconCloud, IconDoc, IconFolder, IconSidebarToggle } from './icons';
 import { DARK_MENU_COLORS } from './darkMenuTheme';
+import AppMenu from './AppMenu';
 import ModalCloseButton from './ModalCloseButton';
 import {
   SKIP_DIRS,
@@ -38,10 +39,6 @@ import {
 } from './explorer/fileTreeUtils';
 import PageMiniMap from './explorer/PageMiniMap';
 import {
-  CommandIcon,
-  CommandMenuDivider,
-  CommandMenuItem,
-  CommandMenuSubItem,
   DarkMenuActionItem,
   MenuIcon,
   NoWorkspaceState,
@@ -1300,11 +1297,24 @@ export const WORKSPACE_EXPLORER_WIDTH = 240;
 interface Props {
   onClose: () => void;
   onCollapse: () => void;
+  onToggleSearch: () => void;
+  onToggleTimer: () => void;
+  onToggleJira: () => void;
+  onExportBoardPng: () => void;
   canClose?: boolean;
   collapseIcon?: 'close' | 'open';
 }
 
-export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true, collapseIcon = 'close' }: Props) {
+export default function WorkspaceExplorer({
+  onClose,
+  onCollapse,
+  onToggleSearch,
+  onToggleTimer,
+  onToggleJira,
+  onExportBoardPng,
+  canClose = true,
+  collapseIcon = 'close',
+}: Props) {
   const isPreviewPanel = collapseIcon === 'open';
   const { isConfigured: authConfigured, isLoading: authLoading, user, signOut } = useAuth();
   const imageAssetFolder = useBoardStore((s) => s.imageAssetFolder);
@@ -1394,8 +1404,6 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
   const [confirmingClose, setConfirmingClose] = useState(false);
   const confirmCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [commandMenuOpen, setCommandMenuOpen] = useState(false);
-  const [activeCommandSubmenu, setActiveCommandSubmenu] = useState<string | null>(null);
-  const [commandMenuAnchor, setCommandMenuAnchor] = useState<{ left: number; top: number } | null>(null);
   const commandMenuRef = useRef<HTMLDivElement>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
@@ -1548,7 +1556,6 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
   const closeSidebarMenus = useCallback((keep?: 'command' | 'missingImages' | 'account' | 'projectSwitcher' | 'preferences') => {
     if (keep !== 'command') {
       setCommandMenuOpen(false);
-      setActiveCommandSubmenu(null);
     }
     if (keep !== 'missingImages') setMissingImagesOpen(false);
     if (keep !== 'account') setAccountMenuOpen(false);
@@ -1924,13 +1931,7 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
 
   const closeCommandMenu = useCallback(() => {
     setCommandMenuOpen(false);
-    setActiveCommandSubmenu(null);
   }, []);
-
-  const runCommandMenuAction = useCallback((action: () => void) => {
-    closeCommandMenu();
-    action();
-  }, [closeCommandMenu]);
 
   const handleCreatePageFromMenu = useCallback(() => {
     addPage();
@@ -1938,11 +1939,6 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
 
   const handleSaveWorkspaceFromMenu = useCallback(() => {
     void saveWorkspace(useBoardStore.getState().exportData());
-  }, []);
-
-  const handleFocusSearchFromMenu = useCallback(() => {
-    setSearchOpen(true);
-    window.setTimeout(() => searchInputRef.current?.focus(), 0);
   }, []);
 
   const handleFindMissingImages = useCallback(async () => {
@@ -2595,7 +2591,6 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
               onClick={() => {
                 if (commandMenuOpen) {
                   setCommandMenuOpen(false);
-                  setActiveCommandSubmenu(null);
                   return;
                 }
                 closeSidebarMenus('command');
@@ -2636,117 +2631,39 @@ export default function WorkspaceExplorer({ onClose, onCollapse, canClose = true
               {workspaceDisplayName}
             </span>
             {commandMenuOpen && (
-              <div
-                style={{
-                  position: 'fixed',
-                  top: 50,
-                  left: 10,
-                  zIndex: 10001,
-                  width: 220,
-                  padding: '6px 0',
-                  border: `1px solid ${DARK_MENU_COLORS.border}`,
-                  borderRadius: 10,
-                  background: DARK_MENU_COLORS.surface,
-                  boxShadow: DARK_MENU_COLORS.shadow,
-                  overflow: 'visible',
+              <AppMenu
+                left={10}
+                top={50}
+                onRequestClose={closeCommandMenu}
+                state={{
+                  canExportActiveNote: !!activeDocumentForMenu && !isCanvasDocument(activeDocumentForMenu),
+                  canExportBoardPng: true,
                 }}
-                onMouseDown={(e) => e.stopPropagation()}
-              >
-                <CommandMenuSubItem
-                  icon={<CommandIcon kind="file" />}
-                  label="File"
-                  open={activeCommandSubmenu === 'file'}
-                  onOpen={() => setActiveCommandSubmenu('file')}
-                  onClose={() => setActiveCommandSubmenu((current) => current === 'file' ? null : current)}
-                >
-	                  <CommandMenuItem icon={<CommandIcon kind="file" />} label="New note" onClick={() => runCommandMenuAction(handleCreateNoteFromMenu)} />
-                  <CommandMenuItem icon={<IconCanvasDoc size={13} />} label="New canvas" onClick={() => runCommandMenuAction(handleCreateCanvasFromMenu)} />
-	                  <CommandMenuItem icon={<CommandIcon kind="folder" />} label="New folder" onClick={() => runCommandMenuAction(handleCreatePageFromMenu)} />
-                  <CommandMenuDivider />
-                  <CommandMenuItem icon={<CommandIcon kind="folder" />} label="Switch workspace..." onClick={() => { closeCommandMenu(); void handleOpenFolder(); }} />
-                  <CommandMenuItem icon={<CommandIcon kind="view" />} label="Save workspace" onClick={() => runCommandMenuAction(handleSaveWorkspaceFromMenu)} />
-                  <CommandMenuItem icon={<CommandIcon kind="settings" />} label="Project Sync..." onClick={() => runCommandMenuAction(openCloudModal)} />
-                </CommandMenuSubItem>
-                <CommandMenuSubItem
-                  icon={<CommandIcon kind="edit" />}
-                  label="Edit"
-                  open={activeCommandSubmenu === 'edit'}
-                  onOpen={() => setActiveCommandSubmenu('edit')}
-                  onClose={() => setActiveCommandSubmenu((current) => current === 'edit' ? null : current)}
-                >
-	                  <CommandMenuItem icon={<CommandIcon kind="edit" />} label="New note" onClick={() => runCommandMenuAction(handleCreateNoteFromMenu)} />
-                  <CommandMenuItem icon={<IconCanvasDoc size={13} />} label="New canvas" onClick={() => runCommandMenuAction(handleCreateCanvasFromMenu)} />
-                  <CommandMenuDivider />
-                  <CommandMenuItem icon={<CommandIcon kind="search" />} label="Search..." onClick={() => runCommandMenuAction(handleFocusSearchFromMenu)} />
-                </CommandMenuSubItem>
-                <CommandMenuSubItem
-                  icon={<CommandIcon kind="view" />}
-                  label="View"
-                  open={activeCommandSubmenu === 'view'}
-                  onOpen={() => setActiveCommandSubmenu('view')}
-                  onClose={() => setActiveCommandSubmenu((current) => current === 'view' ? null : current)}
-                >
-                  <CommandMenuItem icon={<CommandIcon kind="search" />} label="Search..." onClick={() => runCommandMenuAction(handleFocusSearchFromMenu)} />
-                </CommandMenuSubItem>
-                <CommandMenuSubItem
-                  icon={<CommandIcon kind="export" />}
-                  label="Export"
-                  open={activeCommandSubmenu === 'export'}
-                  onOpen={() => setActiveCommandSubmenu('export')}
-                  onClose={() => setActiveCommandSubmenu((current) => current === 'export' ? null : current)}
-                >
-                  <CommandMenuItem
-                    icon={<CommandIcon kind="export" />}
-                    label="Export active note as Markdown"
-                    disabled={!activeDocumentForMenu || isCanvasDocument(activeDocumentForMenu)}
-                    onClick={() => activeDocumentForMenu && !isCanvasDocument(activeDocumentForMenu) && runCommandMenuAction(() => exportDocumentAsMarkdownFile(activeDocumentForMenu))}
-                  />
-                  <CommandMenuItem
-                    icon={<CommandIcon kind="export" />}
-                    label="Export active note as PDF"
-                    disabled={!activeDocumentForMenu || isCanvasDocument(activeDocumentForMenu)}
-                    onClick={() => activeDocumentForMenu && !isCanvasDocument(activeDocumentForMenu) && runCommandMenuAction(() => exportDocumentAsPdf(activeDocumentForMenu))}
-                  />
-                  <CommandMenuItem
-                    icon={<CommandIcon kind="export" />}
-                    label="Export active note as text"
-                    disabled={!activeDocumentForMenu || isCanvasDocument(activeDocumentForMenu)}
-                    onClick={() => activeDocumentForMenu && !isCanvasDocument(activeDocumentForMenu) && runCommandMenuAction(() => exportDocumentAsTextFile(activeDocumentForMenu))}
-                  />
-                </CommandMenuSubItem>
-                <CommandMenuDivider />
-                <CommandMenuItem
-                  icon={<CommandIcon kind="download" />}
-                  label="Download desktop app"
-                  onClick={() => {
-                    setCommandMenuOpen(false);
-                    window.open('https://devboard.app/download', '_blank');
-                  }}
-                />
-                <CommandMenuDivider />
-                <CommandMenuItem
-                  icon={<CommandIcon kind="settings" />}
-                  label="Preferences..."
-                  onClick={() => runCommandMenuAction(openPreferences)}
-                />
-                <CommandMenuItem
-                  icon={<CommandIcon kind="help" />}
-                  label="Help & about"
-                  onClick={() => {
-                    setCommandMenuOpen(false);
-                    window.dispatchEvent(new CustomEvent('devboard:open-get-started'));
-                  }}
-                />
-                <CommandMenuDivider />
-                <CommandMenuItem
-                  icon={<CommandIcon kind="folder" />}
-                  label="Switch workspace..."
-                  onClick={() => {
-                    setCommandMenuOpen(false);
-                    void handleOpenFolder();
-                  }}
-                />
-              </div>
+                actions={{
+                  newNote: handleCreateNoteFromMenu,
+                  newCanvas: handleCreateCanvasFromMenu,
+                  newFolder: handleCreatePageFromMenu,
+                  switchWorkspace: () => { void handleOpenFolder(); },
+                  saveWorkspace: handleSaveWorkspaceFromMenu,
+                  projectSync: () => openCloudModal(),
+                  search: onToggleSearch,
+                  toggleTimer: onToggleTimer,
+                  toggleJira: onToggleJira,
+                  exportActiveNoteMarkdown: () => {
+                    if (activeDocumentForMenu && !isCanvasDocument(activeDocumentForMenu)) exportDocumentAsMarkdownFile(activeDocumentForMenu);
+                  },
+                  exportActiveNotePdf: () => {
+                    if (activeDocumentForMenu && !isCanvasDocument(activeDocumentForMenu)) exportDocumentAsPdf(activeDocumentForMenu);
+                  },
+                  exportActiveNoteText: () => {
+                    if (activeDocumentForMenu && !isCanvasDocument(activeDocumentForMenu)) exportDocumentAsTextFile(activeDocumentForMenu);
+                  },
+                  exportBoardPng: onExportBoardPng,
+                  downloadDesktopApp: () => window.open('https://devboard.app/download', '_blank'),
+                  preferences: openPreferences,
+                  helpAbout: () => window.dispatchEvent(new CustomEvent('devboard:open-get-started')),
+                }}
+              />
             )}
           </div>
         ) : (

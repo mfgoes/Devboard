@@ -1,19 +1,20 @@
-import { useRef, useState, useEffect, useCallback, useContext, createContext, useId } from 'react';
+import { useRef, useState, useEffect, useCallback } from 'react';
 import { saveAs } from 'file-saver';
 import { useBoardStore } from '../store/boardStore';
 import { useAuth } from '../contexts/AuthContext';
 import { TEMPLATES } from '../templates';
 import ConfirmDialog from './ConfirmDialog';
 import CloudModal from './CloudModal';
+import AppMenu from './AppMenu';
 import { saveBoard, saveBoardAs, clearFileHandle } from '../utils/fileSave';
 import { openWorkspace, createWorkspace, saveWorkspace, hasWorkspaceHandle, clearWorkspaceHandle, getWorkspacePathHint, IS_TAURI } from '../utils/workspaceManager';
 import { toast } from '../utils/toast';
 import { exportDocumentsAsMarkdown, generateMarkdownFilename } from '../utils/exportMarkdown';
+import { exportDocumentAsMarkdownFile, exportDocumentAsPdf, exportDocumentAsTextFile } from '../utils/documentExport';
 import exportSound from '../assets/get1.mp3';
-import { IconDoc, IconSaveFile, IconSidebarToggle } from './icons';
+import { IconDoc, IconSidebarToggle } from './icons';
 import { announceLocalSave } from '../utils/saveStatus';
 import { applyWorkspaceSyncFromOpenResult } from '../utils/applyWorkspaceSync';
-import { DARK_MENU_CLASSES, DARK_MENU_COLORS } from './darkMenuTheme';
 import { promptAndImportMarkdownNotes } from '../utils/noteImport';
 
 const playExportSound = () => new Audio(exportSound).play().catch(() => {});
@@ -21,12 +22,10 @@ const playExportSound = () => new Audio(exportSound).play().catch(() => {});
 interface TopBarProps {
   onShowAbout: () => void;
   onNewNote: () => void;
-  timerVisible: boolean;
   onToggleTimer: () => void;
   explorerOpen: boolean;
   onToggleExplorer: () => void;
   onWorkspaceOpened: () => void;
-  jiraOpen: boolean;
   onToggleJira: () => void;
   onToggleSearch: () => void;
   workspaceOffset?: number;
@@ -70,15 +69,14 @@ function parseCSV(text: string): string[][] {
   return rows;
 }
 
-export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleTimer, explorerOpen, onToggleExplorer, onWorkspaceOpened, jiraOpen, onToggleJira, onToggleSearch, workspaceOffset = 0, templatesOpen, onTemplatesOpenChange }: TopBarProps) {
-  const { boardTitle, exportData, loadBoard, setActiveTool, setActiveShapeKind, addNode, pages, activePageId, workspaceName, setWorkspaceName, nodes, appMode, cloudBoardId, cloudBoardTitle, cloudSyncedAt, lastLocalSavedAt, lastLocalSaveTarget } = useBoardStore();
+export default function TopBar({ onShowAbout, onNewNote, onToggleTimer, explorerOpen, onToggleExplorer, onWorkspaceOpened, onToggleJira, onToggleSearch, workspaceOffset = 0, templatesOpen, onTemplatesOpenChange }: TopBarProps) {
+  const { boardTitle, exportData, loadBoard, setActiveTool, setActiveShapeKind, addNode, addCanvasDocument, addPage, pages, activePageId, activeDocId, documents, workspaceName, setWorkspaceName, nodes, appMode, cloudBoardId, cloudBoardTitle, cloudSyncedAt, lastLocalSavedAt, lastLocalSaveTarget } = useBoardStore();
   const { user } = useAuth();
   const isDocumentContext = appMode === 'document';
   const fileInputRef = useRef<HTMLInputElement>(null);
   const csvInputRef = useRef<HTMLInputElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuAnchorLeft, setMenuAnchorLeft] = useState<number | null>(null);
-  const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const [confirmDialog, setConfirmDialog] = useState<{
     message: string;
@@ -100,6 +98,8 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
   const titleLabel = workspaceFolderLabel || cloudBoardTitle || boardTitle.trim() || 'Untitled Workspace';
   const titleStripLeft = Math.max(8, workspaceOffset + 10);
   const appMenuLeft = menuAnchorLeft ?? titleStripLeft;
+  const activeDocumentForMenu = documents.find((doc) => doc.id === activeDocId) ?? null;
+  const canExportActiveNote = !!activeDocumentForMenu && activeDocumentForMenu.docType !== 'canvas';
 
   // Close menu on outside click
   useEffect(() => {
@@ -108,7 +108,6 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
       const target = e.target as Node;
       if (menuRef.current?.contains(target)) return;
       setMenuOpen(false);
-      setActiveMenuId(null);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
@@ -118,8 +117,7 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
     const handler = (event: Event) => {
       const detail = (event as CustomEvent<{ left?: number }>).detail;
       setMenuAnchorLeft(typeof detail?.left === 'number' ? detail.left : titleStripLeft);
-      setMenuOpen(true);
-      setActiveMenuId(null);
+      setMenuOpen((open) => !open);
     };
     window.addEventListener('devboard:toggle-app-menu', handler);
     return () => window.removeEventListener('devboard:toggle-app-menu', handler);
@@ -399,6 +397,26 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
     }
   };
 
+  const handleNewCanvasFromMenu = () => {
+    const activePage = pages.find((page) => page.id === activePageId);
+    addCanvasDocument(activePage?.isCanvasDocument ? activePage.parentPageId : activePageId);
+  };
+
+  const handleExportActiveMarkdown = () => {
+    if (!activeDocumentForMenu || activeDocumentForMenu.docType === 'canvas') return;
+    exportDocumentAsMarkdownFile(activeDocumentForMenu);
+  };
+
+  const handleExportActivePdf = () => {
+    if (!activeDocumentForMenu || activeDocumentForMenu.docType === 'canvas') return;
+    exportDocumentAsPdf(activeDocumentForMenu);
+  };
+
+  const handleExportActiveText = () => {
+    if (!activeDocumentForMenu || activeDocumentForMenu.docType === 'canvas') return;
+    exportDocumentAsTextFile(activeDocumentForMenu);
+  };
+
   const menuAction = (fn: () => void) => {
     setMenuOpen(false);
     fn();
@@ -495,46 +513,37 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
             </button>
           </div>
           {menuOpen && (
-            <div
-              className="fixed z-[10001] w-[238px] rounded-[10px] border p-1.5 shadow-2xl"
-              style={{
-                left: appMenuLeft,
-                top: 46,
-                borderColor: DARK_MENU_COLORS.border,
-                background: DARK_MENU_COLORS.surface,
-                boxShadow: DARK_MENU_COLORS.shadow,
+            <AppMenu
+              left={appMenuLeft}
+              top={46}
+              width={220}
+              onRequestClose={() => setMenuOpen(false)}
+              state={{
+                canExportActiveNote,
+                canExportBoardPng: true,
               }}
-            >
-              <ActiveSubMenuCtx.Provider value={{ activeId: activeMenuId, setActiveId: setActiveMenuId as (id: string | null | ((prev: string | null) => string | null)) => void }}>
-                <MenuItemSub icon={<IconFolder />} label="File">
-                  <MenuItem icon={<IconDoc />} onClick={() => menuAction(onNewNote)}>New note</MenuItem>
-                  <MenuItem icon={<IconNewBoard />} onClick={() => menuAction(handleNewBoard)}>New board</MenuItem>
-                  <MenuItem icon={<IconFolder />} onClick={() => { void handleOpenFolder(); }}>Switch workspace...</MenuItem>
-                  <MenuItem icon={<IconSaveFile />} onClick={() => menuAction(handleSaveJSON)}>Save workspace</MenuItem>
-                  <MenuItem icon={<IconSettings />} onClick={() => menuAction(() => window.dispatchEvent(new CustomEvent('devboard:open-cloud-modal')))}>Project Sync...</MenuItem>
-                </MenuItemSub>
-                <MenuItemSub icon={<IconTools />} label="Edit">
-                  <MenuItem icon={<IconDoc />} onClick={() => menuAction(onNewNote)}>New note</MenuItem>
-                  <MenuItem icon={<IconSearchMenu />} onClick={() => menuAction(onToggleSearch)}>Search...</MenuItem>
-                </MenuItemSub>
-                <MenuItemSub icon={<IconSettings />} label="View">
-                  <MenuItem icon={<IconSearchMenu />} onClick={() => menuAction(onToggleSearch)}>Search...</MenuItem>
-                  <MenuItem icon={<IconTimerMenu />} onClick={() => menuAction(onToggleTimer)} checked={timerVisible}>Timer</MenuItem>
-                  <MenuItem icon={<IconJiraMenu />} onClick={() => menuAction(onToggleJira)} checked={jiraOpen}>Jira panel</MenuItem>
-                </MenuItemSub>
-                <MenuItemSub icon={<IconDownload />} label="Export">
-                  <MenuItem icon={<IconDownload />} onClick={() => menuAction(handleExportDocumentsMarkdown)}>Export notes as Markdown</MenuItem>
-                  <MenuItem icon={<IconImg />} onClick={() => menuAction(handleExportPNG)}>Export board as PNG</MenuItem>
-                  <MenuItem icon={<IconZip />} onClick={() => menuAction(handleExportZip)}>Export workspace ZIP</MenuItem>
-                </MenuItemSub>
-                <MenuDivider />
-                <MenuItem icon={<IconDownload />} onClick={() => menuAction(() => window.open('https://devboard.app/download', '_blank'))}>Download desktop app</MenuItem>
-                <MenuDivider />
-                <MenuItem icon={<IconSettings />} onClick={() => menuAction(onShowAbout)}>Help & about</MenuItem>
-                <MenuDivider />
-                <MenuItem icon={<IconFolder />} onClick={() => { void handleOpenFolder(); }}>Switch workspace...</MenuItem>
-              </ActiveSubMenuCtx.Provider>
-            </div>
+              actions={{
+                newNote: onNewNote,
+                newCanvas: handleNewCanvasFromMenu,
+                newFolder: () => addPage(),
+                switchWorkspace: () => { void handleOpenFolder(); },
+                saveWorkspace: handleSaveJSON,
+                projectSync: () => window.dispatchEvent(new CustomEvent('devboard:open-cloud-modal')),
+                search: onToggleSearch,
+                toggleTimer: onToggleTimer,
+                toggleJira: onToggleJira,
+                exportActiveNoteMarkdown: handleExportActiveMarkdown,
+                exportActiveNotePdf: handleExportActivePdf,
+                exportActiveNoteText: handleExportActiveText,
+                exportBoardPng: handleExportPNG,
+                downloadDesktopApp: () => window.open('https://devboard.app/download', '_blank'),
+                preferences: () => {
+                  onToggleExplorer();
+                  window.setTimeout(() => window.dispatchEvent(new CustomEvent('devboard:open-preferences')), 60);
+                },
+                helpAbout: onShowAbout,
+              }}
+            />
           )}
         </div>
       )}
@@ -561,95 +570,8 @@ export default function TopBar({ onShowAbout, onNewNote, timerVisible, onToggleT
   );
 }
 
-// ── Menu sub-components ──────────────────────────────────────────────────────
-
-function MenuDivider() {
-  return <div className={DARK_MENU_CLASSES.divider} />;
-}
-
-function MenuLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <div className={DARK_MENU_CLASSES.label}>
-      {children}
-    </div>
-  );
-}
-
-function MenuItem({
-  children,
-  onClick,
-  icon,
-  disabled,
-  badge,
-  checked,
-}: {
-  children: React.ReactNode;
-  onClick?: () => void;
-  icon?: React.ReactNode;
-  disabled?: boolean;
-  badge?: string;
-  checked?: boolean;
-}) {
-  return (
-    <button
-      onClick={disabled ? undefined : onClick}
-      disabled={disabled}
-      className="w-full flex items-center gap-2.5 px-3 py-1.5 font-sans text-[12px] text-left transition-colors rounded"
-      style={{
-        color: disabled ? DARK_MENU_COLORS.textDisabled : DARK_MENU_COLORS.text,
-        cursor: disabled ? 'default' : 'pointer',
-      }}
-      onMouseEnter={(e) => {
-        if (disabled) return;
-        e.currentTarget.style.background = DARK_MENU_COLORS.hover;
-        e.currentTarget.style.color = DARK_MENU_COLORS.textHi;
-      }}
-      onMouseLeave={(e) => {
-        if (disabled) return;
-        e.currentTarget.style.background = 'transparent';
-        e.currentTarget.style.color = DARK_MENU_COLORS.text;
-      }}
-    >
-      {icon && (
-        <span style={{ color: disabled ? DARK_MENU_COLORS.textDisabled : DARK_MENU_COLORS.accent }}>
-          {icon}
-        </span>
-      )}
-      <span className="flex-1">{children}</span>
-      {checked !== undefined && (
-        <span style={{ color: checked ? DARK_MENU_COLORS.accent : 'transparent' }}>
-          <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-            <path d="M1.5 5l2.5 2.5 5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </span>
-      )}
-      {badge && (
-        <span
-          className="text-[9px] font-sans rounded px-1 py-0.5 uppercase tracking-wide"
-          style={{
-            color: DARK_MENU_COLORS.textMuted,
-            border: `1px solid ${DARK_MENU_COLORS.border}`,
-            background: DARK_MENU_COLORS.hover,
-          }}
-        >
-          {badge}
-        </span>
-      )}
-    </button>
-  );
-}
-
 // ── Menu icons ───────────────────────────────────────────────────────────────
 
-function IconNewBoard() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-      <rect x="1.5" y="1" width="8" height="10" rx="1" stroke="currentColor" strokeWidth="1.3" />
-      <path d="M9.5 3.5H11a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-.5.5H4a.5.5 0 0 1-.5-.5V11" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
-      <path d="M5.5 5.5h3M7 4v3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-    </svg>
-  );
-}
 function IconAbout() {
   return (
     <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
@@ -659,37 +581,11 @@ function IconAbout() {
     </svg>
   );
 }
-function IconImg() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-      <rect x="1" y="2.5" width="11" height="8" rx="1" stroke="currentColor" strokeWidth="1.3" />
-      <path d="M1 8.5l3-3 2.5 2.5 2-2 2.5 2.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx="4.5" cy="5.5" r="1" stroke="currentColor" strokeWidth="1.1" />
-    </svg>
-  );
-}
-const IconJson = IconSaveFile;
-
 function IconLoad() {
   return (
     <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
       <path d="M2 8.5v2a.5.5 0 0 0 .5.5h8a.5.5 0 0 0 .5-.5v-2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
       <path d="M6.5 1.5v6M4 5l2.5 2.5L9 5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-function IconFolder() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-      <path d="M1 3.5a1 1 0 0 1 1-1h3l1.5 1.5H11a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V3.5z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
-    </svg>
-  );
-}
-function IconZip() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-      <rect x="1" y="1" width="11" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.3" />
-      <path d="M5 1v11M5 3h2M5 5h2M5 7h2M5 9h2" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
     </svg>
   );
 }
@@ -737,14 +633,6 @@ function IconText() {
     </svg>
   );
 }
-function IconDownload() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-      <path d="M6.5 1v6.5M4 5.5l2.5 2.5L9 5.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M1.5 10h10" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-    </svg>
-  );
-}
 function IconTemplate() {
   return (
     <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
@@ -780,53 +668,6 @@ function IconCsv() {
     </svg>
   );
 }
-function IconTools() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-      <path d="M8.5 2a2.5 2.5 0 0 1 0 4.5L3 11.5a.7.7 0 0 1-1-1L7.5 5A2.5 2.5 0 0 1 8.5 2z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
-      <circle cx="9" cy="3.5" r="0.8" fill="currentColor" />
-    </svg>
-  );
-}
-function IconSettings() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-      <circle cx="6.5" cy="6.5" r="1.7" stroke="currentColor" strokeWidth="1.2" />
-      <path d="M6.5 1.7v1.1M6.5 10.2v1.1M1.7 6.5h1.1M10.2 6.5h1.1M3.1 3.1l.8.8M9.1 9.1l.8.8M3.1 9.9l.8-.8M9.1 3.9l.8-.8" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
-    </svg>
-  );
-}
-function IconTimerMenu() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-      <circle cx="6.5" cy="7" r="4.5" stroke="currentColor" strokeWidth="1.3" />
-      <path d="M6.5 4.5v3l2 1" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M5 1.5h3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-    </svg>
-  );
-}
-function IconJiraMenu() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-      <path d="M11.8 6.2L7.2 1.6 6.5.9 3 4.4l-.5.5a.4.4 0 000 .6l3 3 1 1 3.9-3.9.5-.5a.4.4 0 000-.6zM6.5 8.2L4.8 6.5l1.7-1.7 1.7 1.7-1.7 1.7z" fill="currentColor"/>
-    </svg>
-  );
-}
-function IconSearchMenu() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-      <circle cx="5.5" cy="5.5" r="4" stroke="currentColor" strokeWidth="1.3" />
-      <path d="M8.5 8.5L11.5 11.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-    </svg>
-  );
-}
-function IconChevronRight() {
-  return (
-    <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
-      <path d="M4 2.5L7 5.5L4 8.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
 function IconShapeRect() {
   return (
     <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
@@ -853,74 +694,6 @@ function IconShapeTriangle() {
     <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
       <path d="M6.5 1.5L12 11.5H1Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
     </svg>
-  );
-}
-
-// ── MenuItemSub — hover-triggered right flyout ────────────────────────────────
-const ActiveSubMenuCtx = createContext<{
-  activeId: string | null;
-  setActiveId: (id: string | null | ((prev: string | null) => string | null)) => void;
-}>({ activeId: null, setActiveId: () => {} });
-
-function MenuItemSub({ label, icon, children }: { label: string; icon?: React.ReactNode; children: React.ReactNode }) {
-  const id = useId();
-  const { activeId, setActiveId } = useContext(ActiveSubMenuCtx);
-  const open = activeId === id;
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [nestedActiveId, setNestedActiveId] = useState<string | null>(null);
-
-  const show = useCallback(() => {
-    if (timerRef.current) clearTimeout(timerRef.current);
-    setActiveId(id); // immediately replaces any other open submenu
-  }, [id, setActiveId]);
-
-  const hide = useCallback(() => {
-    timerRef.current = setTimeout(
-      // only close if we're still the active one — prevents stomping a newly opened sibling
-      () => setActiveId((prev) => (prev === id ? null : prev)),
-      300,
-    );
-  }, [id, setActiveId]);
-
-  return (
-    <div className="relative" onMouseEnter={show} onMouseLeave={hide}>
-      <button
-        className="w-full flex items-center gap-2.5 px-3 py-1.5 font-sans text-[12px] text-left transition-colors rounded"
-        style={{
-          background: open ? DARK_MENU_COLORS.hover : 'transparent',
-          color: open ? DARK_MENU_COLORS.textHi : DARK_MENU_COLORS.text,
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.background = DARK_MENU_COLORS.hover;
-          e.currentTarget.style.color = DARK_MENU_COLORS.textHi;
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = open ? DARK_MENU_COLORS.hover : 'transparent';
-          e.currentTarget.style.color = open ? DARK_MENU_COLORS.textHi : DARK_MENU_COLORS.text;
-        }}
-      >
-        {icon && <span style={{ color: DARK_MENU_COLORS.accent }}>{icon}</span>}
-        <span className="flex-1">{label}</span>
-        <span style={{ color: DARK_MENU_COLORS.textMuted }}><IconChevronRight /></span>
-      </button>
-      {open && (
-        <div
-          className="absolute left-full top-0 ml-1 w-48 rounded-xl border py-1.5 shadow-2xl z-[230]"
-          style={{
-            animation: 'submenu-in 0.13s ease-out',
-            borderColor: DARK_MENU_COLORS.border,
-            background: DARK_MENU_COLORS.surface,
-            boxShadow: DARK_MENU_COLORS.shadow,
-          }}
-          onMouseEnter={show}
-          onMouseLeave={hide}
-        >
-          <ActiveSubMenuCtx.Provider value={{ activeId: nestedActiveId, setActiveId: setNestedActiveId as (id: string | null | ((prev: string | null) => string | null)) => void }}>
-            {children}
-          </ActiveSubMenuCtx.Provider>
-        </div>
-      )}
-    </div>
   );
 }
 
