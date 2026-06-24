@@ -23,15 +23,11 @@ import { cx, DropdownMenu, DropdownMenuItem, InlinePanel, ModalActionButton, Pro
 import {
   createCloudBoard as createCloudWorkspaceSnapshot,
   deleteCloudBoard as deleteCloudWorkspaceSnapshot,
-  listCloudBoards as listCloudWorkspaces,
-  listCloudWorkspaceLocations,
   loadCloudBoard as loadCloudWorkspaceSnapshot,
   rememberCloudSyncContext,
   renameCloudBoard as renameCloudWorkspaceSnapshot,
   updateCloudBoard as updateCloudWorkspaceSnapshot,
   cloudTimestamp,
-  type CloudBoardSummary,
-  type CloudWorkspaceLocation,
 } from '../utils/cloudStorage';
 import { toast } from '../utils/toast';
 import { supabase } from '../utils/supabase';
@@ -50,7 +46,6 @@ import {
   createWorkspace,
   downloadCloudWorkspaceToFolder,
   IS_TAURI,
-  listLocalRecentWorkspaces,
   openWorkspace,
   openRecentWorkspace,
   revealInFinder,
@@ -63,243 +58,33 @@ import {
   type WorkspaceOpenResult,
 } from '../utils/workspaceManager';
 import { applyWorkspaceSyncFromOpenResult } from '../utils/applyWorkspaceSync';
+import { useCloudModalData } from '../hooks/useCloudModalData';
 import {
   buildRecentWorkspaceRows,
   findCurrentLocalRecent,
   resolveWorkspaceLink,
   type RecentWorkspaceRow,
 } from '../utils/workspaceSyncModel';
+import {
+  buildWorkspaceConflictGroups,
+  clearLocalSyncLink,
+  duplicateCopyLabel,
+  errorMessage,
+  formatDuplicateReviewDate,
+  formatExactDate,
+  getLocalSyncLink,
+  mapWorkspaceConflicts,
+  mergeWorkspaceLocations,
+  normalizedConflictTitle,
+  workspaceContentsLabel,
+  writeLocalSyncLink,
+  type CloudWorkspaceSummary,
+  type DuplicateReviewRoute,
+  type DuplicateReviewSelection,
+} from './cloudModalUtils';
 
 const SYNC_WORKSPACE_LIMIT = 10;
-const LOCAL_SYNC_LINKS_KEY = 'devboard:cloud-workspace-links';
 const CURRENT_WORKSPACE_DOWNLOAD_ROW_ID = 'current-workspace';
-
-type CloudWorkspaceSummary = CloudBoardSummary;
-type LocalSyncLink = { cloudBoardId: string | null; title: string; syncedAt: number; disabled?: boolean };
-type WorkspaceDisplayLocation = {
-  key: string;
-  deviceId?: string | null;
-  deviceLabel?: string | null;
-  localPathHint?: string | null;
-  lastOpenedAt?: string | number | null;
-  lastSyncedAt?: string | number | null;
-  lastLocalSavedAt?: number | null;
-  updatedAt?: string | number | null;
-};
-type WorkspaceConflictGroup = {
-  key: string;
-  reason: string;
-  workspaces: CloudWorkspaceSummary[];
-};
-type DuplicateReviewRoute = {
-  workspaceId: string;
-  duplicateWorkspaceIds: string[];
-};
-type DuplicateReviewSelection = 'a' | 'b';
-
-function syncLinkKey(userId: string, workspaceName: string): string {
-  return `${userId}:${workspaceName.trim().toLowerCase()}`;
-}
-
-function normalizedConflictTitle(value: string): string {
-  return value.trim().replace(/\s+/g, ' ').toLowerCase();
-}
-
-function contentSignature(workspace: CloudWorkspaceSummary): string | null {
-  const summary = workspace.contentSummary;
-  if (!summary) return null;
-  return [
-    summary.pages,
-    summary.notes,
-    summary.canvasItems,
-    summary.images,
-  ].join(':');
-}
-
-function buildWorkspaceConflictGroups(workspaces: CloudWorkspaceSummary[]): WorkspaceConflictGroup[] {
-  const groups = new Map<string, WorkspaceConflictGroup>();
-  const coveredSets = new Set<string>();
-
-  const addGroup = (key: string, reason: string, items: CloudWorkspaceSummary[]) => {
-    const unique = Array.from(new Map(items.map((workspace) => [workspace.id, workspace])).values());
-    const setKey = unique.map((workspace) => workspace.id).sort().join('|');
-    if (unique.length < 2 || groups.has(key) || coveredSets.has(setKey)) return;
-    coveredSets.add(setKey);
-    groups.set(key, {
-      key,
-      reason,
-      workspaces: unique.sort((a, b) => cloudTimestamp(b.updatedAt) - cloudTimestamp(a.updatedAt)),
-    });
-  };
-
-  const byIdentity = new Map<string, CloudWorkspaceSummary[]>();
-  const byTitle = new Map<string, CloudWorkspaceSummary[]>();
-  const byTitleAndContent = new Map<string, CloudWorkspaceSummary[]>();
-
-  for (const workspace of workspaces) {
-    if (workspace.logicalWorkspaceId) {
-      const key = workspace.logicalWorkspaceId;
-      byIdentity.set(key, [...(byIdentity.get(key) ?? []), workspace]);
-    }
-
-    const titleKey = normalizedConflictTitle(workspace.title);
-    if (titleKey) {
-      byTitle.set(titleKey, [...(byTitle.get(titleKey) ?? []), workspace]);
-      const signature = contentSignature(workspace);
-      if (signature) {
-        const contentKey = `${titleKey}:${signature}`;
-        byTitleAndContent.set(contentKey, [...(byTitleAndContent.get(contentKey) ?? []), workspace]);
-      }
-    }
-  }
-
-  for (const [key, items] of byIdentity) addGroup(`identity:${key}`, 'Same project identity', items);
-  for (const [key, items] of byTitleAndContent) addGroup(`content:${key}`, 'Same name and matching contents', items);
-  for (const [key, items] of byTitle) addGroup(`title:${key}`, 'Same name', items);
-
-  return Array.from(groups.values()).sort((a, b) => {
-    const newestA = cloudTimestamp(a.workspaces[0]?.updatedAt ?? '');
-    const newestB = cloudTimestamp(b.workspaces[0]?.updatedAt ?? '');
-    return newestB - newestA;
-  });
-}
-
-function mapWorkspaceConflicts(groups: WorkspaceConflictGroup[]): Record<string, WorkspaceConflictGroup[]> {
-  const byId: Record<string, WorkspaceConflictGroup[]> = {};
-  for (const group of groups) {
-    for (const workspace of group.workspaces) {
-      byId[workspace.id] = [...(byId[workspace.id] ?? []), group];
-    }
-  }
-  return byId;
-}
-
-function readLocalSyncLinks(): Record<string, LocalSyncLink> {
-  if (typeof window === 'undefined') return {};
-  try {
-    return JSON.parse(window.localStorage.getItem(LOCAL_SYNC_LINKS_KEY) ?? '{}') as Record<string, LocalSyncLink>;
-  } catch {
-    return {};
-  }
-}
-
-function writeLocalSyncLink(userId: string, workspaceName: string, link: LocalSyncLink): void {
-  if (typeof window === 'undefined') return;
-  const links = readLocalSyncLinks();
-  links[syncLinkKey(userId, workspaceName)] = link;
-  window.localStorage.setItem(LOCAL_SYNC_LINKS_KEY, JSON.stringify(links));
-}
-
-function clearLocalSyncLink(userId: string, workspaceName: string): void {
-  if (typeof window === 'undefined') return;
-  const links = readLocalSyncLinks();
-  delete links[syncLinkKey(userId, workspaceName)];
-  window.localStorage.setItem(LOCAL_SYNC_LINKS_KEY, JSON.stringify(links));
-}
-
-function getLocalSyncLink(userId: string, workspaceName: string): LocalSyncLink | null {
-  return readLocalSyncLinks()[syncLinkKey(userId, workspaceName)] ?? null;
-}
-
-function formatRelativeDate(value: string | number | null): string {
-  if (!value) return 'Not yet';
-  const ms = typeof value === 'number' ? value : new Date(value).getTime();
-  const diff = Date.now() - ms;
-  if (diff < 60_000) return 'just now';
-  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
-  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
-  if (diff < 7 * 86_400_000) return `${Math.floor(diff / 86_400_000)}d ago`;
-  return new Date(ms).toLocaleDateString();
-}
-
-function formatExactDate(value: string | number | null): string {
-  if (!value) return 'Not yet';
-  const date = typeof value === 'number' ? new Date(value) : new Date(value);
-  return date.toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: date.getFullYear() === new Date().getFullYear() ? undefined : 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
-}
-
-function formatDuplicateReviewDate(value: string | number | null): string {
-  if (!value) return 'Not yet';
-  const date = typeof value === 'number' ? new Date(value) : new Date(value);
-  return date.toLocaleString(undefined, {
-    day: 'numeric',
-    month: 'short',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
-}
-
-function workspaceContentsLabel(workspace: CloudWorkspaceSummary): string {
-  const summary = workspace.contentSummary;
-  if (!summary) return 'Content details unavailable';
-  return `${summary.notes} notes · ${summary.canvasItems} canvas items`;
-}
-
-function errorMessage(err: unknown, fallback: string): string {
-  if (err instanceof Error && err.message) return err.message;
-  if (typeof err === 'object' && err !== null && 'message' in err && typeof (err as { message?: unknown }).message === 'string') {
-    return (err as { message: string }).message;
-  }
-  return fallback;
-}
-
-function isoFromMs(value: number | null | undefined): string | null {
-  return value ? new Date(value).toISOString() : null;
-}
-
-function bestLocationTime(location: WorkspaceDisplayLocation): number {
-  return Math.max(
-    location.updatedAt ? new Date(location.updatedAt).getTime() : 0,
-    location.lastSyncedAt ? new Date(location.lastSyncedAt).getTime() : 0,
-    location.lastLocalSavedAt ?? 0,
-    location.lastOpenedAt ? new Date(location.lastOpenedAt).getTime() : 0,
-  );
-}
-
-function mergeWorkspaceLocations(
-  recent: LocalRecentWorkspace | undefined,
-  remoteLocations: CloudWorkspaceLocation[],
-): WorkspaceDisplayLocation[] {
-  const merged = new Map<string, WorkspaceDisplayLocation>();
-  const currentDeviceId = getDeviceId();
-
-  for (const location of remoteLocations) {
-    merged.set(location.deviceId, {
-      key: location.id,
-      deviceId: location.deviceId,
-      deviceLabel: location.deviceLabel,
-      localPathHint: location.localPathHint,
-      lastOpenedAt: location.lastOpenedAt,
-      lastSyncedAt: location.lastSyncedAt,
-      updatedAt: location.updatedAt,
-    });
-  }
-
-  if (recent) {
-    merged.set(currentDeviceId, {
-      key: `local:${recent.id}`,
-      deviceId: currentDeviceId,
-      deviceLabel: getDeviceLabel(),
-      localPathHint: recent.localPathHint,
-      lastOpenedAt: isoFromMs(recent.lastOpenedAt),
-      lastSyncedAt: isoFromMs(recent.cloudSyncedAt),
-      lastLocalSavedAt: recent.lastSavedAt ?? null,
-      updatedAt: isoFromMs(Math.max(recent.lastSavedAt ?? 0, recent.lastOpenedAt)),
-    });
-  }
-
-  return Array.from(merged.values()).sort((a, b) => bestLocationTime(b) - bestLocationTime(a));
-}
-
-function duplicateCopyLabel(count: number): string {
-  return `${count} older ${count === 1 ? 'copy' : 'copies'} with the same name found`;
-}
 
 export default function CloudModal({ open, onClose, initialTab = 'workspace' }: { open: boolean; onClose: () => void; initialTab?: 'workspace' | 'library' }) {
   const { isConfigured, isLoading: authLoading, user, signInWithGoogle, signInWithGitHub, signInWithMagicLink, signInWithEmail, signUpWithEmail, signOut } = useAuth();
@@ -319,12 +104,7 @@ export default function CloudModal({ open, onClose, initialTab = 'workspace' }: 
   const setCloudBoardState = useBoardStore((s) => s.setCloudBoardState);
   const clearCloudBoardState = useBoardStore((s) => s.clearCloudBoardState);
 
-  const [workspaces, setWorkspaces] = useState<CloudWorkspaceSummary[]>([]);
-  const [cloudLocations, setCloudLocations] = useState<Record<string, CloudWorkspaceLocation[]>>({});
-  const [localRecents, setLocalRecents] = useState<LocalRecentWorkspace[]>([]);
-  const [workspacesLoading, setWorkspacesLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null);
   const [workspaceMenuId, setWorkspaceMenuId] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [renamingWorkspaceId, setRenamingWorkspaceId] = useState<string | null>(null);
@@ -359,6 +139,22 @@ export default function CloudModal({ open, onClose, initialTab = 'workspace' }: 
     ?? user?.email
     ?? 'Account';
   const avatarUrl = typeof user?.user_metadata?.avatar_url === 'string' ? user.user_metadata.avatar_url : null;
+  const {
+    workspaces,
+    setWorkspaces,
+    cloudLocations,
+    setCloudLocations,
+    localRecents,
+    workspacesLoading,
+    selectedWorkspaceId,
+    setSelectedWorkspaceId,
+    reloadLocalRecents,
+    reloadRecentRows,
+  } = useCloudModalData({
+    open,
+    user,
+    cloudBoardId,
+  });
 
   const currentWorkspaceName = boardTitle.trim() || workspaceName || cloudBoardTitle || 'Untitled Project';
   const currentSyncMetadata = getWorkspaceSyncMetadata();
@@ -514,43 +310,6 @@ export default function CloudModal({ open, onClose, initialTab = 'workspace' }: 
   const authButtonPrimaryClass = `${authButtonBaseClass} border border-transparent bg-[var(--c-line)] text-white hover:-translate-y-px hover:opacity-[0.88]`;
   const authButtonGhostClass = `${authButtonBaseClass} border border-[var(--c-border)] bg-[var(--c-panel)] text-[var(--c-text-md)] hover:-translate-y-px hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]`;
 
-  const reloadLocalRecents = async () => {
-    try {
-      setLocalRecents(await listLocalRecentWorkspaces());
-    } catch (err) {
-      console.warn('Failed to load recent projects', err);
-      setLocalRecents([]);
-    }
-  };
-
-  const reloadWorkspaces = async (): Promise<CloudWorkspaceSummary[]> => {
-    if (!user) return [];
-    setWorkspacesLoading(true);
-    try {
-      const nextWorkspaces = await listCloudWorkspaces(user);
-      setWorkspaces(nextWorkspaces);
-      setCloudLocations(await listCloudWorkspaceLocations(nextWorkspaces.map((workspace) => workspace.id)));
-      setSelectedWorkspaceId((current) => {
-        if (cloudBoardId && nextWorkspaces.some((workspace) => workspace.id === cloudBoardId)) return cloudBoardId;
-        if (current && nextWorkspaces.some((workspace) => workspace.id === current)) return current;
-        return nextWorkspaces[0]?.id ?? null;
-      });
-      return nextWorkspaces;
-    } catch (err) {
-      console.warn('Failed to load synced projects', err);
-      toast(`Could not load synced projects. ${errorMessage(err, '')}`.trim());
-      setCloudLocations({});
-      return [];
-    } finally {
-      setWorkspacesLoading(false);
-    }
-  };
-
-  const reloadRecentRows = async () => {
-    await reloadLocalRecents();
-    return user ? reloadWorkspaces() : [];
-  };
-
   const rememberSyncLink = (workspace: CloudWorkspaceSummary) => {
     if (!user) return;
     const syncedAt = cloudTimestamp(workspace.updatedAt);
@@ -611,12 +370,6 @@ export default function CloudModal({ open, onClose, initialTab = 'workspace' }: 
     }
     void saveWorkspace(useBoardStore.getState().exportData(), { notify: false });
   };
-
-  useEffect(() => {
-    if (!open) return;
-    void reloadLocalRecents();
-    if (user) void reloadWorkspaces();
-  }, [open, user]);
 
   useEffect(() => {
     if (open) return;
