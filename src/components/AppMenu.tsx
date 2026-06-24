@@ -7,13 +7,16 @@ import {
   CommandMenuItem,
   CommandMenuSubItem,
 } from './explorer/WorkspaceExplorerParts';
+import type { LocalRecentWorkspace } from '../utils/workspaceManager';
 
 export interface AppMenuActions {
   newNote: () => void;
   newCanvas: () => void;
   newFolder: () => void;
-  switchWorkspace: () => void;
-  saveWorkspace: () => void;
+  openLocalFolder: () => void;
+  openRecentProject: (project: LocalRecentWorkspace) => void;
+  allProjects: () => void;
+  saveProject: () => void;
   projectSync: () => void;
   search: () => void;
   toggleTimer: () => void;
@@ -37,13 +40,15 @@ export interface AppMenuState {
 type AppMenuProps = {
   actions: AppMenuActions;
   state: AppMenuState;
+  recentProjects?: LocalRecentWorkspace[];
+  currentProjectName?: string;
   left: number;
   top: number;
   width?: number;
   onRequestClose: () => void;
 };
 
-export default function AppMenu({ actions, state, left, top, width = 220, onRequestClose }: AppMenuProps) {
+export default function AppMenu({ actions, state, recentProjects = [], currentProjectName, left, top, width = 220, onRequestClose }: AppMenuProps) {
   const [activeSubmenu, setActiveSubmenu] = useState<string | null>(null);
 
   const runAction = useCallback((action: () => void) => {
@@ -83,9 +88,41 @@ export default function AppMenu({ actions, state, left, top, width = 220, onRequ
         <CommandMenuItem icon={<IconCanvasDoc size={13} />} label="New canvas" onClick={() => runAction(actions.newCanvas)} />
         <CommandMenuItem icon={<CommandIcon kind="folder" />} label="New folder" onClick={() => runAction(actions.newFolder)} />
         <CommandMenuDivider />
-        <CommandMenuItem icon={<CommandIcon kind="folder" />} label="Switch workspace..." onClick={() => runAction(actions.switchWorkspace)} />
-        <CommandMenuItem icon={<CommandIcon kind="view" />} label="Save workspace" onClick={() => runAction(actions.saveWorkspace)} />
+        <CommandMenuItem icon={<CommandIcon kind="folder" />} label="Open local folder..." onClick={() => runAction(actions.openLocalFolder)} />
+        <CommandMenuItem icon={<CommandIcon kind="view" />} label="Save project" onClick={() => runAction(actions.saveProject)} />
         <CommandMenuItem icon={<CommandIcon kind="settings" />} label="Project Sync..." onClick={() => runAction(actions.projectSync)} />
+      </CommandMenuSubItem>
+
+      <CommandMenuSubItem
+        icon={<CommandIcon kind="folder" />}
+        label="Projects"
+        open={activeSubmenu === 'projects'}
+        onOpen={() => setActiveSubmenu('projects')}
+        onClose={() => closeSubmenu('projects')}
+      >
+        {recentProjects.length > 0 ? (
+          recentProjects.slice(0, 6).map((project) => {
+            const isCurrent = !!currentProjectName && project.title === currentProjectName;
+            return (
+              <CommandMenuItem
+                key={project.id}
+                icon={<CommandIcon kind="folder" />}
+                label={project.title || 'Untitled project'}
+                disabled={isCurrent}
+                trailing={isCurrent ? 'Current' : undefined}
+                onClick={() => runAction(() => actions.openRecentProject(project))}
+              />
+            );
+          })
+        ) : (
+          <CommandMenuItem
+            icon={<CommandIcon kind="folder" />}
+            label="No recent projects"
+            disabled
+          />
+        )}
+        <CommandMenuDivider />
+        <CommandMenuItem icon={<CommandIcon kind="folder" />} label="All projects..." onClick={() => runAction(actions.allProjects)} />
       </CommandMenuSubItem>
 
       <CommandMenuSubItem

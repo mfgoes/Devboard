@@ -6,513 +6,48 @@ import { saveAs } from 'file-saver';
 import { hasWorkspaceHandle, readWorkspaceFileAsUrl, saveImageAsset, saveTextFileToWorkspace } from '../utils/workspaceManager';
 import { toast } from '../utils/toast';
 import { focusNode } from '../utils/focusNode';
-import { IconArrowRight, IconCode, IconCodeBlock, IconCopy, IconEye, IconGrip, IconHorizontalRule, IconLink, IconList, IconListOrdered, IconMoreHorizontal, IconNodeLink, IconQuote, IconStar, IconTextWrap, IconUnlink, IconWikiLink } from './icons';
+import { IconArrowRight, IconCode, IconCodeBlock, IconCopy, IconEye, IconHorizontalRule, IconLink, IconList, IconListOrdered, IconMoreHorizontal, IconNodeLink, IconQuote, IconStar, IconTextWrap, IconUnlink, IconWikiLink } from './icons';
 import { useDocumentAutoSave } from '../hooks/useDocumentAutoSave';
 import { type DocumentCommandDefinition, type DocumentCommandGroup, type DocumentCommandId, getDocumentCommandsForSurface, runDocumentCommand } from './documentCommands';
+import { caretHostForConvertedBlock, isConvertibleDocumentCommand, isSupportedTurnIntoBlock, restoreCaretAtEnd, turnBlockInto } from './documentBlockTransforms';
+import DocumentLineHandle, { type LineHandleState } from './DocumentLineHandle';
 import { sanitizeClipboardHtml } from '../utils/richText';
 import { describeNoteSaveStatus, saveLinkedWorkspaceToCloud, type NoteSavePresentation } from '../utils/saveStatus';
 import { taskListItemHtml } from '../utils/taskListHtml';
 import AssetDrawer from './AssetDrawer';
+import {
+  activeWikiChipFromRange,
+  applyChipsToDOM,
+  buildImageAssetName,
+  copyPlainText,
+  documentOutlineFromHtml,
+  documentTextWithRawLinks,
+  escapeHtmlAttr,
+  escapeInlineHtml,
+  fileToDataUrl,
+  findDocumentByTitle,
+  generateMarkdownFilename,
+  getDocumentHistorySignature,
+  getNodeLabel,
+  getWikiChipTitle,
+  isRenderableExternalImageSrc,
+  normalizeMarkdownTablesInHtml,
+  normalizeTitleText,
+  parseWikiLink,
+  isBlankEditorBlock,
+  readingTimeLabel,
+  relativeTime,
+  resizeDocumentTitleTextarea,
+  stripChipsFromHTML,
+  stripHtml,
+  stripLeadingHtmlTitle,
+  syncWikiChipState,
+  wikiLinkRaw,
+  wordCountFromHtml,
+} from './documentModeUtils';
 import './DocumentMode.css';
 
-// ── Inline chip utilities ─────────────────────────────────────────────────────
-
-const CHIP_PATTERN = /(\[\[[^\]]+\]\])|(@node:[a-zA-Z0-9_-]+)|(#[a-zA-Z][a-zA-Z0-9_-]*)/g;
 const TODO_LIST_ITEM_HTML = taskListItemHtml({ placeholder: 'Todo item' });
-const CONVERTIBLE_COMMAND_IDS = new Set<DocumentCommandId>([
-  'text',
-  'heading-1',
-  'heading-2',
-  'bullet-list',
-  'numbered-list',
-  'todo-list',
-  'quote',
-  'callout',
-  'code-block',
-]);
-
-function isConvertibleDocumentCommand(id: DocumentCommandId): boolean {
-  return CONVERTIBLE_COMMAND_IDS.has(id);
-}
-
-function parseWikiLink(raw: string): { title: string; alias: string } {
-  const [titlePart, ...aliasParts] = raw.split('|');
-  const title = titlePart.trim();
-  const alias = aliasParts.join('|').trim();
-  return { title, alias };
-}
-
-function getWikiChipTitle(chip: HTMLElement): string {
-  return (chip.dataset.title ?? chip.textContent ?? '').trim();
-}
-
-function findDocumentByTitle(documents: Document[], title: string): Document | null {
-  const target = title.trim();
-  if (!target) return null;
-  const exactMatch = documents.find((doc) => normalizeTitleText(doc.title) === normalizeTitleText(target));
-  return exactMatch ?? null;
-}
-
-function wikiLinkRaw(title: string, alias?: string): string {
-  const cleanTitle = title.trim();
-  const cleanAlias = alias?.trim();
-  return cleanAlias && cleanAlias !== cleanTitle
-    ? `[[${cleanTitle}|${cleanAlias}]]`
-    : `[[${cleanTitle}]]`;
-}
-
-function copyPlainText(text: string): boolean {
-  let copied = false;
-  const activeElement = document.activeElement as HTMLElement | null;
-  const selection = window.getSelection();
-  const ranges: Range[] = [];
-  for (let i = 0; i < (selection?.rangeCount ?? 0); i += 1) {
-    const range = selection?.getRangeAt(i);
-    if (range) ranges.push(range.cloneRange());
-  }
-
-  const textarea = document.createElement('textarea');
-  textarea.value = text;
-  textarea.setAttribute('readonly', 'true');
-  textarea.style.position = 'fixed';
-  textarea.style.left = '-9999px';
-  textarea.style.top = '0';
-
-  const onCopy = (event: ClipboardEvent) => {
-    event.clipboardData?.setData('text/plain', text);
-    event.preventDefault();
-    copied = true;
-  };
-
-  document.body.appendChild(textarea);
-  textarea.select();
-  document.addEventListener('copy', onCopy);
-  const ok = document.execCommand('copy');
-  document.removeEventListener('copy', onCopy);
-  textarea.remove();
-
-  selection?.removeAllRanges();
-  ranges.forEach((range) => selection?.addRange(range));
-  activeElement?.focus?.();
-
-  return ok && copied;
-}
-
-function syncWikiChipState(chip: HTMLElement, documents: Document[]): void {
-  const title = getWikiChipTitle(chip);
-  const linked = findDocumentByTitle(documents, title);
-  const isMissing = !linked;
-
-  chip.classList.add('chip-wiki');
-  chip.classList.toggle('chip-wiki--missing', isMissing);
-  chip.dataset.wikiStatus = isMissing ? 'missing' : 'resolved';
-  chip.removeAttribute('title');
-
-  if (isMissing) {
-    chip.setAttribute('aria-label', title ? `Unresolved note link: ${title}` : 'Unresolved note link');
-    chip.title = title ? `Create note: ${title}` : 'Create note';
-    if (!chip.textContent?.trim()) {
-      chip.dataset.missingLabel = 'Create note';
-    } else {
-      delete chip.dataset.missingLabel;
-    }
-  } else {
-    chip.setAttribute('aria-label', `Open note: ${title}`);
-    chip.title = title;
-    delete chip.dataset.missingLabel;
-  }
-}
-
-function applyChipsToDOM(container: HTMLElement, documents: Document[] = []): void {
-  container.querySelectorAll<HTMLElement>('[data-chip="wiki"]').forEach((chip) => {
-    chip.removeAttribute('contenteditable');
-    syncWikiChipState(chip, documents);
-  });
-
-  const textNodes: Text[] = [];
-  function walk(node: Node) {
-    if (node.nodeType === Node.TEXT_NODE) { textNodes.push(node as Text); return; }
-    if (node.nodeType === Node.ELEMENT_NODE && (node as HTMLElement).dataset.chip) return;
-    node.childNodes.forEach(walk);
-  }
-  walk(container);
-
-  for (const textNode of textNodes) {
-    const text = textNode.textContent ?? '';
-    CHIP_PATTERN.lastIndex = 0;
-    if (!CHIP_PATTERN.test(text)) continue;
-    CHIP_PATTERN.lastIndex = 0;
-
-    const parent = textNode.parentNode;
-    if (!parent) continue;
-
-    const frag = document.createDocumentFragment();
-    let lastIdx = 0;
-    let match: RegExpExecArray | null;
-
-    while ((match = CHIP_PATTERN.exec(text)) !== null) {
-      if (match.index > lastIdx) frag.appendChild(document.createTextNode(text.slice(lastIdx, match.index)));
-
-      if (match[1]) {
-        const { title, alias } = parseWikiLink(match[1].slice(2, -2));
-        const span = document.createElement('span');
-        span.className = 'chip-wiki';
-        span.dataset.chip = 'wiki';
-        span.dataset.title = title;
-        if (alias) span.dataset.alias = alias;
-        span.textContent = alias || title;
-        syncWikiChipState(span, documents);
-        frag.appendChild(span);
-      } else if (match[2]) {
-        const nodeId = match[2].slice(6);
-        const span = document.createElement('span');
-        span.contentEditable = 'false';
-        span.className = 'chip-node';
-        span.dataset.chip = 'node';
-        span.dataset.nodeid = nodeId;
-        span.textContent = nodeId;
-        frag.appendChild(span);
-      } else if (match[3]) {
-        const span = document.createElement('span');
-        span.contentEditable = 'false';
-        span.className = 'chip-tag';
-        span.dataset.chip = 'tag';
-        span.textContent = match[3];
-        frag.appendChild(span);
-      }
-      lastIdx = match.index + match[0].length;
-    }
-    if (lastIdx < text.length) frag.appendChild(document.createTextNode(text.slice(lastIdx)));
-    parent.replaceChild(frag, textNode);
-  }
-}
-
-function stripChipsFromHTML(html: string): string {
-  const div = document.createElement('div');
-  div.innerHTML = html;
-  div.querySelectorAll('[data-chip]').forEach((el) => {
-    const chip = el as HTMLElement;
-    const type = chip.dataset.chip;
-    let raw = '';
-    if (type === 'wiki') {
-      const title = chip.dataset.title ?? chip.textContent ?? '';
-      const text = chip.textContent ?? '';
-      const status = chip.dataset.wikiStatus;
-      raw = text.trim()
-        ? wikiLinkRaw(title, text !== title ? text : '')
-        : status === 'missing'
-          ? '[[ ]]'
-          : '';
-    }
-    else if (type === 'node') raw = `@node:${chip.dataset.nodeid ?? chip.textContent}`;
-    else raw = chip.textContent ?? '';
-    chip.replaceWith(document.createTextNode(raw));
-  });
-  return div.innerHTML;
-}
-
-function closestWikiChip(node: Node | null, root: HTMLElement): HTMLElement | null {
-  let current = node;
-  if (current?.nodeType === Node.TEXT_NODE) current = current.parentNode;
-  while (current && current !== root) {
-    if (
-      current.nodeType === Node.ELEMENT_NODE &&
-      (current as HTMLElement).classList.contains('chip-wiki') &&
-      root.contains(current)
-    ) {
-      return current as HTMLElement;
-    }
-    current = current.parentNode;
-  }
-  return null;
-}
-
-function siblingWikiChip(node: Node | null, direction: 'previous' | 'next'): HTMLElement | null {
-  let current = node;
-  while (current) {
-    const sibling = direction === 'previous' ? current.previousSibling : current.nextSibling;
-    if (sibling?.nodeType === Node.ELEMENT_NODE && (sibling as HTMLElement).classList.contains('chip-wiki')) {
-      return sibling as HTMLElement;
-    }
-    if (sibling) return null;
-    current = current.parentNode;
-  }
-  return null;
-}
-
-function activeWikiChipFromRange(range: Range | null, root: HTMLElement | null): HTMLElement | null {
-  if (!range || !root) return null;
-
-  const fromCommonAncestor = closestWikiChip(range.commonAncestorContainer, root);
-  if (fromCommonAncestor) return fromCommonAncestor;
-
-  const fromStart = closestWikiChip(range.startContainer, root);
-  if (fromStart) return fromStart;
-
-  const fromEnd = closestWikiChip(range.endContainer, root);
-  if (fromEnd) return fromEnd;
-
-  if (
-    !range.collapsed &&
-    range.startContainer === range.endContainer &&
-    range.startContainer.nodeType === Node.ELEMENT_NODE &&
-    range.endOffset === range.startOffset + 1
-  ) {
-    const selectedNode = range.startContainer.childNodes[range.startOffset];
-    if (selectedNode?.nodeType === Node.ELEMENT_NODE && (selectedNode as HTMLElement).classList.contains('chip-wiki')) {
-      return selectedNode as HTMLElement;
-    }
-  }
-
-  if (!range.collapsed) return null;
-
-  if (range.startContainer.nodeType === Node.TEXT_NODE) {
-    const text = range.startContainer.textContent ?? '';
-    if (range.startOffset === 0) {
-      const previous = siblingWikiChip(range.startContainer, 'previous');
-      if (previous && root.contains(previous)) return previous;
-    }
-    if (range.startOffset === text.length) {
-      const next = siblingWikiChip(range.startContainer, 'next');
-      if (next && root.contains(next)) return next;
-    }
-  }
-
-  if (range.startContainer.nodeType === Node.ELEMENT_NODE) {
-    const container = range.startContainer;
-    const before = container.childNodes[range.startOffset - 1];
-    const after = container.childNodes[range.startOffset];
-    if (before?.nodeType === Node.ELEMENT_NODE && (before as HTMLElement).classList.contains('chip-wiki')) return before as HTMLElement;
-    if (after?.nodeType === Node.ELEMENT_NODE && (after as HTMLElement).classList.contains('chip-wiki')) return after as HTMLElement;
-  }
-
-  return null;
-}
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-function stripHtml(html: string): string {
-  return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-}
-
-function documentTextWithRawLinks(html: string): string {
-  return stripChipsFromHTML(html).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
-}
-
-function normalizeTitleText(text: string): string {
-  return text.trim().replace(/\s+/g, ' ').toLowerCase();
-}
-
-function isBlankEditorBlock(el: HTMLElement): boolean {
-  if (el.querySelector('img, figure, table, hr, pre, code, [data-chip]')) return false;
-  return (el.textContent ?? '').replace(/\u00a0/g, ' ').trim() === '';
-}
-
-function stripLeadingHtmlTitle(html: string, title?: string): string {
-  const expected = normalizeTitleText(title ?? '');
-  if (!html || !expected) return html;
-
-  const root = document.createElement('div');
-  root.innerHTML = html;
-
-  while (true) {
-    const children = Array.from(root.children) as HTMLElement[];
-    const firstContentIndex = children.findIndex((child) => !isBlankEditorBlock(child));
-    if (firstContentIndex < 0) return '';
-
-    const firstContent = children[firstContentIndex];
-    const isMatchingTitle =
-      firstContent.tagName === 'H1' &&
-      normalizeTitleText(firstContent.textContent ?? '') === expected;
-    if (!isMatchingTitle) return root.innerHTML;
-
-    for (let i = 0; i <= firstContentIndex; i += 1) children[i].remove();
-    while (root.firstElementChild && isBlankEditorBlock(root.firstElementChild as HTMLElement)) {
-      root.firstElementChild.remove();
-    }
-  }
-}
-
-function blockTextForMarkdownTable(el: HTMLElement): string | null {
-  const tag = el.tagName.toLowerCase();
-  if (tag !== 'div' && tag !== 'p') return null;
-  if (el.querySelector('img, figure, table, hr, pre, blockquote, ul, ol, h1, h2, h3')) return null;
-  return (el.textContent ?? '').replace(/\u00a0/g, ' ').trimEnd();
-}
-
-function normalizeMarkdownTablesInHtml(html: string): string {
-  if (!html || !html.includes('|')) return html;
-
-  const root = document.createElement('div');
-  root.innerHTML = html;
-  let changed = false;
-  let index = 0;
-
-  while (index < root.children.length - 1) {
-    const children = Array.from(root.children) as HTMLElement[];
-    const start = children[index];
-    const startText = blockTextForMarkdownTable(start);
-    if (!startText || !startText.includes('|')) {
-      index += 1;
-      continue;
-    }
-
-    const candidateBlocks: HTMLElement[] = [];
-    const candidateLines: string[] = [];
-    let cursor = index;
-
-    while (cursor < children.length) {
-      const current = children[cursor];
-      const text = blockTextForMarkdownTable(current);
-      if (!text || !text.trim()) break;
-      candidateBlocks.push(current);
-      candidateLines.push(text);
-      cursor += 1;
-    }
-
-    let bestLength = 0;
-    let bestHtml = '';
-    for (let length = candidateLines.length; length >= 2; length -= 1) {
-      const parsed = markdownToHtml(candidateLines.slice(0, length).join('\n')).trim();
-      if (parsed.startsWith('<table>') && parsed.endsWith('</table>')) {
-        bestLength = length;
-        bestHtml = parsed;
-        break;
-      }
-    }
-
-    if (bestLength < 2) {
-      index += 1;
-      continue;
-    }
-
-    const wrapper = document.createElement('div');
-    wrapper.innerHTML = bestHtml;
-    const table = wrapper.firstElementChild;
-    if (!table || table.tagName.toLowerCase() !== 'table') {
-      index += 1;
-      continue;
-    }
-
-    candidateBlocks[0].before(table);
-    candidateBlocks.slice(0, bestLength).forEach((block) => block.remove());
-    changed = true;
-    index += 1;
-  }
-
-  return changed ? root.innerHTML : html;
-}
-
-function relativeTime(ms: number): string {
-  const diff = Date.now() - ms;
-  if (diff < 60_000) return 'just now';
-  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
-  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
-  return `${Math.floor(diff / 86_400_000)}d ago`;
-}
-
-function wordCountFromHtml(html: string): number {
-  const text = stripHtml(html)
-    .replace(/\[\[([^\]]+)\]\]/g, '$1')
-    .replace(/@node:([a-zA-Z0-9_-]+)/g, '$1')
-    .trim();
-  if (!text) return 0;
-  return text.split(/\s+/).filter(Boolean).length;
-}
-
-function readingTimeLabel(words: number): string {
-  if (words <= 0) return '0 min read';
-  return `${Math.max(1, Math.ceil(words / 200))} min read`;
-}
-
-function documentOutlineFromHtml(html: string): Array<{ id: string; level: 'h1' | 'h2'; text: string }> {
-  const div = document.createElement('div');
-  div.innerHTML = html;
-  return Array.from(div.querySelectorAll<HTMLElement>('h1, h2'))
-    .map((heading, index) => ({
-      id: heading.id || `outline-${index}`,
-      level: heading.tagName.toLowerCase() as 'h1' | 'h2',
-      text: (heading.textContent ?? '').trim(),
-    }))
-    .filter((entry) => entry.text);
-}
-
-function generateMarkdownFilename(title: string): string {
-  return (title.trim() || 'untitled').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') + '.md';
-}
-
-function escapeHtmlAttr(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/"/g, '&quot;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
-}
-
-function escapeInlineHtml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
-}
-
-function isRenderableExternalImageSrc(src: string): boolean {
-  return /^(blob:|data:|https?:\/\/)/i.test(src);
-}
-
-function normalizeAssetStem(name: string): string {
-  const stem = name.replace(/\.[^.]+$/, '').trim() || 'image';
-  return stem
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 48) || 'image';
-}
-
-function ensureImageExtension(name: string): string {
-  const ext = name.split('.').pop()?.toLowerCase() ?? '';
-  if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].includes(ext)) return ext;
-  return 'png';
-}
-
-function buildImageAssetName(name: string): string {
-  const stem = normalizeAssetStem(name);
-  const ext = ensureImageExtension(name);
-  return `${stem}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-}
-
-function fileToDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result ?? ''));
-    reader.onerror = () => reject(reader.error ?? new Error('Could not read image file'));
-    reader.readAsDataURL(file);
-  });
-}
-
-function getDocumentHistorySignature(doc: Pick<Document, 'title' | 'content' | 'emoji' | 'linkedFile'> | null | undefined): string {
-  if (!doc) return '';
-  return [doc.title ?? '', doc.content ?? '', doc.emoji ?? '', doc.linkedFile ?? ''].join('\u0001');
-}
-
-function getNodeLabel(node: CanvasNode, docs: Document[]): string {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const n = node as any;
-  switch (node.type) {
-    case 'sticky': return (n.text as string).split('\n')[0].slice(0, 60) || 'Sticky';
-    case 'textblock': return (n.text as string).slice(0, 60) || 'Text block';
-    case 'shape': return n.text || n.kind || 'Shape';
-    case 'document': {
-      const linked = docs.find((d) => d.id === n.docId);
-      return linked?.title || n.title || 'Note';
-    }
-    case 'section': return n.name || 'Section';
-    case 'taskcard': return n.title || 'Task card';
-    case 'codeblock': return n.title || 'Code block';
-    default: return node.type;
-  }
-}
-
 // ── Formatting toolbar ───────────────────────────────────────────────────────
 
 const BLOCK_LABELS: Record<string, string> = {
@@ -627,181 +162,6 @@ function rangeBlocks(range: Range, root: HTMLElement): HTMLElement[] {
   });
   const fallback = rangeBlock(range, root);
   return blocks.length ? blocks : fallback ? [fallback] : [];
-}
-
-function isSupportedTurnIntoBlock(block: HTMLElement, root: HTMLElement): boolean {
-  if (block.parentElement !== root) return false;
-  if (block.matches('figure, table, hr')) return false;
-  if (block.closest('.doc-callout__body')) return false;
-  return true;
-}
-
-function sourceContentHost(block: HTMLElement): HTMLElement {
-  if (block.matches('[data-task-list-item="true"]')) {
-    return block.querySelector<HTMLElement>('.doc-task-text') ?? block;
-  }
-
-  if (block.tagName.toLowerCase() === 'blockquote') {
-    const calloutBody = block.querySelector<HTMLElement>('.doc-callout__body');
-    if (calloutBody) return sourceContentHost(calloutBody);
-    const onlyElementChild = block.children.length === 1 ? block.children[0] as HTMLElement : null;
-    if (onlyElementChild && ['div', 'p', 'h1', 'h2', 'h3'].includes(onlyElementChild.tagName.toLowerCase())) {
-      return onlyElementChild;
-    }
-  }
-
-  const onlyElementChild = block.children.length === 1 ? block.children[0] as HTMLElement : null;
-  if (onlyElementChild && ['div', 'p', 'h1', 'h2', 'h3', 'li'].includes(onlyElementChild.tagName.toLowerCase())) {
-    return onlyElementChild;
-  }
-
-  return block;
-}
-
-function fragmentFromBlock(block: HTMLElement, plainText = false): DocumentFragment {
-  const fragment = document.createDocumentFragment();
-  const tag = block.tagName.toLowerCase();
-
-  if (plainText || tag === 'pre') {
-    fragment.appendChild(document.createTextNode((block.textContent ?? '').replace(/\n+$/g, '')));
-    return fragment;
-  }
-
-  if (tag === 'ul' || tag === 'ol') {
-    const items = Array.from(block.children).filter((child): child is HTMLElement => child.tagName.toLowerCase() === 'li');
-    items.forEach((item, index) => {
-      if (index > 0) fragment.appendChild(document.createElement('br'));
-      const host = sourceContentHost(item);
-      Array.from(host.childNodes).forEach((child) => fragment.appendChild(child.cloneNode(true)));
-    });
-    return fragment;
-  }
-
-  const host = sourceContentHost(block);
-  Array.from(host.childNodes).forEach((child) => {
-    if (child.nodeType === Node.ELEMENT_NODE && (child as HTMLElement).matches('input[type="checkbox"]')) return;
-    fragment.appendChild(child.cloneNode(true));
-  });
-  return fragment;
-}
-
-function fragmentHasVisibleContent(fragment: DocumentFragment): boolean {
-  const wrapper = document.createElement('div');
-  wrapper.appendChild(fragment.cloneNode(true));
-  if (wrapper.querySelector('img, figure, table, hr, [data-chip]')) return true;
-  return (wrapper.textContent ?? '').replace(/\u00a0/g, ' ').trim() !== '';
-}
-
-function appendContentOrBreak(target: HTMLElement, fragment: DocumentFragment): void {
-  if (fragmentHasVisibleContent(fragment)) {
-    target.appendChild(fragment);
-  } else {
-    target.appendChild(document.createElement('br'));
-  }
-}
-
-function setPlaceholderAttrs(el: HTMLElement, placeholder: string): void {
-  el.dataset.placeholder = placeholder;
-  el.dataset.placeholderVisible = fragmentHasVisibleContent(fragmentFromBlock(el)) ? 'false' : 'true';
-}
-
-function caretHostForConvertedBlock(block: HTMLElement): HTMLElement {
-  return block.querySelector<HTMLElement>('.doc-task-text, .doc-callout__body, li, code') ?? block;
-}
-
-function restoreCaretAtEnd(host: HTMLElement): void {
-  const range = document.createRange();
-  range.selectNodeContents(host);
-  range.collapse(false);
-  const sel = window.getSelection();
-  sel?.removeAllRanges();
-  sel?.addRange(range);
-}
-
-function buildConvertedBlock(commandId: DocumentCommandId, sourceBlock: HTMLElement): HTMLElement | null {
-  const plainTextTarget = commandId === 'code-block';
-  const content = fragmentFromBlock(sourceBlock, plainTextTarget);
-  let nextBlock: HTMLElement;
-
-  switch (commandId) {
-    case 'text':
-      nextBlock = document.createElement('div');
-      appendContentOrBreak(nextBlock, content);
-      setPlaceholderAttrs(nextBlock, 'Type something...');
-      return nextBlock;
-    case 'heading-1':
-      nextBlock = document.createElement('h1');
-      appendContentOrBreak(nextBlock, content);
-      setPlaceholderAttrs(nextBlock, 'Heading 1');
-      return nextBlock;
-    case 'heading-2':
-      nextBlock = document.createElement('h2');
-      appendContentOrBreak(nextBlock, content);
-      setPlaceholderAttrs(nextBlock, 'Heading 2');
-      return nextBlock;
-    case 'bullet-list': {
-      nextBlock = document.createElement('ul');
-      const item = document.createElement('li');
-      appendContentOrBreak(item, content);
-      setPlaceholderAttrs(item, 'List item');
-      nextBlock.appendChild(item);
-      return nextBlock;
-    }
-    case 'numbered-list': {
-      nextBlock = document.createElement('ol');
-      const item = document.createElement('li');
-      appendContentOrBreak(item, content);
-      setPlaceholderAttrs(item, 'List item');
-      nextBlock.appendChild(item);
-      return nextBlock;
-    }
-    case 'todo-list': {
-      const wrapper = document.createElement('div');
-      const body = document.createElement('div');
-      appendContentOrBreak(body, content);
-      wrapper.innerHTML = taskListItemHtml({ bodyHtml: body.innerHTML, placeholder: 'Todo item' });
-      return wrapper.firstElementChild as HTMLElement | null;
-    }
-    case 'quote':
-      nextBlock = document.createElement('blockquote');
-      appendContentOrBreak(nextBlock, content);
-      setPlaceholderAttrs(nextBlock, 'Quoted text...');
-      return nextBlock;
-    case 'callout': {
-      nextBlock = document.createElement('blockquote');
-      nextBlock.className = 'doc-callout';
-      nextBlock.dataset.callout = 'true';
-      nextBlock.dataset.calloutEmoji = '💡';
-      const emojiEl = document.createElement('span');
-      emojiEl.className = 'doc-callout__emoji';
-      emojiEl.contentEditable = 'false';
-      emojiEl.textContent = '💡';
-      const body = document.createElement('div');
-      body.className = 'doc-callout__body';
-      appendContentOrBreak(body, content);
-      setPlaceholderAttrs(body, 'Type a callout...');
-      nextBlock.append(emojiEl, body);
-      return nextBlock;
-    }
-    case 'code-block': {
-      nextBlock = document.createElement('pre');
-      const code = document.createElement('code');
-      appendContentOrBreak(code, content);
-      setPlaceholderAttrs(code, 'Write some code...');
-      nextBlock.appendChild(code);
-      return nextBlock;
-    }
-    default:
-      return null;
-  }
-}
-
-function turnBlockInto(commandId: DocumentCommandId, block: HTMLElement, root: HTMLElement): HTMLElement | null {
-  if (!isConvertibleDocumentCommand(commandId) || !isSupportedTurnIntoBlock(block, root)) return null;
-  const nextBlock = buildConvertedBlock(commandId, block);
-  if (!nextBlock) return null;
-  block.replaceWith(nextBlock);
-  return nextBlock;
 }
 
 function restoreRangeSelection(range: Range | null): HTMLElement | null {
@@ -1039,23 +399,6 @@ function getLinkHref(savedRange: Range | null): string {
   return '';
 }
 
-function resizeDocumentTitleTextarea(el: HTMLTextAreaElement): void {
-  const style = getComputedStyle(el);
-  const fontSize = Number.parseFloat(style.fontSize) || 30;
-  const lineHeight = Number.parseFloat(style.lineHeight) || fontSize * 1.16;
-  const minHeight = Number.parseFloat(style.minHeight) || lineHeight;
-  const explicitMaxHeight = Number.parseFloat(style.maxHeight);
-  const maxHeight = Number.isFinite(explicitMaxHeight)
-    ? Math.max(minHeight, explicitMaxHeight)
-    : Math.max(minHeight, lineHeight * 6);
-
-  el.style.height = '0px';
-  const measured = el.scrollHeight;
-  const nextHeight = Math.min(Math.max(measured, minHeight), maxHeight);
-  el.style.height = `${nextHeight}px`;
-  el.style.overflowY = measured > maxHeight ? 'auto' : 'hidden';
-}
-
 interface FmtBarProps {
   viewMode: 'edit' | 'source';
   compactMode?: boolean;
@@ -1091,11 +434,6 @@ interface FloatingPalettePosition {
   x: number;
   y: number;
   bounds?: { left: number; right: number; top: number; bottom: number };
-}
-
-interface LineHandleState {
-  block: HTMLElement;
-  rect: { left: number; top: number; width: number; height: number };
 }
 
 function FormattingBar({
@@ -2715,6 +2053,7 @@ export default function DocumentMode({
   const imageResizeStateRef = useRef<{ imageId: string; startX: number; startWidth: number } | null>(null);
   const wikiPointerDownRef = useRef<{ chip: HTMLElement; x: number; y: number } | null>(null);
   const selectionToolbarInteractingRef = useRef(false);
+  const lineHandleHideTimerRef = useRef<number | null>(null);
 
   const currentDocumentId = documentId ?? activeDocId;
   const doc = documents.find((d) => d.id === currentDocumentId) as Document | undefined;
@@ -3361,6 +2700,7 @@ export default function DocumentMode({
 
   useEffect(() => () => {
     if (editHistoryTimerRef.current !== null) window.clearTimeout(editHistoryTimerRef.current);
+    if (lineHandleHideTimerRef.current !== null) window.clearTimeout(lineHandleHideTimerRef.current);
   }, []);
 
   useEffect(() => {
@@ -3504,6 +2844,10 @@ export default function DocumentMode({
   }, []);
 
   const updateLineHandleForBlock = useCallback((block: HTMLElement | null) => {
+    if (lineHandleHideTimerRef.current !== null) {
+      window.clearTimeout(lineHandleHideTimerRef.current);
+      lineHandleHideTimerRef.current = null;
+    }
     if (!block || !contentRef.current || !editorScrollRef.current) {
       setLineHandle(null);
       return;
@@ -3524,6 +2868,92 @@ export default function DocumentMode({
       },
     });
   }, []);
+
+  const cancelLineHandleHide = useCallback(() => {
+    if (lineHandleHideTimerRef.current === null) return;
+    window.clearTimeout(lineHandleHideTimerRef.current);
+    lineHandleHideTimerRef.current = null;
+  }, []);
+
+  const scheduleLineHandleHide = useCallback(() => {
+    if (lineHandleMenu) return;
+    if (lineHandleHideTimerRef.current !== null) window.clearTimeout(lineHandleHideTimerRef.current);
+    lineHandleHideTimerRef.current = window.setTimeout(() => {
+      setLineHandle(null);
+      lineHandleHideTimerRef.current = null;
+    }, 650);
+  }, [lineHandleMenu]);
+
+  const beginLineHandlePointer = useCallback((event: React.PointerEvent<HTMLButtonElement>, handle: LineHandleState) => {
+    const root = contentRef.current;
+    if (!root || !root.contains(handle.block)) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const startY = event.clientY;
+    let lastY = startY;
+    let dragging = false;
+    const originalUserSelect = document.body.style.userSelect;
+    const originalCursor = document.body.style.cursor;
+
+    const cleanup = () => {
+      document.body.style.userSelect = originalUserSelect;
+      document.body.style.cursor = originalCursor;
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerCancel);
+    };
+
+    const onPointerMove = (moveEvent: PointerEvent) => {
+      lastY = moveEvent.clientY;
+      if (Math.abs(lastY - startY) < 5) return;
+      dragging = true;
+      document.body.style.userSelect = 'none';
+      document.body.style.cursor = 'grabbing';
+      setLineHandleMenu(null);
+    };
+
+    const onPointerCancel = () => {
+      cleanup();
+      setLineHandle(null);
+    };
+
+    const onPointerUp = () => {
+      cleanup();
+
+      if (!dragging) {
+        setLineHandle(handle);
+        setLineHandleMenu(handle);
+        return;
+      }
+
+      const block = handle.block;
+      if (!root.contains(block)) {
+        setLineHandle(null);
+        return;
+      }
+
+      const siblings = Array.from(root.children).filter((child) => child !== block) as HTMLElement[];
+      const before = siblings.find((sibling) => {
+        const rect = sibling.getBoundingClientRect();
+        return lastY < rect.top + rect.height / 2;
+      }) ?? null;
+      const alreadyInPlace = before === block.nextElementSibling || (!before && block === root.lastElementChild);
+
+      if (!alreadyInPlace) {
+        checkpointDocumentHistory();
+        root.insertBefore(block, before);
+        refreshEditorDomAfterBlockChange(caretHostForConvertedBlock(block));
+      }
+
+      updateLineHandleForBlock(block);
+    };
+
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('pointercancel', onPointerCancel);
+  }, [checkpointDocumentHistory, refreshEditorDomAfterBlockChange, updateLineHandleForBlock]);
 
   const switchToSource = () => {
     if (!doc) return;
@@ -4950,7 +4380,7 @@ export default function DocumentMode({
               }}
               onMouseLeave={() => {
                 closeWikiPreview();
-                if (!lineHandleMenu) setLineHandle(null);
+                scheduleLineHandleHide();
               }}
               onContextMenu={(e) => {
                 const target = e.target as HTMLElement;
@@ -5273,127 +4703,17 @@ export default function DocumentMode({
 
               </div>
 
-              {lineHandle && !lineHandleMenu && (
-                <button
-                  type="button"
-                  data-line-turn-ui="true"
-                  title="Turn into"
-                  aria-label="Turn into"
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setLineHandleMenu(lineHandle);
-                  }}
-                  style={{
-                    position: 'fixed',
-                    left: Math.max(8, lineHandle.rect.left - 36),
-                    top: Math.max(8, lineHandle.rect.top + Math.min(12, lineHandle.rect.height / 2 - 13)),
-                    zIndex: 80,
-                    width: 26,
-                    height: 26,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    borderRadius: 7,
-                    border: '1px solid var(--c-border)',
-                    background: 'var(--c-panel)',
-                    color: 'var(--c-text-lo)',
-                    boxShadow: '0 6px 18px rgba(0,0,0,0.18)',
-                    cursor: 'pointer',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.color = 'var(--c-text-hi)';
-                    e.currentTarget.style.borderColor = 'rgba(184,119,80,0.4)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.color = 'var(--c-text-lo)';
-                    e.currentTarget.style.borderColor = 'var(--c-border)';
-                  }}
-                >
-                  <IconGrip />
-                </button>
-              )}
-
-              {lineHandleMenu && (
-                <div
-                  data-line-turn-ui="true"
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                  }}
-                  style={{
-                    position: 'fixed',
-                    left: Math.max(8, Math.min(lineHandleMenu.rect.left - 36, window.innerWidth - 238)),
-                    top: Math.max(8, Math.min(lineHandleMenu.rect.top + 28, window.innerHeight - 332)),
-                    zIndex: 10000,
-                    width: 230,
-                    padding: 6,
-                    borderRadius: 10,
-                    border: '1px solid var(--c-border)',
-                    background: 'var(--c-panel)',
-                    boxShadow: '0 14px 36px rgba(0,0,0,0.32)',
-                  }}
-                >
-                  <div style={{ padding: '7px 10px 6px', color: 'var(--c-text-off)', fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0 }}>
-                    Turn into
-                  </div>
-                  {turnIntoCommands.map((command) => (
-                    <button
-                      key={command.id}
-                      type="button"
-                      title={`Turn into ${command.label.toLowerCase()}`}
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        applyTurnIntoCommand(command, lineHandleMenu.block);
-                      }}
-                      style={{
-                        width: '100%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 9,
-                        padding: '8px 10px',
-                        border: 'none',
-                        borderRadius: 8,
-                        background: 'transparent',
-                        color: 'var(--c-text-md)',
-                        cursor: 'pointer',
-                        fontFamily: 'inherit',
-                        fontSize: 12,
-                        textAlign: 'left',
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.background = 'var(--c-hover)';
-                        e.currentTarget.style.color = 'var(--c-text-hi)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.background = 'transparent';
-                        e.currentTarget.style.color = 'var(--c-text-md)';
-                      }}
-                    >
-                      <span
-                        style={{
-                          width: 24,
-                          height: 22,
-                          borderRadius: 6,
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          flexShrink: 0,
-                          background: 'rgba(184,119,80,0.12)',
-                          color: 'var(--c-line)',
-                          fontSize: 11,
-                          fontWeight: 800,
-                          fontFamily: command.id === 'code-block' ? 'JetBrains Mono, monospace' : 'inherit',
-                        }}
-                      >
-                        {command.glyph}
-                      </span>
-                      <span>{command.label}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
+              <DocumentLineHandle
+                lineHandle={lineHandle}
+                lineHandleMenu={lineHandleMenu}
+                turnIntoCommands={turnIntoCommands}
+                onCancelHide={cancelLineHandleHide}
+                onScheduleHide={scheduleLineHandleHide}
+                onPointerDown={beginLineHandlePointer}
+                onTurnInto={(command, block) => {
+                  applyTurnIntoCommand(command, block);
+                }}
+              />
 
               {selectedImageRect && selectedImageId && (
                 <div

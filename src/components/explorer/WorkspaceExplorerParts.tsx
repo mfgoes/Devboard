@@ -277,13 +277,13 @@ export function NoWorkspaceState({ onOpen, onCreate }: { onOpen: () => void; onC
       : 'No folder open';
   const body = browserWorkspaceUnavailable
     ? IN_IFRAME
-      ? 'This embedded browser view cannot grant folder access. Open DevBoard in its own tab or use the desktop app to work with workspace folders.'
-      : 'This browser session cannot open workspace folders. Use the desktop app or a desktop Chromium browser with File System Access support.'
+      ? 'This embedded browser view cannot grant folder access. Open DevBoard in its own tab or use the desktop app to work with project folders.'
+      : 'This browser session cannot open project folders. Use the desktop app or a desktop Chromium browser with File System Access support.'
     : isBrave
-      ? 'Brave desktop can usually open workspace folders, but Shields or privacy settings may block the folder picker on some setups.'
-      : 'A workspace is a normal folder where DevBoard keeps your pages, notes, and assets so everything reopens together later.';
+      ? 'Brave desktop can usually open project folders, but Shields or privacy settings may block the folder picker on some setups.'
+      : 'A project is a normal folder where DevBoard keeps your pages, notes, and assets so everything reopens together later.';
   const tip = browserWorkspaceUnavailable
-    ? 'Workspace folders need desktop browser support or the desktop app.'
+    ? 'Project folders need desktop browser support or the desktop app.'
     : isBrave
       ? 'If Open folder does nothing in Brave, click the lion icon in the address bar, disable Shields for this page, and try again.'
       : 'Tip: use a dedicated project folder so workspace.json, pages/, notes/, and assets/ stay together.';
@@ -307,7 +307,7 @@ export function NoWorkspaceState({ onOpen, onCreate }: { onOpen: () => void; onC
             onClick={onCreate}
             className="workspace-empty-state__button is-create"
           >
-            Create workspace…
+            Create project…
           </button>
         )}
         <button

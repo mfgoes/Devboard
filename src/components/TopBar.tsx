@@ -7,7 +7,7 @@ import ConfirmDialog from './ConfirmDialog';
 import CloudModal from './CloudModal';
 import AppMenu from './AppMenu';
 import { saveBoard, saveBoardAs, clearFileHandle } from '../utils/fileSave';
-import { openWorkspace, createWorkspace, saveWorkspace, hasWorkspaceHandle, clearWorkspaceHandle, getWorkspacePathHint, IS_TAURI } from '../utils/workspaceManager';
+import { openWorkspace, openRecentWorkspace, listLocalRecentWorkspaces, createWorkspace, saveWorkspace, hasWorkspaceHandle, clearWorkspaceHandle, getWorkspacePathHint, IS_TAURI, type LocalRecentWorkspace, type WorkspaceOpenResult } from '../utils/workspaceManager';
 import { toast } from '../utils/toast';
 import { exportDocumentsAsMarkdown, generateMarkdownFilename } from '../utils/exportMarkdown';
 import { exportDocumentAsMarkdownFile, exportDocumentAsPdf, exportDocumentAsTextFile } from '../utils/documentExport';
@@ -92,14 +92,36 @@ export default function TopBar({ onShowAbout, onNewNote, onToggleTimer, explorer
   }, [onTemplatesOpenChange]);
   const [cloudOpen, setCloudOpen] = useState(false);
   const [cloudInitialTab, setCloudInitialTab] = useState<'workspace' | 'library'>('workspace');
+  const [recentProjects, setRecentProjects] = useState<LocalRecentWorkspace[]>([]);
 
   const workspacePathHint = getWorkspacePathHint();
   const workspaceFolderLabel = workspaceName ?? workspacePathHint?.replace(/\\/g, '/').split('/').pop() ?? null;
-  const titleLabel = workspaceFolderLabel || cloudBoardTitle || boardTitle.trim() || 'Untitled Workspace';
+  const titleLabel = boardTitle.trim() || cloudBoardTitle || workspaceFolderLabel || 'Untitled Project';
   const titleStripLeft = Math.max(8, workspaceOffset + 10);
   const appMenuLeft = menuAnchorLeft ?? titleStripLeft;
   const activeDocumentForMenu = documents.find((doc) => doc.id === activeDocId) ?? null;
   const canExportActiveNote = !!activeDocumentForMenu && activeDocumentForMenu.docType !== 'canvas';
+
+  const applyOpenedWorkspaceResult = useCallback((result: WorkspaceOpenResult) => {
+    setWorkspaceName(result.name);
+    if (result.data) {
+      loadBoard(result.data);
+    } else {
+      loadBoard({ boardTitle: result.name, nodes: [] });
+    }
+    applyWorkspaceSyncFromOpenResult(result);
+    clearFileHandle();
+    onWorkspaceOpened();
+  }, [loadBoard, onWorkspaceOpened, setWorkspaceName]);
+
+  const loadRecentProjects = useCallback(async () => {
+    try {
+      setRecentProjects((await listLocalRecentWorkspaces()).slice(0, 6));
+    } catch (err) {
+      console.warn('Failed to load recent projects', err);
+      setRecentProjects([]);
+    }
+  }, []);
 
   // Close menu on outside click
   useEffect(() => {
@@ -117,11 +139,15 @@ export default function TopBar({ onShowAbout, onNewNote, onToggleTimer, explorer
     const handler = (event: Event) => {
       const detail = (event as CustomEvent<{ left?: number }>).detail;
       setMenuAnchorLeft(typeof detail?.left === 'number' ? detail.left : titleStripLeft);
-      setMenuOpen((open) => !open);
+      setMenuOpen((open) => {
+        const next = !open;
+        if (next) void loadRecentProjects();
+        return next;
+      });
     };
     window.addEventListener('devboard:toggle-app-menu', handler);
     return () => window.removeEventListener('devboard:toggle-app-menu', handler);
-  }, [titleStripLeft]);
+  }, [loadRecentProjects, titleStripLeft]);
 
   useEffect(() => {
     const handler = (event: Event) => {
@@ -158,15 +184,22 @@ export default function TopBar({ onShowAbout, onNewNote, onToggleTimer, explorer
     setMenuOpen(false);
     const result = await openWorkspace();
     if (!result) return;
-    setWorkspaceName(result.name);
-    if (result.data) {
-      loadBoard(result.data);
-    } else {
-      loadBoard({ boardTitle: result.name, nodes: [] });
+    applyOpenedWorkspaceResult(result);
+  };
+
+  const handleOpenRecentProject = async (project: LocalRecentWorkspace) => {
+    const result = await openRecentWorkspace(project.id);
+    if (!result) {
+      toast('Could not reopen that project. Relocate the folder or choose another project.');
+      await loadRecentProjects();
+      return;
     }
-    applyWorkspaceSyncFromOpenResult(result);
-    clearFileHandle();
-    onWorkspaceOpened(); // auto-open the file explorer
+    applyOpenedWorkspaceResult(result);
+  };
+
+  const handleOpenProjectsLibrary = () => {
+    setCloudInitialTab('library');
+    setCloudOpen(true);
   };
 
   const handleCreateWorkspace = async () => {
@@ -345,15 +378,12 @@ export default function TopBar({ onShowAbout, onNewNote, onToggleTimer, explorer
         onConfirm: doNewBoard,
         extraActions: [
           {
-            label: 'Switch workspace…',
+            label: 'Switch project…',
             onClick: async () => {
               doNewBoard();
               const result = await openWorkspace();
               if (result) {
-                setWorkspaceName(result.name);
-                if (result.data) loadBoard(result.data);
-                applyWorkspaceSyncFromOpenResult(result);
-                onWorkspaceOpened();
+                applyOpenedWorkspaceResult(result);
               }
             },
           },
@@ -518,6 +548,8 @@ export default function TopBar({ onShowAbout, onNewNote, onToggleTimer, explorer
               top={46}
               width={220}
               onRequestClose={() => setMenuOpen(false)}
+              recentProjects={recentProjects}
+              currentProjectName={titleLabel}
               state={{
                 canExportActiveNote,
                 canExportBoardPng: true,
@@ -526,8 +558,10 @@ export default function TopBar({ onShowAbout, onNewNote, onToggleTimer, explorer
                 newNote: onNewNote,
                 newCanvas: handleNewCanvasFromMenu,
                 newFolder: () => addPage(),
-                switchWorkspace: () => { void handleOpenFolder(); },
-                saveWorkspace: handleSaveJSON,
+                openLocalFolder: () => { void handleOpenFolder(); },
+                openRecentProject: (project) => { void handleOpenRecentProject(project); },
+                allProjects: handleOpenProjectsLibrary,
+                saveProject: handleSaveJSON,
                 projectSync: () => window.dispatchEvent(new CustomEvent('devboard:open-cloud-modal')),
                 search: onToggleSearch,
                 toggleTimer: onToggleTimer,
