@@ -9,6 +9,7 @@ interface WorkspaceExplorerMissingImagesControlProps {
   missingImagesFixing: boolean;
   missingImagePath: (image: ImageNode) => string;
   backgroundTone?: 'danger' | 'warning' | 'neutral' | 'success' | 'cloud';
+  popoverPlacement?: 'above' | 'below';
   onToggleOpen: () => void;
   onClose: () => void;
   onFindMissingImages: () => void;
@@ -24,6 +25,7 @@ const WorkspaceExplorerMissingImagesControl = forwardRef<HTMLDivElement, Workspa
       missingImagesFixing,
       missingImagePath,
       backgroundTone,
+      popoverPlacement = 'above',
       onToggleOpen,
       onClose,
       onFindMissingImages,
@@ -46,7 +48,9 @@ const WorkspaceExplorerMissingImagesControl = forwardRef<HTMLDivElement, Workspa
               position: 'absolute',
               left: 0,
               right: 0,
-              bottom: 'calc(100% + 8px)',
+              ...(popoverPlacement === 'below'
+                ? { top: 'calc(100% + 8px)' }
+                : { bottom: 'calc(100% + 8px)' }),
               zIndex: 9200,
               padding: 12,
               border: '1px solid rgba(245,158,11,0.38)',
@@ -207,7 +211,7 @@ const WorkspaceExplorerMissingImagesControl = forwardRef<HTMLDivElement, Workspa
             Some notes have missing images
           </span>
           <span style={{ flexShrink: 0, fontSize: 9.5, fontWeight: 700, color: '#b45309' }}>
-            {missingImages.length}
+            Fix
           </span>
         </button>
       </div>

@@ -38,7 +38,7 @@ export default function WorkspaceExplorerProjectMenu({
         style={{ fontFamily: FONTS.ui }}
         onClick={onRenameProject}
       >
-        <span>Rename project</span>
+        <span>Rename workspace...</span>
       </button>
       <button
         type="button"

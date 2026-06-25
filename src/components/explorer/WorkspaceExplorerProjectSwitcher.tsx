@@ -15,6 +15,7 @@ interface WorkspaceExplorerProjectSwitcherProps {
   loading: boolean;
   recents: LocalRecentWorkspace[];
   workspaceDisplayName: string;
+  footerLabel?: string;
   footerSyncDot: SyncDot;
   onToggleOpen: () => void;
   onContextMenu: (x: number, y: number) => void;
@@ -27,6 +28,7 @@ export default function WorkspaceExplorerProjectSwitcher({
   loading,
   recents,
   workspaceDisplayName,
+  footerLabel,
   footerSyncDot,
   onToggleOpen,
   onContextMenu,
@@ -96,7 +98,7 @@ export default function WorkspaceExplorerProjectSwitcher({
           )}
         </span>
         <span style={{ minWidth: 0, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12.5, fontWeight: 760 }}>
-          {workspaceDisplayName}
+          {footerLabel ?? workspaceDisplayName}
         </span>
         <span aria-hidden="true" style={{ flexShrink: 0, color: 'var(--c-text-lo)', fontSize: 12, lineHeight: 1 }}>
           ▾

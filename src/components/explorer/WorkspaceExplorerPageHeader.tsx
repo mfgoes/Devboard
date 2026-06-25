@@ -134,29 +134,37 @@ export default function WorkspaceExplorerPageHeader({
             minWidth: 0,
             display: 'flex',
             alignItems: 'center',
-            gap: 5,
+            gap: 2,
             overflow: 'hidden',
           }}
         >
           <button
             onClick={onToggleCollapsed}
             title={isCollapsed ? `Expand "${page.name}"` : `Collapse "${page.name}"`}
+            aria-label={isCollapsed ? `Expand ${page.name}` : `Collapse ${page.name}`}
             style={{
-              width: 13,
-              height: 18,
+              width: 22,
+              height: 22,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               padding: 0,
               background: 'transparent',
               border: 'none',
+              borderRadius: 5,
               color: isActive || pageHovered ? 'var(--c-sidebar-item-active-text)' : 'var(--c-sidebar-item-text)',
               flexShrink: 0,
               cursor: 'pointer',
             }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'var(--c-hover)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent';
+            }}
           >
             <span style={{
-              fontSize: 8.5,
+              fontSize: 10.5,
               lineHeight: 1,
               transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
               transition: 'transform 0.16s cubic-bezier(0.22, 1, 0.36, 1)',
@@ -164,6 +172,41 @@ export default function WorkspaceExplorerPageHeader({
             }}>
               ▾
             </span>
+          </button>
+
+          <button
+            onClick={onToggleCollapsed}
+            onFocus={() => onFocusPage(page.id)}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onFocusPage(page.id);
+              setPageMenu({ x: e.clientX, y: e.clientY });
+            }}
+            title={isCollapsed ? `Expand "${page.name}"` : `Collapse "${page.name}"`}
+            aria-label={isCollapsed ? `Expand ${page.name}` : `Collapse ${page.name}`}
+            style={{
+              width: 22,
+              height: 22,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 0,
+              background: 'transparent',
+              border: 'none',
+              borderRadius: 5,
+              color: isActive ? 'var(--c-line)' : (pageHovered ? 'var(--c-sidebar-item-active-text)' : 'var(--c-sidebar-item-text)'),
+              flexShrink: 0,
+              cursor: 'pointer',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'var(--c-hover)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent';
+            }}
+          >
+            <IconFolder size={14} />
           </button>
 
           <button
@@ -181,7 +224,6 @@ export default function WorkspaceExplorerPageHeader({
               minWidth: 0,
               display: 'flex',
               alignItems: 'center',
-              gap: 5,
               padding: 0,
               background: 'transparent',
               border: 'none',
@@ -189,9 +231,6 @@ export default function WorkspaceExplorerPageHeader({
               textAlign: 'left',
             }}
           >
-            <span style={{ width: 13, display: 'flex', justifyContent: 'center', flexShrink: 0, color: isActive ? 'var(--c-line)' : 'var(--c-sidebar-item-text)' }}>
-              <IconFolder size={11} />
-            </span>
             {renamingPage ? (
               <input
                 autoFocus

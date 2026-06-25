@@ -48,6 +48,7 @@ import WorkspaceExplorerFooter from './explorer/WorkspaceExplorerFooter';
 import WorkspaceExplorerFavoritesSection from './explorer/WorkspaceExplorerFavoritesSection';
 import WorkspaceExplorerFoldersSection from './explorer/WorkspaceExplorerFoldersSection';
 import WorkspaceExplorerHeader from './explorer/WorkspaceExplorerHeader';
+import WorkspaceExplorerMissingImagesControl from './explorer/WorkspaceExplorerMissingImagesControl';
 import { useWorkspaceExplorerNavigation } from '../hooks/useWorkspaceExplorerNavigation';
 import { useWorkspaceExplorerProjectActions } from '../hooks/useWorkspaceExplorerProjectActions';
 import { useWorkspaceExplorerMissingImages } from '../hooks/useWorkspaceExplorerMissingImages';
@@ -210,7 +211,7 @@ export default function WorkspaceExplorer({
     [activeDocId, documents],
   );
   const ignoredMissingImagesSignature = useBoardStore((s) => s.workspacePreferences.ignoredMissingImagesSignature ?? null);
-  const hasLocalWorkspace = !!getWorkspaceName();
+  const hasLocalWorkspace = !!(storeWorkspaceName || getWorkspaceName());
   const hasWorkspaceContext = hasLocalWorkspace || !!cloudBoardId;
   const cloudOnlyWorkspace = !hasLocalWorkspace && !!cloudBoardId;
   const missingImages = useMemo(
@@ -262,8 +263,6 @@ export default function WorkspaceExplorer({
         : 'Saved';
   const bottomSyncStatus = authLoading
     ? null
-    : missingImages.length > 0
-      ? { label: 'Needs attention', tone: 'warning' as const, title: 'Some notes have missing images — open project sync to review.' }
     : !user && !!cloudBoardId
       ? { label: 'Not saved — offline', tone: 'danger' as const, title: syncStatus.title }
       : syncStatus.label === 'Cloud copy newer'
@@ -273,8 +272,8 @@ export default function WorkspaceExplorer({
       : cloudOnlyWorkspace
           ? { label: 'Synced to cloud', tone: 'success' as const, title: syncStatus.title }
           : !cloudBoardId
-          ? { label: 'Saved', tone: 'success' as const, title: 'This local project is saved on this device.' }
-            : { label: 'Synced', tone: 'success' as const, title: syncStatus.title };
+          ? { label: 'Working locally', tone: 'success' as const, title: 'This project is saved locally on this device.' }
+            : { label: 'Synced to cloud', tone: 'success' as const, title: syncStatus.title };
   const footerSyncDot = bottomSyncStatus
     ? {
       label: bottomSyncStatus.label,
@@ -825,6 +824,12 @@ export default function WorkspaceExplorer({
     showFilePreview,
   });
 
+  const openWorkspaceNameMenu = useCallback((x: number, y: number) => {
+    setProjectSwitcherOpen(false);
+    closeSidebarMenus();
+    setProjectMenu({ x, y });
+  }, [closeSidebarMenus]);
+
   return (
     <>
     <div
@@ -868,6 +873,8 @@ export default function WorkspaceExplorer({
         onCreateCanvas={handleCreateCanvasFromMenu}
         onCreateFolder={() => addPage()}
         onSaveWorkspace={() => void saveWorkspace(useBoardStore.getState().exportData())}
+        onRenameWorkspace={beginProjectRename}
+        onWorkspaceNameContextMenu={openWorkspaceNameMenu}
         onCollapse={onCollapse}
       />
       {hasWorkspaceContext && (
@@ -890,6 +897,32 @@ export default function WorkspaceExplorer({
           }}
           onCloseSidebarMenus={closeSidebarMenus}
         />
+      )}
+
+      {hasWorkspaceContext && missingImages.length > 0 && !missingImagesSuppressed && (
+        <div style={{ flexShrink: 0, padding: '0 10px 8px', position: 'relative' }}>
+          <WorkspaceExplorerMissingImagesControl
+            ref={missingImagesPopoverRef}
+            open={missingImagesOpen}
+            missingImages={missingImages}
+            missingImagesFixing={missingImagesFixing}
+            missingImagePath={missingImagePath}
+            backgroundTone="warning"
+            popoverPlacement="below"
+            onToggleOpen={() => {
+              if (missingImagesOpen) {
+                setMissingImagesOpen(false);
+                return;
+              }
+              closeSidebarMenus('missingImages');
+              setMissingImagesOpen(true);
+            }}
+            onClose={() => setMissingImagesOpen(false)}
+            onFindMissingImages={handleFindMissingImages}
+            onIgnoreMissingImages={handleIgnoreMissingImages}
+            onOpenFolder={handleOpenFolder}
+          />
+        </div>
       )}
 
       <div
@@ -960,33 +993,14 @@ export default function WorkspaceExplorer({
       </div>
 
       <WorkspaceExplorerFooter
-        missingImagesOpen={missingImagesOpen}
-        missingImages={missingImages}
-        missingImagesFixing={missingImagesFixing}
-        missingImagesPopoverRef={missingImagesPopoverRef}
         footerSyncDot={footerSyncDot}
-        missingImagePath={missingImagePath}
-        onToggleMissingImages={() => {
-          if (missingImagesOpen) {
-            setMissingImagesOpen(false);
-            return;
-          }
-          closeSidebarMenus('missingImages');
-          setMissingImagesOpen(true);
-        }}
-        onCloseMissingImages={() => setMissingImagesOpen(false)}
-        onFindMissingImages={handleFindMissingImages}
-        onIgnoreMissingImages={handleIgnoreMissingImages}
-        onOpenFolder={handleOpenFolder}
         projectSwitcherOpen={projectSwitcherOpen}
         projectSwitcherLoading={projectSwitcherLoading}
         projectSwitcherRecents={projectSwitcherRecents}
         workspaceDisplayName={workspaceDisplayName}
+        footerStatusLabel={bottomSyncStatus?.label}
         onToggleProjectSwitcher={handleToggleProjectSwitcher}
-        onProjectSwitcherContextMenu={(x, y) => {
-          setProjectSwitcherOpen(false);
-          setProjectMenu({ x, y });
-        }}
+        onProjectSwitcherContextMenu={openWorkspaceNameMenu}
         onOpenRecentProject={(project) => { void handleOpenRecentProject(project); }}
         onOpenProjectsLibrary={handleOpenProjectsLibrary}
         projectMenu={projectMenu}

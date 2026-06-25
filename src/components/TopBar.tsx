@@ -6,6 +6,7 @@ import { TEMPLATES } from '../templates';
 import ConfirmDialog from './ConfirmDialog';
 import CloudModal from './CloudModal';
 import AppMenu from './AppMenu';
+import WorkspaceExplorerProjectRenameDialog from './explorer/WorkspaceExplorerProjectRenameDialog';
 import { saveBoard, saveBoardAs, clearFileHandle } from '../utils/fileSave';
 import { openWorkspace, openRecentWorkspace, listLocalRecentWorkspaces, createWorkspace, saveWorkspace, hasWorkspaceHandle, clearWorkspaceHandle, getWorkspacePathHint, IS_TAURI, type LocalRecentWorkspace, type WorkspaceOpenResult } from '../utils/workspaceManager';
 import { toast } from '../utils/toast';
@@ -70,7 +71,7 @@ function parseCSV(text: string): string[][] {
 }
 
 export default function TopBar({ onShowAbout, onNewNote, onToggleTimer, explorerOpen, onToggleExplorer, onWorkspaceOpened, onToggleJira, onToggleSearch, workspaceOffset = 0, templatesOpen, onTemplatesOpenChange }: TopBarProps) {
-  const { boardTitle, exportData, loadBoard, setActiveTool, setActiveShapeKind, addNode, addCanvasDocument, addPage, pages, activePageId, activeDocId, documents, workspaceName, setWorkspaceName, nodes, appMode, cloudBoardId, cloudBoardTitle, cloudSyncedAt, lastLocalSavedAt, lastLocalSaveTarget } = useBoardStore();
+  const { boardTitle, setBoardTitle, exportData, loadBoard, setActiveTool, setActiveShapeKind, addNode, addCanvasDocument, addPage, pages, activePageId, activeDocId, documents, workspaceName, setWorkspaceName, nodes, appMode, cloudBoardId, cloudBoardTitle, cloudSyncedAt, lastLocalSavedAt, lastLocalSaveTarget } = useBoardStore();
   const { user } = useAuth();
   const isDocumentContext = appMode === 'document';
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -93,6 +94,8 @@ export default function TopBar({ onShowAbout, onNewNote, onToggleTimer, explorer
   const [cloudOpen, setCloudOpen] = useState(false);
   const [cloudInitialTab, setCloudInitialTab] = useState<'workspace' | 'library'>('workspace');
   const [recentProjects, setRecentProjects] = useState<LocalRecentWorkspace[]>([]);
+  const [workspaceRenameOpen, setWorkspaceRenameOpen] = useState(false);
+  const [workspaceRenameDraft, setWorkspaceRenameDraft] = useState('');
 
   const workspacePathHint = getWorkspacePathHint();
   const workspaceFolderLabel = workspaceName ?? workspacePathHint?.replace(/\\/g, '/').split('/').pop() ?? null;
@@ -160,9 +163,12 @@ export default function TopBar({ onShowAbout, onNewNote, onToggleTimer, explorer
   }, []);
 
   const handleSaveJSON = () => {
-    if (workspaceName) {
+    if (workspaceName || hasWorkspaceHandle()) {
       saveWorkspace(exportData(), { notify: false }).then((result) => {
         if (!result.saved) return;
+        if (result.workspaceName) setWorkspaceName(result.workspaceName);
+        clearFileHandle();
+        onWorkspaceOpened();
         playExportSound();
         announceLocalSave('workspace', result.workspaceName);
       });
@@ -179,6 +185,32 @@ export default function TopBar({ onShowAbout, onNewNote, onToggleTimer, explorer
     playExportSound();
     announceLocalSave('file', result.targetName);
   });
+
+  const beginRenameWorkspace = () => {
+    setMenuOpen(false);
+    setWorkspaceRenameDraft(titleLabel);
+    setWorkspaceRenameOpen(true);
+  };
+
+  const commitRenameWorkspace = () => {
+    const nextTitle = workspaceRenameDraft.trim();
+    if (!nextTitle) return;
+    setBoardTitle(nextTitle);
+    setWorkspaceRenameOpen(false);
+    window.setTimeout(() => {
+      const state = useBoardStore.getState();
+      if (state.workspaceName || hasWorkspaceHandle()) {
+        void saveWorkspace(state.exportData(), { notify: false }).then((result) => {
+          if (!result.saved) return;
+          if (result.workspaceName) setWorkspaceName(result.workspaceName);
+          onWorkspaceOpened();
+          toast(`Renamed workspace to ${nextTitle}`);
+        });
+      } else {
+        toast('Renamed workspace locally. Use Project Sync to save it to cloud.');
+      }
+    }, 0);
+  };
 
   const handleOpenFolder = async () => {
     setMenuOpen(false);
@@ -463,6 +495,13 @@ export default function TopBar({ onShowAbout, onNewNote, onToggleTimer, explorer
           extraActions={confirmDialog.extraActions}
         />
       )}
+      <WorkspaceExplorerProjectRenameDialog
+        open={workspaceRenameOpen}
+        draft={workspaceRenameDraft}
+        onDraftChange={setWorkspaceRenameDraft}
+        onConfirm={commitRenameWorkspace}
+        onCancel={() => setWorkspaceRenameOpen(false)}
+      />
       <CloudModal open={cloudOpen} onClose={() => setCloudOpen(false)} initialTab={cloudInitialTab} />
       {templatesModalOpen && (
         <div
@@ -562,6 +601,7 @@ export default function TopBar({ onShowAbout, onNewNote, onToggleTimer, explorer
                 openRecentProject: (project) => { void handleOpenRecentProject(project); },
                 allProjects: handleOpenProjectsLibrary,
                 saveProject: handleSaveJSON,
+                renameProject: beginRenameWorkspace,
                 projectSync: () => window.dispatchEvent(new CustomEvent('devboard:open-cloud-modal')),
                 search: onToggleSearch,
                 toggleTimer: onToggleTimer,

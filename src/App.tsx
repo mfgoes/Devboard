@@ -518,6 +518,9 @@ export default function App() {
     if (getWorkspaceName()) {
       void saveWorkspace(data, { notify: false }).then((result) => {
         if (!result.saved) return;
+        if (result.workspaceName) useBoardStore.getState().setWorkspaceName(result.workspaceName);
+        useBoardStore.getState().setSidebarCollapsed(false);
+        useBoardStore.getState().setExplorerOpen(true);
         announceLocalSave('workspace', result.workspaceName);
       });
       return;
@@ -678,7 +681,16 @@ export default function App() {
 
   // Register callback so the explorer tree reloads after every workspace save.
   useEffect(() => {
-    setOnWorkspaceSavedCallback(() => useBoardStore.getState().bumpWorkspaceSaved());
+    setOnWorkspaceSavedCallback(() => {
+      const state = useBoardStore.getState();
+      const workspaceName = getWorkspaceName();
+      if (workspaceName) {
+        state.setWorkspaceName(workspaceName);
+        state.setSidebarCollapsed(false);
+        state.setExplorerOpen(true);
+      }
+      state.bumpWorkspaceSaved();
+    });
   }, []);
 
   // Restore previously granted localhost workspace handle when possible.

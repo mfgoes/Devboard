@@ -28,6 +28,8 @@ interface WorkspaceExplorerCommandMenuProps {
   onCreateCanvas: () => void;
   onCreateFolder: () => void;
   onSaveWorkspace: () => void;
+  onRenameWorkspace: () => void;
+  onWorkspaceNameContextMenu: (x: number, y: number) => void;
 }
 
 const WorkspaceExplorerCommandMenu = forwardRef<HTMLDivElement, WorkspaceExplorerCommandMenuProps>(
@@ -52,6 +54,8 @@ const WorkspaceExplorerCommandMenu = forwardRef<HTMLDivElement, WorkspaceExplore
       onCreateCanvas,
       onCreateFolder,
       onSaveWorkspace,
+      onRenameWorkspace,
+      onWorkspaceNameContextMenu,
     }: WorkspaceExplorerCommandMenuProps,
     ref,
   ) {
@@ -114,6 +118,27 @@ const WorkspaceExplorerCommandMenu = forwardRef<HTMLDivElement, WorkspaceExplore
           <MenuIcon />
         </button>
         <span
+          role="button"
+          tabIndex={0}
+          title="Double-click to rename workspace"
+          onDoubleClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setCommandMenuOpen(false);
+            onRenameWorkspace();
+          }}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setCommandMenuOpen(false);
+            onWorkspaceNameContextMenu(e.clientX, e.clientY);
+          }}
+          onKeyDown={(e) => {
+            if (e.key !== 'Enter' && e.key !== ' ') return;
+            e.preventDefault();
+            setCommandMenuOpen(false);
+            onRenameWorkspace();
+          }}
           style={{
             minWidth: 0,
             overflow: 'hidden',
@@ -124,6 +149,8 @@ const WorkspaceExplorerCommandMenu = forwardRef<HTMLDivElement, WorkspaceExplore
             fontSize: 11.5,
             fontWeight: 600,
             textAlign: 'left',
+            cursor: 'text',
+            outline: 'none',
           }}
         >
           {workspaceDisplayName}
@@ -147,6 +174,7 @@ const WorkspaceExplorerCommandMenu = forwardRef<HTMLDivElement, WorkspaceExplore
               openRecentProject: onOpenRecentProject,
               allProjects: onOpenProjectsLibrary,
               saveProject: onSaveWorkspace,
+              renameProject: onRenameWorkspace,
               projectSync: onOpenCloudModal,
               search: onToggleSearch,
               toggleTimer: onToggleTimer,

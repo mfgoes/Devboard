@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { useBoardStore } from '../store/boardStore';
 import type { LocalRecentWorkspace, WorkspaceOpenResult } from '../utils/workspaceManager';
-import { listLocalRecentWorkspaces, openRecentWorkspace, openWorkspace, saveWorkspace } from '../utils/workspaceManager';
+import { hasWorkspaceHandle, listLocalRecentWorkspaces, openRecentWorkspace, openWorkspace, saveWorkspace } from '../utils/workspaceManager';
 import { toast } from '../utils/toast';
 
 interface UseWorkspaceExplorerProjectActionsArgs {
@@ -83,13 +83,15 @@ export function useWorkspaceExplorerProjectActions({
     setBoardTitle(nextTitle);
     setProjectRenameOpen(false);
     window.setTimeout(() => {
-      if (useBoardStore.getState().workspaceName) {
-        void saveWorkspace(useBoardStore.getState().exportData(), { notify: false }).then(() => {
-          toast(`Renamed project to ${nextTitle}`);
+      const state = useBoardStore.getState();
+      if (state.workspaceName || hasWorkspaceHandle()) {
+        void saveWorkspace(state.exportData(), { notify: false }).then((result) => {
+          if (result.workspaceName) state.setWorkspaceName(result.workspaceName);
+          toast(`Renamed workspace to ${nextTitle}`);
           void loadProjectSwitcherRecents();
         });
       } else {
-        toast('Renamed project locally. Use Project Sync to save it to cloud.');
+        toast('Renamed workspace locally. Use Project Sync to save it to cloud.');
       }
     }, 0);
   }, [loadProjectSwitcherRecents, projectRenameDraft, setBoardTitle, setProjectRenameOpen]);

@@ -17,6 +17,7 @@ export interface AppMenuActions {
   openRecentProject: (project: LocalRecentWorkspace) => void;
   allProjects: () => void;
   saveProject: () => void;
+  renameProject: () => void;
   projectSync: () => void;
   search: () => void;
   toggleTimer: () => void;
@@ -90,6 +91,7 @@ export default function AppMenu({ actions, state, recentProjects = [], currentPr
         <CommandMenuDivider />
         <CommandMenuItem icon={<CommandIcon kind="folder" />} label="Open local folder..." onClick={() => runAction(actions.openLocalFolder)} />
         <CommandMenuItem icon={<CommandIcon kind="view" />} label="Save project" onClick={() => runAction(actions.saveProject)} />
+        <CommandMenuItem icon={<CommandIcon kind="settings" />} label="Rename workspace..." onClick={() => runAction(actions.renameProject)} />
         <CommandMenuItem icon={<CommandIcon kind="settings" />} label="Project Sync..." onClick={() => runAction(actions.projectSync)} />
       </CommandMenuSubItem>
 

@@ -1,0 +1,454 @@
+{
+  "boardTitle": "Devboard marketing",
+  "nodes": [
+    {
+      "x": 829,
+      "y": -178,
+      "id": "ozs2qg3ef",
+      "src": "",
+      "type": "image",
+      "width": 600,
+      "height": 894,
+      "assetName": "8oap3oyw0.jpg",
+      "assetFolder": "assets"
+    },
+    {
+      "x": 1149.5958130551621,
+      "y": 926.068947528672,
+      "id": "7omjrcb79",
+      "type": "document",
+      "docId": "doc_tn3fw0qha",
+      "width": 275.2410112574185,
+      "height": 253.0956176298198
+    },
+    {
+      "x": 1920.9774437347764,
+      "y": 729.6684055656133,
+      "id": "x00cnlbfs",
+      "type": "document",
+      "docId": "doc_notes_short_15s_teaser_md",
+      "width": 280,
+      "height": 176
+    },
+    {
+      "x": 2228.9774437347764,
+      "y": 730.9468430012083,
+      "id": "ldfr2einp",
+      "type": "document",
+      "docId": "doc_notes_long_2min_deepdive_md",
+      "width": 280,
+      "height": 176
+    },
+    {
+      "x": 1920.9774437347764,
+      "y": 934.9468430012083,
+      "id": "vfdqiasia",
+      "type": "document",
+      "docId": "doc_notes_short_30s_daily_md",
+      "width": 280,
+      "height": 176
+    },
+    {
+      "x": 2228.9774437347764,
+      "y": 934.9468430012083,
+      "id": "e64evykrv",
+      "type": "document",
+      "docId": "doc_notes_short_30s_writers_md",
+      "width": 280,
+      "height": 176
+    },
+    {
+      "x": 1612.9774437347764,
+      "y": 1138.9468430012084,
+      "id": "q43uz0cap",
+      "type": "document",
+      "docId": "doc_notes_medium_60s_demo_md",
+      "width": 280,
+      "height": 176
+    },
+    {
+      "x": 1920.9774437347764,
+      "y": 1138.9468430012084,
+      "id": "em081tw5m",
+      "type": "document",
+      "docId": "doc_notes_readme_md",
+      "width": 280,
+      "height": 176
+    },
+    {
+      "x": 2228.9774437347764,
+      "y": 1138.9468430012084,
+      "id": "nzq2bz0uc",
+      "type": "document",
+      "docId": "doc_notes_kofi_page_copy_md",
+      "width": 280,
+      "height": 176
+    },
+    {
+      "x": 1612.9774437347764,
+      "y": 1342.9468430012084,
+      "id": "0mcwj43w4",
+      "type": "document",
+      "docId": "doc_notes_text_posts_md",
+      "width": 280,
+      "height": 176
+    },
+    {
+      "x": 1920.9774437347764,
+      "y": 1342.9468430012084,
+      "id": "tdc00z86r",
+      "type": "document",
+      "docId": "doc_notes_feedback_from_claude_md",
+      "width": 280,
+      "height": 176
+    },
+    {
+      "id": "eoxm8nnfi",
+      "toX": 1752.9774437347764,
+      "toY": 1138.9468430012084,
+      "type": "connector",
+      "color": "#3a2810",
+      "fromX": 1535.5236239734302,
+      "fromY": 956.8747189113121,
+      "toAnchor": "top",
+      "toNodeId": "q43uz0cap",
+      "lineStyle": "curved",
+      "fromAnchor": "right",
+      "fromNodeId": "7omjrcb79",
+      "strokeStyle": "solid",
+      "strokeWidth": 2,
+      "arrowHeadEnd": "arrow",
+      "arrowHeadStart": "none"
+    },
+    {
+      "x": 2641.675151828424,
+      "y": 1194.0037320505903,
+      "id": "to0n7s00u",
+      "type": "document",
+      "docId": "doc_notes_untitled_md",
+      "width": 280,
+      "height": 176
+    }
+  ],
+  "pages": [
+    {
+      "id": "page-1",
+      "name": "Marketing",
+      "layoutMode": "stack",
+      "noteSort": "custom",
+      "isCanvasDocument": false,
+      "nodes": [
+        {
+          "x": 829,
+          "y": -178,
+          "id": "ozs2qg3ef",
+          "src": "",
+          "type": "image",
+          "width": 600,
+          "height": 894,
+          "assetName": "8oap3oyw0.jpg",
+          "assetFolder": "assets"
+        },
+        {
+          "x": 1149.5958130551621,
+          "y": 926.068947528672,
+          "id": "7omjrcb79",
+          "type": "document",
+          "docId": "doc_tn3fw0qha",
+          "width": 275.2410112574185,
+          "height": 253.0956176298198
+        },
+        {
+          "x": 1920.9774437347764,
+          "y": 729.6684055656133,
+          "id": "x00cnlbfs",
+          "type": "document",
+          "docId": "doc_notes_short_15s_teaser_md",
+          "width": 280,
+          "height": 176
+        },
+        {
+          "x": 2228.9774437347764,
+          "y": 730.9468430012083,
+          "id": "ldfr2einp",
+          "type": "document",
+          "docId": "doc_notes_long_2min_deepdive_md",
+          "width": 280,
+          "height": 176
+        },
+        {
+          "x": 1920.9774437347764,
+          "y": 934.9468430012083,
+          "id": "vfdqiasia",
+          "type": "document",
+          "docId": "doc_notes_short_30s_daily_md",
+          "width": 280,
+          "height": 176
+        },
+        {
+          "x": 2228.9774437347764,
+          "y": 934.9468430012083,
+          "id": "e64evykrv",
+          "type": "document",
+          "docId": "doc_notes_short_30s_writers_md",
+          "width": 280,
+          "height": 176
+        },
+        {
+          "x": 1612.9774437347764,
+          "y": 1138.9468430012084,
+          "id": "q43uz0cap",
+          "type": "document",
+          "docId": "doc_notes_medium_60s_demo_md",
+          "width": 280,
+          "height": 176
+        },
+        {
+          "x": 1920.9774437347764,
+          "y": 1138.9468430012084,
+          "id": "em081tw5m",
+          "type": "document",
+          "docId": "doc_notes_readme_md",
+          "width": 280,
+          "height": 176
+        },
+        {
+          "x": 2228.9774437347764,
+          "y": 1138.9468430012084,
+          "id": "nzq2bz0uc",
+          "type": "document",
+          "docId": "doc_notes_kofi_page_copy_md",
+          "width": 280,
+          "height": 176
+        },
+        {
+          "x": 1612.9774437347764,
+          "y": 1342.9468430012084,
+          "id": "0mcwj43w4",
+          "type": "document",
+          "docId": "doc_notes_text_posts_md",
+          "width": 280,
+          "height": 176
+        },
+        {
+          "x": 1920.9774437347764,
+          "y": 1342.9468430012084,
+          "id": "tdc00z86r",
+          "type": "document",
+          "docId": "doc_notes_feedback_from_claude_md",
+          "width": 280,
+          "height": 176
+        },
+        {
+          "id": "eoxm8nnfi",
+          "toX": 1752.9774437347764,
+          "toY": 1138.9468430012084,
+          "type": "connector",
+          "color": "#3a2810",
+          "fromX": 1535.5236239734302,
+          "fromY": 956.8747189113121,
+          "toAnchor": "top",
+          "toNodeId": "q43uz0cap",
+          "lineStyle": "curved",
+          "fromAnchor": "right",
+          "fromNodeId": "7omjrcb79",
+          "strokeStyle": "solid",
+          "strokeWidth": 2,
+          "arrowHeadEnd": "arrow",
+          "arrowHeadStart": "none"
+        },
+        {
+          "x": 2641.675151828424,
+          "y": 1194.0037320505903,
+          "id": "to0n7s00u",
+          "type": "document",
+          "docId": "doc_notes_untitled_md",
+          "width": 280,
+          "height": 176
+        }
+      ],
+      "camera": {
+        "x": -1116.9207735590903,
+        "y": -694.7895744885678,
+        "scale": 0.7822048792982733
+      }
+    },
+    {
+      "id": "canvas_j6s5e473g",
+      "name": "Untitled canvas",
+      "layoutMode": "freeform",
+      "noteSort": "updated",
+      "isCanvasDocument": true,
+      "parentPageId": "page-1",
+      "canvasDocumentId": "doc_8nspe83p2",
+      "nodes": [
+        {
+          "id": "xvb5njgcg",
+          "type": "document",
+          "x": 130,
+          "y": 877,
+          "width": 269,
+          "height": 223,
+          "docId": "doc_817f5c707"
+        }
+      ],
+      "camera": {
+        "x": 185,
+        "y": -524,
+        "scale": 1
+      }
+    }
+  ],
+  "activePageId": "page-1",
+  "documents": [
+    {
+      "id": "doc_notes_short_15s_teaser_md",
+      "title": "15s Teaser — General audience",
+      "pageId": "page-1",
+      "content": "<div><b>Goal:</b> stop the scroll, plant the name \"DevBoard\" + the one-liner, drive to bio.</div><div><b>Best for:</b> TikTok, Reels, Shorts. Use trending sound, no voiceover.</div><div><b>Hook style:</b> visual + on-screen text only.</div><div><br></div><div><br></div><div><br></div><hr><div><br></div><h2 id=\"doc-beats-1\">Beats</h2><div><br></div><table><thead><tr><th>Time</th><th>On screen</th><th>Caption (overlay)</th></tr></thead><tbody><tr><td>0.0–1.5s</td><td>Cold open: app already in Canvas mode. Zoom out from a single sticky note to reveal a full plotted canvas with sticky notes + connectors + a code block.</td><td>\"Notes that actually think with you.\"</td></tr><tr><td>1.5–4.0s</td><td>Cut to Markdown editor. Type a [[wikilink]]. Click it — the note opens. Click backlinks panel — show 2–3 backlinks.</td><td>\"Wikilinks. Backlinks. Built in.\"</td></tr><tr><td>4.0–7.0s</td><td>Cut back to canvas. Drag a doc from the sidebar onto the canvas (pin a doc node). Draw a connector from it to a sticky note.</td><td>\"Notes ↔ canvas. Same workspace.\"</td></tr><tr><td>7.0–10.0s</td><td>Cut to file explorer sidebar. Open the workspace folder in the system file manager — show the actual .md files on disk.</td><td>\"Your folder. Your files. No cloud.\"</td></tr><tr><td>10.0–13.0s</td><td>Cut to landing page or app open in browser. Pan over the URL bar.</td><td>\"Free. Local-first. EU-built.\"</td></tr><tr><td>13.0–15.0s</td><td>End card: DevBoard logo + \"free in your browser\" + Ko-fi handle.</td><td>\"DevBoard → link in bio ❤️\"</td></tr></tbody></table><div><br></div><h2 id=\"doc-screens-to-record-before-filming-2\">Screens to record before filming</h2><div><br></div><ol><li>A canvas pre-built with ~8 sticky notes, 3 shapes, 2 connectors, 1 code block.</li><li>Two notes with mutual <code>[[wikilinks]]</code> so backlinks panel populates.</li><li>A workspace folder visible in your OS file manager (Finder / Explorer / Files).</li></ol><div><br></div><h2 id=\"doc-caption-post-body-3\">Caption (post body)</h2><div><br></div><blockquote>The notes app that thinks visually. Markdown + canvas, in one local folder. No account. No cloud. EU-built, free, supported on Ko-fi 🇪🇺<br><br>Try it → mfgoes.github.io/Devboard<br><br>#localfirst #obsidian #notetaking #pkm #eutech</blockquote><div><br></div><h2 id=\"doc-sound-suggestions-4\">Sound suggestions</h2><div><br></div><ul><li>Trending lo-fi or \"satisfying productivity\" sounds — search TikTok creative center the day you post.</li><li>Avoid sounds with vocals on the first 4s; they fight your overlays.</li></ul>",
+      "createdAt": 1777587221525,
+      "updatedAt": 1781728428256,
+      "linkedFile": "notes/short-15s-teaser.md",
+      "orderIndex": 3
+    },
+    {
+      "id": "doc_notes_long_2min_deepdive_md",
+      "title": "2-minute Deep Dive — Power users / Obsidian crowd",
+      "pageId": "page-1",
+      "content": "<div><b>Goal:</b> convert the people who already use a notes-graph tool. Show <span style=\"color: rgb(122, 170, 114);\">parity on the basics, then the canvas killer feature. End on values (local-first, EU, free).</span></div><div><b>Best for:</b> YouTube Shorts max length, TikTok long-form, embedded on Ko-fi page, pinned reply on Bluesky/X.</div><div><b>Tone:</b> narrated, paced, screen-recorded with cursor visible.</div><div><br></div><hr><div><br></div><h2>Cold open (0–8s)</h2><div><br></div><div><b>Screen:</b> rapid-cut montage — wikilink resolving, canvas zoom-out, doc pinned to canvas, file explorer showing real <code>.md</code> files.</div><div><br></div><div><b>VO:</b></div><blockquote>\"Local-first notes app. Markdown and wikilinks, like Obsidian. Real infinite canvas, like Miro or tldraw. Same workspace. One folder. No account. Let me show you.\"</blockquote><div><br></div><h2>Section 1 — The workspace (8–25s)</h2><div><br></div><div><b>Screen:</b> click \"Open folder\", pick from disk, watch sidebar populate. Pan over folders: <code>notes/</code>, <code>canvases/</code>, <code>attachments/</code>, <code>daily/</code>.</div><div><br></div><div><b>VO:</b></div><blockquote>\"DevBoard doesn't have an account. There's no sign-up. You point it at a folder on your disk, and that folder <i>is</i> your workspace. Markdown files become notes, JSON files become canvases, everything else stays untouched. You can open the same folder in VS Code, version it with git, sync it with Syncthing, drop it in Dropbox — DevBoard doesn't care, it's just files.\"</blockquote><div><br></div><h2>Section 2 — Notes (25–55s)</h2><div><br></div><div><b>Screen sequence:</b></div><ol><li>Open a note, demo formatting toolbar.</li><li>Type <code>[[Project Atlas]]</code> — autocomplete, click to open.</li><li>Open backlinks panel — show a list of references, click one to jump.</li><li>Hit <code>⌘K</code>, fuzzy-search to a note.</li><li>Toggle Focus Mode — the editor goes full-screen, distraction-free.</li><li>Switch to Stack View — show the vertical scroll of all docs.</li></ol><div><br></div><div><b>VO:</b></div><blockquote>\"The editor is clean Markdown with a formatting toolbar if you want it. Wikilinks are first-class — type two brackets, autocomplete, click through. Backlinks panel is built in, no plugin. Quick switcher with command-K jumps to any note or canvas in your workspace. Focus mode for deep work. Stack view if you'd rather scroll through everything as one long document.\"</blockquote><div><br></div><h2>Section 3 — The canvas (55–95s)</h2><div><br></div><div><b>Screen sequence:</b></div><ol><li>Open a canvas page. Empty.</li><li>Drop a sticky note. Drop a shape. Connect them — show all three connector styles (bezier, straight, orthogonal).</li><li>Drop a code block sticky, paste in some code, syntax highlights.</li><li>Drop an image (drag from desktop).</li><li>Use sections / alignment / snap guides briefly.</li><li>From the sidebar, drag a <code>.md</code> doc onto the canvas — it pins as a live doc node.</li><li>Switch to that doc. Type <code>@node:</code> — picker appears. Pick the sticky. Click the mention — canvas opens, node focused.</li></ol><div><br></div><div><b>VO:</b></div><blockquote>\"The canvas is a real infinite whiteboard. Sticky notes, shapes, freeform text, code blocks with syntax highlighting, images, sections, alignment, snap guides. Three connector styles. Undo, redo, duplicate, share-link export. The killer feature for me: you can pin any document onto the canvas as a live node, and from inside any document you can mention any canvas node — <code>@node</code> colon, pick one, click it, it jumps you straight there. Your written notes and your visual notes finally know about each other.\"</blockquote><div><br></div><h2>Section 4 — Values (95–115s)</h2><div><br></div><div><b>Screen:</b> the file manager view of the workspace folder. <code>git log</code>. The download page showing macOS / Windows / Linux. The \"EU-built\" mention on the landing page.</div><div><br></div><div><b>VO:</b></div><blockquote>\"DevBoard is local-first. There's no server, no telemetry, no account. Your notes never leave your machine unless you decide to put them somewhere. It's a single-file build that runs offline in your browser, or as a desktop app on Mac, Windows, and Linux. It's built in Europe by one person — me. And it's free. Forever. There's no pro tier, no upsell, no 'free for small workspaces.'\"</blockquote><div><br></div><h2>Outro (115–120s)</h2><div><br></div><div><b>Screen:</b> end card — DevBoard logo, URL, Ko-fi handle.</div><div><br></div><div><b>VO:</b></div><blockquote>\"If you want to support it, there's a Ko-fi link in the description. Otherwise — try it. Your notes are still just a folder on your disk. Thanks for watching.\"</blockquote><div><br></div><h2>Production checklist</h2><div><br></div><ul><li>[ ] Pre-built workspace with at least 15 notes cross-linked, 3 canvases of varying complexity.</li><li>[ ] Cursor highlight or click-ring effect enabled (e.g. <code>Cursor Highlighter</code>, <code>Mouseposé</code>).</li><li>[ ] Audio recorded in one take, normalized to -14 LUFS.</li><li>[ ] B-roll of file manager, git log, VS Code.</li><li>[ ] End card image (logo + URL + Ko-fi) in <code>marketing/assets/</code> (TODO — make once).</li></ul><div><br></div><h2>Caption (YouTube / Bluesky)</h2><div><br></div><blockquote>Two-minute walkthrough of DevBoard — a local-first notes app with Markdown wikilinks AND a real infinite canvas in one workspace. No account, no cloud, EU-built, free.<br><br>Try it in your browser → mfgoes.github.io/Devboard<br>Download desktop → mfgoes.github.io/Devboard/download.html<br>Support on Ko-fi → [your Ko-fi link]<br><br>#obsidian #localfirst #pkm #notetaking #productivity</blockquote>",
+      "createdAt": 1777587221525,
+      "updatedAt": 1781728428257,
+      "linkedFile": "notes/long-2min-deepdive.md",
+      "orderIndex": 4,
+      "emoji": "🛸",
+      "isFavorite": true
+    },
+    {
+      "id": "doc_notes_short_30s_daily_md",
+      "title": "30s Spot — Daily-note / PKM users",
+      "pageId": "page-1",
+      "content": "<div><b>Goal:</b> reach the Obsidian / Logseq / Notion-refugee crowd. Lean on local-first, EU, free, no plugin tax.</div><div><b>Best for:</b> TikTok #pkm #secondbrain, Bluesky productivity crowd, X \"obsidian alternative\" search.</div><div><b>Tone:</b> confident, slightly dry. \"Stop paying for what should be free.\"</div><div><br></div><hr><div><br></div><h2>Hook options</h2><div><br></div><ul><li><b>A:</b> \"Obsidian, but the canvas is built in. And it's free. And it's not American.\"</li><li><b>B:</b> \"Your notes shouldn't need an account, a sync subscription, AND four plugins to draw a diagram.\"</li><li><b>C:</b> \"Local-first. No login. EU-built. Free. The note app I wish existed two years ago.\"</li></ul><div><br></div><h2>Beats</h2><div><br></div><div>| Time | What you show | Voiceover / overlay |</div><div>|---|---|---|</div><div>| 0–3s | Open the app. Click \"Open folder\". Pick a folder from your disk. Workspace loads instantly with the sidebar populating. | <b>Overlay:</b> \"Pick a folder. That's your workspace.\" |</div><div>| 3–7s | Type a daily note. Use <code>[[2026-04-29]]</code>, <code>[[Project Atlas]]</code>. Both resolve. | <b>Overlay:</b> \"Wikilinks. Backlinks. Quick switcher (⌘K).\" |</div><div>| 7–10s | Hit <code>⌘K</code>, type a few letters, jump to a note. | <b>Overlay:</b> \"⌘K to jump anywhere.\" |</div><div>| 10–16s | Cut to canvas. Drop sticky notes for a project plan. Connect them. Add a code block sticky with shell commands, syntax-highlighted. | <b>Overlay:</b> \"Whiteboard built in. No plugins.\" |</div><div>| 16–22s | Show file explorer in Finder / Files: plain <code>.md</code> files + a <code>canvas.json</code>. Open one in VS Code to prove it. | <b>Overlay:</b> \"Just Markdown on disk. Open it anywhere.\" |</div><div>| 22–27s | Cut to landing page. Pan over: \"Free\", \"EU-built\", \"No account\", \"Local-first\". | <b>Overlay:</b> \"Free. EU-built. No account. Forever.\" |</div><div>| 27–30s | End card with logo + \"Ko-fi link in bio if you want to support\". | <b>VO:</b> \"DevBoard. Try it free.\" |</div><div><br></div><h2>Screens to record before filming</h2><div><br></div><ol><li>A workspace folder with daily notes for the past week (<code>2026-04-23.md</code> … <code>2026-04-29.md</code>) and 3–4 project notes cross-linked.</li><li>A canvas with a realistic project plan — not \"demo\" stickies. Use real-sounding tasks.</li><li>VS Code window open on one of the <code>.md</code> files (proves \"your files, anywhere\").</li></ol><div><br></div><h2>Caption (post body)</h2><div><br></div><blockquote>Local-first notes app with an infinite canvas built in. Markdown + JSON in your folder. No account, no cloud, no sync subscription. EU-built. Free.<br><br>If you've been side-eyeing Obsidian's pricing or looking for an EU alternative — try this.<br><br>mfgoes.github.io/Devboard<br><br>#pkm #secondbrain #obsidian #localfirst #notetaking #productivity</blockquote><div><br></div><h2>A/B title variants for short-form</h2><div><br></div><ul><li>\"Obsidian alternative, but the canvas is built in\"</li><li>\"I built a free local-first notes app so I'd stop paying for sync\"</li><li>\"Notes app that's just a folder on your disk\"</li><li>\"EU-built notes app with Markdown + whiteboard in one workspace\"</li></ul>",
+      "createdAt": 1777587221526,
+      "updatedAt": 1781728428255,
+      "linkedFile": "notes/short-30s-daily.md",
+      "orderIndex": 0
+    },
+    {
+      "id": "doc_notes_short_30s_writers_md",
+      "title": "30s Spot — Writers & worldbuilders",
+      "pageId": "page-1",
+      "content": "<div><b>//Goal:</b> speak directly to novelists, TTRPG GMs, screenwriters, worldbuilders. Lean on [[30s Spot — Daily-note / PKM users|wikilinks]]  + canvas-as-plot-board.</div><div><b>Best for:</b> TikTok #writingcommunity, #worldbuilding, #dndnotes, Bluesky writer crowd.</div><div><b>Tone:</b> \"I built this because I was tired of [their pain].\" First-person voiceover OK.</div><div><br></div><div>@node:ozs2qg3ef</div><div><br></div><hr><div><br></div><h2>Hook options (pick one, A/B test)</h2><div><br></div><ul><li><b>A:</b> \"I write fantasy. Every notes app made me pick: link my characters, OR draw the relationship map. Not both. So I built one that does both.\"</li><li><b>B:</b> \"Every writer I know has a folder of <code>.md</code> files AND a Miro board AND a Notion page. I made the app that's just one workspace.\"</li><li><b>C:</b> <i>(no voiceover, on-screen only)</i> \"POV: your character notes know about your plot map.\"</li></ul><div><br></div><h2>Beats</h2><div><br></div><table><thead><tr><th>Time</th><th>What you show</th><th>Voiceover / overlay</th></tr></thead><tbody><tr><td>0–3s</td><td>Open on a Character — Elara.md doc. Type [[Kingdom of Vael]]. Click it. The kingdom note opens.</td><td>VO: \"Wikilinks between every note.\"</td></tr><tr><td>3–7s</td><td>Cut to backlinks panel — show \"Mentioned in: Chapter 3, Elara, House Vael\". Click one to jump.</td><td>VO: \"Backlinks tell you who references what.\"</td></tr><tr><td>7–13s</td><td>Cut to Canvas. A plot board: sticky notes for chapters, connectors showing arcs, shapes grouping acts. Drag a new chapter sticky in. Connect it.</td><td>VO: \"Then plot it visually on an infinite canvas.\"</td></tr><tr><td>13–18s</td><td>Drag the Elara.md doc from the sidebar onto the canvas — it pins as a doc node. Draw a connector from Elara → Chapter 3.</td><td>VO: \"Pin any note onto the canvas. Reference canvas nodes from inside any doc.\"</td></tr><tr><td>18–22s</td><td>Cut to Focus Mode (full screen, distraction-free editor). Type a sentence of prose.</td><td>VO: \"Then focus mode when it's time to actually write.\"</td></tr><tr><td>22–27s</td><td>Show the workspace folder in Finder / Explorer — .md files visible.</td><td>VO: \"Everything's just Markdown in a folder you own. No cloud. No login.\"</td></tr><tr><td>27–30s</td><td>End card: DevBoard logo + \"free + Ko-fi link in bio\" + 🇪🇺.</td><td>VO: \"DevBoard. Link in bio.\"</td></tr></tbody></table><div><br></div><h2>Screens to record before filming</h2><div><br></div><ol><li>Worldbuilding workspace pre-populated:</li></ol><div>   - <code>Characters/Elara.md</code>, <code>Characters/Marek.md</code></div><div>   - <code>Locations/Vael.md</code>, <code>Locations/The Spire.md</code></div><div>   - <code>Chapters/Ch01.md</code>, <code>Chapters/Ch02.md</code>, <code>Chapters/Ch03.md</code></div><div>   - Cross-link them with <code>[[wikilinks]]</code> so backlinks populate richly.</div><ol><li>A canvas page named \"Plot Board\" with chapters as sticky notes + arcs as connectors + 2 act-grouping shapes.</li><li>Focus mode toggled on a chapter file with real-looking prose (a paragraph or two, not lorem ipsum).</li></ol><div><br></div><h2>Caption (post body)</h2><div><br></div><blockquote>Every writer ends up with a notes app for characters AND a separate whiteboard for plot. So I built DevBoard — wikilinks + infinite canvas in one local folder. No cloud, no account, EU-built, free.<br><br>Try it → mfgoes.github.io/Devboard<br>Support → ko-fi link in bio<br><br>#writingcommunity #amwriting #worldbuilding #ttrpg #dndnotes #obsidian</blockquote><div><br></div><h2>Variant for TTRPG GMs</h2><div><br></div><div>Swap pre-populated workspace to a campaign:</div><ul><li><code>NPCs/</code>, <code>Locations/</code>, <code>Sessions/</code>, <code>Factions/</code></li><li>Canvas: faction relationship map with connectors labelled \"ally\", \"enemy\", \"owes a favor\".</li><li>Hook: \"Your campaign notes shouldn't make you pick between a wiki and a relationship map.\"</li><li>Hashtags: <code>#dnd #ttrpg #dndnotes #worldbuilding #5e #pf2e</code></li></ul>",
+      "createdAt": 1777587221526,
+      "updatedAt": 1781728428256,
+      "isFavorite": true,
+      "linkedFile": "notes/short-30s-writers.md",
+      "orderIndex": 1
+    },
+    {
+      "id": "doc_notes_medium_60s_demo_md",
+      "title": "60s Demo — Solo devs / indie makers",
+      "pageId": "page-1",
+      "content": "<div><b>Goal:</b> longer feature walkthrough for people who already get the category. Pitch DevBoard as their planning + docs workspace.</div><div><b>Best for:</b> TikTok longer cuts, Shorts up to 60s, Bluesky video, X video.</div><div><b>Tone:</b> narrated voiceover, calm, builder-to-builder.</div><div><br></div><hr><div><br></div><h2>Hook (first 3s — must earn the watch)</h2><div><br></div><blockquote>\"I'm a solo dev. I had Obsidian for notes, Miro for diagrams, and a graveyard of <code>TODO.md</code> files. So I built one app that does all three — and it's just a folder on my disk.\"</blockquote><div><br></div><h2>Beats</h2><div><br></div><div>| Time | Screen | Voiceover |</div><div>|---|---|---|</div><div>| 0–3s | Cold open: split-screen of \"before\" — Obsidian + Miro + Notion tabs. Smash cut to DevBoard. | \"I had three apps for one workflow. So I built DevBoard.\" |</div><div>| 3–8s | Open folder. Workspace loads. Sidebar shows <code>README.md</code>, <code>ROADMAP.md</code>, <code>notes/</code>, <code>canvases/</code>. | \"Pick a folder. That's your workspace. Markdown notes, canvas pages, all in one tree.\" |</div><div>| 8–15s | Open <code>ROADMAP.md</code>. Type <code>[[v0.4 release]]</code>. Click it. Show backlinks panel. | \"Wikilinks between any note. Backlinks tell you what links back. No plugin to install.\" |</div><div>| 15–25s | Switch to a canvas page called \"v0.4 planning\". Sticky notes for tasks, shapes grouping epics, arrows showing dependencies. Drop a code block sticky with shell commands. | \"Canvas mode is a real infinite whiteboard. Sticky notes, shapes, connectors, code blocks with syntax highlighting.\" |</div><div>| 25–33s | From the sidebar, drag <code>ROADMAP.md</code> onto the canvas — it pins as a doc node. Inside <code>ROADMAP.md</code>, type <code>@node:</code> and pick a sticky from the canvas. Click the mention — jumps to the canvas, focuses the node. | \"And the modes talk. Pin a doc onto the canvas. Mention a canvas node from inside a doc. Jump between them with one click.\" |</div><div>| 33–40s | Hit ⌘K. Search \"release\". Jump to a note. Open quick switcher again, jump to a canvas. | \"Quick switcher jumps to any note or canvas in milliseconds.\" |</div><div>| 40–48s | Cut to OS file manager. Show the folder: <code>.md</code> files, <code>canvases/*.json</code>, <code>attachments/</code>. Open one <code>.md</code> in VS Code. Run <code>git status</code>. | \"Everything is plain Markdown and JSON in your folder. Open it in VS Code. Version it with git. Back it up however you back up files.\" |</div><div>| 48–55s | Cut to landing page / download page. Show macOS / Windows / Linux logos. | \"Browser version, or desktop app for Mac, Windows, Linux. No account. No telemetry. EU-built.\" |</div><div>| 55–60s | End card: \"DevBoard — free, local-first, on Ko-fi\" + URL. | \"It's free. If it saves you a subscription, the Ko-fi's in the bio. Thanks for watching.\" |</div><div><br></div><h2>Screens to prep</h2><div><br></div><ul><li>A real-feeling indie-dev workspace: <code>README.md</code>, <code>ROADMAP.md</code>, <code>CHANGELOG.md</code>, <code>notes/2026-Q2.md</code>, <code>notes/decisions/</code>, plus 2 canvases (<code>planning.json</code>, <code>architecture.json</code>).</li><li>The architecture canvas should have rectangles labelled real things (\"API\", \"Worker\", \"Postgres\") with arrows.</li><li>A terminal window with <code>ls</code> and <code>git status</code> ready in the workspace folder.</li><li>VS Code with the <code>.md</code> file open and a syntax-highlighted view.</li></ul><div><br></div><h2>Caption (post body)</h2><div><br></div><blockquote>One workspace for notes, planning, and diagrams. Wikilinks AND a real infinite canvas — in a folder on your disk. No account. No cloud. EU-built. Free.<br><br>Browser → mfgoes.github.io/Devboard<br>Desktop → mac/win/linux on the download page<br>Ko-fi → if it saves you a sub, my coffee fund is in bio ☕<br><br>#indiedev #buildinpublic #localfirst #obsidian #productivity #pkm</blockquote><div><br></div><h2>Hooks to A/B if the first one underperforms</h2><div><br></div><ul><li>\"Three apps became one. Here's the 60-second tour.\"</li><li>\"Obsidian, but the canvas is built in. And the company is one guy in Europe.\"</li><li>\"What if your README and your architecture diagram lived in the same folder?\"</li></ul>",
+      "createdAt": 1777587221525,
+      "updatedAt": 1781728428257,
+      "linkedFile": "notes/medium-60s-demo.md",
+      "orderIndex": 5
+    },
+    {
+      "id": "doc_notes_readme_md",
+      "title": "DevBoard — Marketing Scripts",
+      "pageId": "page-1",
+      "content": "<div>Scripts for promoting DevBoard on Ko-fi, Bluesky, X, and TikTok / Reels / Shorts.</div><div><br></div><h2>Core message (use this everywhere)</h2><div><br></div><blockquote><b>DevBoard</b> — a local-first notes + canvas app. Your folder, your files, no account, no cloud. EU-built, free, and open. Like Obsidian — but the infinite canvas is built in.</blockquote><div><br></div><div><b>One-liners</b> (pick what fits the platform):</div><ul><li>\"The note app that thinks visually.\"</li><li>\"Markdown + infinite canvas. One folder on your disk. No account.\"</li><li>\"Obsidian-style notes with a real whiteboard built in.\"</li><li>\"Local-first. EU-built. Free. Yours.\"</li></ul><div><br></div><h2>Pillars to lean on (in order of strength)</h2><div><br></div><ol><li><b>Local-first / privacy</b> — files live in a folder you choose, plain Markdown + JSON. Open them in VS Code. Version with git. No login, no cloud, no telemetry.</li><li><b>Notes AND canvas in one workspace</b> — wikilinks AND an infinite whiteboard, cross-referenced (<code>@node:</code> mentions, pin docs onto canvas).</li><li><b>EU-built</b> — alternative to US SaaS note tools. Resonates strongly on Bluesky / Mastodon-adjacent crowds.</li><li><b>Free + Ko-fi supported</b> — no subscription, no \"pro tier\" wall.</li></ol><div><br></div><h2>Files in this folder</h2><div><br></div><div>| File | Length | Audience | Where to post |</div><div>|---|---|---|---|</div><div>| <a href=\"short-15s-teaser.md\"><code>short-15s-teaser.md</code></a> | 15s | General | TikTok, Reels, Shorts |</div><div>| <a href=\"short-30s-writers.md\"><code>short-30s-writers.md</code></a> | 30s | Writers / worldbuilders | TikTok, Bluesky video |</div><div>| <a href=\"short-30s-daily.md\"><code>short-30s-daily.md</code></a> | 30s | Daily-note / PKM users | TikTok, Reels |</div><div>| <a href=\"medium-60s-demo.md\"><code>medium-60s-demo.md</code></a> | 60s | Solo devs / makers | TikTok, Shorts, Bluesky |</div><div>| <a href=\"long-2min-deepdive.md\"><code>long-2min-deepdive.md</code></a> | 2 min | Power users / Obsidian crowd | YouTube, long TikTok |</div><div>| <a href=\"text-posts.md\"><code>text-posts.md</code></a> | — | Bluesky / X / Mastodon | Text platforms |</div><div>| <a href=\"kofi-page-copy.md\"><code>kofi-page-copy.md</code></a> | — | Supporters | Ko-fi About + posts |</div><div><br></div><h2>Recording tips (read once before filming)</h2><div><br></div><ul><li><b>Workspace prep</b>: open a workspace folder pre-populated with realistic notes. Don't film an empty app — it reads as \"demo bait.\" Pre-fill with 6–10 notes and at least one canvas with sticky notes + connectors.</li><li><b>Theme</b>: dark mode reads better in short-form video. Pick one accent color and stick to it across all clips.</li><li><b>Cursor</b>: bump the system cursor size up one notch — phone viewers can't track a tiny cursor.</li><li><b>Resolution</b>: record vertical 1080×1920 by cropping a windowed app, OR record landscape 1920×1080 and crop in post. A square 1:1 crop also works for Bluesky.</li><li><b>No audio narration on TikTok</b>: trending-sound + on-screen captions outperforms voiceover on cold reach. Save voiceover for the 60s+ scripts and YouTube.</li><li><b>First 1.5 seconds</b>: must show the app doing something visual (a wikilink resolving, a canvas zooming, a connector being drawn). Static text loses the scroll.</li></ul><div><br></div><h2>Hashtag bank (mix and match — don't dump all)</h2><div><br></div><div><code>#localfirst #obsidian #notetaking #pkm #secondbrain #zettelkasten #worldbuilding #writingcommunity #amwriting #indiedev #ttrpg #dndnotes #eutech #opensource #productivity #digitalgarden #markdown</code></div><div><br></div><div>Bluesky: lighter on hashtags (1–2 max). X / TikTok: 3–6.</div><div><br></div><h2>CTAs (rotate, don't repeat)</h2><div><br></div><ul><li>\"Free in your browser → mfgoes.github.io/Devboard\"</li><li>\"Desktop app, macOS / Windows / Linux → link in bio\"</li><li>\"Built solo, EU-based, supported on Ko-fi → link in bio\"</li><li>\"Try it. Your notes never leave your folder.\"</li></ul>",
+      "createdAt": 1777587221524,
+      "updatedAt": 1781728428257,
+      "linkedFile": "notes/README.md",
+      "orderIndex": 6
+    },
+    {
+      "id": "doc_notes_kofi_page_copy_md",
+      "title": "Ko-fi page copy",
+      "pageId": "page-1",
+      "content": "<div>Drop-in text for your Ko-fi profile, About section, and recurring posts. Pair with the 60s demo video pinned at the top.</div><div><br></div><hr><div><br></div><h2 id=\"doc-page-title-tagline-1\">Page title / tagline</h2><div>[[2-minute Deep Dive — Power users / Obsidian crowd|Example]]&nbsp;&nbsp;of marketing version</div><div><br></div><div><b>DevBoard — local-first notes + canvas, EU-built, free.</b></div><div><br></div><hr><div><br></div><h2 id=\"doc-short-bio-the-ko-fi-sidebar-keep-under-1-2\">Short bio (the Ko-fi sidebar — keep under 160 chars)</h2><div><br></div><blockquote>Building DevBoard: a local-first notes app with Markdown wikilinks AND an infinite canvas in one workspace. Free. EU-built. ☕ keeps it going.</blockquote><div><br></div><hr><div><br></div><h2 id=\"doc-about-section-the-long-pitch-3\">About section (the long pitch)</h2><div><br></div><blockquote>### What is DevBoard?<br><br>A notes app that thinks visually. Markdown editor with <code>[[wikilinks]]</code> and backlinks, plus a real infinite canvas with sticky notes, shapes, connectors, and code blocks — in <b>one</b> workspace.<br><br>The workspace is just a folder on your disk. Your notes are plain Markdown files. Your canvases are JSON. You can open the same folder in VS Code, version it with git, sync it with Syncthing, back it up however you back up files. No account. No cloud. No telemetry.<br><br>Available in your browser, and as a desktop app for macOS, Windows, and Linux.<br><br>### Why I built it<br><br>I was tired of keeping notes in one app and diagrams in another, and never being able to link between them. I wanted something that respected my files, didn't ask for an account, and didn't gate the whiteboard behind a \"pro\" tier.<br><br>Most of the existing options are either US-based SaaS with a subscription, or local-first but missing the canvas. DevBoard is local-first, EU-built, and free — with the canvas built in.<br><br>### Why Ko-fi?<br><br>The app is free and stays free. No pro tier, no upsell, no \"free for small workspaces.\" If it replaces a subscription for you, or just makes your work easier, a coffee covers a couple more evenings of building. Tips also unblock features I'd otherwise have to deprioritize — better mobile, more export formats, plugin API.<br><br>### Try it<br><br>- <b>Browser:</b> mfgoes.github.io/Devboard<br>- <b>Desktop:</b> mfgoes.github.io/Devboard/download.html<br>- <b>Manual:</b> mfgoes.github.io/Devboard/manual.html<br><br>Thanks for being here. ☕</blockquote><div><br></div><hr><div><br></div><h2 id=\"doc-tier-ideas-ko-fi-memberships-if-you-turn-4\">Tier ideas (Ko-fi memberships, if you turn them on)</h2><div><br></div><table><thead><tr><th>Tier</th><th>Price</th><th>Perks</th></tr></thead><tbody><tr><td>☕ Coffee</td><td>€3/mo</td><td>Name in the credits screen + early-access build channel</td></tr><tr><td>📓 Notebook</td><td>€7/mo</td><td>Above + monthly behind-the-scenes post + vote on next features</td></tr><tr><td>🎨 Canvas</td><td>€15/mo</td><td>Above + 1:1 feedback session per quarter + your name pinned in the README</td></tr></tbody></table><div><br></div><div>Keep perks honest — don't promise what you can't deliver every month.</div><div><br></div><hr><div><br></div><h2 id=\"doc-recurring-ko-fi-posts-publish-1-per-2-3--5\">Recurring Ko-fi posts (publish 1× per 2–3 weeks)</h2><div><br></div><h3>\"What I shipped\" post</h3><div><br></div><blockquote>### What shipped this fortnight<br><br>- [feature 1, one line]<br>- [feature 2, one line]<br>- [bug fix, one line]<br><br>Next up: [thing in progress].<br><br>Thanks to everyone who's chipped in — every coffee genuinely buys me an evening to keep building. ☕<br><br>[link to changelog or release]</blockquote><div><br></div><h3>\"Behind the scenes\" post</h3><div><br></div><blockquote>Working on [feature]. Here's what it looks like right now — still rough, but the shape is there. [screenshot / 10s clip]<br><br>If you've got opinions on how this should work, drop them in the comments.</blockquote><div><br></div><h3>\"Why local-first\" post (good for new followers)</h3><div><br></div><blockquote>A reminder of why DevBoard is the way it is:<br><br>- Your notes are plain Markdown files in a folder <b>you</b> picked.<br>- There's no account, no server, no telemetry.<br>- You can open them in VS Code, version them with git, move them, back them up — they're yours.<br>- The app is free. Forever. No pro tier.<br><br>If that matters to you, a coffee on Ko-fi keeps it going. ☕</blockquote><div><br></div><hr><div><br></div><h2 id=\"doc-thank-you-auto-reply-ko-fi-notification-6\">\"Thank you\" auto-reply (Ko-fi notification)</h2><div><br></div><blockquote>Thank you so much ☕ — that genuinely buys me an evening of building. If there's a feature you're hoping for, reply to this and I'll add it to the list.</blockquote><div><br></div><hr><div><br></div><h2 id=\"doc-asset-checklist-for-the-ko-fi-page-7\">Asset checklist for the Ko-fi page</h2><div><br></div><ul><li>[ ] Header banner (1500×500): screenshot of editor + canvas side-by-side, with the tagline overlaid.</li><li>[ ] Profile image: DevBoard logo, square, transparent bg.</li><li>[ ] Pinned post: the 60s demo video (<code>medium-60s-demo.md</code>).</li><li>[ ] Gallery: 4–6 screenshots — editor, canvas, backlinks panel, file explorer of the workspace folder, focus mode, dark theme.</li></ul>",
+      "createdAt": 1777587221524,
+      "updatedAt": 1781728428258,
+      "linkedFile": "notes/kofi-page-copy.md",
+      "orderIndex": 7
+    },
+    {
+      "id": "doc_notes_text_posts_md",
+      "title": "Text-only posts — Bluesky / X / Mastodon / Threads",
+      "pageId": "page-1",
+      "content": "<div>Short copy you can paste. Pair each with <b>one</b> screenshot or a 5–10s screen recording.</div><div><br></div><hr><div><br></div><h2>Pinned post (use as your top-of-profile post)</h2><div><br></div><blockquote>I built <b>DevBoard</b> — a local-first notes app with Markdown wikilinks AND a real infinite canvas in one workspace.<br><br>Your folder. Your files. No account. No cloud. EU-built. Free.<br><br>Like Obsidian, but the canvas is built in.<br><br>🔗 mfgoes.github.io/Devboard<br>☕ ko-fi link in bio</blockquote><div><br></div><div><b>Pair with:</b> the 15s teaser video, OR a single screenshot showing both editor + canvas side by side.</div><div><br></div><hr><div><br></div><h2>Variant 1 — Local-first angle (Bluesky favorite)</h2><div><br></div><blockquote>Notes app that's just a folder on your disk.<br><br>No account. No cloud. No telemetry. No sync subscription.<br><br>Markdown + infinite canvas in one workspace. Open the same folder in VS Code. Version with git. Move it. Delete it. It's yours.<br><br>🇪🇺 Built in Europe. Free.<br><br>mfgoes.github.io/Devboard</blockquote><div><br></div><hr><div><br></div><h2>Variant 2 — \"Obsidian alternative\" (X / Reddit search-bait)</h2><div><br></div><blockquote>If you've been looking for an Obsidian alternative with a real whiteboard built in, try DevBoard.<br><br>- Markdown + <code>[[wikilinks]]</code> + backlinks<br>- Infinite canvas with sticky notes, shapes, connectors, code blocks<br>- Cross-references between docs and canvas nodes<br>- Local folder, no account, no cloud<br>- macOS / Windows / Linux + browser<br>- Free, EU-built<br><br>mfgoes.github.io/Devboard</blockquote><div><br></div><hr><div><br></div><h2>Variant 3 — Writers angle</h2><div><br></div><blockquote>Writers, worldbuilders, GMs:<br><br>Stop running a notes app for characters AND a separate whiteboard for the plot map. They should know about each other.<br><br>DevBoard puts wikilinks and infinite canvas in one local folder. <code>[[Elara]]</code> resolves. Canvas plot board next door. Pin docs onto the canvas. Mention canvas nodes from inside docs.<br><br>Free. EU-built.<br><br>mfgoes.github.io/Devboard<br><br>#writingcommunity #worldbuilding #ttrpg</blockquote><div><br></div><hr><div><br></div><h2>Variant 4 — Indie dev angle</h2><div><br></div><blockquote>Solo devs: how many apps does your project planning live in?<br><br>README in repo. ROADMAP in Notion. Architecture in Miro. Random <code>.md</code> files in <code>~/Desktop</code>.<br><br>DevBoard is one workspace for all of it — Markdown notes + infinite canvas in a folder you own. Open it in VS Code. Diff it with git. No account.<br><br>mfgoes.github.io/Devboard</blockquote><div><br></div><hr><div><br></div><h2>Variant 5 — EU / privacy angle (Mastodon, EU Bluesky)</h2><div><br></div><blockquote>European, local-first alternative to Obsidian / Notion / Roam.<br><br>No US cloud. No account. No telemetry. Markdown files in a folder you choose. Infinite canvas built in. Free.<br><br>🇪🇺 mfgoes.github.io/Devboard</blockquote><div><br></div><hr><div><br></div><h2>Reply / quote-post snippets (when someone complains about Obsidian / Notion)</h2><div><br></div><ul><li>\"There's a free local-first one with the canvas built in if you want to try — mfgoes.github.io/Devboard\"</li><li>\"EU-built option here, no account, just Markdown in a folder → mfgoes.github.io/Devboard\"</li><li>\"I built one for exactly this — DevBoard. Markdown + canvas in one workspace, no cloud.\"</li></ul><div><br></div><div>(Don't paste the same line twice in one thread. Keep replies low-key.)</div><div><br></div><hr><div><br></div><h2>Ko-fi shoutout post (after you set up the page)</h2><div><br></div><blockquote>If DevBoard saves you a notes-app subscription, the Ko-fi is open ☕<br><br>No paywall, no pro tier — it stays free. Tips just keep me building.<br><br>[your Ko-fi URL]</blockquote><div><br></div><hr><div><br></div><h2>Posting cadence (suggestion)</h2><div><br></div><ul><li><b>Bluesky / Mastodon:</b> 2× per week. Mix variant 1 + 5 + occasional reply-bait.</li><li><b>X:</b> 1× per week + replies in <code>#buildinpublic</code>. Doesn't reward reposts of the same thing.</li><li><b>TikTok / Reels:</b> 1× short script per week (rotate the four 30s scripts), 1× longer cut every 2 weeks.</li><li>Don't post the same wording on two platforms within 24h — algos demote duplicate-text reposts.</li></ul>",
+      "createdAt": 1777587221526,
+      "updatedAt": 1781728428256,
+      "linkedFile": "notes/text-posts.md",
+      "orderIndex": 2
+    },
+    {
+      "id": "doc_notes_feedback_from_claude_md",
+      "title": "Feedback From Claude",
+      "pageId": "page-1",
+      "content": "<div><b>DevBoard — Critique as potential income source</b></div><div><b>The core tension</b></div><div>The landing page is doing two jobs at once and neither fully lands: it's selling <i>to writers/thinkers</i> (Obsidian-adjacent users) but the name and positioning (\"Devboard,\" GitHub login, code blocks, \"architecture sketches\") keep pulling it toward developers. Pick one primary audience, because right now a dev bounces thinking \"just use Obsidian + Excalidraw\" and a writer bounces thinking \"this looks like a dev tool.\"</div><div><br></div><div><b>What's working</b></div><div><b>The hero is clean.</b> \"Clear your head. Map your ideas.\" is solid — evocative, not jargon-heavy. The main screenshot communicates the dual-mode concept at a glance.</div><div><b>The comparison table is smart.</b> Showing Obsidian + Notion + FigJam fragmentation and positioning DevBoard as the unified alternative is the right strategic move. That's your strongest differentiator argument on the page.</div><div><b>Pricing is honest.</b> €0 / €4–5 later with explicit \"local stays free\" commitment builds trust. A lot of tools bury this.</div><div><br></div><div><b>What's hurting conversion</b></div><div><b>The feature list reads like a changelog, not a story.</b> You list 6 features in the \"What you get\" section, but they don't build on each other narratively. The reader doesn't feel a <i>workflow</i>, they get a spec sheet. Try structuring it as: you start by writing → you link ideas → you need to see the structure → you open the canvas. Let the user follow a journey.</div><div><b>\"Optional sync\" appears four times before the pricing section.</b> The repetition signals anxiety about the business model rather than confidence. State it once, clearly, and move on.</div><div><b>There's no social proof.</b> No quotes, no user count, no \"X downloads,\" nothing. Even one honest testimonial from a beta user would help enormously. The Ko-fi mention is present but feels like an afterthought — it doesn't communicate <i>anyone else uses this</i>.</div><div><b>The CTA hierarchy is weak.</b> \"Download free →\" and \"Try in browser\" compete equally. For a desktop app, the browser demo should be the <i>low-friction first step</i>, not a peer option. Consider: primary = \"Try in browser,\" secondary = \"Download for macOS/Windows/Linux.\"</div><div><br></div><div><b>Monetization critique specifically</b></div><div>Right now your only income path is Ko-fi tips + future sync subscription. That's a fragile single channel. Some angles worth considering:</div><div><b>The €4–5/month sync tier is underpriced for your audience.</b> Knowledge workers and indie devs pay €10–15/month for tools they rely on. If you're building toward that, €4 signals \"hobby project\" not \"tool worth depending on.\"</div><div><b>A \"Pro\" local tier makes sense.</b> Some users will never want cloud sync but <i>would</i> pay for power features (version history, larger exports, themes, AI-assisted linking). This unlocks revenue without requiring sync infrastructure.</div><div><b>The Ko-fi framing is leaving money on the table.</b> \"A small tip keeps me motivated\" is self-deprecating and converts poorly. Reframe: \"DevBoard is sustainably made by one person. If it saves you switching costs, consider supporting development.\" Then give a concrete number: \"Most supporters give €5–10.\"</div><div><br></div><div><b>One structural suggestion</b></div><div>The page currently goes: hero → features → comparison → features again → pricing → email signup → Ko-fi. The duplication (features appear in two separate sections) adds length without adding persuasion. Cut the \"What you get\" grid section entirely and let the three tabbed feature deep-dives (Linked notes / Visual canvas / Local-first) do that work — they're better anyway.</div><div><br></div><div>Overall: solid foundation, genuine product, honest positioning. The gap between where it is and where it converts is mostly a copywriting and audience-focus problem, not a product problem.</div>",
+      "createdAt": 1778013736105,
+      "updatedAt": 1781728987268,
+      "linkedFile": "notes/feedback_from_claude.md",
+      "orderIndex": 12
+    },
+    {
+      "id": "doc_notes_untitled_md",
+      "title": "Untitled",
+      "pageId": "page-1",
+      "content": "<div>testnote</div>",
+      "createdAt": 1777841493583,
+      "updatedAt": 1781728428259,
+      "linkedFile": "notes/untitled.md",
+      "orderIndex": 11
+    },
+    {
+      "id": "doc_tn3fw0qha",
+      "title": "Talking head j  ideas - May",
+      "pageId": "page-1",
+      "content": "<div><b>1. “I had three apps for one workflow”</b></div><div><b>Hook:</b></div><div><br></div><div>“I had three apps open just to think through one idea.”</div><div><b>Talk track:</b></div><div><br></div><div>“I was writing notes in one app, sketching flows in another, and tracking little tasks somewhere else. And every time I switched tools, I lost the thread. So I built DevBoard to keep the whole workflow in one place: notes, canvas, links, files, all together.”</div><div><b>Show:</b></div><div><br></div><div>Quick split-screen: Obsidian-style notes, Miro-style board, Notion-style table → DevBoard canvas.</div><div><b>CTA:</b></div><div><br></div><div>“It’s free, no account, and your files stay yours.”</div><div><br></div><div><b>2. “For people who almost like Notion”</b></div><div><b>Hook:</b></div><div><br></div><div>“I love the idea of Notion. I just don’t always want… Notion.”</div><div><b>Talk track:</b></div><div><br></div><div>“Sometimes I don’t need a full productivity operating system. I just want a folder where I can write notes, connect ideas, and sketch things out without setting up a whole workspace. That’s what DevBoard is for.”</div><div><b>Show:</b></div><div><br></div><div>You on camera first, then screen recording of opening a folder and making a quick note.</div><div><b>CTA:</b></div><div><br></div><div>“Try it if you want notes that feel lighter.”</div><div><br></div><div><b>3. “The notes app that is literally a folder”</b></div><div><b>Hook:</b></div><div><br></div><div>“This notes app is basically just a folder on your computer.”</div><div><b>Talk track:</b></div><div><br></div><div>“You pick a folder. DevBoard turns it into a workspace. Your notes are still plain files. You can open them in another editor, back them up, sync them however you want, or just keep them local.”</div><div><b>Show:</b></div><div><br></div><div>Open DevBoard → show notes → open same folder in Finder/Explorer → open a file in TextEdit/Notepad.</div><div><b>CTA:</b></div><div><br></div><div>“No lock-in. No weird export process.”</div><div><br></div><div><b>4. “Second brain, but normal”</b></div><div><b>Hook:</b></div><div><br></div><div>“I wanted a second brain app for people who don’t say ‘second brain.’”</div><div><b>Talk track:</b></div><div><br></div><div>“I just wanted my notes to connect to each other. Like, if I’m writing about a project and mention another note, I can link it and jump there later. That’s it. Useful, simple, no three-hour tutorial.”</div><div><b>Show:</b></div><div><br></div><div>Type [[ or start linking one note to another.</div><div><b>CTA:</b></div><div><br></div><div>“DevBoard is for notes that quietly connect.”</div><div><br></div><div><b>5. “The chaotic desktop problem”</b></div><div><b>Hook:</b></div><div><br></div><div>“My writing process used to be: ‘final draft,’ ‘final final draft,’ ‘actually final draft,’ and ‘please use this one.’”</div><div><b>Talk track:</b></div><div><br></div><div>“I wanted one place for drafts, references, scene ideas, character notes, and the messy whiteboard part of writing. DevBoard lets me keep the chaos, but make it usable.”</div><div><b>Show:</b></div><div><br></div><div>Cluttered desktop visual → DevBoard workspace with folders/notes/canvas.</div><div><b>CTA:</b></div><div><br></div><div>“Especially useful if your brain works in piles.”</div><div><br></div><div><b>6. “Not a productivity cult”</b></div><div><b>Hook:</b></div><div><br></div><div>“I don’t want to join a productivity cult. I just want to remember my ideas.”</div><div><b>Talk track:</b></div><div><br></div><div>“A lot of apps make you feel like you need a system before you can start. DevBoard is more like: open a folder, write the thing, link the related thing, move on.”</div><div><b>Show:</b></div><div><br></div><div>Simple screen recording: open folder, write note, drag sticky on canvas.</div><div><b>CTA:</b></div><div><br></div><div>“No setup ritual required.”</div><div><br></div><div><b>7. “Why I built it”</b></div><div><b>Hook:</b></div><div><br></div><div>“I built DevBoard because I kept losing ideas between tools.”</div><div><b>Talk track:</b></div><div><br></div><div>“I’d have notes in one place, diagrams somewhere else, references in another app, and little tasks scattered everywhere. DevBoard is my attempt to make a workspace that feels like a desk: notes here, board there, files right next to them.”</div><div><b>Show:</b></div><div><br></div><div>Talking head → cut to DevBoard with a note, canvas, and file sidebar.</div><div><b>CTA:</b></div><div><br></div><div>“It’s still early, but it’s already useful.”</div><div><br></div><div><b>8. “For game dev / project planning”</b></div><div><b>Hook:</b></div><div><br></div><div>“If you’re designing a game, your notes and your diagrams should probably live together.”</div><div><b>Talk track:</b></div><div><br></div><div>“I use DevBoard for things like gameplay loops, mechanics, progression, scope checks, and random ideas I don’t want to lose. The canvas is great for mapping the loop, and the notes are right there when something needs more detail.”</div><div><b>Show:</b></div><div><br></div><div>Use your gameplay loop board from the screenshot.</div><div><b>CTA:</b></div><div><br></div><div>“Good for messy early-stage design work.”</div><div><br></div><div><b>9. “For novelists”</b></div><div><b>Hook:</b></div><div><br></div><div>“Novel writing is basically controlled chaos.”</div><div><b>Talk track:</b></div><div><br></div><div>“You’ve got characters, scenes, timelines, themes, random lines of dialogue, and that one note called ‘ending maybe.’ DevBoard gives you a place to keep all of that together without turning it into a database project.”</div><div><b>Show:</b></div><div><br></div><div>Mac desktop full of writing files → DevBoard writing workspace.</div><div><b>CTA:</b></div><div><br></div><div>“Use it like a corkboard plus notes folder.”</div><div><br></div><div><b>10. “The anti-dashboard dashboard”</b></div><div><b>Hook:</b></div><div><br></div><div>“I don’t want another dashboard. I want somewhere to put the thing I’m thinking about.”</div><div><b>Talk track:</b></div><div><br></div><div>“DevBoard isn’t trying to run your life. It’s just a workspace for ideas. Notes, links, files, and a board when words are not enough.”</div><div><b>Show:</b></div><div><br></div><div>Minimal DevBoard workspace, not too polished.</div><div><b>CTA:</b></div><div><br></div><div>“Simple on purpose.”</div><div><br></div><div><b>11. “Local-first angle”</b></div><div><b>Hook:</b></div><div><br></div><div>“I’m tired of every notes app needing an account before I can write one sentence.”</div><div><b>Talk track:</b></div><div><br></div><div>“With DevBoard, you open a folder and start writing. Your stuff lives on your computer. No sign-up wall, no workspace invite, no cloud by default.”</div><div><b>Show:</b></div><div><br></div><div>Landing page highlights: Free, no account, your files. Then show folder picker.</div><div><b>CTA:</b></div><div><br></div><div>“Your notes should not need permission.”</div><div><br></div><div><b>12. “The whiteboard is already there”</b></div><div><b>Hook:</b></div><div><br></div><div>“Sometimes a note should not be a note. Sometimes it should be a messy little map.”</div><div><b>Talk track:</b></div><div><br></div><div>“That’s why DevBoard has a canvas built in. I can write the detailed idea as a note, then map the shape of it visually without opening another app.”</div><div><b>Show:</b></div><div><br></div><div>Create three sticky notes, connect them, then open a related text note.</div><div><b>CTA:</b></div><div><br></div><div>“One place for the written part and the visual part.”</div><div><br></div><div><b>13. “Tabs as temporary storage”</b></div><div><b>Hook:</b></div><div><br></div><div>“Browser tabs are not a notes app. I say this as someone with 47 tabs open.”</div><div><b>Talk track:</b></div><div><br></div><div>“I keep tabs open because I’m afraid I’ll forget why I opened them. DevBoard gives me somewhere to put the actual idea, link the related notes, and close the tab like a functional adult.”</div><div><b>Show:</b></div><div><br></div><div>Many tabs → copy idea into DevBoard note → close tabs.</div><div><b>CTA:</b></div><div><br></div><div>“Close the tabs. Keep the thought.”</div><div><br></div><div><b>14. “Tiny product demo”</b></div><div><b>Hook:</b></div><div><br></div><div>“Here’s DevBoard in 15 seconds.”</div><div><b>Talk track:</b></div><div><br></div><div>“Pick a folder. Write a note. Link it to another note. Open the canvas. Drop a few stickies. Your files are still just files on your computer.”</div><div><b>Show:</b></div><div><br></div><div>Fast cuts matching each sentence.</div><div><b>CTA:</b></div><div><br></div><div>“That’s the whole pitch.”</div><div><br></div><div><b>15. “The problem with ‘all-in-one’ apps”</b></div><div><b>Hook:</b></div><div><br></div><div>“Most all-in-one apps feel like they want me to move into them.”</div><div><b>Talk track:</b></div><div><br></div><div>“I wanted something that feels more like a tool than a lifestyle. DevBoard gives you the useful parts: notes, links, board, files. But it doesn’t ask you to rebuild your personality around a template.”</div><div><b>Show:</b></div><div><br></div><div>You talking, with light screen overlays.</div><div><b>CTA:</b></div><div><br></div><div>“Use it, don’t worship it.”</div><div><br></div><div><b>16. “For builders”</b></div><div><b>Hook:</b></div><div><br></div><div>“If you’re building something alone, context switching is brutal.”</div><div><b>Talk track:</b></div><div><br></div><div>“You’re writing specs, sketching flows, tracking ideas, and making little decisions constantly. DevBoard keeps that messy thinking in one workspace so you don’t have to keep rebuilding context.”</div><div><b>Show:</b></div><div><br></div><div>Use a DevBoard project workspace with “User Flow,” “MVP Ideas,” “Tech Stack,” “Data Model.”</div><div><b>CTA:</b></div><div><br></div><div>“Built for the messy middle of making things.”</div><div><br></div><div><b>17. “Founders / indie hackers”</b></div><div><b>Hook:</b></div><div><br></div><div>“My product planning used to be spread across notes, whiteboards, and random docs.”</div><div><b>Talk track:</b></div><div><br></div><div>“Now I use DevBoard as the place where the idea is allowed to be unfinished. I can sketch the flow, write the note, keep the files, and slowly turn the mess into something real.”</div><div><b>Show:</b></div><div><br></div><div>Before/after visual.</div><div><b>CTA:</b></div><div><br></div><div>“Good for projects before they become polished.”</div><div><br></div><div><b>18. “The ‘no system’ system”</b></div><div><b>Hook:</b></div><div><br></div><div>“My productivity system is: put the idea somewhere I’ll actually find it again.”</div><div><b>Talk track:</b></div><div><br></div><div>“That’s the whole reason DevBoard exists. It gives your notes enough structure to stay useful, but not so much structure that you spend all day organizing instead of doing the thing.”</div><div><b>Show:</b></div><div><br></div><div>Create note, tag/link it, place it on canvas.</div><div><b>CTA:</b></div><div><br></div><div>“Enough structure. Not too much.”</div><div><br></div><div><b>19. “Show, don’t explain”</b></div><div><b>Hook:</b></div><div><br></div><div>“This is easier to show than explain.”</div><div><b>Talk track:</b></div><div><br></div><div>“Here’s a note. Here’s another note. I link them. Here’s a board. I drag the idea out visually. Here’s the folder. These are just normal files. That’s DevBoard.”</div><div><b>Show:</b></div><div><br></div><div>Exactly those actions, no fluff.</div><div><b>CTA:</b></div><div><br></div><div>“Simple idea, very useful.”</div><div><br></div><div><b>20. “For people with messy brains”</b></div><div><b>Hook:</b></div><div><br></div><div>“DevBoard is for people whose ideas do not arrive in order.”</div><div><b>Talk track:</b></div><div><br></div><div>“Sometimes I get the title first, then the diagram, then one sentence from the middle, then a task, then a random connection to something else. DevBoard lets me capture things in whatever shape they arrive.”</div><div><b>Show:</b></div><div><br></div><div>Rapidly add a note, sticky, connection, file.</div><div><b>CTA:</b></div><div><br></div><div>“Organize later. Capture now.”</div><div><br></div><div><b>Easy mix-and-match hooks</b></div><div>“I built this because I was tired of switching apps.”</div><div>“This is what I wish Notepad did.”</div><div>“This is what I wanted Obsidian to feel like for normal people.”</div><div>“Your notes should not require a login.”</div><div>“I wanted Miro, Notion, and a notes folder to have a very simple baby.”</div><div>“I don’t need an AI workspace. I need somewhere to put my thoughts.”</div><div>“I made a notes app for people who keep everything in ‘untitled.txt.’”</div><div>“This is for the ‘I’ll organize it later’ people.”</div><div>“Every project has a phase where it’s just vibes and scattered notes. This is for that phase.”</div><div>“Sometimes the best productivity app is just a folder that got smarter.”</div><div><b>Reusable closing lines</b></div><div>“DevBoard is free, no account, and your files stay on your computer.”</div><div>“Try it when your notes start multiplying.”</div><div>“Use it for writing, planning, game design, or whatever mess you’re currently pretending is organized.”</div><div>“It’s notes, canvas, and files in one calm place.”</div><div>“DevBoard: for the part of the project before everything makes sense.”</div>",
+      "createdAt": 1778536417803,
+      "updatedAt": 1781728428259,
+      "isFavorite": true,
+      "linkedFile": "notes/talking_head_clip_ideas_may.md",
+      "orderIndex": 10
+    },
+    {
+      "id": "doc_8nspe83p2",
+      "docType": "canvas",
+      "title": "Untitled canvas",
+      "content": "",
+      "pageId": "page-1",
+      "canvasPageId": "canvas_j6s5e473g",
+      "orderIndex": 8,
+      "createdAt": 1781686807494,
+      "updatedAt": 1781728428258
+    },
+    {
+      "id": "doc_cmob2hqo9",
+      "docType": "note",
+      "title": "",
+      "content": "<p>sdfsdf</p>",
+      "pageId": "page-1",
+      "createdAt": 1781687455345,
+      "updatedAt": 1781728428258,
+      "orderIndex": 9
+    },
+    {
+      "id": "doc_817f5c707",
+      "docType": "note",
+      "title": "hi there",
+      "content": "<p><br></p>",
+      "pageId": "canvas_j6s5e473g",
+      "createdAt": 1781728588553,
+      "updatedAt": 1781728603188
+    }
+  ],
+  "folderDescriptors": [],
+  "workspacePreferences": {
+    "ignoredMissingImagesSignature": null
+  },
+  "schemaVersion": 3
+}

@@ -25,7 +25,7 @@ export default function WorkspaceExplorerProjectRenameDialog({
       <div
         role="dialog"
         aria-modal="true"
-        aria-labelledby="rename-project-title"
+        aria-labelledby="rename-workspace-title"
         style={{
           width: 340,
           maxWidth: 'calc(100vw - 28px)',
@@ -39,8 +39,8 @@ export default function WorkspaceExplorerProjectRenameDialog({
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--c-border)' }}>
-          <h2 id="rename-project-title" style={{ margin: 0, fontSize: 15, lineHeight: 1.2, color: 'var(--c-text-hi)', fontWeight: 750 }}>
-            Rename project
+          <h2 id="rename-workspace-title" style={{ margin: 0, fontSize: 15, lineHeight: 1.2, color: 'var(--c-text-hi)', fontWeight: 750 }}>
+            Rename workspace
           </h2>
         </div>
         <div style={{ padding: 16 }}>

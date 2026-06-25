@@ -28,6 +28,8 @@ interface WorkspaceExplorerHeaderProps {
   onCreateCanvas: () => void;
   onCreateFolder: () => void;
   onSaveWorkspace: () => void;
+  onRenameWorkspace: () => void;
+  onWorkspaceNameContextMenu: (x: number, y: number) => void;
   onCollapse: () => void;
 }
 
@@ -53,6 +55,8 @@ export default function WorkspaceExplorerHeader({
   onCreateCanvas,
   onCreateFolder,
   onSaveWorkspace,
+  onRenameWorkspace,
+  onWorkspaceNameContextMenu,
   onCollapse,
 }: WorkspaceExplorerHeaderProps) {
   return (
@@ -91,6 +95,8 @@ export default function WorkspaceExplorerHeader({
           onCreateCanvas={onCreateCanvas}
           onCreateFolder={onCreateFolder}
           onSaveWorkspace={onSaveWorkspace}
+          onRenameWorkspace={onRenameWorkspace}
+          onWorkspaceNameContextMenu={onWorkspaceNameContextMenu}
         />
       ) : (
         <div
@@ -103,6 +109,24 @@ export default function WorkspaceExplorerHeader({
           }}
         >
           <span
+            role="button"
+            tabIndex={0}
+            title="Double-click to rename workspace"
+            onDoubleClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onRenameWorkspace();
+            }}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onWorkspaceNameContextMenu(e.clientX, e.clientY);
+            }}
+            onKeyDown={(e) => {
+              if (e.key !== 'Enter' && e.key !== ' ') return;
+              e.preventDefault();
+              onRenameWorkspace();
+            }}
             style={{
               minWidth: 0,
               overflow: 'hidden',
@@ -113,6 +137,8 @@ export default function WorkspaceExplorerHeader({
               fontSize: 11,
               fontWeight: 600,
               letterSpacing: '0.01em',
+              cursor: 'text',
+              outline: 'none',
             }}
           >
             {workspaceDisplayName}

@@ -1,29 +1,18 @@
 import type { ComponentProps, RefObject } from 'react';
 
-import { type ImageNode } from '../../types';
 import { type LocalRecentWorkspace } from '../../utils/workspaceManager';
-import WorkspaceExplorerMissingImagesControl from './WorkspaceExplorerMissingImagesControl';
 import WorkspaceExplorerProjectSwitcher from './WorkspaceExplorerProjectSwitcher';
 import WorkspaceExplorerProjectMenu from './WorkspaceExplorerProjectMenu';
 
 type FooterSyncDot = ComponentProps<typeof WorkspaceExplorerProjectSwitcher>['footerSyncDot'];
 
 interface WorkspaceExplorerFooterProps {
-  missingImagesOpen: boolean;
-  missingImages: ImageNode[];
-  missingImagesFixing: boolean;
-  missingImagesPopoverRef: RefObject<HTMLDivElement>;
   footerSyncDot: FooterSyncDot;
-  missingImagePath: (image: ImageNode) => string;
-  onToggleMissingImages: () => void;
-  onCloseMissingImages: () => void;
-  onFindMissingImages: () => void;
-  onIgnoreMissingImages: () => void;
-  onOpenFolder: () => void;
   projectSwitcherOpen: boolean;
   projectSwitcherLoading: boolean;
   projectSwitcherRecents: LocalRecentWorkspace[];
   workspaceDisplayName: string;
+  footerStatusLabel?: string;
   onToggleProjectSwitcher: () => void;
   onProjectSwitcherContextMenu: (x: number, y: number) => void;
   onOpenRecentProject: (project: LocalRecentWorkspace) => void;
@@ -35,21 +24,12 @@ interface WorkspaceExplorerFooterProps {
 }
 
 export default function WorkspaceExplorerFooter({
-  missingImagesOpen,
-  missingImages,
-  missingImagesFixing,
-  missingImagesPopoverRef,
   footerSyncDot,
-  missingImagePath,
-  onToggleMissingImages,
-  onCloseMissingImages,
-  onFindMissingImages,
-  onIgnoreMissingImages,
-  onOpenFolder,
   projectSwitcherOpen,
   projectSwitcherLoading,
   projectSwitcherRecents,
   workspaceDisplayName,
+  footerStatusLabel,
   onToggleProjectSwitcher,
   onProjectSwitcherContextMenu,
   onOpenRecentProject,
@@ -69,27 +49,13 @@ export default function WorkspaceExplorerFooter({
         position: 'relative',
       }}
     >
-      {false && missingImages.length > 0 && (
-        <WorkspaceExplorerMissingImagesControl
-          ref={missingImagesPopoverRef}
-          open={missingImagesOpen}
-          missingImages={missingImages}
-          missingImagesFixing={missingImagesFixing}
-          missingImagePath={missingImagePath}
-          onToggleOpen={onToggleMissingImages}
-          onClose={onCloseMissingImages}
-          onFindMissingImages={onFindMissingImages}
-          onIgnoreMissingImages={onIgnoreMissingImages}
-          onOpenFolder={onOpenFolder}
-        />
-      )}
-
       <div style={{ position: 'relative', minWidth: 0, display: 'flex', alignItems: 'center', gap: 6, flex: 1 }}>
         <WorkspaceExplorerProjectSwitcher
           open={projectSwitcherOpen}
           loading={projectSwitcherLoading}
           recents={projectSwitcherRecents}
           workspaceDisplayName={workspaceDisplayName}
+          footerLabel={footerStatusLabel}
           footerSyncDot={footerSyncDot}
           onToggleOpen={onToggleProjectSwitcher}
           onContextMenu={onProjectSwitcherContextMenu}
