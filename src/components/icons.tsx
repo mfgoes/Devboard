@@ -8,7 +8,7 @@ import {
   Code, Eye, CircleDot, Copy, TextWrap,
   Quote, Code2, Minus, Cloud, Pencil,
   Link2, Star, ArrowLeft, ArrowRight, Unlink, Brackets, MoreHorizontal,
-  Search, Plus, User,
+  Search, Plus, User, ChevronDown,
 } from 'lucide-react';
 
 export function IconGrip()         { return <GripVertical  size={12} />; }
@@ -30,6 +30,7 @@ export function IconCloud({ size = 15 }: { size?: number }) { return <Cloud size
 export function IconSearch({ size = 15 }: { size?: number }) { return <Search size={size} />; }
 export function IconPlus({ size = 16 }: { size?: number }) { return <Plus size={size} />; }
 export function IconUser({ size = 15 }: { size?: number }) { return <User size={size} />; }
+export function IconChevronDown({ size = 14 }: { size?: number }) { return <ChevronDown size={size} strokeWidth={2.25} />; }
 export function IconList()         { return <List          size={14} />; }
 export function IconListOrdered()  { return <ListOrdered   size={14} />; }
 export function IconAlignLeft()    { return <AlignLeft     size={13} />; }

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { type PageMeta } from '../../types';
 import { FONTS } from '../../utils/fonts';
-import { IconFolder } from '../icons';
+import { IconChevronDown, IconFolder } from '../icons';
 import WorkspaceExplorerPageMenu from './WorkspaceExplorerPageMenu';
 
 interface WorkspaceExplorerPageHeaderProps {
@@ -164,13 +164,14 @@ export default function WorkspaceExplorerPageHeader({
             }}
           >
             <span style={{
-              fontSize: 10.5,
-              lineHeight: 1,
+              lineHeight: 0,
               transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
               transition: 'transform 0.16s cubic-bezier(0.22, 1, 0.36, 1)',
-              display: 'inline-block',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
             }}>
-              ▾
+              <IconChevronDown size={14} />
             </span>
           </button>
 

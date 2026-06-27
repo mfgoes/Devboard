@@ -1,17 +1,14 @@
 .workspace-section-chevron {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   margin-left: 4px;
   border-radius: 5px;
   color: var(--c-text-md);
-  font-size: 14px;
-  font-weight: 800;
   line-height: 1;
   opacity: 0;
-  transform: translateY(0.5px);
   transition: opacity 0.14s ease, background 0.14s ease;
 }
 
@@ -22,14 +19,16 @@
 }
 
 .workspace-section-chevron__glyph {
-  display: block;
-  line-height: 1;
-  transform: rotate(-90deg) translateY(-0.5px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+  transform: rotate(-90deg);
   transition: transform 0.14s ease;
 }
 
 .workspace-section-chevron.is-open .workspace-section-chevron__glyph {
-  transform: rotate(0deg) translateY(-0.5px);
+  transform: rotate(0deg);
 }
 
 .workspace-command-menu-item {

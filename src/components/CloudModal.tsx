@@ -124,7 +124,7 @@ export default function CloudModal({ open, onClose, initialTab = 'workspace' }: 
   const [showPassword, setShowPassword] = useState(false);
   const [confirmingFirstSync, setConfirmingFirstSync] = useState(false);
   const [activeWorkspaceSyncTab, setActiveWorkspaceSyncTab] = useState<'workspace' | 'library'>('workspace');
-  const [libraryTab, setLibraryTab] = useState<'cloud' | 'local'>('cloud');
+  const [libraryTab, setLibraryTab] = useState<'cloud' | 'local'>('local');
   const [duplicateReviewRoute, setDuplicateReviewRoute] = useState<DuplicateReviewRoute | null>(null);
   const [duplicateReviewSelection, setDuplicateReviewSelection] = useState<DuplicateReviewSelection>('a');
   const passwordRef = useRef<HTMLInputElement>(null);
@@ -384,7 +384,7 @@ export default function CloudModal({ open, onClose, initialTab = 'workspace' }: 
     setDownloadChoiceRowId(null);
     setAuthMessage(null);
     setActiveWorkspaceSyncTab('workspace');
-    setLibraryTab('cloud');
+    setLibraryTab('local');
     setDuplicateReviewRoute(null);
     setDuplicateReviewSelection('a');
   }, [open]);
@@ -392,7 +392,7 @@ export default function CloudModal({ open, onClose, initialTab = 'workspace' }: 
   useEffect(() => {
     if (!open) return;
     setActiveWorkspaceSyncTab(initialTab);
-    if (initialTab === 'library') setLibraryTab('cloud');
+    if (initialTab === 'library') setLibraryTab('local');
   }, [initialTab, open]);
 
   useEffect(() => {
@@ -1709,6 +1709,66 @@ export default function CloudModal({ open, onClose, initialTab = 'workspace' }: 
               Supabase is not configured yet. Add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` to enable Project Sync login and storage.
             </p>
           </div>
+        ) : !user && activeWorkspaceSyncTab === 'library' ? (
+          <div className="min-h-0 flex-1 px-5 py-5">
+            <div className="mb-4">
+              <p className="font-sans text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--c-text-lo)]">All projects</p>
+              <p className="mt-0.5 max-w-[52ch] font-sans text-[11px] leading-snug text-[var(--c-text-md)]">
+                Open a project from this device. Sign in any time to also see your cloud copies.
+              </p>
+            </div>
+
+            <div className="mb-4 inline-flex rounded-xl border border-[var(--c-border)] bg-[var(--c-panel)] p-1">
+              <button
+                type="button"
+                className="rounded-lg bg-[var(--c-line)] px-3 py-1.5 font-sans text-[11px] font-semibold text-white shadow-sm"
+                aria-pressed="true"
+              >
+                On this device
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveWorkspaceSyncTab('workspace')}
+                className="rounded-lg px-3 py-1.5 font-sans text-[11px] font-semibold text-[var(--c-text-md)] transition-colors hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]"
+                title="Sign in to see cloud projects"
+              >
+                Cloud (sign in)
+              </button>
+            </div>
+
+            <section>
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                <p className="font-sans text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--c-text-lo)]">On this device</p>
+                <div className="ml-auto flex flex-wrap items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => void handleReconnectLocalFolder()}
+                    disabled={actionLoading !== null}
+                    className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[var(--c-border)] bg-[var(--c-panel)] px-2.5 font-sans text-[11px] font-semibold text-[var(--c-text-md)] transition-colors hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)] disabled:cursor-default disabled:opacity-60"
+                  >
+                    {reconnectingLocalFolder ? 'Opening...' : 'Open local folder...'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleStartNewWorkspace}
+                    className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[var(--c-border)] bg-[var(--c-panel)] px-2.5 font-sans text-[11px] font-semibold text-[var(--c-text-md)] transition-colors hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]"
+                  >
+                    New blank project
+                  </button>
+                </div>
+              </div>
+              <div className="space-y-1.5 overflow-y-auto pr-1" style={{ maxHeight: '420px' }}>
+                {workspacesLoading && localAndRecentRows.length === 0 ? (
+                  <InlinePanel className="rounded-xl px-4 py-4 font-sans text-[12px] text-[var(--c-text-md)]">Loading recent projects...</InlinePanel>
+                ) : localAndRecentRows.length === 0 ? (
+                  <InlinePanel className="rounded-2xl px-4 py-5 text-[var(--c-text-lo)]">
+                    <p className="font-sans text-[14px] font-semibold text-[var(--c-text-hi)]">No recent projects yet</p>
+                    <p className="mt-1 font-sans text-[12px] leading-relaxed text-[var(--c-text-md)]">Open a local folder above to make it one click away here.</p>
+                  </InlinePanel>
+                ) : localAndRecentRows.map((row) => renderWorkspaceRow(row))}
+              </div>
+            </section>
+          </div>
         ) : !user ? (
           <div className="grid min-h-[640px] md:grid-cols-[minmax(0,1fr),420px]">
             <div className="flex min-w-0 items-center px-5 py-6 sm:px-8 md:px-10 md:py-10">
@@ -2091,7 +2151,7 @@ export default function CloudModal({ open, onClose, initialTab = 'workspace' }: 
                   <div>
                     <p className="font-sans text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--c-text-lo)]">All projects</p>
                     <p className="mt-0.5 max-w-[48ch] font-sans text-[11px] leading-snug text-[var(--c-text-md)]">
-                      Browse and open other projects here. Current project resolution stays in the first tab.
+                      Open a project from this device, or browse cloud copies. Local work stays free and yours.
                     </p>
                   </div>
                   <div className="relative flex shrink-0 items-center gap-1.5">
@@ -2139,8 +2199,8 @@ export default function CloudModal({ open, onClose, initialTab = 'workspace' }: 
 
                 <div className="mb-4 inline-flex rounded-xl border border-[var(--c-border)] bg-[var(--c-panel)] p-1">
                   {[
+                    { id: 'local' as const, label: 'On this device' },
                     { id: 'cloud' as const, label: 'Cloud' },
-                    { id: 'local' as const, label: 'Local & recent' },
                   ].map((tab) => (
                     <button
                       key={tab.id}
@@ -2195,8 +2255,8 @@ export default function CloudModal({ open, onClose, initialTab = 'workspace' }: 
                 {libraryTab === 'local' && (
                   <section>
                     <div className="mb-2">
-                      <p className="font-sans text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--c-text-lo)]">Local & recent</p>
-                      <p className="mt-0.5 font-sans text-[11px] leading-snug text-[var(--c-text-md)]">Local folders and remembered projects on this device.</p>
+                      <p className="font-sans text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--c-text-lo)]">On this device</p>
+                      <p className="mt-0.5 font-sans text-[11px] leading-snug text-[var(--c-text-md)]">Folders and recent projects stored locally — no account needed.</p>
                     </div>
                     <div className="space-y-1.5 overflow-y-auto pr-1" style={{ maxHeight: '390px' }}>
                       {workspacesLoading && localAndRecentRows.length === 0 ? (

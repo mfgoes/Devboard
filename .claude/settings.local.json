@@ -61,7 +61,9 @@
       "Bash(git -C /Users/mischavandergoes/Documents/GitHub/CollaboCanvas log --all --oneline -- feature-ideas.md)",
       "Bash(git check-ignore *)",
       "Bash(awk NR>=128 && NR<=145 {print NR\": [\"$0\"]\"} *)",
-      "Bash(awk 'NR>=128 && NR<=140 {print NR\": [\"$0\"] len=\"length\\($0\\)}' /Users/mischavandergoes/Documents/GitHub/CollaboCanvas/src/utils/exportMarkdown.ts)"
+      "Bash(awk 'NR>=128 && NR<=140 {print NR\": [\"$0\"] len=\"length\\($0\\)}' /Users/mischavandergoes/Documents/GitHub/CollaboCanvas/src/utils/exportMarkdown.ts)",
+      "Bash(sort -t: -k2 -n)",
+      "mcp__Claude_Preview__preview_start"
     ]
   }
 }

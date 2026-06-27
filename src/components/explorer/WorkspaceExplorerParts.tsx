@@ -1,14 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { Document } from '../../types';
 import { FSA_DIR_SUPPORTED, IN_IFRAME, IS_TAURI } from '../../utils/workspaceManager';
-import { IconDoc, IconFolder, IconStar } from '../icons';
+import { IconChevronDown, IconDoc, IconFolder, IconStar } from '../icons';
 import './workspaceExplorer.css';
 
 export function SectionChevron({ open }: { open: boolean }) {
   return (
     <span className={`workspace-section-chevron${open ? ' is-open' : ''}`} aria-hidden="true">
       <span className="workspace-section-chevron__glyph">
-        ▾
+        <IconChevronDown size={14} />
       </span>
     </span>
   );

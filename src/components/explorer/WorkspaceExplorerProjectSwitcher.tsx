@@ -1,6 +1,6 @@
 import { type LocalRecentWorkspace } from '../../utils/workspaceManager';
 import { FONTS } from '../../utils/fonts';
-import { IconFolder } from '../icons';
+import { IconChevronDown, IconFolder } from '../icons';
 
 type SyncDot = {
   label: string;
@@ -100,8 +100,8 @@ export default function WorkspaceExplorerProjectSwitcher({
         <span style={{ minWidth: 0, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12.5, fontWeight: 760 }}>
           {footerLabel ?? workspaceDisplayName}
         </span>
-        <span aria-hidden="true" style={{ flexShrink: 0, color: 'var(--c-text-lo)', fontSize: 12, lineHeight: 1 }}>
-          ▾
+        <span aria-hidden="true" style={{ flexShrink: 0, color: 'var(--c-text-lo)', display: 'inline-flex', alignItems: 'center', lineHeight: 0 }}>
+          <IconChevronDown size={14} />
         </span>
       </button>
 

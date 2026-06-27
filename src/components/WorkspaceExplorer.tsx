@@ -193,6 +193,7 @@ export default function WorkspaceExplorer({
   const [projectSwitcherRecents, setProjectSwitcherRecents] = useState<LocalRecentWorkspace[]>([]);
   const [projectMenu, setProjectMenu] = useState<{ x: number; y: number } | null>(null);
   const projectMenuRef = useRef<HTMLDivElement>(null);
+  const projectSwitcherRef = useRef<HTMLDivElement>(null);
   const [projectRenameOpen, setProjectRenameOpen] = useState(false);
   const [projectRenameDraft, setProjectRenameDraft] = useState('');
   const [preferencesOpen, setPreferencesOpen] = useState(false);
@@ -361,6 +362,7 @@ export default function WorkspaceExplorer({
   useEffect(() => {
     if (!projectSwitcherOpen) return;
     const onMouseDown = (e: MouseEvent) => {
+      if (projectSwitcherRef.current?.contains(e.target as Node)) return;
       setProjectSwitcherOpen(false);
     };
     const onKeyDown = (e: KeyboardEvent) => {
@@ -994,6 +996,7 @@ export default function WorkspaceExplorer({
 
       <WorkspaceExplorerFooter
         footerSyncDot={footerSyncDot}
+        projectSwitcherRef={projectSwitcherRef}
         projectSwitcherOpen={projectSwitcherOpen}
         projectSwitcherLoading={projectSwitcherLoading}
         projectSwitcherRecents={projectSwitcherRecents}
@@ -1010,6 +1013,7 @@ export default function WorkspaceExplorer({
           setProjectMenu(null);
           void handleOpenFolder();
         }}
+        onOpenCloudModal={() => openCloudModal()}
       />
 
       <WorkspaceExplorerProjectRenameDialog
