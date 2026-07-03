@@ -135,6 +135,7 @@ interface BoardState {
   tableHoverEdge: { nodeId: string; showBottom: boolean; showRight: boolean } | null;
   tableHoverCell: { nodeId: string; row: number; col: number } | null;
   workspaceName: string | null;
+  pendingLocalWorkspaceName: string | null; // a stored workspace handle exists but needs the user to reconnect (permission lapsed)
   workspaceSavedAt: number; // not persisted — bumped after each saveWorkspace call
   lastLocalSavedAt: number | null;
   lastLocalSaveTarget: { kind: 'workspace' | 'file' | 'note'; name?: string | null } | null;
@@ -170,6 +171,7 @@ interface BoardState {
   setTableHoverCell: (s: { nodeId: string; row: number; col: number } | null) => void;
   setReaction: (nodeId: string, emoji: string | null) => void;
   setWorkspaceName: (name: string | null) => void;
+  setPendingLocalWorkspaceName: (name: string | null) => void;
   bumpWorkspaceSaved: () => void;
   markLocalSaved: (savedAt?: number, target?: { kind: 'workspace' | 'file' | 'note'; name?: string | null }) => void;
   setExplorerOpen: (open: boolean) => void;
@@ -249,6 +251,7 @@ export const useBoardStore = create<BoardState>()(
       tableHoverEdge: null,
       tableHoverCell: null,
       workspaceName: null,
+      pendingLocalWorkspaceName: null,
       workspaceSavedAt: 0,
       lastLocalSavedAt: null,
       lastLocalSaveTarget: null,
@@ -343,7 +346,12 @@ export const useBoardStore = create<BoardState>()(
 
       setTableHoverCell: (s) => set({ tableHoverCell: s }),
 
-      setWorkspaceName: (name) => set({ workspaceName: name }),
+      setWorkspaceName: (name) => set((state) => ({
+        workspaceName: name,
+        pendingLocalWorkspaceName: name ? null : state.pendingLocalWorkspaceName,
+      })),
+
+      setPendingLocalWorkspaceName: (name) => set({ pendingLocalWorkspaceName: name }),
       bumpWorkspaceSaved: () => {
         const savedAt = Date.now();
         set((state) => ({

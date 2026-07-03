@@ -21,6 +21,7 @@ interface WorkspaceExplorerProjectSwitcherProps {
   onContextMenu: (x: number, y: number) => void;
   onOpenRecentProject: (project: LocalRecentWorkspace) => void;
   onOpenProjectsLibrary: () => void;
+  onOpenCloudModal: () => void;
 }
 
 export default function WorkspaceExplorerProjectSwitcher({
@@ -34,7 +35,9 @@ export default function WorkspaceExplorerProjectSwitcher({
   onContextMenu,
   onOpenRecentProject,
   onOpenProjectsLibrary,
+  onOpenCloudModal,
 }: WorkspaceExplorerProjectSwitcherProps) {
+  const syncIssue = footerSyncDot && (footerSyncDot.tone === 'danger' || footerSyncDot.tone === 'warning') ? footerSyncDot : null;
   return (
     <>
       <button
@@ -127,6 +130,43 @@ export default function WorkspaceExplorerProjectSwitcher({
               Switch project
             </div>
           </div>
+          {syncIssue && (
+            <div
+              style={{
+                margin: 7,
+                padding: '8px 9px',
+                borderRadius: 8,
+                background: syncIssue.tone === 'danger' ? '#fef0f0' : '#fef5ec',
+                border: `1px solid ${syncIssue.tone === 'danger' ? '#f3caca' : '#f3ddc0'}`,
+              }}
+            >
+              <div style={{ fontSize: 11, fontWeight: 760, color: syncIssue.textColor }}>
+                {syncIssue.label}
+              </div>
+              <div style={{ marginTop: 3, fontSize: 10.5, lineHeight: 1.4, color: 'var(--c-text-md)' }}>
+                {syncIssue.title}
+              </div>
+              <button
+                type="button"
+                onClick={onOpenCloudModal}
+                style={{
+                  marginTop: 7,
+                  height: 26,
+                  padding: '0 10px',
+                  border: 'none',
+                  borderRadius: 7,
+                  background: syncIssue.tone === 'danger' ? '#ef4444' : '#d97706',
+                  color: '#fff',
+                  cursor: 'pointer',
+                  fontFamily: FONTS.ui,
+                  fontSize: 10.5,
+                  fontWeight: 740,
+                }}
+              >
+                Fix in Project Sync
+              </button>
+            </div>
+          )}
           <div style={{ maxHeight: 240, overflowY: 'auto', padding: 5 }}>
             {loading && recents.length === 0 ? (
               <div style={{ padding: '10px 8px', fontSize: 11, fontWeight: 650, color: 'var(--c-text-lo)' }}>

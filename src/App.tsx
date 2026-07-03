@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { createPortal } from 'react-dom';
 import { saveBoard } from './utils/fileSave';
-import { saveWorkspace, getWorkspaceName, restoreWorkspace, setOnWorkspaceSavedCallback, MOBILE_WORKSPACE_WARNING_EVENT } from './utils/workspaceManager';
+import { saveWorkspace, getWorkspaceName, restoreWorkspace, getPendingLocalWorkspaceName, setOnWorkspaceSavedCallback, MOBILE_WORKSPACE_WARNING_EVENT } from './utils/workspaceManager';
 import { setToastListener, toast, ToastPayload } from './utils/toast';
 import {
   checkForUpdates,
@@ -14,29 +13,7 @@ import {
 import { announceLocalSave } from './utils/saveStatus';
 import { applyWorkspaceSyncFromOpenResult } from './utils/applyWorkspaceSync';
 import { extractMarkdownFiles, importMarkdownFileObjects, promptAndImportMarkdownNotes } from './utils/noteImport';
-
-// Tauri event listener — only active when running inside a Tauri window
-async function listenTauriMenus(handlers: Record<string, () => void>) {
-  try {
-    const { listen } = await import('@tauri-apps/api/event');
-    const unlisten: Array<() => void> = [];
-    for (const [event, handler] of Object.entries(handlers)) {
-      unlisten.push(await listen(event, handler));
-    }
-    // URL opener (help menu links)
-    const { listen: listenUrl } = await import('@tauri-apps/api/event');
-    unlisten.push(await listenUrl('menu:open_url', (e) => {
-      window.open(e.payload as string, '_blank', 'noopener');
-    }));
-    // Tool switcher (View > Tools menu)
-    unlisten.push(await listen('menu:tool', (e) => {
-      useBoardStore.getState().setActiveTool(e.payload as import('./types').Tool);
-    }));
-    return () => unlisten.forEach((u) => u());
-  } catch {
-    return () => {};
-  }
-}
+import { listenTauriMenus, shouldKeepSidePanelOpenForTarget, loadFromHash, isBraveBrowser, generateId } from './utils/appHelpers';
 import Canvas from './components/Canvas';
 import Toolbar from './components/Toolbar';
 import ZoomToolbar from './components/ZoomToolbar';
@@ -58,7 +35,7 @@ import { useAuth } from './contexts/AuthContext';
 import { applyTheme } from './theme';
 import { createWelcomeBoard } from './templates/welcomeBoard';
 import devboardIconUrl from './assets/devboard_icon.png';
-import { DARK_MENU_COLORS } from './components/darkMenuTheme';
+import { CollapsedRailTooltip } from './components/CollapsedRailTooltip';
 
 const EXPLORER_COLLAPSED_WIDTH = 48;
 const MOBILE_NOTE_BREAKPOINT = 768;
@@ -68,143 +45,6 @@ const DOCUMENT_FULLSCREEN_Z = 210;
 const MORPH_MS = 380;
 const PANEL_SLIDE_MS = 220;
 const IS_WINDOWS = typeof navigator !== 'undefined' && navigator.userAgent.includes('Windows');
-
-function shouldKeepSidePanelOpenForTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  return !!target.closest([
-    'button',
-    'a',
-    'input',
-    'textarea',
-    'select',
-    '[contenteditable="true"]',
-    '[data-side-panel-open-target="true"]',
-    '[data-native-clipboard="true"]',
-    '[role="button"]',
-    '[role="menu"]',
-    '[role="dialog"]',
-  ].join(','));
-}
-
-function loadFromHash() {
-  const hash = window.location.hash;
-  const match = hash.match(/^#board=(.+)$/);
-  if (!match) return;
-  try {
-    const decoded = decodeURIComponent(escape(atob(match[1])));
-    const data = JSON.parse(decoded);
-    if (data.nodes && Array.isArray(data.nodes)) {
-      useBoardStore.getState().loadBoard(data);
-      history.replaceState(null, '', window.location.pathname);
-    }
-  } catch {
-    console.warn('Failed to load board from URL hash.');
-  }
-}
-
-async function isBraveBrowser(): Promise<boolean> {
-  return !!(navigator as Navigator & { brave?: { isBrave?: () => Promise<boolean> } }).brave?.isBrave
-    && await (navigator as Navigator & { brave?: { isBrave?: () => Promise<boolean> } }).brave!.isBrave!();
-}
-
-function generateId() { return Math.random().toString(36).slice(2, 11); }
-
-function CollapsedRailTooltip({
-  label,
-  children,
-  style,
-}: {
-  label: string;
-  children: React.ReactNode;
-  style?: React.CSSProperties;
-}) {
-  const anchorRef = useRef<HTMLDivElement>(null);
-  const [open, setOpen] = useState(false);
-  const [position, setPosition] = useState({ x: 0, y: 0 });
-
-  const updatePosition = useCallback(() => {
-    const rect = anchorRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    setPosition({
-      x: rect.right,
-      y: rect.top + rect.height / 2,
-    });
-  }, []);
-
-  useEffect(() => {
-    if (!open) return;
-
-    updatePosition();
-    window.addEventListener('resize', updatePosition);
-    window.addEventListener('scroll', updatePosition, true);
-    return () => {
-      window.removeEventListener('resize', updatePosition);
-      window.removeEventListener('scroll', updatePosition, true);
-    };
-  }, [open, updatePosition]);
-
-  return (
-    <div
-      ref={anchorRef}
-      style={{ position: 'relative', display: 'inline-flex', ...style }}
-      onMouseEnter={() => { updatePosition(); setOpen(true); }}
-      onMouseLeave={() => setOpen(false)}
-      onFocusCapture={() => { updatePosition(); setOpen(true); }}
-      onBlurCapture={(e) => {
-        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOpen(false);
-      }}
-    >
-      {children}
-      {open && typeof document !== 'undefined' && createPortal(
-        <div
-          style={{
-            position: 'fixed',
-            left: position.x,
-            top: position.y,
-            zIndex: 99999,
-            transform: 'translate(10px, -50%)',
-            pointerEvents: 'none',
-          }}
-        >
-          <div
-            style={{
-              position: 'relative',
-              padding: '6px 10px',
-              borderRadius: 8,
-              background: DARK_MENU_COLORS.surface,
-              color: DARK_MENU_COLORS.textHi,
-              fontFamily: 'var(--font-ui)',
-              fontSize: 12,
-              fontWeight: 600,
-              lineHeight: 1,
-              whiteSpace: 'nowrap',
-              boxShadow: '0 12px 28px rgba(0,0,0,0.28)',
-              border: `1px solid ${DARK_MENU_COLORS.border}`,
-            }}
-          >
-            {label}
-            <span
-              aria-hidden="true"
-              style={{
-                position: 'absolute',
-                right: '100%',
-                top: '50%',
-                width: 8,
-                height: 8,
-                transform: 'translate(4px, -50%) rotate(45deg)',
-                borderLeft: `1px solid ${DARK_MENU_COLORS.border}`,
-                borderBottom: `1px solid ${DARK_MENU_COLORS.border}`,
-                background: DARK_MENU_COLORS.surface,
-                borderRadius: 1,
-              }}
-            />
-          </div>
-        </div>,
-        document.body,
-      )}
-    </div>
-  );
-}
 
 export default function App() {
   const { user } = useAuth();
@@ -696,7 +536,15 @@ export default function App() {
   // Restore previously granted localhost workspace handle when possible.
   useEffect(() => {
     restoreWorkspace().then((result) => {
-      if (!result) return;
+      if (!result) {
+        // Permission may have lapsed (browsers demote directory-handle grants
+        // across sessions) even though a workspace was picked before. Surface
+        // that so the sidebar can offer "Reconnect" instead of looking empty.
+        getPendingLocalWorkspaceName().then((name) => {
+          if (name) useBoardStore.getState().setPendingLocalWorkspaceName(name);
+        });
+        return;
+      }
       useBoardStore.getState().setWorkspaceName(result.name);
       useBoardStore.getState().bumpWorkspaceSaved();
       if (result.data) useBoardStore.getState().loadBoard(result.data);

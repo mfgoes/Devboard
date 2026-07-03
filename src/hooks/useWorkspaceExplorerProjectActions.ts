@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { useBoardStore } from '../store/boardStore';
 import type { LocalRecentWorkspace, WorkspaceOpenResult } from '../utils/workspaceManager';
-import { hasWorkspaceHandle, listLocalRecentWorkspaces, openRecentWorkspace, openWorkspace, saveWorkspace } from '../utils/workspaceManager';
+import { hasWorkspaceHandle, listLocalRecentWorkspaces, openRecentWorkspace, openWorkspace, reconnectStoredWorkspace, saveWorkspace } from '../utils/workspaceManager';
 import { toast } from '../utils/toast';
 
 interface UseWorkspaceExplorerProjectActionsArgs {
@@ -54,6 +54,16 @@ export function useWorkspaceExplorerProjectActions({
       applyOpenedWorkspaceResult(result);
     }
   }, [applyOpenedWorkspaceResult, closeSidebarMenus]);
+
+  const handleReconnectWorkspace = useCallback(async () => {
+    const result = await reconnectStoredWorkspace();
+    if (!result) {
+      toast('Could not reconnect that folder. Choose Open folder… instead.');
+      useBoardStore.getState().setPendingLocalWorkspaceName(null);
+      return;
+    }
+    applyOpenedWorkspaceResult(result);
+  }, [applyOpenedWorkspaceResult]);
 
   const handleToggleProjectSwitcher = useCallback(() => {
     if (projectSwitcherOpen) {
@@ -116,6 +126,7 @@ export function useWorkspaceExplorerProjectActions({
 
   return {
     handleOpenFolder,
+    handleReconnectWorkspace,
     loadProjectSwitcherRecents,
     handleToggleProjectSwitcher,
     handleOpenProjectsLibrary,

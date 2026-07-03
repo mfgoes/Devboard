@@ -617,7 +617,11 @@ export default function Canvas({ onBackgroundInteract }: CanvasProps) {
             setShowImageNotice(false);
             if (result) {
               useBoardStore.getState().setWorkspaceName(result.name);
-              if (result.data) useBoardStore.getState().loadBoard(result.data);
+              if (result.data) {
+                useBoardStore.getState().loadBoard(result.data);
+              } else {
+                useBoardStore.getState().loadBoard({ boardTitle: result.name, nodes: [] });
+              }
               applyWorkspaceSyncFromOpenResult(result);
               const pending = pendingImageFile.current;
               pendingImageFile.current = null;

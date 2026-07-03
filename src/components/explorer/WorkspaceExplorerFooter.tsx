@@ -82,6 +82,7 @@ export default function WorkspaceExplorerFooter({
           onContextMenu={onProjectSwitcherContextMenu}
           onOpenRecentProject={onOpenRecentProject}
           onOpenProjectsLibrary={onOpenProjectsLibrary}
+          onOpenCloudModal={onOpenCloudModal}
         />
       </div>
 

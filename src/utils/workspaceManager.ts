@@ -754,6 +754,58 @@ export async function restoreWorkspace(): Promise<WorkspaceOpenResult | null> {
   }
 }
 
+/**
+ * Peeks at the name of a previously-picked workspace handle without touching the
+ * Permissions API, so the UI can show "Reconnect to <name>" instead of a blank
+ * "No folder open" state when a handle exists but its permission has lapsed
+ * (browsers demote directory-handle grants back to 'prompt' across sessions).
+ */
+export async function getPendingLocalWorkspaceName(): Promise<string | null> {
+  if (IS_TAURI || IN_IFRAME || typeof window === 'undefined' || !('showDirectoryPicker' in window)) return null;
+  try {
+    const stored = await getStoredWorkspaceHandle();
+    if (!stored) return null;
+    const permissionApi = stored as FileSystemDirectoryHandle & {
+      queryPermission?: (descriptor?: { mode?: 'read' | 'readwrite' }) => Promise<PermissionState>;
+    };
+    const permission = await permissionApi.queryPermission?.({ mode: 'readwrite' });
+    if (permission === 'granted') return null;
+    return stored.name;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Re-requests permission on the previously-picked workspace handle. Must be called
+ * from within a user-gesture handler (click), since requestPermission() is rejected
+ * by browsers otherwise.
+ */
+export async function reconnectStoredWorkspace(): Promise<WorkspaceOpenResult | null> {
+  if (IS_TAURI || IN_IFRAME || typeof window === 'undefined' || !('showDirectoryPicker' in window)) return null;
+  try {
+    const stored = await getStoredWorkspaceHandle();
+    if (!stored) return null;
+    const permissionApi = stored as FileSystemDirectoryHandle & {
+      queryPermission?: (descriptor?: { mode?: 'read' | 'readwrite' }) => Promise<PermissionState>;
+      requestPermission?: (descriptor?: { mode?: 'read' | 'readwrite' }) => Promise<PermissionState>;
+    };
+    let permission = await permissionApi.queryPermission?.({ mode: 'readwrite' });
+    if (permission !== 'granted') {
+      permission = await permissionApi.requestPermission?.({ mode: 'readwrite' });
+    }
+    if (permission !== 'granted') return null;
+    workspaceHandle = stored;
+    await persistWorkspaceHandle(stored);
+    const result = await getBrowserWorkspaceData(stored);
+    await recordCurrentWorkspaceRecent(result.data?.boardTitle ?? result.name, { openedAt: Date.now(), data: result.data });
+    toast(result.data ? `Reconnected · ${result.name}` : `Reconnected · ${result.name} (no board found yet)`);
+    return result;
+  } catch {
+    return null;
+  }
+}
+
 // ── Tauri helpers ──────────────────────────────────────────────────────────────
 
 function joinPath(...parts: string[]): string {

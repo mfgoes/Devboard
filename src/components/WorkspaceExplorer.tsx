@@ -142,6 +142,7 @@ export default function WorkspaceExplorer({
 
   // Reload tree when workspace is opened externally (e.g. via TopBar)
   const storeWorkspaceName = useBoardStore((s) => s.workspaceName);
+  const pendingLocalWorkspaceName = useBoardStore((s) => s.pendingLocalWorkspaceName);
   const workspaceSavedAt = useBoardStore((s) => s.workspaceSavedAt);
   const prevStoreWorkspaceRef = useRef(storeWorkspaceName);
   const prevWorkspaceSavedAtRef = useRef(workspaceSavedAt);
@@ -462,13 +463,20 @@ export default function WorkspaceExplorer({
     setMissingImagesOpen(false);
     setProjectSwitcherOpen(false);
     useBoardStore.getState().setWorkspaceName?.(result.name);
-    if (result.data) useBoardStore.getState().loadBoard(result.data);
+    // A folder with no existing workspace.json still needs the old board cleared —
+    // otherwise the previously open project's pages/notes stay visible under the new name.
+    if (result.data) {
+      useBoardStore.getState().loadBoard(result.data);
+    } else {
+      useBoardStore.getState().loadBoard({ boardTitle: result.name, nodes: [] });
+    }
     applyWorkspaceSyncFromOpenResult(result);
     reloadWorkspaceRootTree();
   }, [reloadWorkspaceRootTree]);
 
   const {
     handleOpenFolder,
+    handleReconnectWorkspace,
     loadProjectSwitcherRecents,
     handleToggleProjectSwitcher,
     handleOpenProjectsLibrary,
@@ -583,6 +591,11 @@ export default function WorkspaceExplorer({
     const canvasPageIds = new Set(documents.filter((doc) => doc.docType === 'canvas' && doc.canvasPageId).map((doc) => doc.canvasPageId));
     return pages.filter((page) => !page.isCanvasDocument && !canvasPageIds.has(page.id));
   }, [documents, pages]);
+
+  // A previously-picked workspace handle exists but its permission lapsed (browsers
+  // demote directory-handle grants across sessions). The last-synced folder tree is
+  // still sitting in persisted local state, so show it dimmed instead of a blank card.
+  const isReconnectPending = !!pendingLocalWorkspaceName && folderPages.length > 0;
 
   const favoriteDocs = useMemo(
     () => documents.filter((doc) => doc.isFavorite).sort((a, b) => b.updatedAt - a.updatedAt),
@@ -901,6 +914,14 @@ export default function WorkspaceExplorer({
         />
       )}
 
+      {!hasWorkspaceContext && !isReconnectPending && (
+        <NoWorkspaceState
+          onOpen={() => { void handleOpenFolder(); }}
+          pendingWorkspaceName={pendingLocalWorkspaceName}
+          onReconnect={() => { void handleReconnectWorkspace(); }}
+        />
+      )}
+
       {hasWorkspaceContext && missingImages.length > 0 && !missingImagesSuppressed && (
         <div style={{ flexShrink: 0, padding: '0 10px 8px', position: 'relative' }}>
           <WorkspaceExplorerMissingImagesControl
@@ -934,9 +955,11 @@ export default function WorkspaceExplorer({
           minHeight: 0,
           overflowY: 'auto',
           scrollbarWidth: 'thin',
+          position: 'relative',
         }}
       >
-      {hasWorkspaceContext && documents.length > 0 && (
+      <div className={isReconnectPending ? 'workspace-reconnect-dimmed' : undefined}>
+      {(hasWorkspaceContext || isReconnectPending) && documents.length > 0 && (
         <div style={{ borderBottom: '0.5px solid var(--c-sidebar-border)', flexShrink: 0 }}>
           <WorkspaceExplorerFavoritesSection
             open={favoritesSectionOpen}
@@ -953,7 +976,7 @@ export default function WorkspaceExplorer({
       )}
 
       <WorkspaceExplorerFoldersSection
-        open={hasWorkspaceContext && folderPages.length > 0}
+        open={(hasWorkspaceContext || isReconnectPending) && folderPages.length > 0}
         folderPages={folderPages}
         pages={pages}
         pagesSectionOpen={pagesSectionOpen}
@@ -992,6 +1015,20 @@ export default function WorkspaceExplorer({
         onNoteHover={showNotePreview}
         onNoteLeave={clearNotePreview}
       />
+      </div>
+
+      {isReconnectPending && (
+        <button
+          type="button"
+          className="workspace-reconnect-overlay"
+          onClick={() => { void handleReconnectWorkspace(); }}
+          aria-label={`Reconnect to "${pendingLocalWorkspaceName}" to edit`}
+        >
+          <span className="workspace-reconnect-overlay__badge">
+            Reconnect to &quot;{pendingLocalWorkspaceName}&quot; to edit
+          </span>
+        </button>
+      )}
       </div>
 
       <WorkspaceExplorerFooter

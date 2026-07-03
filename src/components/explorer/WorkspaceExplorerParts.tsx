@@ -254,7 +254,18 @@ export function NoteShortcutRow({
   );
 }
 
-export function NoWorkspaceState({ onOpen, onCreate }: { onOpen: () => void; onCreate?: () => void }) {
+export function NoWorkspaceState({
+  onOpen,
+  onCreate,
+  pendingWorkspaceName,
+  onReconnect,
+}: {
+  onOpen: () => void;
+  onCreate?: () => void;
+  /** Name of a previously-picked folder whose access permission has lapsed. */
+  pendingWorkspaceName?: string | null;
+  onReconnect?: () => void;
+}) {
   const [isBrave, setIsBrave] = useState(false);
 
   useEffect(() => {
@@ -270,23 +281,30 @@ export function NoWorkspaceState({ onOpen, onCreate }: { onOpen: () => void; onC
   }, []);
 
   const browserWorkspaceUnavailable = !IS_TAURI && !FSA_DIR_SUPPORTED;
-  const title = browserWorkspaceUnavailable
-    ? 'Folder access is unavailable here'
-    : isBrave
-      ? 'Open a folder to start'
-      : 'No folder open';
-  const body = browserWorkspaceUnavailable
-    ? IN_IFRAME
-      ? 'This embedded browser view cannot grant folder access. Open DevBoard in its own tab or use the desktop app to work with project folders.'
-      : 'This browser session cannot open project folders. Use the desktop app or a desktop Chromium browser with File System Access support.'
-    : isBrave
-      ? 'Brave desktop can usually open project folders, but Shields or privacy settings may block the folder picker on some setups.'
-      : 'A project is a normal folder where DevBoard keeps your pages, notes, and assets so everything reopens together later.';
-  const tip = browserWorkspaceUnavailable
-    ? 'Project folders need desktop browser support or the desktop app.'
-    : isBrave
-      ? 'If Open folder does nothing in Brave, click the lion icon in the address bar, disable Shields for this page, and try again.'
-      : 'Tip: use a dedicated project folder so workspace.json, pages/, notes/, and assets/ stay together.';
+  const canReconnect = !!pendingWorkspaceName && !!onReconnect && !browserWorkspaceUnavailable;
+  const title = canReconnect
+    ? `Reconnect to "${pendingWorkspaceName}"`
+    : browserWorkspaceUnavailable
+      ? 'Folder access is unavailable here'
+      : isBrave
+        ? 'Open a folder to start'
+        : 'No folder open';
+  const body = canReconnect
+    ? 'Your browser needs permission again before DevBoard can read this folder. Nothing was lost — reconnect to pick up where you left off.'
+    : browserWorkspaceUnavailable
+      ? IN_IFRAME
+        ? 'This embedded browser view cannot grant folder access. Open DevBoard in its own tab or use the desktop app to work with project folders.'
+        : 'This browser session cannot open project folders. Use the desktop app or a desktop Chromium browser with File System Access support.'
+      : isBrave
+        ? 'Brave desktop can usually open project folders, but Shields or privacy settings may block the folder picker on some setups.'
+        : 'A project is a normal folder where DevBoard keeps your pages, notes, and assets so everything reopens together later.';
+  const tip = canReconnect
+    ? 'Browsers ask for folder permission again each session for your privacy.'
+    : browserWorkspaceUnavailable
+      ? 'Project folders need desktop browser support or the desktop app.'
+      : isBrave
+        ? 'If Open folder does nothing in Brave, click the lion icon in the address bar, disable Shields for this page, and try again.'
+        : 'Tip: use a dedicated project folder so workspace.json, pages/, notes/, and assets/ stay together.';
 
   return (
     <div className="workspace-empty-state">
@@ -302,20 +320,29 @@ export function NoWorkspaceState({ onOpen, onCreate }: { onOpen: () => void; onC
         </p>
       </div>
       <div className="workspace-empty-state__actions">
-        {onCreate && !browserWorkspaceUnavailable && (
+        {canReconnect ? (
           <button
-            onClick={onCreate}
+            onClick={onReconnect}
             className="workspace-empty-state__button is-create"
           >
-            Create project…
+            Reconnect folder…
           </button>
+        ) : (
+          onCreate && !browserWorkspaceUnavailable && (
+            <button
+              onClick={onCreate}
+              className="workspace-empty-state__button is-create"
+            >
+              Create project…
+            </button>
+          )
         )}
         <button
           onClick={onOpen}
           disabled={browserWorkspaceUnavailable}
-          className={`workspace-empty-state__button${onCreate ? ' is-secondary' : ''}`}
+          className={`workspace-empty-state__button${(canReconnect || onCreate) ? ' is-secondary' : ''}`}
         >
-          {onCreate ? 'Open existing folder…' : 'Open folder…'}
+          {canReconnect ? 'Open a different folder…' : onCreate ? 'Open existing folder…' : 'Open folder…'}
         </button>
       </div>
       <p className="workspace-empty-state__tip">

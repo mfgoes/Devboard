@@ -317,3 +317,39 @@
   cursor: default;
   opacity: 0.7;
 }
+
+.workspace-reconnect-dimmed {
+  opacity: 0.6;
+  pointer-events: none;
+  user-select: none;
+}
+
+.workspace-reconnect-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 16px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.workspace-reconnect-overlay__badge {
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: var(--c-line);
+  color: #fff;
+  font-family: var(--font-ui);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+  white-space: nowrap;
+}
+
+.workspace-reconnect-overlay:hover .workspace-reconnect-overlay__badge {
+  filter: brightness(1.08);
+}
