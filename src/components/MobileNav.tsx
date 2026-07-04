@@ -1,8 +1,8 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useBoardStore } from '../store/boardStore';
 import type { Document, PageMeta } from '../types';
-import { IconArrowLeft, IconCloud, IconDoc, IconFolder, IconFreeformPage, IconPlus, IconSearch, IconStackPage, IconUser } from './icons';
+import { IconArrowLeft, IconCanvasDoc, IconCloud, IconDoc, IconFolder, IconFreeformPage, IconPlus, IconSearch, IconStackPage, IconUser } from './icons';
 
 type MobileTab = 'folders' | 'search' | 'sync' | 'account';
 
@@ -53,6 +53,7 @@ export default function MobileNav({ onOpenSync, onOpenAccount }: MobileNavProps)
   const cloudSyncedAt = useBoardStore((s) => s.cloudSyncedAt);
   const lastLocalSavedAt = useBoardStore((s) => s.lastLocalSavedAt);
   const addDocument = useBoardStore((s) => s.addDocument);
+  const addCanvasDocument = useBoardStore((s) => s.addCanvasDocument);
   const openDocument = useBoardStore((s) => s.openDocument);
   const openCanvasDocument = useBoardStore((s) => s.openCanvasDocument);
   const switchPage = useBoardStore((s) => s.switchPage);
@@ -61,6 +62,18 @@ export default function MobileNav({ onOpenSync, onOpenAccount }: MobileNavProps)
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
   const [folderView, setFolderView] = useState<'list' | 'grid'>('list');
   const [query, setQuery] = useState('');
+  const [newMenuOpen, setNewMenuOpen] = useState(false);
+  const newMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!newMenuOpen) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (newMenuRef.current?.contains(event.target as Node)) return;
+      setNewMenuOpen(false);
+    };
+    window.addEventListener('pointerdown', onPointerDown);
+    return () => window.removeEventListener('pointerdown', onPointerDown);
+  }, [newMenuOpen]);
 
   const folderPages = useMemo(() => {
     const canvasPageIds = new Set(documents.filter((doc) => doc.docType === 'canvas' && doc.canvasPageId).map((doc) => doc.canvasPageId));
@@ -88,6 +101,7 @@ export default function MobileNav({ onOpenSync, onOpenAccount }: MobileNavProps)
   };
 
   const createNote = () => {
+    setNewMenuOpen(false);
     const currentPage = pages.find((entry) => entry.id === activePageId);
     const fallbackPageId = currentPage?.isCanvasDocument ? (currentPage.parentPageId ?? activePageId) : activePageId;
     const pageId = selectedPage?.id ?? fallbackPageId;
@@ -100,6 +114,14 @@ export default function MobileNav({ onOpenSync, onOpenAccount }: MobileNavProps)
       orderIndex: existing.length,
     });
     openDocument(id);
+  };
+
+  const createCanvas = () => {
+    setNewMenuOpen(false);
+    const currentPage = pages.find((entry) => entry.id === activePageId);
+    const fallbackPageId = currentPage?.isCanvasDocument ? (currentPage.parentPageId ?? activePageId) : activePageId;
+    const pageId = selectedPage?.id ?? fallbackPageId;
+    addCanvasDocument(pageId);
   };
 
   const searchResults = useMemo(() => {
@@ -277,10 +299,31 @@ export default function MobileNav({ onOpenSync, onOpenAccount }: MobileNavProps)
       <nav className="mobile-nav-bottom" aria-label="Primary">
         {tabButton('folders', <IconFolder size={22} />, 'Folders')}
         {tabButton('search', <IconSearch size={22} />, 'Search')}
-        <button type="button" className="mobile-nav-new" aria-label="New note" onClick={createNote}>
-          <IconPlus size={28} />
-          <span>New</span>
-        </button>
+        <div ref={newMenuRef} className="mobile-nav-new-wrap">
+          {newMenuOpen && (
+            <div className="mobile-nav-new-menu" role="menu">
+              <button type="button" role="menuitem" onClick={createNote}>
+                <IconDoc />
+                <span>New note</span>
+              </button>
+              <button type="button" role="menuitem" onClick={createCanvas}>
+                <IconCanvasDoc size={15} />
+                <span>New canvas</span>
+              </button>
+            </div>
+          )}
+          <button
+            type="button"
+            className="mobile-nav-new"
+            aria-label="New"
+            aria-haspopup="menu"
+            aria-expanded={newMenuOpen}
+            onClick={() => setNewMenuOpen((v) => !v)}
+          >
+            <IconPlus size={28} />
+            <span>New</span>
+          </button>
+        </div>
         {tabButton('sync', <IconCloud size={22} />, 'Sync')}
         {tabButton('account', <IconUser size={22} />, 'Account')}
       </nav>

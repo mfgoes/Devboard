@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { type LocalRecentWorkspace } from '../../utils/workspaceManager';
 import { FONTS } from '../../utils/fonts';
 import { IconChevronDown, IconFolder } from '../icons';
@@ -20,6 +21,7 @@ interface WorkspaceExplorerProjectSwitcherProps {
   onToggleOpen: () => void;
   onContextMenu: (x: number, y: number) => void;
   onOpenRecentProject: (project: LocalRecentWorkspace) => void;
+  onRelocateRecentProject: (project: LocalRecentWorkspace) => void;
   onOpenProjectsLibrary: () => void;
   onOpenCloudModal: () => void;
 }
@@ -34,10 +36,20 @@ export default function WorkspaceExplorerProjectSwitcher({
   onToggleOpen,
   onContextMenu,
   onOpenRecentProject,
+  onRelocateRecentProject,
   onOpenProjectsLibrary,
   onOpenCloudModal,
 }: WorkspaceExplorerProjectSwitcherProps) {
   const syncIssue = footerSyncDot && (footerSyncDot.tone === 'danger' || footerSyncDot.tone === 'warning') ? footerSyncDot : null;
+  const [openingId, setOpeningId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!loading) setOpeningId(null);
+  }, [loading]);
+
+  useEffect(() => {
+    if (!open) setOpeningId(null);
+  }, [open]);
   return (
     <>
       <button
@@ -180,23 +192,31 @@ export default function WorkspaceExplorerProjectSwitcher({
               recents.map((recent) => {
                 const isCurrent = recent.title === workspaceDisplayName;
                 const unavailable = recent.permissionState === 'denied' || recent.permissionState === 'missing';
-                const subtitle = unavailable
-                  ? 'Folder access needed'
-                  : recent.localPathHint
-                    ? recent.localPathHint.replace(/\\/g, '/').split('/').slice(-2).join('/')
-                    : recent.source === 'tauri'
-                      ? 'Desktop folder'
-                      : 'Browser folder';
+                const isOpening = openingId === recent.id;
+                const subtitle = isOpening
+                  ? (unavailable ? 'Opening folder picker…' : 'Opening…')
+                  : unavailable
+                    ? 'Needs folder access · click to locate'
+                    : recent.localPathHint
+                      ? recent.localPathHint.replace(/\\/g, '/').split('/').slice(-2).join('/')
+                      : recent.source === 'tauri'
+                        ? 'Desktop folder'
+                        : 'Browser folder';
                 return (
                   <button
                     key={recent.id}
                     type="button"
                     onClick={() => {
-                      if (isCurrent) return;
-                      onOpenRecentProject(recent);
+                      if (isCurrent || loading) return;
+                      setOpeningId(recent.id);
+                      if (unavailable) {
+                        onRelocateRecentProject(recent);
+                      } else {
+                        onOpenRecentProject(recent);
+                      }
                     }}
                     disabled={loading}
-                    title={recent.localPathHint ?? recent.title}
+                    title={unavailable ? `${recent.title} — folder access needed, click to locate it` : (recent.localPathHint ?? recent.title)}
                     style={{
                       width: '100%',
                       minHeight: 42,
@@ -206,23 +226,39 @@ export default function WorkspaceExplorerProjectSwitcher({
                       padding: '7px 8px',
                       border: 'none',
                       borderRadius: 9,
-                      background: isCurrent ? 'var(--c-hover)' : 'transparent',
+                      background: isCurrent ? 'var(--c-hover)' : isOpening ? 'var(--c-hover)' : 'transparent',
                       color: unavailable ? 'var(--c-text-lo)' : 'var(--c-text-hi)',
                       cursor: loading ? 'default' : 'pointer',
                       fontFamily: FONTS.ui,
                       textAlign: 'left',
-                      opacity: loading ? 0.72 : 1,
+                      opacity: loading && !isOpening ? 0.55 : 1,
                     }}
                     onMouseEnter={(e) => {
                       if (!isCurrent) e.currentTarget.style.background = 'var(--c-hover)';
                     }}
                     onMouseLeave={(e) => {
-                      if (!isCurrent) e.currentTarget.style.background = 'transparent';
+                      if (!isCurrent && !isOpening) e.currentTarget.style.background = 'transparent';
                     }}
                   >
                     <span style={{ position: 'relative', display: 'inline-flex', color: unavailable ? 'var(--c-text-lo)' : 'var(--c-text-md)', flexShrink: 0 }}>
-                      <IconFolder size={14} />
-                      {recent.cloudBoardId && (
+                      {isOpening ? (
+                        <span
+                          aria-hidden="true"
+                          style={{
+                            width: 14,
+                            height: 14,
+                            borderRadius: '50%',
+                            border: '1.6px solid var(--c-text-lo)',
+                            borderTopColor: 'transparent',
+                            animation: 'spin 0.7s linear infinite',
+                            display: 'inline-block',
+                            boxSizing: 'border-box',
+                          }}
+                        />
+                      ) : (
+                        <IconFolder size={14} />
+                      )}
+                      {recent.cloudBoardId && !isOpening && (
                         <span
                           aria-hidden="true"
                           style={{
@@ -242,7 +278,7 @@ export default function WorkspaceExplorerProjectSwitcher({
                       <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12, fontWeight: 740 }}>
                         {recent.title}
                       </span>
-                      <span style={{ display: 'block', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 10, fontWeight: 600, color: unavailable ? '#b45309' : 'var(--c-text-lo)' }}>
+                      <span style={{ display: 'block', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 10, fontWeight: 600, color: isOpening ? 'var(--c-text-md)' : unavailable ? '#b45309' : 'var(--c-text-lo)' }}>
                         {subtitle}
                       </span>
                     </span>

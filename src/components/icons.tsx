@@ -8,7 +8,7 @@ import {
   Code, Eye, CircleDot, Copy, TextWrap,
   Quote, Code2, Minus, Cloud, Pencil,
   Link2, Star, ArrowLeft, ArrowRight, Unlink, Brackets, MoreHorizontal,
-  Search, Plus, User, ChevronDown,
+  Search, Plus, User, ChevronDown, Check,
 } from 'lucide-react';
 
 export function IconGrip()         { return <GripVertical  size={12} />; }
@@ -53,6 +53,7 @@ export function IconUnlink({ size = 14 }: { size?: number }) { return <Unlink si
 export function IconStar({ filled = false, size = 13 }: { filled?: boolean; size?: number }) {
   return <Star size={size} fill={filled ? 'currentColor' : 'none'} />;
 }
+export function IconCheck({ size = 12 }: { size?: number }) { return <Check size={size} strokeWidth={3} />; }
 export function IconSidebarToggle({ size = 16 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden="true">

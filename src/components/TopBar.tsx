@@ -337,9 +337,8 @@ export default function TopBar({ onShowAbout, onNewNote, onToggleTimer, explorer
     playExportSound();
   };
 
-  const handleImportNotes = async () => {
-    setMenuOpen(false);
-    await promptAndImportMarkdownNotes();
+  const handleImportNotes = () => {
+    void promptAndImportMarkdownNotes();
   };
 
   const handleImportTableCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -597,6 +596,7 @@ export default function TopBar({ onShowAbout, onNewNote, onToggleTimer, explorer
                 newNote: onNewNote,
                 newCanvas: handleNewCanvasFromMenu,
                 newFolder: () => addPage(),
+                importMarkdown: handleImportNotes,
                 openLocalFolder: () => { void handleOpenFolder(); },
                 openRecentProject: (project) => { void handleOpenRecentProject(project); },
                 allProjects: handleOpenProjectsLibrary,

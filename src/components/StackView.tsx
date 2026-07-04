@@ -1,10 +1,11 @@
 import { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch, type ReactNode, type RefObject, type SetStateAction } from 'react';
 import { useBoardStore } from '../store/boardStore';
 import { Document, FolderDescriptor } from '../types';
-import { IconCanvasDoc, IconDoc, IconFolder, IconFreeformPage, IconStackPage, IconStar } from './icons';
+import { IconCanvasDoc, IconCheck, IconDoc, IconFolder, IconFreeformPage, IconStackPage, IconStar } from './icons';
 import { IS_TAURI, readWorkspaceFileInfo, revealInFinder } from '../utils/workspaceManager';
 import { exportDocumentAsMarkdownFile, exportDocumentAsPdf, exportDocumentAsTextFile } from '../utils/documentExport';
 import DocumentMode from './DocumentMode';
+import StackBulkActionBar from './StackBulkActionBar';
 
 function stripHtml(html: string): string {
   return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -100,6 +101,11 @@ interface StackCardProps {
   onRenameDraftChange: (value: string) => void;
   onRenameCommit: () => void;
   onRenameCancel: () => void;
+  selected?: boolean;
+  selectionActive?: boolean;
+  onSelectToggle?: () => void;
+  onModifiedClick?: (e: React.MouseEvent) => void;
+  registerEl?: (el: HTMLDivElement | null) => void;
 }
 
 function StackCard({
@@ -116,8 +122,13 @@ function StackCard({
   onRenameDraftChange,
   onRenameCommit,
   onRenameCancel,
+  selected = false,
+  selectionActive = false,
+  onSelectToggle,
+  onModifiedClick,
+  registerEl,
 }: StackCardProps) {
-  const cardRef = useRef<HTMLDivElement>(null);
+  const cardRef = useRef<HTMLDivElement | null>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const isGrid = viewMode === 'grid';
   const isCanvasDoc = doc.docType === 'canvas';
@@ -144,8 +155,12 @@ function StackCard({
 		: hovered
 			? (isGrid ? '0 10px 22px rgba(25,18,14,0.06)' : '0 6px 14px rgba(25,18,14,0.05)')
 			: (isGrid ? '0 3px 10px rgba(25,18,14,0.03)' : '0 1px 4px rgba(25,18,14,0.025)');
-	const openFromCard = () => {
+	const openFromCard = (e: React.MouseEvent) => {
 		if (isRenaming) return;
+    if (e.shiftKey || e.metaKey || e.ctrlKey) {
+      onModifiedClick?.(e);
+      return;
+    }
 		const rect = cardRef.current?.getBoundingClientRect();
     if (rect) onOpen(rect);
   };
@@ -161,7 +176,7 @@ function StackCard({
 
   return (
     <div
-      ref={cardRef}
+      ref={(el) => { cardRef.current = el; registerEl?.(el); }}
       data-side-panel-open-target="true"
       onClick={openFromCard}
       onDoubleClick={openFromCard}
@@ -174,13 +189,14 @@ function StackCard({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
 		style={{
+			position: 'relative',
 			display: 'flex',
 			flexDirection: 'column',
 			minHeight: isGrid ? 118 : 68,
 			width: '100%',
 			maxWidth: isGrid ? 'none' : 780,
 			background,
-			border: `1px solid ${borderColor}`,
+			border: `1px solid ${selected ? 'rgba(184,119,80,0.8)' : borderColor}`,
 			borderRadius: 8,
 			cursor: isRenaming ? 'text' : 'pointer',
 			transition: 'background 140ms, border-color 140ms, transform 140ms, box-shadow 140ms',
@@ -189,6 +205,34 @@ function StackCard({
 			boxShadow,
 		}}
 	>
+      {onSelectToggle && (hovered || selected || selectionActive) && (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onSelectToggle(); }}
+          onDoubleClick={(e) => e.stopPropagation()}
+          title={selected ? 'Deselect' : 'Select'}
+          aria-label={selected ? 'Deselect note' : 'Select note'}
+          style={{
+            position: 'absolute',
+            top: 8,
+            left: 8,
+            width: 20,
+            height: 20,
+            borderRadius: 6,
+            border: `1.5px solid ${selected ? 'rgba(184,119,80,0.9)' : 'var(--c-border)'}`,
+            background: selected ? 'rgba(184,119,80,0.9)' : 'var(--c-panel)',
+            color: '#fff',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            zIndex: 2,
+            boxShadow: selected ? 'none' : '0 1px 4px rgba(25,18,14,0.12)',
+          }}
+        >
+          {selected && <IconCheck size={12} />}
+        </button>
+      )}
       {active && (
         <div
           aria-hidden="true"
@@ -784,6 +828,7 @@ export default function StackView({ pageId, pageName }: Props) {
   const folderDescriptors = useBoardStore((s) => s.folderDescriptors);
   const boardTitle = useBoardStore((s) => s.boardTitle);
   const workspaceName = useBoardStore((s) => s.workspaceName);
+  const appMode = useBoardStore((s) => s.appMode);
   const addDocument = useBoardStore((s) => s.addDocument);
   const addCanvasDocument = useBoardStore((s) => s.addCanvasDocument);
   const addPage = useBoardStore((s) => s.addPage);
@@ -823,6 +868,12 @@ export default function StackView({ pageId, pageName }: Props) {
   const panelResizeRef = useRef(false);
   const noteFilterInputRef = useRef<HTMLInputElement>(null);
   const [stackPanelWidth, setStackPanelWidth] = useState(380);
+  const [selectedDocIds, setSelectedDocIds] = useState<Set<string>>(new Set());
+  const [bulkMenu, setBulkMenu] = useState<{ x: number; y: number } | null>(null);
+  const [marqueeRect, setMarqueeRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
+  const selectionAnchorRef = useRef<string | null>(null);
+  const docCardElsRef = useRef<Record<string, HTMLDivElement | null>>({});
+  const bulkMenuRef = useRef<HTMLDivElement>(null);
 
   const pageDocs = useMemo(() => {
     const filtered = documents.filter((d) => d.pageId === pageId);
@@ -834,6 +885,12 @@ export default function StackView({ pageId, pageName }: Props) {
   useEffect(() => {
     setSort(page?.noteSort === 'custom' ? 'custom' : 'updated');
   }, [page?.noteSort, pageId]);
+
+  useEffect(() => {
+    setSelectedDocIds(new Set());
+    setBulkMenu(null);
+    selectionAnchorRef.current = null;
+  }, [pageId, browserMode]);
 
   useEffect(() => {
     setBrowserMode('notes');
@@ -984,6 +1041,58 @@ export default function StackView({ pageId, pageName }: Props) {
     setNoteMenuExportOpen(false);
   };
 
+  const toggleDocSelect = (docId: string) => {
+    setSelectedDocIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(docId)) next.delete(docId);
+      else next.add(docId);
+      return next;
+    });
+    selectionAnchorRef.current = docId;
+  };
+
+  const handleModifiedCardClick = (docId: string, e: React.MouseEvent) => {
+    if (e.shiftKey && selectionAnchorRef.current) {
+      const ids = visibleDocs.map((d) => d.id);
+      const from = ids.indexOf(selectionAnchorRef.current);
+      const to = ids.indexOf(docId);
+      if (from !== -1 && to !== -1) {
+        const [start, end] = from < to ? [from, to] : [to, from];
+        setSelectedDocIds(new Set(ids.slice(start, end + 1)));
+        return;
+      }
+    }
+    toggleDocSelect(docId);
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedDocIds.size === 0) return;
+    const count = selectedDocIds.size;
+    if (!window.confirm(`Delete ${count} note${count === 1 ? '' : 's'}? This also removes their canvas cards.`)) return;
+    selectedDocIds.forEach((id) => deleteDocument(id));
+    setSelectedDocIds(new Set());
+    setBulkMenu(null);
+  };
+
+  const handleBulkMove = (targetPageId: string) => {
+    if (selectedDocIds.size === 0) return;
+    const targetPage = pages.find((entry) => entry.id === targetPageId);
+    let nextOrderIndex: number | undefined;
+    if (targetPage?.noteSort === 'custom') {
+      nextOrderIndex = sortDocumentsForPage(documents.filter((doc) => doc.pageId === targetPageId), 'custom').length;
+    }
+    selectedDocIds.forEach((id) => {
+      const patch: Partial<Document> = { pageId: targetPageId };
+      if (nextOrderIndex !== undefined) {
+        patch.orderIndex = nextOrderIndex;
+        nextOrderIndex += 1;
+      }
+      updateDocument(id, patch);
+    });
+    setSelectedDocIds(new Set());
+    setBulkMenu(null);
+  };
+
   const handleNewDoc = (sourceEl: HTMLElement | null = newBtnRef.current) => {
     const existingPageDocs = sortDocumentsForPage(
       documents.filter((doc) => doc.pageId === pageId),
@@ -1034,6 +1143,24 @@ export default function StackView({ pageId, pageName }: Props) {
       window.removeEventListener('keydown', onKeyDown);
     };
 	}, [noteMenu]);
+
+  useEffect(() => {
+    if (!bulkMenu) return;
+    const onMouseDown = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (bulkMenuRef.current?.contains(target)) return;
+      setBulkMenu(null);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setBulkMenu(null);
+    };
+    window.addEventListener('mousedown', onMouseDown);
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('mousedown', onMouseDown);
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [bulkMenu]);
 
   useEffect(() => {
     if (!newMenuOpen) return;
@@ -1175,6 +1302,41 @@ export default function StackView({ pageId, pageName }: Props) {
     if (pageDocs.length === 0) return null;
     return Math.max(...pageDocs.map((doc) => doc.updatedAt));
   }, [pageDocs]);
+  const moveTargets = useMemo(() => {
+    const canvasPageIds = new Set(documents.filter((doc) => doc.docType === 'canvas' && doc.canvasPageId).map((doc) => doc.canvasPageId));
+    return pages
+      .filter((entry) => !entry.isCanvasDocument && !canvasPageIds.has(entry.id) && entry.id !== pageId)
+      .map((entry) => ({ id: entry.id, name: entry.name }));
+  }, [documents, pageId, pages]);
+
+  useEffect(() => {
+    if (browserMode !== 'notes' || appMode === 'document') return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (noteMenu || bulkMenu || newMenuOpen || renamingDocId || openPanelDocId) return;
+      const activeEl = document.activeElement;
+      const isTyping = activeEl instanceof HTMLElement && (
+        activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable
+      );
+      if (isTyping) return;
+      if (e.key === 'Escape') {
+        if (selectedDocIds.size === 0) return;
+        setSelectedDocIds(new Set());
+        return;
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'a') {
+        e.preventDefault();
+        setSelectedDocIds(new Set(visibleDocs.map((doc) => doc.id)));
+        return;
+      }
+      if ((e.key === 'Backspace' || e.key === 'Delete') && selectedDocIds.size > 0) {
+        e.preventDefault();
+        handleBulkDelete();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [browserMode, appMode, noteMenu, bulkMenu, newMenuOpen, renamingDocId, openPanelDocId, selectedDocIds, visibleDocs, handleBulkDelete]);
+
   const breadcrumbLabel = (boardTitle.trim() || workspaceName || 'Workspace').trim();
   const breadcrumbButtonStyle: CSSProperties = {
     border: 'none',
@@ -1659,6 +1821,37 @@ export default function StackView({ pageId, pageName }: Props) {
 
 						{!showingFolders && visibleDocs.length > 0 && (
 							<div
+								onMouseDown={(e) => {
+									if (e.button !== 0) return;
+									if (e.target !== e.currentTarget) return;
+									const startX = e.clientX;
+									const startY = e.clientY;
+									const additive = e.metaKey || e.ctrlKey || e.shiftKey;
+									const baseSelection = additive ? new Set(selectedDocIds) : new Set<string>();
+									setMarqueeRect({ left: startX, top: startY, width: 0, height: 0 });
+									const onMouseMove = (ev: MouseEvent) => {
+										const left = Math.min(startX, ev.clientX);
+										const top = Math.min(startY, ev.clientY);
+										const width = Math.abs(ev.clientX - startX);
+										const height = Math.abs(ev.clientY - startY);
+										setMarqueeRect({ left, top, width, height });
+										const next = new Set(baseSelection);
+										Object.entries(docCardElsRef.current).forEach(([docId, el]) => {
+											if (!el) return;
+											const r = el.getBoundingClientRect();
+											const intersects = !(r.right < left || r.left > left + width || r.bottom < top || r.top > top + height);
+											if (intersects) next.add(docId);
+										});
+										setSelectedDocIds(next);
+									};
+									const onMouseUp = () => {
+										setMarqueeRect(null);
+										window.removeEventListener('mousemove', onMouseMove);
+										window.removeEventListener('mouseup', onMouseUp);
+									};
+									window.addEventListener('mousemove', onMouseMove);
+									window.addEventListener('mouseup', onMouseUp);
+								}}
 								style={{
               display: 'grid',
               gridTemplateColumns: contentGridColumns,
@@ -1677,6 +1870,10 @@ export default function StackView({ pageId, pageName }: Props) {
                     compactGrid={false}
 										onOpen={(rect) => handleOpen(doc, rect)}
 										onContextOpen={(targetDoc, rect, x, y) => {
+											if (selectedDocIds.size > 1 && selectedDocIds.has(targetDoc.id)) {
+												setBulkMenu({ x, y });
+												return;
+											}
 											setNoteMenu({
                     docId: targetDoc.id,
                     x,
@@ -1691,9 +1888,31 @@ export default function StackView({ pageId, pageName }: Props) {
                 onRenameDraftChange={setRenameDraft}
                 onRenameCommit={commitRename}
                 onRenameCancel={cancelRename}
+                selected={selectedDocIds.has(doc.id)}
+                selectionActive={selectedDocIds.size > 0}
+                onSelectToggle={() => toggleDocSelect(doc.id)}
+                onModifiedClick={(e) => handleModifiedCardClick(doc.id, e)}
+                registerEl={(el) => { docCardElsRef.current[doc.id] = el; }}
 									/>
 								))}
 							</div>
+						)}
+						{marqueeRect && (
+							<div
+								aria-hidden="true"
+								style={{
+									position: 'fixed',
+									left: marqueeRect.left,
+									top: marqueeRect.top,
+									width: marqueeRect.width,
+									height: marqueeRect.height,
+									background: 'rgba(184,119,80,0.12)',
+									border: '1px solid rgba(184,119,80,0.55)',
+									borderRadius: 4,
+									zIndex: 40,
+									pointerEvents: 'none',
+								}}
+							/>
 						)}
 
 						{showingFolders && folderSummaries.length === 0 && (
@@ -1878,6 +2097,25 @@ export default function StackView({ pageId, pageName }: Props) {
           onDelete={() => handleDelete(activeMenuDoc)}
         />
 			)}
+			{bulkMenu && appMode !== 'document' && (
+				<StackBulkContextMenu
+					menu={bulkMenu}
+					menuRef={bulkMenuRef}
+					count={selectedDocIds.size}
+					moveTargets={moveTargets}
+					onMove={handleBulkMove}
+					onDelete={handleBulkDelete}
+				/>
+			)}
+			{!showingFolders && appMode !== 'document' && (
+				<StackBulkActionBar
+					count={selectedDocIds.size}
+					moveTargets={moveTargets}
+					onMove={handleBulkMove}
+					onDelete={handleBulkDelete}
+					onClear={() => setSelectedDocIds(new Set())}
+				/>
+			)}
 			<MobileNewNoteButton
 				ref={mobileNewBtnRef}
 				onClick={() => showingFolders ? handleNewFolder() : handleNewDoc(mobileNewBtnRef.current)}
@@ -2050,6 +2288,91 @@ function StackNoteContextMenu({
         >
           <MenuButton onClick={onExportPdf}>PDF…</MenuButton>
           <MenuButton onClick={onExportText}>Plain text (.txt)</MenuButton>
+        </div>
+      )}
+    </>
+  );
+}
+
+interface StackBulkContextMenuProps {
+  menu: { x: number; y: number };
+  menuRef: RefObject<HTMLDivElement>;
+  count: number;
+  moveTargets: Array<{ id: string; name: string }>;
+  onMove: (targetPageId: string) => void;
+  onDelete: () => void;
+}
+
+function StackBulkContextMenu({ menu, menuRef, count, moveTargets, onMove, onDelete }: StackBulkContextMenuProps) {
+  const [moveOpen, setMoveOpen] = useState(false);
+  const MENU_W = 188;
+  const MOVE_MENU_W = 200;
+  const VIEWPORT_GAP = 8;
+  const left = Math.max(VIEWPORT_GAP, Math.min(menu.x, window.innerWidth - MENU_W - VIEWPORT_GAP));
+  const top = Math.max(VIEWPORT_GAP, Math.min(menu.y, window.innerHeight - 140 - VIEWPORT_GAP));
+  const moveLeft = Math.max(VIEWPORT_GAP, Math.min(left + MENU_W - VIEWPORT_GAP, window.innerWidth - MOVE_MENU_W - VIEWPORT_GAP));
+  const moveTop = Math.max(VIEWPORT_GAP, Math.min(top + 48, window.innerHeight - 160));
+  const sep = <div style={{ height: 1, background: 'var(--c-border)', margin: '3px 0' }} />;
+
+  const MenuButton = ({
+    children,
+    onClick,
+    danger = false,
+    suffix,
+    onMouseEnter,
+  }: {
+    children: ReactNode;
+    onClick: () => void;
+    danger?: boolean;
+    suffix?: ReactNode;
+    onMouseEnter?: () => void;
+  }) => (
+    <button
+      className={[
+        'w-full flex items-center justify-between px-3 py-1.5 text-[12px] rounded transition-colors text-left',
+        danger
+          ? 'hover:bg-[rgba(239,68,68,0.12)]'
+          : 'text-[var(--c-text-md)] hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]',
+      ].join(' ')}
+      style={{ fontFamily: 'inherit', color: danger ? '#f87171' : undefined }}
+      onClick={onClick}
+      onMouseEnter={onMouseEnter}
+    >
+      <span>{children}</span>
+      {suffix && <span className="text-[10px] ml-3 text-[var(--c-text-off)]">{suffix}</span>}
+    </button>
+  );
+
+  return (
+    <>
+      <div
+        ref={menuRef}
+        style={{ position: 'fixed', left, top, zIndex: 9100, minWidth: MENU_W }}
+        className="py-1.5 rounded-xl border border-[var(--c-border)] bg-[var(--c-panel)] shadow-2xl"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <div className="px-3 py-1 text-[11px] font-semibold text-[var(--c-text-off)]">{count} selected</div>
+        {sep}
+        <MenuButton onClick={() => setMoveOpen((v) => !v)} onMouseEnter={() => setMoveOpen(true)} suffix="›">
+          Move to…
+        </MenuButton>
+        {sep}
+        <MenuButton onClick={onDelete} danger suffix="⌫">Delete</MenuButton>
+      </div>
+
+      {moveOpen && (
+        <div
+          style={{ position: 'fixed', left: moveLeft, top: moveTop, zIndex: 9101, minWidth: MOVE_MENU_W, maxHeight: 280, overflowY: 'auto' }}
+          className="py-1.5 rounded-xl border border-[var(--c-border)] bg-[var(--c-panel)] shadow-2xl"
+          onMouseDown={(e) => e.stopPropagation()}
+          onMouseLeave={() => setMoveOpen(false)}
+        >
+          {moveTargets.length === 0 && (
+            <div className="px-3 py-1.5 text-[12px] text-[var(--c-text-off)]">No other folders</div>
+          )}
+          {moveTargets.map((target) => (
+            <MenuButton key={target.id} onClick={() => onMove(target.id)}>{target.name}</MenuButton>
+          ))}
         </div>
       )}
     </>

@@ -4,6 +4,13 @@
   z-index: 9998;
 }
 
+.doc-block-dragging {
+  opacity: 0.32;
+  outline: 1.5px dashed color-mix(in srgb, var(--c-line) 55%, transparent);
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+
 .document-picker {
   position: fixed;
   z-index: 9999;

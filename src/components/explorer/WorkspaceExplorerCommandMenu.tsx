@@ -27,6 +27,7 @@ interface WorkspaceExplorerCommandMenuProps {
   onCreateNote: () => void;
   onCreateCanvas: () => void;
   onCreateFolder: () => void;
+  onImportMarkdown: () => void;
   onSaveWorkspace: () => void;
   onRenameWorkspace: () => void;
   onWorkspaceNameContextMenu: (x: number, y: number) => void;
@@ -53,6 +54,7 @@ const WorkspaceExplorerCommandMenu = forwardRef<HTMLDivElement, WorkspaceExplore
       onCreateNote,
       onCreateCanvas,
       onCreateFolder,
+      onImportMarkdown,
       onSaveWorkspace,
       onRenameWorkspace,
       onWorkspaceNameContextMenu,
@@ -170,6 +172,7 @@ const WorkspaceExplorerCommandMenu = forwardRef<HTMLDivElement, WorkspaceExplore
               newNote: onCreateNote,
               newCanvas: onCreateCanvas,
               newFolder: onCreateFolder,
+              importMarkdown: onImportMarkdown,
               openLocalFolder: onOpenFolder,
               openRecentProject: onOpenRecentProject,
               allProjects: onOpenProjectsLibrary,

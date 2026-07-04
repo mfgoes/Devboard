@@ -32,24 +32,40 @@ export default function DocumentLineHandle({
         const hitTop = Math.max(8, lineHandle.rect.top - 4);
         const hitHeight = Math.max(34, lineHandle.rect.height + 8);
         return (
-          <div
-            data-line-turn-ui="true"
-            onPointerEnter={onCancelHide}
-            onPointerLeave={onScheduleHide}
-            style={{
-              position: 'fixed',
-              left: Math.max(4, lineHandle.rect.left - 44),
-              top: hitTop,
-              zIndex: 10020,
-              width: 44,
-              height: hitHeight,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'flex-start',
-              paddingLeft: 7,
-              touchAction: 'none',
-            }}
-          >
+          <>
+            <div
+              aria-hidden="true"
+              style={{
+                position: 'fixed',
+                left: lineHandle.rect.left - 6,
+                top: lineHandle.rect.top - 2,
+                width: lineHandle.rect.width + 12,
+                height: lineHandle.rect.height + 4,
+                borderRadius: 6,
+                background: 'color-mix(in srgb, var(--c-line) 6%, transparent)',
+                boxShadow: 'inset 2px 0 0 color-mix(in srgb, var(--c-line) 45%, transparent)',
+                pointerEvents: 'none',
+                zIndex: 10005,
+              }}
+            />
+            <div
+              data-line-turn-ui="true"
+              onPointerEnter={onCancelHide}
+              onPointerLeave={onScheduleHide}
+              style={{
+                position: 'fixed',
+                left: Math.max(4, lineHandle.rect.left - 44),
+                top: hitTop,
+                zIndex: 10020,
+                width: 44,
+                height: hitHeight,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'flex-start',
+                paddingLeft: 7,
+                touchAction: 'none',
+              }}
+            >
             <button
               type="button"
               title="Drag to move. Click to open menu."
@@ -82,7 +98,8 @@ export default function DocumentLineHandle({
             >
               <IconGrip />
             </button>
-          </div>
+            </div>
+          </>
         );
       })()}
 

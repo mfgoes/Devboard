@@ -21,6 +21,7 @@ interface WorkspaceExplorerFooterProps {
   onToggleProjectSwitcher: () => void;
   onProjectSwitcherContextMenu: (x: number, y: number) => void;
   onOpenRecentProject: (project: LocalRecentWorkspace) => void;
+  onRelocateRecentProject: (project: LocalRecentWorkspace) => void;
   onOpenProjectsLibrary: () => void;
   projectMenu: { x: number; y: number } | null;
   projectMenuRef: RefObject<HTMLDivElement>;
@@ -40,6 +41,7 @@ export default function WorkspaceExplorerFooter({
   onToggleProjectSwitcher,
   onProjectSwitcherContextMenu,
   onOpenRecentProject,
+  onRelocateRecentProject,
   onOpenProjectsLibrary,
   projectMenu,
   projectMenuRef,
@@ -81,6 +83,7 @@ export default function WorkspaceExplorerFooter({
           onToggleOpen={onToggleProjectSwitcher}
           onContextMenu={onProjectSwitcherContextMenu}
           onOpenRecentProject={onOpenRecentProject}
+          onRelocateRecentProject={onRelocateRecentProject}
           onOpenProjectsLibrary={onOpenProjectsLibrary}
           onOpenCloudModal={onOpenCloudModal}
         />

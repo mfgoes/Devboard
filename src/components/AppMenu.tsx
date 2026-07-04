@@ -13,6 +13,7 @@ export interface AppMenuActions {
   newNote: () => void;
   newCanvas: () => void;
   newFolder: () => void;
+  importMarkdown: () => void;
   openLocalFolder: () => void;
   openRecentProject: (project: LocalRecentWorkspace) => void;
   allProjects: () => void;
@@ -89,6 +90,7 @@ export default function AppMenu({ actions, state, recentProjects = [], currentPr
         <CommandMenuItem icon={<IconCanvasDoc size={13} />} label="New canvas" onClick={() => runAction(actions.newCanvas)} />
         <CommandMenuItem icon={<CommandIcon kind="folder" />} label="New folder" onClick={() => runAction(actions.newFolder)} />
         <CommandMenuDivider />
+        <CommandMenuItem icon={<CommandIcon kind="export" />} label="Import Markdown..." onClick={() => runAction(actions.importMarkdown)} />
         <CommandMenuItem icon={<CommandIcon kind="folder" />} label="Open local folder..." onClick={() => runAction(actions.openLocalFolder)} />
         <CommandMenuItem icon={<CommandIcon kind="view" />} label="Save project" onClick={() => runAction(actions.saveProject)} />
         <CommandMenuItem icon={<CommandIcon kind="settings" />} label="Rename workspace..." onClick={() => runAction(actions.renameProject)} />

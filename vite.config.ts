@@ -6,8 +6,8 @@ export default defineConfig({
   plugins: [react(), viteSingleFile()],
   server: {
     host: 'localhost',
-    port: 5173,
-    strictPort: true,
+    port: Number(process.env.PORT) || 5173,
+    strictPort: !process.env.PORT,
   },
   build: {
     target: 'esnext',

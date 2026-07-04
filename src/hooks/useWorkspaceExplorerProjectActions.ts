@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { useBoardStore } from '../store/boardStore';
 import type { LocalRecentWorkspace, WorkspaceOpenResult } from '../utils/workspaceManager';
-import { hasWorkspaceHandle, listLocalRecentWorkspaces, openRecentWorkspace, openWorkspace, reconnectStoredWorkspace, saveWorkspace } from '../utils/workspaceManager';
+import { hasWorkspaceHandle, listLocalRecentWorkspaces, openRecentWorkspace, openWorkspace, reconnectStoredWorkspace, relocateRecentWorkspace, saveWorkspace } from '../utils/workspaceManager';
 import { toast } from '../utils/toast';
 
 interface UseWorkspaceExplorerProjectActionsArgs {
@@ -106,23 +106,48 @@ export function useWorkspaceExplorerProjectActions({
     }, 0);
   }, [loadProjectSwitcherRecents, projectRenameDraft, setBoardTitle, setProjectRenameOpen]);
 
+  const handleRelocateRecentProject = useCallback(async (recent: LocalRecentWorkspace) => {
+    setProjectSwitcherLoading(true);
+    try {
+      const result = await relocateRecentWorkspace(recent.id);
+      if (!result) {
+        // User cancelled the folder picker — nothing to report.
+        return;
+      }
+      applyOpenedWorkspaceResult(result);
+      toast(`Reconnected "${recent.title}"`);
+    } catch (err) {
+      console.warn('Failed to relocate project', err);
+      toast('Could not open that folder.');
+    } finally {
+      setProjectSwitcherLoading(false);
+      void loadProjectSwitcherRecents();
+    }
+  }, [applyOpenedWorkspaceResult, loadProjectSwitcherRecents, setProjectSwitcherLoading]);
+
   const handleOpenRecentProject = useCallback(async (recent: LocalRecentWorkspace) => {
     setProjectSwitcherLoading(true);
     try {
       const result = await openRecentWorkspace(recent.id);
       if (!result) {
-        toast('Could not reopen that project. Relocate the folder or choose another project.');
+        toast(`Couldn't reopen "${recent.title}" — its folder may have moved or access wasn't granted.`, {
+          label: 'Locate folder…',
+          onClick: () => { void handleRelocateRecentProject(recent); },
+        });
         await loadProjectSwitcherRecents();
         return;
       }
       applyOpenedWorkspaceResult(result);
     } catch (err) {
       console.warn('Failed to open recent project', err);
-      toast('Could not reopen that project.');
+      toast(`Couldn't reopen "${recent.title}".`, {
+        label: 'Locate folder…',
+        onClick: () => { void handleRelocateRecentProject(recent); },
+      });
     } finally {
       setProjectSwitcherLoading(false);
     }
-  }, [applyOpenedWorkspaceResult, loadProjectSwitcherRecents, setProjectSwitcherLoading]);
+  }, [applyOpenedWorkspaceResult, handleRelocateRecentProject, loadProjectSwitcherRecents, setProjectSwitcherLoading]);
 
   return {
     handleOpenFolder,
@@ -133,5 +158,6 @@ export function useWorkspaceExplorerProjectActions({
     beginProjectRename,
     commitProjectRename,
     handleOpenRecentProject,
+    handleRelocateRecentProject,
   };
 }

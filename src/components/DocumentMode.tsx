@@ -2013,6 +2013,14 @@ export default function DocumentMode({
   const editHistoryTimerRef = useRef<number | null>(null);
   const canStartEditHistoryGroupRef = useRef(true);
   const [viewMode, setViewMode] = useState<'edit' | 'source'>('edit');
+  const [isNarrowViewport, setIsNarrowViewport] = useState(() => (
+    typeof window !== 'undefined' ? window.innerWidth < 640 : false
+  ));
+  useEffect(() => {
+    const onResize = () => setIsNarrowViewport(window.innerWidth < 640);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
   const [sourceText, setSourceText] = useState('');
   const [sourceWrap, setSourceWrap] = useState(true);
   const [, forceUpdate] = useState(0);
@@ -2033,6 +2041,8 @@ export default function DocumentMode({
   const [slashPalette, setSlashPalette] = useState<FloatingPalettePosition | null>(null);
   const [lineHandle, setLineHandle] = useState<LineHandleState | null>(null);
   const [lineHandleMenu, setLineHandleMenu] = useState<LineHandleState | null>(null);
+  const [lineDragGhost, setLineDragGhost] = useState<{ html: string; left: number; top: number; width: number } | null>(null);
+  const [lineDropIndicator, setLineDropIndicator] = useState<{ left: number; top: number; width: number } | null>(null);
   const [selectionToolbarAnchor, setSelectionToolbarAnchor] = useState<SelectionToolbarAnchor | null>(null);
   const [sidebarPanel, setSidebarPanel] = useState<'outline' | 'properties' | null>(null);
   const [selectedImageId, setSelectedImageId] = useState<string | null>(null);
@@ -2884,6 +2894,30 @@ export default function DocumentMode({
     }, 650);
   }, [lineHandleMenu]);
 
+  const computeDropBefore = useCallback((block: HTMLElement, y: number): HTMLElement | null => {
+    const root = contentRef.current;
+    if (!root) return null;
+    const siblings = Array.from(root.children).filter((child) => child !== block) as HTMLElement[];
+    return siblings.find((sibling) => {
+      const rect = sibling.getBoundingClientRect();
+      return y < rect.top + rect.height / 2;
+    }) ?? null;
+  }, []);
+
+  const computeDropIndicatorRect = useCallback((block: HTMLElement, before: HTMLElement | null) => {
+    const root = contentRef.current;
+    if (!root) return null;
+    const containerRect = root.getBoundingClientRect();
+    if (before) {
+      const rect = before.getBoundingClientRect();
+      return { left: containerRect.left, top: rect.top - 2, width: containerRect.width };
+    }
+    const siblings = Array.from(root.children).filter((child) => child !== block) as HTMLElement[];
+    const last = siblings[siblings.length - 1];
+    const anchor = (last ?? block).getBoundingClientRect();
+    return { left: containerRect.left, top: anchor.bottom - 2, width: containerRect.width };
+  }, []);
+
   const beginLineHandlePointer = useCallback((event: React.PointerEvent<HTMLButtonElement>, handle: LineHandleState) => {
     const root = contentRef.current;
     if (!root || !root.contains(handle.block)) return;
@@ -2892,14 +2926,20 @@ export default function DocumentMode({
     event.stopPropagation();
 
     const startY = event.clientY;
+    const blockRectAtStart = handle.block.getBoundingClientRect();
+    const pointerOffsetY = startY - blockRectAtStart.top;
     let lastY = startY;
     let dragging = false;
+    let dragHtml: string | null = null;
     const originalUserSelect = document.body.style.userSelect;
     const originalCursor = document.body.style.cursor;
 
     const cleanup = () => {
       document.body.style.userSelect = originalUserSelect;
       document.body.style.cursor = originalCursor;
+      handle.block.classList.remove('doc-block-dragging');
+      setLineDragGhost(null);
+      setLineDropIndicator(null);
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
       window.removeEventListener('pointercancel', onPointerCancel);
@@ -2907,11 +2947,25 @@ export default function DocumentMode({
 
     const onPointerMove = (moveEvent: PointerEvent) => {
       lastY = moveEvent.clientY;
-      if (Math.abs(lastY - startY) < 5) return;
-      dragging = true;
-      document.body.style.userSelect = 'none';
-      document.body.style.cursor = 'grabbing';
-      setLineHandleMenu(null);
+      if (!dragging) {
+        if (Math.abs(lastY - startY) < 5) return;
+        dragging = true;
+        document.body.style.userSelect = 'none';
+        document.body.style.cursor = 'grabbing';
+        setLineHandleMenu(null);
+        dragHtml = handle.block.innerHTML;
+        handle.block.classList.add('doc-block-dragging');
+      }
+      if (dragHtml !== null) {
+        setLineDragGhost({
+          html: dragHtml,
+          left: blockRectAtStart.left,
+          width: blockRectAtStart.width,
+          top: lastY - pointerOffsetY,
+        });
+      }
+      const before = computeDropBefore(handle.block, lastY);
+      setLineDropIndicator(computeDropIndicatorRect(handle.block, before));
     };
 
     const onPointerCancel = () => {
@@ -2934,11 +2988,7 @@ export default function DocumentMode({
         return;
       }
 
-      const siblings = Array.from(root.children).filter((child) => child !== block) as HTMLElement[];
-      const before = siblings.find((sibling) => {
-        const rect = sibling.getBoundingClientRect();
-        return lastY < rect.top + rect.height / 2;
-      }) ?? null;
+      const before = computeDropBefore(block, lastY);
       const alreadyInPlace = before === block.nextElementSibling || (!before && block === root.lastElementChild);
 
       if (!alreadyInPlace) {
@@ -2953,7 +3003,7 @@ export default function DocumentMode({
     window.addEventListener('pointermove', onPointerMove);
     window.addEventListener('pointerup', onPointerUp);
     window.addEventListener('pointercancel', onPointerCancel);
-  }, [checkpointDocumentHistory, refreshEditorDomAfterBlockChange, updateLineHandleForBlock]);
+  }, [checkpointDocumentHistory, computeDropBefore, computeDropIndicatorRect, refreshEditorDomAfterBlockChange, updateLineHandleForBlock]);
 
   const switchToSource = () => {
     if (!doc) return;
@@ -4366,7 +4416,7 @@ export default function DocumentMode({
                 overflowY: 'auto',
                 position: 'relative',
                 background: '#e6ded2',
-                padding: panelMode ? '24px 14px 40px' : '40px 24px 60px',
+                padding: panelMode ? '24px 14px 40px' : isNarrowViewport ? '16px 8px 40px' : '40px 24px 60px',
                 display: 'flex',
                 alignItems: 'flex-start',
                 justifyContent: 'center',
@@ -4506,8 +4556,8 @@ export default function DocumentMode({
                   background: '#fffaf1',
                   maxWidth: 860,
                   width: '100%',
-                  minHeight: panelMode ? 'calc(100% - 64px)' : 'calc(100% - 100px)',
-                  padding: panelMode ? '30px 24px' : '42px 48px',
+                  minHeight: panelMode ? 'calc(100% - 64px)' : isNarrowViewport ? 'calc(100% - 56px)' : 'calc(100% - 100px)',
+                  padding: panelMode ? '30px 24px' : isNarrowViewport ? '24px 16px' : '42px 48px',
                   boxSizing: 'border-box',
                   borderRadius: 4,
                   boxShadow: '0 1px 4px rgba(0,0,0,0.06), 0 4px 20px rgba(0,0,0,0.05)',
@@ -4714,6 +4764,52 @@ export default function DocumentMode({
                   applyTurnIntoCommand(command, block);
                 }}
               />
+
+              {lineDropIndicator && (
+                <div
+                  aria-hidden="true"
+                  style={{
+                    position: 'fixed',
+                    left: lineDropIndicator.left,
+                    top: lineDropIndicator.top,
+                    width: lineDropIndicator.width,
+                    height: 3,
+                    borderRadius: 999,
+                    background: 'var(--c-line)',
+                    boxShadow: '0 0 0 3px color-mix(in srgb, var(--c-line) 18%, transparent)',
+                    pointerEvents: 'none',
+                    zIndex: 10010,
+                  }}
+                />
+              )}
+
+              {lineDragGhost && (
+                <div
+                  aria-hidden="true"
+                  style={{
+                    position: 'fixed',
+                    left: lineDragGhost.left,
+                    top: lineDragGhost.top,
+                    width: lineDragGhost.width,
+                    maxHeight: 220,
+                    overflow: 'hidden',
+                    background: '#fffaf1',
+                    border: '1px solid color-mix(in srgb, var(--c-line) 35%, transparent)',
+                    borderRadius: 6,
+                    boxShadow: '0 10px 30px rgba(0,0,0,0.22)',
+                    padding: '2px 10px',
+                    opacity: 0.94,
+                    transform: 'rotate(0.6deg)',
+                    pointerEvents: 'none',
+                    zIndex: 10030,
+                    fontSize: '16px',
+                    lineHeight: 1.8,
+                    fontFamily: "'Plus Jakarta Sans', sans-serif",
+                    color: 'var(--c-text-hi)',
+                  }}
+                  dangerouslySetInnerHTML={{ __html: lineDragGhost.html }}
+                />
+              )}
 
               {selectedImageRect && selectedImageId && (
                 <div

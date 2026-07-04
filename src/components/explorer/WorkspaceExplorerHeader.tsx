@@ -27,6 +27,7 @@ interface WorkspaceExplorerHeaderProps {
   onCreateNote: () => void;
   onCreateCanvas: () => void;
   onCreateFolder: () => void;
+  onImportMarkdown: () => void;
   onSaveWorkspace: () => void;
   onRenameWorkspace: () => void;
   onWorkspaceNameContextMenu: (x: number, y: number) => void;
@@ -54,6 +55,7 @@ export default function WorkspaceExplorerHeader({
   onCreateNote,
   onCreateCanvas,
   onCreateFolder,
+  onImportMarkdown,
   onSaveWorkspace,
   onRenameWorkspace,
   onWorkspaceNameContextMenu,
@@ -94,6 +96,7 @@ export default function WorkspaceExplorerHeader({
           onCreateNote={onCreateNote}
           onCreateCanvas={onCreateCanvas}
           onCreateFolder={onCreateFolder}
+          onImportMarkdown={onImportMarkdown}
           onSaveWorkspace={onSaveWorkspace}
           onRenameWorkspace={onRenameWorkspace}
           onWorkspaceNameContextMenu={onWorkspaceNameContextMenu}

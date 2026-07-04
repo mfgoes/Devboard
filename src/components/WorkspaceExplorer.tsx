@@ -13,6 +13,7 @@ import { placeCodeFile, placeImageFile, placeDocumentFile, openDocumentFile } fr
 import { stripHtmlPreview } from '../utils/documentExport';
 import { toast } from '../utils/toast';
 import { applyWorkspaceSyncFromOpenResult } from '../utils/applyWorkspaceSync';
+import { promptAndImportMarkdownNotes } from '../utils/noteImport';
 import { useFilePreview } from '../hooks/useFilePreview';
 import { useTreeState } from '../hooks/useTreeState';
 import { IconArrowRight, IconCanvasDoc, IconCloud, IconDoc, IconFolder } from './icons';
@@ -483,6 +484,7 @@ export default function WorkspaceExplorer({
     beginProjectRename,
     commitProjectRename,
     handleOpenRecentProject,
+    handleRelocateRecentProject,
   } = useWorkspaceExplorerProjectActions({
     workspaceDisplayName,
     projectSwitcherOpen,
@@ -887,6 +889,7 @@ export default function WorkspaceExplorer({
         onCreateNote={handleCreateNoteFromMenu}
         onCreateCanvas={handleCreateCanvasFromMenu}
         onCreateFolder={() => addPage()}
+        onImportMarkdown={() => { void promptAndImportMarkdownNotes(); }}
         onSaveWorkspace={() => void saveWorkspace(useBoardStore.getState().exportData())}
         onRenameWorkspace={beginProjectRename}
         onWorkspaceNameContextMenu={openWorkspaceNameMenu}
@@ -1042,6 +1045,7 @@ export default function WorkspaceExplorer({
         onToggleProjectSwitcher={handleToggleProjectSwitcher}
         onProjectSwitcherContextMenu={openWorkspaceNameMenu}
         onOpenRecentProject={(project) => { void handleOpenRecentProject(project); }}
+        onRelocateRecentProject={(project) => { void handleRelocateRecentProject(project); }}
         onOpenProjectsLibrary={handleOpenProjectsLibrary}
         projectMenu={projectMenu}
         projectMenuRef={projectMenuRef}

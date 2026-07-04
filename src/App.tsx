@@ -77,7 +77,6 @@ export default function App() {
   const openDocumentWithMorph = useBoardStore((s) => s.openDocumentWithMorph);
   const docViewMode = useBoardStore((s) => s.docViewMode);
   const setDocViewMode = useBoardStore((s) => s.setDocViewMode);
-  const setOpenPanelDocId = useBoardStore((s) => s.setOpenPanelDocId);
   const switchPage = useBoardStore((s) => s.switchPage);
   const cloudBoardId = useBoardStore((s) => s.cloudBoardId);
   const cloudSyncedAt = useBoardStore((s) => s.cloudSyncedAt);
@@ -252,23 +251,19 @@ export default function App() {
     return () => window.removeEventListener('pointerdown', onPointerDown);
   }, [appMode, closeDoc, effectiveDocViewMode, panelPhase]);
 
-  // Cmd+N creates a text note in the current folder.
+  // Cmd+N creates a text note in the current folder and opens it full-screen.
   const handleNewNote = useCallback(() => {
     const state = useBoardStore.getState();
     const currentPage = state.pages.find((entry) => entry.id === state.activePageId);
     const pageId = currentPage?.isCanvasDocument ? (currentPage.parentPageId ?? state.activePageId) : state.activePageId;
     const id = addDocument({ title: '', content: '', pageId });
-    const page = state.pages.find((entry) => entry.id === pageId);
     if (state.appMode === 'document') {
       state.openDocument(id);
       return;
     }
-    if (page && !page.isCanvasDocument && !isMobileViewport) {
-      setOpenPanelDocId(id);
-      return;
-    }
+    state.setDocViewMode('fullscreen');
     openDocumentWithMorph(id);
-  }, [addDocument, isMobileViewport, openDocumentWithMorph, setOpenPanelDocId]);
+  }, [addDocument, openDocumentWithMorph]);
 
   const handleNewCanvas = useCallback(() => {
     const state = useBoardStore.getState();
