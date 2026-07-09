@@ -2,8 +2,9 @@ import { useRef, useState, useEffect, useCallback } from 'react';
 import { saveAs } from 'file-saver';
 import { useBoardStore } from '../store/boardStore';
 import { useAuth } from '../contexts/AuthContext';
-import { TEMPLATES } from '../templates';
+import { TEMPLATES, CANVAS_TEMPLATES, instantiateCanvasTemplate, type Template } from '../templates';
 import ConfirmDialog from './ConfirmDialog';
+import CanvasTemplatePicker from './CanvasTemplatePicker';
 import CloudModal from './CloudModal';
 import AppMenu from './AppMenu';
 import WorkspaceExplorerProjectRenameDialog from './explorer/WorkspaceExplorerProjectRenameDialog';
@@ -91,6 +92,7 @@ export default function TopBar({ onShowAbout, onNewNote, onToggleTimer, explorer
     if (onTemplatesOpenChange) onTemplatesOpenChange(open);
     else setTemplatesModalOpenInternal(open);
   }, [onTemplatesOpenChange]);
+  const [canvasPicker, setCanvasPicker] = useState<{ parentPageId?: string } | null>(null);
   const [cloudOpen, setCloudOpen] = useState(false);
   const [cloudInitialTab, setCloudInitialTab] = useState<'workspace' | 'library'>('workspace');
   const [recentProjects, setRecentProjects] = useState<LocalRecentWorkspace[]>([]);
@@ -460,7 +462,20 @@ export default function TopBar({ onShowAbout, onNewNote, onToggleTimer, explorer
 
   const handleNewCanvasFromMenu = () => {
     const activePage = pages.find((page) => page.id === activePageId);
-    addCanvasDocument(activePage?.isCanvasDocument ? activePage.parentPageId : activePageId);
+    const parentPageId = activePage?.isCanvasDocument ? activePage.parentPageId : activePageId;
+    if (CANVAS_TEMPLATES.length > 0) {
+      setCanvasPicker({ parentPageId });
+    } else {
+      addCanvasDocument(parentPageId);
+    }
+  };
+
+  const handleSelectCanvasTemplate = (template: Template | null) => {
+    const parentPageId = canvasPicker?.parentPageId;
+    setCanvasPicker(null);
+    const nodes = template ? instantiateCanvasTemplate(template) : [];
+    const title = template && template.id !== 'scratch' ? template.name : undefined;
+    addCanvasDocument(parentPageId, { nodes, title });
   };
 
   const handleExportActiveMarkdown = () => {
@@ -502,6 +517,11 @@ export default function TopBar({ onShowAbout, onNewNote, onToggleTimer, explorer
         onCancel={() => setWorkspaceRenameOpen(false)}
       />
       <CloudModal open={cloudOpen} onClose={() => setCloudOpen(false)} initialTab={cloudInitialTab} />
+      <CanvasTemplatePicker
+        open={!!canvasPicker}
+        onClose={() => setCanvasPicker(null)}
+        onSelect={handleSelectCanvasTemplate}
+      />
       {templatesModalOpen && (
         <div
           className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50"

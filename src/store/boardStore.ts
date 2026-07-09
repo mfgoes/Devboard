@@ -204,7 +204,7 @@ interface BoardState {
 
   // ── Document entity actions ───────────────────────────────────────────────
   addDocument: (partial: Partial<Document>) => string;
-  addCanvasDocument: (parentPageId?: string) => string;
+  addCanvasDocument: (parentPageId?: string, init?: { nodes?: CanvasNode[]; title?: string }) => string;
   updateDocument: (id: string, patch: Partial<Document>) => void;
   toggleFavoriteDocument: (id: string) => void;
   deleteDocument: (id: string) => void;
@@ -757,7 +757,7 @@ export const useBoardStore = create<BoardState>()(
         return id;
       },
 
-      addCanvasDocument: (parentPageId) => {
+      addCanvasDocument: (parentPageId, init) => {
         const state = get();
         const canvasPageIds = new Set(state.documents.filter((doc) => doc.docType === 'canvas' && doc.canvasPageId).map((doc) => doc.canvasPageId));
         const isFolderPage = (page: PageMeta) => !page.isCanvasDocument && !canvasPageIds.has(page.id);
@@ -770,10 +770,12 @@ export const useBoardStore = create<BoardState>()(
         const canvasPageId = `canvas_${generateId()}`;
         const now = Date.now();
         const siblings = state.documents.filter((doc) => doc.pageId === resolvedParentPageId);
+        const title = init?.title?.trim() || 'Untitled canvas';
+        const initialNodes = init?.nodes ?? [];
         const doc: Document = {
           id: docId,
           docType: 'canvas',
-          title: 'Untitled canvas',
+          title,
           content: '',
           pageId: resolvedParentPageId,
           canvasPageId,
@@ -798,7 +800,7 @@ export const useBoardStore = create<BoardState>()(
           pages: [...current.pages, page],
           documents: [...current.documents, doc],
           activePageId: canvasPageId,
-          nodes: [],
+          nodes: initialNodes,
           camera: { x: 0, y: 0, scale: 1 },
           appMode: 'canvas',
           activeDocId: null,

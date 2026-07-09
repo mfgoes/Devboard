@@ -6,6 +6,8 @@ import { IS_TAURI, readWorkspaceFileInfo, revealInFinder } from '../utils/worksp
 import { exportDocumentAsMarkdownFile, exportDocumentAsPdf, exportDocumentAsTextFile } from '../utils/documentExport';
 import DocumentMode from './DocumentMode';
 import StackBulkActionBar from './StackBulkActionBar';
+import CanvasTemplatePicker from './CanvasTemplatePicker';
+import { CANVAS_TEMPLATES, instantiateCanvasTemplate, type Template } from '../templates';
 
 function stripHtml(html: string): string {
   return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -868,6 +870,7 @@ export default function StackView({ pageId, pageName }: Props) {
   const panelResizeRef = useRef(false);
   const noteFilterInputRef = useRef<HTMLInputElement>(null);
   const [stackPanelWidth, setStackPanelWidth] = useState(380);
+  const [canvasPickerOpen, setCanvasPickerOpen] = useState(false);
   const [selectedDocIds, setSelectedDocIds] = useState<Set<string>>(new Set());
   const [bulkMenu, setBulkMenu] = useState<{ x: number; y: number } | null>(null);
   const [marqueeRect, setMarqueeRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
@@ -1119,8 +1122,19 @@ export default function StackView({ pageId, pageName }: Props) {
 	};
 
   const handleNewCanvasDoc = () => {
-    addCanvasDocument(pageId);
     setNewMenuOpen(false);
+    if (CANVAS_TEMPLATES.length > 0) {
+      setCanvasPickerOpen(true);
+    } else {
+      addCanvasDocument(pageId);
+    }
+  };
+
+  const handleSelectCanvasTemplate = (template: Template | null) => {
+    setCanvasPickerOpen(false);
+    const nodes = template ? instantiateCanvasTemplate(template) : [];
+    const title = template && template.id !== 'scratch' ? template.name : undefined;
+    addCanvasDocument(pageId, { nodes, title });
   };
 
 	useEffect(() => {
@@ -1795,6 +1809,11 @@ export default function StackView({ pageId, pageName }: Props) {
               )}
             </div>
           </div>
+          <CanvasTemplatePicker
+            open={canvasPickerOpen}
+            onClose={() => setCanvasPickerOpen(false)}
+            onSelect={handleSelectCanvasTemplate}
+          />
         </div>
 
 						{showingFolders && visibleFolders.length > 0 && (

@@ -17,6 +17,8 @@ import { promptAndImportMarkdownNotes } from '../utils/noteImport';
 import { useFilePreview } from '../hooks/useFilePreview';
 import { useTreeState } from '../hooks/useTreeState';
 import { IconArrowRight, IconCanvasDoc, IconCloud, IconDoc, IconFolder } from './icons';
+import { CANVAS_TEMPLATES, instantiateCanvasTemplate, type Template } from '../templates';
+import CanvasTemplatePicker from './CanvasTemplatePicker';
 import { DARK_MENU_COLORS } from './darkMenuTheme';
 import {
   SKIP_DIRS,
@@ -159,6 +161,7 @@ export default function WorkspaceExplorer({
   }, [workspaceSavedAt, reloadRoot]);
 
   // Local state
+  const [canvasPicker, setCanvasPicker] = useState<{ parentPageId?: string } | null>(null);
   const [pagesSectionOpen, setPagesSectionOpen] = useState(true);
   const [favoritesSectionOpen, setFavoritesSectionOpen] = useState(true);
   const [assetsSectionOpen] = useState(false);
@@ -625,8 +628,20 @@ export default function WorkspaceExplorer({
   }, [activePageId, addDocument, documents, openDocument, pages, switchPage]);
 
   const createCanvasForPage = useCallback((pageId: string) => {
-    addCanvasDocument(pageId);
+    if (CANVAS_TEMPLATES.length > 0) {
+      setCanvasPicker({ parentPageId: pageId });
+    } else {
+      addCanvasDocument(pageId);
+    }
   }, [addCanvasDocument]);
+
+  const handleSelectCanvasTemplate = useCallback((template: Template | null) => {
+    const parentPageId = canvasPicker?.parentPageId;
+    setCanvasPicker(null);
+    const nodes = template ? instantiateCanvasTemplate(template) : [];
+    const title = template && template.id !== 'scratch' ? template.name : undefined;
+    addCanvasDocument(parentPageId, { nodes, title });
+  }, [addCanvasDocument, canvasPicker]);
 
   const handleCreateNoteFromMenu = useCallback(() => {
     const activePage = pages.find((entry) => entry.id === activePageId);
@@ -1055,6 +1070,12 @@ export default function WorkspaceExplorer({
           void handleOpenFolder();
         }}
         onOpenCloudModal={() => openCloudModal()}
+      />
+
+      <CanvasTemplatePicker
+        open={!!canvasPicker}
+        onClose={() => setCanvasPicker(null)}
+        onSelect={handleSelectCanvasTemplate}
       />
 
       <WorkspaceExplorerProjectRenameDialog
