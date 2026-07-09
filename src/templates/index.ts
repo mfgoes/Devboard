@@ -1,4 +1,4 @@
-import { BoardData, Document } from '../types';
+import { BoardData, CanvasNode, ConnectorNode, Document } from '../types';
 import { resolveCssColor } from '../utils/palette';
 
 export interface Template {
@@ -1185,3 +1185,45 @@ const startFromScratch: Template = {
 };
 
 export const TEMPLATES: Template[] = [writingStack, projectWorkspace, researchNotebook, startFromScratch, gameplayLoop, levelFlow, mechanicDesign, kanbanBoard, timeline, dataEngineerFlow];
+
+/**
+ * Single-canvas starter templates — the subset of TEMPLATES that live entirely
+ * on one freeform canvas (no extra pages or documents). These are the templates
+ * offered when creating a new empty canvas from a folder or the File menu.
+ * "Start from Scratch" is listed first as the blank-ish default.
+ */
+export const CANVAS_TEMPLATES: Template[] = [
+  startFromScratch,
+  gameplayLoop,
+  levelFlow,
+  mechanicDesign,
+  kanbanBoard,
+  timeline,
+  dataEngineerFlow,
+].filter((t) => (!t.data.pages || t.data.pages.length === 0) && t.data.nodes.length > 0);
+
+function newNodeId(): string {
+  return Math.random().toString(36).slice(2, 11);
+}
+
+/**
+ * Deep-clones a template's canvas nodes with fresh, unique ids so the same
+ * template can be instantiated multiple times without id collisions. Connector
+ * endpoints (fromNodeId / toNodeId) are re-pointed to the remapped ids.
+ */
+export function instantiateCanvasTemplate(template: Template): CanvasNode[] {
+  const source = template.data.nodes;
+  const idMap = new Map<string, string>();
+  for (const node of source) {
+    idMap.set(node.id, newNodeId());
+  }
+  return source.map((node) => {
+    const clone: CanvasNode = { ...node, id: idMap.get(node.id)! };
+    if (clone.type === 'connector') {
+      const c = clone as ConnectorNode;
+      if (c.fromNodeId && idMap.has(c.fromNodeId)) c.fromNodeId = idMap.get(c.fromNodeId)!;
+      if (c.toNodeId && idMap.has(c.toNodeId)) c.toNodeId = idMap.get(c.toNodeId)!;
+    }
+    return clone;
+  });
+}

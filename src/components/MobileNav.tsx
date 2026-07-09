@@ -3,6 +3,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { useBoardStore } from '../store/boardStore';
 import type { Document, PageMeta } from '../types';
 import { IconArrowLeft, IconCanvasDoc, IconCloud, IconDoc, IconFolder, IconFreeformPage, IconPlus, IconSearch, IconStackPage, IconUser } from './icons';
+import CanvasTemplatePicker from './CanvasTemplatePicker';
+import { CANVAS_TEMPLATES, instantiateCanvasTemplate, type Template } from '../templates';
 
 type MobileTab = 'folders' | 'search' | 'sync' | 'account';
 
@@ -63,6 +65,7 @@ export default function MobileNav({ onOpenSync, onOpenAccount }: MobileNavProps)
   const [folderView, setFolderView] = useState<'list' | 'grid'>('list');
   const [query, setQuery] = useState('');
   const [newMenuOpen, setNewMenuOpen] = useState(false);
+  const [canvasPickerPageId, setCanvasPickerPageId] = useState<string | null>(null);
   const newMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -121,7 +124,19 @@ export default function MobileNav({ onOpenSync, onOpenAccount }: MobileNavProps)
     const currentPage = pages.find((entry) => entry.id === activePageId);
     const fallbackPageId = currentPage?.isCanvasDocument ? (currentPage.parentPageId ?? activePageId) : activePageId;
     const pageId = selectedPage?.id ?? fallbackPageId;
-    addCanvasDocument(pageId);
+    if (CANVAS_TEMPLATES.length > 0) {
+      setCanvasPickerPageId(pageId);
+    } else {
+      addCanvasDocument(pageId);
+    }
+  };
+
+  const handleSelectCanvasTemplate = (template: Template | null) => {
+    const pageId = canvasPickerPageId ?? undefined;
+    setCanvasPickerPageId(null);
+    const nodes = template ? instantiateCanvasTemplate(template) : [];
+    const title = template && template.id !== 'scratch' ? template.name : undefined;
+    addCanvasDocument(pageId, { nodes, title });
   };
 
   const searchResults = useMemo(() => {
@@ -259,6 +274,11 @@ export default function MobileNav({ onOpenSync, onOpenAccount }: MobileNavProps)
 
   return (
     <section className="mobile-nav-shell" aria-label="Mobile navigation">
+      <CanvasTemplatePicker
+        open={canvasPickerPageId !== null}
+        onClose={() => setCanvasPickerPageId(null)}
+        onSelect={handleSelectCanvasTemplate}
+      />
       <header className="mobile-nav-topbar">
         <div className="mobile-nav-title-group">
           {activeTab === 'folders' && selectedPage && (
