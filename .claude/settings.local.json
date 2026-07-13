@@ -63,7 +63,10 @@
       "Bash(awk NR>=128 && NR<=145 {print NR\": [\"$0\"]\"} *)",
       "Bash(awk 'NR>=128 && NR<=140 {print NR\": [\"$0\"] len=\"length\\($0\\)}' /Users/mischavandergoes/Documents/GitHub/CollaboCanvas/src/utils/exportMarkdown.ts)",
       "Bash(sort -t: -k2 -n)",
-      "mcp__Claude_Preview__preview_start"
+      "mcp__Claude_Preview__preview_start",
+      "Bash(git log *)",
+      "Bash(awk 'NR==926,NR==1095{print NR\": \"$0}' src/App.tsx)",
+      "Bash(grep -n \"WorkspaceExplorer$\\\\|^ *\\)}$\\\\|<WorkspaceExplorer\")"
     ]
   }
 }

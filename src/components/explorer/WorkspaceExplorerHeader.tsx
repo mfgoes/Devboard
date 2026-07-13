@@ -114,7 +114,7 @@ export default function WorkspaceExplorerHeader({
           <span
             role="button"
             tabIndex={0}
-            title="Double-click to rename workspace"
+            title={`${workspaceDisplayName} — double-click to rename`}
             onDoubleClick={(e) => {
               e.preventDefault();
               e.stopPropagation();

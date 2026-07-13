@@ -26,7 +26,7 @@ import DocumentMode from './components/DocumentMode';
 import StackView from './components/StackView';
 import QuickSwitcher from './components/QuickSwitcher';
 import TimerWidget from './components/TimerWidget';
-import WorkspaceExplorer, { WORKSPACE_EXPLORER_WIDTH } from './components/WorkspaceExplorer';
+import WorkspaceExplorer from './components/WorkspaceExplorer';
 import JiraPanel from './components/JiraPanel';
 import SearchBar from './components/SearchBar';
 import { IconArrowLeft } from './components/icons';
@@ -65,6 +65,8 @@ export default function App() {
   const setExplorerOpen = useBoardStore((s) => s.setExplorerOpen);
   const sidebarCollapsed = useBoardStore((s) => s.sidebarCollapsed);
   const setSidebarCollapsed = useBoardStore((s) => s.setSidebarCollapsed);
+  const sidebarWidth = useBoardStore((s) => s.sidebarWidth);
+  const setSidebarWidth = useBoardStore((s) => s.setSidebarWidth);
   const appMode = useBoardStore((s) => s.appMode);
   const pages = useBoardStore((s) => s.pages);
   const activePageId = useBoardStore((s) => s.activePageId);
@@ -123,9 +125,11 @@ export default function App() {
   const activeNoticeCount = Number(showBraveNotice) + Number(showMobileWorkspaceNotice);
   const contentTop = (topBarVisible ? TOP_BAR_HEIGHT : 0) + activeNoticeCount * NOTICE_HEIGHT;
   const explorerVisible = !isMobileViewport;
-  const explorerOffset = explorerVisible ? (explorerCollapsed ? EXPLORER_COLLAPSED_WIDTH : WORKSPACE_EXPLORER_WIDTH) : 0;
+  const explorerOffset = explorerVisible ? (explorerCollapsed ? EXPLORER_COLLAPSED_WIDTH : sidebarWidth) : 0;
   const documentFrameOffset = isMobileViewport ? 0 : explorerOffset;
   const sidePanelDragRef = useRef(false);
+  const sidebarResizeRef = useRef(false);
+  const [sidebarResizing, setSidebarResizing] = useState(false);
   const documentTransitionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const docPanelRef = useRef<HTMLDivElement>(null);
   const [docPanelWidth, setDocPanelWidth] = useState(() => (
@@ -928,13 +932,13 @@ export default function App() {
             top: 0,
             left: 0,
             bottom: 0,
-            width: explorerCollapsed ? EXPLORER_COLLAPSED_WIDTH : WORKSPACE_EXPLORER_WIDTH,
+            width: explorerCollapsed ? EXPLORER_COLLAPSED_WIDTH : sidebarWidth,
             zIndex: 520,
             borderRight: explorerCollapsed ? 'none' : '0.5px solid var(--c-sidebar-border)',
             background: 'var(--c-sidebar)',
             boxShadow: 'none',
             overflow: 'hidden',
-            transition: 'width 0.2s ease',
+            transition: sidebarResizing ? 'none' : 'width 0.2s ease',
           }}
         >
           {explorerCollapsed ? (
@@ -1079,6 +1083,40 @@ export default function App() {
           )}
         </div>
       )}
+      {explorerVisible && !explorerCollapsed && (
+        <div
+          aria-hidden="true"
+          title="Drag to resize sidebar"
+          style={{
+            position: 'absolute',
+            top: 0,
+            bottom: 0,
+            left: sidebarWidth - 3,
+            width: 6,
+            cursor: 'col-resize',
+            zIndex: 521,
+          }}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            sidebarResizeRef.current = true;
+            setSidebarResizing(true);
+            const startX = e.clientX;
+            const startW = sidebarWidth;
+            const onMove = (ev: MouseEvent) => {
+              if (!sidebarResizeRef.current) return;
+              setSidebarWidth(startW + (ev.clientX - startX));
+            };
+            const onUp = () => {
+              sidebarResizeRef.current = false;
+              setSidebarResizing(false);
+              window.removeEventListener('mousemove', onMove);
+              window.removeEventListener('mouseup', onUp);
+            };
+            window.addEventListener('mousemove', onMove);
+            window.addEventListener('mouseup', onUp);
+          }}
+        />
+      )}
       {showMobileNavigator ? (
         <MobileNav
           onOpenSync={() => openCloudModal()}
@@ -1092,7 +1130,7 @@ export default function App() {
           right: 0,
           bottom: 0,
           left: explorerOffset,
-          transition: 'left 190ms cubic-bezier(0.22, 1, 0.36, 1)',
+          transition: sidebarResizing ? 'none' : 'left 190ms cubic-bezier(0.22, 1, 0.36, 1)',
         }}
       >
         {isStackPage ? (

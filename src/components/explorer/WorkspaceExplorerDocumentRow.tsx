@@ -127,6 +127,7 @@ export default function WorkspaceExplorerDocumentRow({
         opacity: isDragged ? 0.72 : 1,
       }}
       data-focused={isFocused ? 'true' : undefined}
+      title={doc.title || (isCanvasDoc ? 'Untitled canvas' : 'Untitled note')}
       className="hover:bg-[var(--c-sidebar-item-hover)]"
       draggable={!isRenaming}
       onDragStart={(e) => {

@@ -95,8 +95,8 @@ const WorkspaceExplorerAccountMenu = forwardRef<HTMLDivElement, WorkspaceExplore
           <div
             style={{
               position: 'fixed',
-              left: Math.min(Math.max(8, window.innerWidth - 320 - 8), (localRef.current?.getBoundingClientRect().right ?? 0) - 320),
-              top: localRef.current ? localRef.current.getBoundingClientRect().bottom + 8 : 8,
+              left: Math.max(8, Math.min(window.innerWidth - 320 - 8, (localRef.current?.getBoundingClientRect().right ?? 0) - 320)),
+              bottom: localRef.current ? window.innerHeight - localRef.current.getBoundingClientRect().top + 8 : 8,
               zIndex: 10000,
               overflow: 'hidden',
               border: `1px solid ${DARK_MENU_COLORS.border}`,
