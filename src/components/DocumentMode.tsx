@@ -6,11 +6,14 @@ import { saveAs } from 'file-saver';
 import { hasWorkspaceHandle, readWorkspaceFileAsUrl, saveImageAsset, saveTextFileToWorkspace } from '../utils/workspaceManager';
 import { toast } from '../utils/toast';
 import { focusNode } from '../utils/focusNode';
-import { IconArrowRight, IconCode, IconCodeBlock, IconColumns, IconCopy, IconEye, IconHorizontalRule, IconLink, IconList, IconListOrdered, IconMoreHorizontal, IconNodeLink, IconQuote, IconStar, IconTextWrap, IconUnlink, IconWikiLink } from './icons';
+import { IconArrowRight, IconCode, IconColumns, IconCopy, IconEye, IconMoreHorizontal, IconNodeLink, IconStar, IconTextWrap, IconUnlink } from './icons';
 import { useDocumentAutoSave } from '../hooks/useDocumentAutoSave';
-import { type DocumentCommandDefinition, type DocumentCommandGroup, type DocumentCommandId, getDocumentCommandsForSurface, runDocumentCommand } from './documentCommands';
+import { useSelectionFormattingToolbar } from '../hooks/useSelectionFormattingToolbar';
+import { useImageSelection } from '../hooks/useImageSelection';
+import { useLineHandleDrag } from '../hooks/useLineHandleDrag';
+import { type DocumentCommandDefinition, type DocumentCommandId, getDocumentCommandsForSurface, runDocumentCommand } from './documentCommands';
 import { caretHostForConvertedBlock, isConvertibleDocumentCommand, isSupportedTurnIntoBlock, restoreCaretAtEnd, turnBlockInto } from './documentBlockTransforms';
-import DocumentLineHandle, { type LineHandleState } from './DocumentLineHandle';
+import DocumentLineHandle from './DocumentLineHandle';
 import { sanitizeClipboardHtml } from '../utils/richText';
 import { describeNoteSaveStatus, saveLinkedWorkspaceToCloud, type NoteSavePresentation } from '../utils/saveStatus';
 import { taskListItemHtml } from '../utils/taskListHtml';
@@ -39,29 +42,20 @@ import {
   relativeTime,
   resizeDocumentTitleTextarea,
   stripChipsFromHTML,
-  stripHtml,
   stripLeadingHtmlTitle,
   syncWikiChipState,
   wikiLinkRaw,
   wordCountFromHtml,
 } from './documentModeUtils';
 import {
-  resolveDocumentColorValue,
-  rangeRoot,
-  dispatchEditableInput,
   updatePlaceholderVisibility,
   ensureDocImageIds,
   ensureDocumentHeadingIds,
   rangeBlock,
-  rangeBlocks,
-  restoreRangeSelection,
-  toggleInlineCode,
-  getLinkHref,
 } from './documentEditorCommands';
 import {
   FormattingBar,
   SelectionFormattingToolbar,
-  type SelectionToolbarAnchor,
 } from './DocumentToolbars';
 import {
   PICKER_WIDTH,
@@ -130,7 +124,6 @@ export default function DocumentMode({
   }, []);
   const [sourceText, setSourceText] = useState('');
   const [sourceWrap, setSourceWrap] = useState(true);
-  const [, forceUpdate] = useState(0);
   const [docHistory, setDocHistory] = useState<string[]>([]);
   const [wikiPreview, setWikiPreview] = useState<{ x: number; y: number; doc: Document; chip: HTMLElement } | null>(null);
   const [wikiContextMenu, setWikiContextMenu] = useState<{ x: number; y: number; doc: Document; chip: HTMLElement } | null>(null);
@@ -146,14 +139,7 @@ export default function DocumentMode({
   const [hasEditedSinceOpen, setHasEditedSinceOpen] = useState(false);
   const [dirtySinceSave, setDirtySinceSave] = useState(false);
   const [slashPalette, setSlashPalette] = useState<FloatingPalettePosition | null>(null);
-  const [lineHandle, setLineHandle] = useState<LineHandleState | null>(null);
-  const [lineHandleMenu, setLineHandleMenu] = useState<LineHandleState | null>(null);
-  const [lineDragGhost, setLineDragGhost] = useState<{ html: string; left: number; top: number; width: number } | null>(null);
-  const [lineDropIndicator, setLineDropIndicator] = useState<{ left: number; top: number; width: number } | null>(null);
-  const [selectionToolbarAnchor, setSelectionToolbarAnchor] = useState<SelectionToolbarAnchor | null>(null);
   const [sidebarPanel, setSidebarPanel] = useState<'outline' | 'properties' | null>(null);
-  const [selectedImageId, setSelectedImageId] = useState<string | null>(null);
-  const [selectedImageRect, setSelectedImageRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
   const [assetDrawerOpen, setAssetDrawerOpen] = useState(false);
   const [showHeaderMenu, setShowHeaderMenu] = useState(false);
   const [isEditorFocused, setIsEditorFocused] = useState(false);
@@ -167,10 +153,10 @@ export default function DocumentMode({
   const wikiRenameInputRef = useRef<HTMLInputElement>(null);
   const suppressWikiRenameBlurRef = useRef(false);
   const hydrationVersionRef = useRef(0);
-  const imageResizeStateRef = useRef<{ imageId: string; startX: number; startWidth: number } | null>(null);
   const wikiPointerDownRef = useRef<{ chip: HTMLElement; x: number; y: number } | null>(null);
-  const selectionToolbarInteractingRef = useRef(false);
-  const lineHandleHideTimerRef = useRef<number | null>(null);
+
+  const selectionToolbar = useSelectionFormattingToolbar({ viewMode, contentRef, editorScrollRef });
+  const imageSelection = useImageSelection({ contentRef, editorScrollRef, savedSelectionRef, saveHistory });
 
   const currentDocumentId = documentId ?? activeDocId;
   const doc = documents.find((d) => d.id === currentDocumentId) as Document | undefined;
@@ -358,67 +344,6 @@ export default function DocumentMode({
     if (!candidate) return null;
     return setEditorSelection(candidate.cloneRange());
   }, [createEditorEndRange, selectionBelongsToEditor, setEditorSelection]);
-
-  const syncSelectedImageOverlay = useCallback((imageId: string | null) => {
-    if (!contentRef.current || !editorScrollRef.current) {
-      setSelectedImageRect(null);
-      return;
-    }
-
-    contentRef.current.querySelectorAll<HTMLElement>('figure[data-doc-image="true"]').forEach((figure) => {
-      figure.dataset.selected = figure.dataset.docImageId === imageId ? 'true' : 'false';
-    });
-
-    if (!imageId) {
-      setSelectedImageRect(null);
-      return;
-    }
-
-    const figure = contentRef.current.querySelector<HTMLElement>(`figure[data-doc-image-id="${imageId}"]`);
-    if (!figure) {
-      setSelectedImageRect(null);
-      return;
-    }
-    const scrollRect = editorScrollRef.current.getBoundingClientRect();
-    const figureRect = figure.getBoundingClientRect();
-    setSelectedImageRect({
-      left: figureRect.left,
-      top: figureRect.top,
-      width: figureRect.width,
-      height: figureRect.height,
-    });
-    if (figureRect.bottom < scrollRect.top || figureRect.top > scrollRect.bottom) {
-      setSelectedImageRect(null);
-    }
-  }, []);
-
-  const clearSelectedImage = useCallback(() => {
-    setSelectedImageId(null);
-    syncSelectedImageOverlay(null);
-  }, [syncSelectedImageOverlay]);
-
-  const removeSelectedImage = useCallback(() => {
-    if (!contentRef.current || !selectedImageId) return;
-    const figure = contentRef.current.querySelector<HTMLElement>(`figure[data-doc-image-id="${selectedImageId}"]`);
-    if (!figure) {
-      clearSelectedImage();
-      return;
-    }
-    saveHistory();
-    const next = document.createElement('div');
-    next.innerHTML = '<br>';
-    figure.replaceWith(next);
-    contentRef.current.focus();
-    const range = document.createRange();
-    range.selectNodeContents(next);
-    range.collapse(true);
-    const sel = window.getSelection();
-    sel?.removeAllRanges();
-    sel?.addRange(range);
-    savedSelectionRef.current = range.cloneRange();
-    clearSelectedImage();
-    contentRef.current.dispatchEvent(new Event('input', { bubbles: true }));
-  }, [clearSelectedImage, saveHistory, selectedImageId]);
 
   const insertBlockHtmlAtSelection = useCallback((html: string, options?: { replaceCurrentBlock?: boolean }) => {
     if (!contentRef.current || !doc) return;
@@ -623,123 +548,6 @@ export default function DocumentMode({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doc?.id]);
 
-  const updateSelectionToolbar = useCallback(() => {
-    if (viewMode !== 'edit' || !contentRef.current) {
-      setSelectionToolbarAnchor(null);
-      return;
-    }
-
-    if (selectionToolbarInteractingRef.current) return;
-
-    const activeElement = document.activeElement as HTMLElement | null;
-    if (activeElement?.closest('[data-selection-toolbar="true"]')) return;
-
-    const sel = window.getSelection();
-    if (!sel || sel.rangeCount === 0) {
-      setSelectionToolbarAnchor(null);
-      return;
-    }
-
-    const range = sel.getRangeAt(0);
-    const activeWikiChip = activeWikiChipFromRange(range, contentRef.current);
-    const startNode = range.startContainer.nodeType === Node.TEXT_NODE ? range.startContainer.parentNode : range.startContainer;
-    const endNode = range.endContainer.nodeType === Node.TEXT_NODE ? range.endContainer.parentNode : range.endContainer;
-
-    if (
-      !activeWikiChip &&
-      (!startNode || !endNode || !contentRef.current.contains(startNode) || !contentRef.current.contains(endNode))
-    ) {
-      setSelectionToolbarAnchor(null);
-      return;
-    }
-
-    if (!activeWikiChip && sel.isCollapsed) {
-      setSelectionToolbarAnchor(null);
-      return;
-    }
-
-    const rect = activeWikiChip?.getBoundingClientRect() ?? range.getBoundingClientRect();
-    if (!rect.width && !rect.height) {
-      setSelectionToolbarAnchor(null);
-      return;
-    }
-
-    const editorRect = editorScrollRef.current?.getBoundingClientRect();
-    const toolbarHeight = 76;
-    const verticalGap = 8;
-    const desiredBelow = rect.bottom + verticalGap;
-    const desiredAbove = rect.top - toolbarHeight - verticalGap;
-    const hasRoomBelow = desiredBelow + toolbarHeight <= window.innerHeight - 12;
-    const top = hasRoomBelow ? desiredBelow : Math.max(12, desiredAbove);
-    const unclampedLeft = rect.left + rect.width / 2;
-    const clampedLeft = editorRect
-      ? Math.max(editorRect.left + 24, Math.min(editorRect.right - 24, unclampedLeft))
-      : unclampedLeft;
-    setSelectionToolbarAnchor({
-      left: clampedLeft,
-      top,
-    });
-  }, [viewMode]);
-
-  const markSelectionToolbarInteraction = useCallback(() => {
-    selectionToolbarInteractingRef.current = true;
-    window.setTimeout(() => {
-      selectionToolbarInteractingRef.current = false;
-    }, 0);
-  }, []);
-
-  useEffect(() => {
-    const handleSelectionChange = () => {
-      forceUpdate((n) => n + 1);
-      updateSelectionToolbar();
-    };
-    document.addEventListener('selectionchange', handleSelectionChange);
-    window.addEventListener('resize', updateSelectionToolbar);
-    return () => {
-      document.removeEventListener('selectionchange', handleSelectionChange);
-      window.removeEventListener('resize', updateSelectionToolbar);
-    };
-  }, [updateSelectionToolbar]);
-
-  useEffect(() => {
-    syncSelectedImageOverlay(selectedImageId);
-  }, [selectedImageId, syncSelectedImageOverlay]);
-
-  useEffect(() => {
-    const handleWindowResize = () => syncSelectedImageOverlay(selectedImageId);
-    window.addEventListener('resize', handleWindowResize);
-    return () => window.removeEventListener('resize', handleWindowResize);
-  }, [selectedImageId, syncSelectedImageOverlay]);
-
-  useEffect(() => {
-    const onPointerMove = (event: PointerEvent) => {
-      const resizeState = imageResizeStateRef.current;
-      if (!resizeState || !contentRef.current) return;
-      const figure = contentRef.current.querySelector<HTMLElement>(`figure[data-doc-image-id="${resizeState.imageId}"]`);
-      const image = figure?.querySelector<HTMLImageElement>('img');
-      if (!figure || !image) return;
-      const nextWidth = Math.max(160, resizeState.startWidth + (event.clientX - resizeState.startX));
-      image.style.width = `${nextWidth}px`;
-      image.style.maxWidth = '100%';
-      image.style.height = 'auto';
-      syncSelectedImageOverlay(resizeState.imageId);
-    };
-
-    const onPointerUp = () => {
-      if (!imageResizeStateRef.current || !contentRef.current) return;
-      imageResizeStateRef.current = null;
-      document.body.style.userSelect = '';
-      contentRef.current.dispatchEvent(new Event('input', { bubbles: true }));
-    };
-
-    window.addEventListener('pointermove', onPointerMove);
-    window.addEventListener('pointerup', onPointerUp);
-    return () => {
-      window.removeEventListener('pointermove', onPointerMove);
-      window.removeEventListener('pointerup', onPointerUp);
-    };
-  }, [syncSelectedImageOverlay]);
-
   useEffect(() => {
     setLastSavedAt(null);
     setHasEditedSinceOpen(false);
@@ -747,10 +555,8 @@ export default function DocumentMode({
   }, [doc?.id]);
 
   useEffect(() => {
-    setSelectionToolbarAnchor(null);
-    setLineHandle(null);
-    setLineHandleMenu(null);
-  }, [doc?.id, viewMode]);
+    selectionToolbar.close();
+  }, [doc?.id, viewMode, selectionToolbar.close]);
 
   useEffect(() => {
     if (!lastSavedAt) return;
@@ -817,7 +623,6 @@ export default function DocumentMode({
 
   useEffect(() => () => {
     if (editHistoryTimerRef.current !== null) window.clearTimeout(editHistoryTimerRef.current);
-    if (lineHandleHideTimerRef.current !== null) window.clearTimeout(lineHandleHideTimerRef.current);
   }, []);
 
   useEffect(() => {
@@ -924,6 +729,12 @@ export default function DocumentMode({
     contentRef.current.dispatchEvent(new Event('input', { bubbles: true }));
   }, [documents]);
 
+  const lineHandleDrag = useLineHandleDrag({ contentRef, editorScrollRef, checkpointDocumentHistory, refreshEditorDomAfterBlockChange });
+
+  useEffect(() => {
+    lineHandleDrag.resetLineHandle();
+  }, [doc?.id, viewMode, lineHandleDrag.resetLineHandle]);
+
   const getCurrentEditorBlock = useCallback(() => {
     const root = contentRef.current;
     const range = getEditorInsertionRange();
@@ -940,11 +751,10 @@ export default function DocumentMode({
     checkpointDocumentHistory();
     const converted = turnBlockInto(command.id, block, root);
     if (!converted) return false;
-    setLineHandle(null);
-    setLineHandleMenu(null);
+    lineHandleDrag.resetLineHandle();
     refreshEditorDomAfterBlockChange(caretHostForConvertedBlock(converted));
     return true;
-  }, [checkpointDocumentHistory, getCurrentEditorBlock, refreshEditorDomAfterBlockChange]);
+  }, [checkpointDocumentHistory, getCurrentEditorBlock, lineHandleDrag.resetLineHandle, refreshEditorDomAfterBlockChange]);
 
   const findDirectEditorBlock = useCallback((target: EventTarget | null) => {
     const root = contentRef.current;
@@ -959,158 +769,6 @@ export default function DocumentMode({
     }
     return null;
   }, []);
-
-  const updateLineHandleForBlock = useCallback((block: HTMLElement | null) => {
-    if (lineHandleHideTimerRef.current !== null) {
-      window.clearTimeout(lineHandleHideTimerRef.current);
-      lineHandleHideTimerRef.current = null;
-    }
-    if (!block || !contentRef.current || !editorScrollRef.current) {
-      setLineHandle(null);
-      return;
-    }
-    const blockRect = block.getBoundingClientRect();
-    const editorRect = editorScrollRef.current.getBoundingClientRect();
-    if (blockRect.bottom < editorRect.top || blockRect.top > editorRect.bottom) {
-      setLineHandle(null);
-      return;
-    }
-    setLineHandle({
-      block,
-      rect: {
-        left: blockRect.left,
-        top: blockRect.top,
-        width: blockRect.width,
-        height: blockRect.height,
-      },
-    });
-  }, []);
-
-  const cancelLineHandleHide = useCallback(() => {
-    if (lineHandleHideTimerRef.current === null) return;
-    window.clearTimeout(lineHandleHideTimerRef.current);
-    lineHandleHideTimerRef.current = null;
-  }, []);
-
-  const scheduleLineHandleHide = useCallback(() => {
-    if (lineHandleMenu) return;
-    if (lineHandleHideTimerRef.current !== null) window.clearTimeout(lineHandleHideTimerRef.current);
-    lineHandleHideTimerRef.current = window.setTimeout(() => {
-      setLineHandle(null);
-      lineHandleHideTimerRef.current = null;
-    }, 650);
-  }, [lineHandleMenu]);
-
-  const computeDropBefore = useCallback((block: HTMLElement, y: number): HTMLElement | null => {
-    const root = contentRef.current;
-    if (!root) return null;
-    const siblings = Array.from(root.children).filter((child) => child !== block) as HTMLElement[];
-    return siblings.find((sibling) => {
-      const rect = sibling.getBoundingClientRect();
-      return y < rect.top + rect.height / 2;
-    }) ?? null;
-  }, []);
-
-  const computeDropIndicatorRect = useCallback((block: HTMLElement, before: HTMLElement | null) => {
-    const root = contentRef.current;
-    if (!root) return null;
-    const containerRect = root.getBoundingClientRect();
-    if (before) {
-      const rect = before.getBoundingClientRect();
-      return { left: containerRect.left, top: rect.top - 2, width: containerRect.width };
-    }
-    const siblings = Array.from(root.children).filter((child) => child !== block) as HTMLElement[];
-    const last = siblings[siblings.length - 1];
-    const anchor = (last ?? block).getBoundingClientRect();
-    return { left: containerRect.left, top: anchor.bottom - 2, width: containerRect.width };
-  }, []);
-
-  const beginLineHandlePointer = useCallback((event: React.PointerEvent<HTMLButtonElement>, handle: LineHandleState) => {
-    const root = contentRef.current;
-    if (!root || !root.contains(handle.block)) return;
-
-    event.preventDefault();
-    event.stopPropagation();
-
-    const startY = event.clientY;
-    const blockRectAtStart = handle.block.getBoundingClientRect();
-    const pointerOffsetY = startY - blockRectAtStart.top;
-    let lastY = startY;
-    let dragging = false;
-    let dragHtml: string | null = null;
-    const originalUserSelect = document.body.style.userSelect;
-    const originalCursor = document.body.style.cursor;
-
-    const cleanup = () => {
-      document.body.style.userSelect = originalUserSelect;
-      document.body.style.cursor = originalCursor;
-      handle.block.classList.remove('doc-block-dragging');
-      setLineDragGhost(null);
-      setLineDropIndicator(null);
-      window.removeEventListener('pointermove', onPointerMove);
-      window.removeEventListener('pointerup', onPointerUp);
-      window.removeEventListener('pointercancel', onPointerCancel);
-    };
-
-    const onPointerMove = (moveEvent: PointerEvent) => {
-      lastY = moveEvent.clientY;
-      if (!dragging) {
-        if (Math.abs(lastY - startY) < 5) return;
-        dragging = true;
-        document.body.style.userSelect = 'none';
-        document.body.style.cursor = 'grabbing';
-        setLineHandleMenu(null);
-        dragHtml = handle.block.innerHTML;
-        handle.block.classList.add('doc-block-dragging');
-      }
-      if (dragHtml !== null) {
-        setLineDragGhost({
-          html: dragHtml,
-          left: blockRectAtStart.left,
-          width: blockRectAtStart.width,
-          top: lastY - pointerOffsetY,
-        });
-      }
-      const before = computeDropBefore(handle.block, lastY);
-      setLineDropIndicator(computeDropIndicatorRect(handle.block, before));
-    };
-
-    const onPointerCancel = () => {
-      cleanup();
-      setLineHandle(null);
-    };
-
-    const onPointerUp = () => {
-      cleanup();
-
-      if (!dragging) {
-        setLineHandle(handle);
-        setLineHandleMenu(handle);
-        return;
-      }
-
-      const block = handle.block;
-      if (!root.contains(block)) {
-        setLineHandle(null);
-        return;
-      }
-
-      const before = computeDropBefore(block, lastY);
-      const alreadyInPlace = before === block.nextElementSibling || (!before && block === root.lastElementChild);
-
-      if (!alreadyInPlace) {
-        checkpointDocumentHistory();
-        root.insertBefore(block, before);
-        refreshEditorDomAfterBlockChange(caretHostForConvertedBlock(block));
-      }
-
-      updateLineHandleForBlock(block);
-    };
-
-    window.addEventListener('pointermove', onPointerMove);
-    window.addEventListener('pointerup', onPointerUp);
-    window.addEventListener('pointercancel', onPointerCancel);
-  }, [checkpointDocumentHistory, computeDropBefore, computeDropIndicatorRect, refreshEditorDomAfterBlockChange, updateLineHandleForBlock]);
 
   const switchToSource = () => {
     if (!doc) return;
@@ -1362,26 +1020,6 @@ export default function DocumentMode({
     };
   }, [nodeContextMenu]);
 
-  useEffect(() => {
-    if (!lineHandleMenu) return;
-    const close = (event: Event) => {
-      const target = event.target as HTMLElement | null;
-      if (target?.closest?.('[data-line-turn-ui="true"]')) return;
-      setLineHandleMenu(null);
-    };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setLineHandleMenu(null);
-    };
-    window.addEventListener('pointerdown', close);
-    window.addEventListener('keydown', onKeyDown);
-    window.addEventListener('scroll', close, true);
-    return () => {
-      window.removeEventListener('pointerdown', close);
-      window.removeEventListener('keydown', onKeyDown);
-      window.removeEventListener('scroll', close, true);
-    };
-  }, [lineHandleMenu]);
-
   // ── Chip insertion ────────────────────────────────────────────────────────
 
   const insertChipInEditor = useCallback((chipEl: HTMLElement) => {
@@ -1448,7 +1086,7 @@ export default function DocumentMode({
       savedSelectionRef.current = range.cloneRange();
 
       contentRef.current.dispatchEvent(new Event('input', { bubbles: true }));
-      setSelectionToolbarAnchor(null);
+      selectionToolbar.close();
       setWikilinkPicker(null);
       wikiPreviewTitle.current = null;
       setWikiPreview(null);
@@ -1519,7 +1157,7 @@ export default function DocumentMode({
 
     root.dispatchEvent(new Event('input', { bubbles: true }));
     setWikilinkPicker(null);
-    setSelectionToolbarAnchor(null);
+    selectionToolbar.close();
     wikiPreviewTitle.current = null;
     setWikiPreview(null);
     return true;
@@ -2538,10 +2176,10 @@ export default function DocumentMode({
 
           {viewMode === 'edit' && (
             <SelectionFormattingToolbar
-              anchor={selectionToolbarAnchor}
+              anchor={selectionToolbar.anchor}
               isWikiLinkActive={isWikiLinkActive}
               onWikilinkClick={handleWikilinkClick}
-              onInteractionStart={markSelectionToolbarInteraction}
+              onInteractionStart={selectionToolbar.markInteraction}
             />
           )}
 
@@ -2560,15 +2198,14 @@ export default function DocumentMode({
                 justifyContent: 'center',
               }}
               onScroll={() => {
-                updateSelectionToolbar();
-                syncSelectedImageOverlay(selectedImageId);
+                selectionToolbar.update();
+                imageSelection.refreshOverlayPosition();
                 setWikiContextMenu(null);
-                setLineHandle(null);
-                setLineHandleMenu(null);
+                lineHandleDrag.resetLineHandle();
               }}
               onMouseLeave={() => {
                 closeWikiPreview();
-                scheduleLineHandleHide();
+                lineHandleDrag.scheduleLineHandleHide();
               }}
               onContextMenu={(e) => {
                 const target = e.target as HTMLElement;
@@ -2579,7 +2216,7 @@ export default function DocumentMode({
                   e.preventDefault();
                   e.stopPropagation();
                   closeWikiPreview(0);
-                  setSelectionToolbarAnchor(null);
+                  selectionToolbar.close();
                   setWikilinkPicker(null);
                   setNodePicker(null);
                   setWikiContextMenu(null);
@@ -2598,7 +2235,7 @@ export default function DocumentMode({
                 e.preventDefault();
                 e.stopPropagation();
                 closeWikiPreview(0);
-                setSelectionToolbarAnchor(null);
+                selectionToolbar.close();
                 setNodeContextMenu(null);
                 if (!linked) {
                   setWikiContextMenu(null);
@@ -2620,7 +2257,7 @@ export default function DocumentMode({
               }}
               onMouseMove={(e) => {
                 if (!(e.target as HTMLElement).closest?.('[data-line-turn-ui="true"]')) {
-                  updateLineHandleForBlock(findDirectEditorBlock(e.target));
+                  lineHandleDrag.updateLineHandleForBlock(findDirectEditorBlock(e.target));
                 }
                 const chip = (e.target as HTMLElement).closest?.('[data-chip="wiki"]') as HTMLElement | null;
                 if (chip) {
@@ -2651,11 +2288,10 @@ export default function DocumentMode({
                 if (imageFigure?.dataset.docImageId) {
                   e.preventDefault();
                   e.stopPropagation();
-                  setSelectedImageId(imageFigure.dataset.docImageId);
-                  syncSelectedImageOverlay(imageFigure.dataset.docImageId);
+                  imageSelection.selectImage(imageFigure.dataset.docImageId);
                   return;
                 }
-                if (selectedImageId) clearSelectedImage();
+                if (imageSelection.selectedImageId) imageSelection.clearSelectedImage();
                 const chip = target.closest('[data-chip]') as HTMLElement | null;
                 if (!chip) return;
                 const type = chip.dataset.chip;
@@ -2674,7 +2310,7 @@ export default function DocumentMode({
                     const rect = chip.getBoundingClientRect();
                     setWikiContextMenu(null);
                     closeWikiPreview(0);
-                    setSelectionToolbarAnchor(null);
+                    selectionToolbar.close();
                     setNodePicker(null);
                     setWikilinkPicker({
                       x: Math.min(rect.left, window.innerWidth - PICKER_WIDTH - 12),
@@ -2819,9 +2455,9 @@ export default function DocumentMode({
                 onChange={(e) => syncTaskCheckbox(e.target)}
                 onKeyDown={(e) => {
                   if (handleTaskItemEnter(e)) return;
-                  if ((e.key === 'Backspace' || e.key === 'Delete') && selectedImageId) {
+                  if ((e.key === 'Backspace' || e.key === 'Delete') && imageSelection.selectedImageId) {
                     e.preventDefault();
-                    removeSelectedImage();
+                    imageSelection.removeSelectedImage();
                     return;
                   }
                   if (e.key === '/' && !e.metaKey && !e.ctrlKey && !e.altKey) {
@@ -2836,9 +2472,9 @@ export default function DocumentMode({
                       return;
                     }
                   }
-                  if (e.key === 'Escape' && selectedImageId) {
+                  if (e.key === 'Escape' && imageSelection.selectedImageId) {
                     e.preventDefault();
-                    clearSelectedImage();
+                    imageSelection.clearSelectedImage();
                     return;
                   }
                   if (e.key === 'Escape' && slashPalette) {
@@ -2892,25 +2528,25 @@ export default function DocumentMode({
               </div>
 
               <DocumentLineHandle
-                lineHandle={lineHandle}
-                lineHandleMenu={lineHandleMenu}
+                lineHandle={lineHandleDrag.lineHandle}
+                lineHandleMenu={lineHandleDrag.lineHandleMenu}
                 turnIntoCommands={turnIntoCommands}
-                onCancelHide={cancelLineHandleHide}
-                onScheduleHide={scheduleLineHandleHide}
-                onPointerDown={beginLineHandlePointer}
+                onCancelHide={lineHandleDrag.cancelLineHandleHide}
+                onScheduleHide={lineHandleDrag.scheduleLineHandleHide}
+                onPointerDown={lineHandleDrag.beginLineHandlePointer}
                 onTurnInto={(command, block) => {
                   applyTurnIntoCommand(command, block);
                 }}
               />
 
-              {lineDropIndicator && (
+              {lineHandleDrag.lineDropIndicator && (
                 <div
                   aria-hidden="true"
                   style={{
                     position: 'fixed',
-                    left: lineDropIndicator.left,
-                    top: lineDropIndicator.top,
-                    width: lineDropIndicator.width,
+                    left: lineHandleDrag.lineDropIndicator.left,
+                    top: lineHandleDrag.lineDropIndicator.top,
+                    width: lineHandleDrag.lineDropIndicator.width,
                     height: 3,
                     borderRadius: 999,
                     background: 'var(--c-line)',
@@ -2921,14 +2557,14 @@ export default function DocumentMode({
                 />
               )}
 
-              {lineDragGhost && (
+              {lineHandleDrag.lineDragGhost && (
                 <div
                   aria-hidden="true"
                   style={{
                     position: 'fixed',
-                    left: lineDragGhost.left,
-                    top: lineDragGhost.top,
-                    width: lineDragGhost.width,
+                    left: lineHandleDrag.lineDragGhost.left,
+                    top: lineHandleDrag.lineDragGhost.top,
+                    width: lineHandleDrag.lineDragGhost.width,
                     maxHeight: 220,
                     overflow: 'hidden',
                     background: editorSurface,
@@ -2945,18 +2581,18 @@ export default function DocumentMode({
                     fontFamily: "'Plus Jakarta Sans', sans-serif",
                     color: 'var(--c-text-hi)',
                   }}
-                  dangerouslySetInnerHTML={{ __html: lineDragGhost.html }}
+                  dangerouslySetInnerHTML={{ __html: lineHandleDrag.lineDragGhost.html }}
                 />
               )}
 
-              {selectedImageRect && selectedImageId && (
+              {imageSelection.selectedImageRect && imageSelection.selectedImageId && (
                 <div
                   style={{
                     position: 'fixed',
-                    left: selectedImageRect.left,
-                    top: selectedImageRect.top,
-                    width: selectedImageRect.width,
-                    height: selectedImageRect.height,
+                    left: imageSelection.selectedImageRect.left,
+                    top: imageSelection.selectedImageRect.top,
+                    width: imageSelection.selectedImageRect.width,
+                    height: imageSelection.selectedImageRect.height,
                     border: '1.5px solid rgba(184,119,80,0.7)',
                     borderRadius: 16,
                     pointerEvents: 'none',
@@ -2984,7 +2620,7 @@ export default function DocumentMode({
                       onMouseDown={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        removeSelectedImage();
+                        imageSelection.removeSelectedImage();
                       }}
                       style={{
                         height: 24,
@@ -3005,15 +2641,7 @@ export default function DocumentMode({
                     onMouseDown={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
-                      const figure = contentRef.current?.querySelector<HTMLElement>(`figure[data-doc-image-id="${selectedImageId}"]`);
-                      const image = figure?.querySelector<HTMLImageElement>('img');
-                      if (!image) return;
-                      imageResizeStateRef.current = {
-                        imageId: selectedImageId,
-                        startX: e.clientX,
-                        startWidth: image.getBoundingClientRect().width,
-                      };
-                      document.body.style.userSelect = 'none';
+                      imageSelection.beginResize(e.clientX);
                     }}
                     style={{
                       position: 'absolute',

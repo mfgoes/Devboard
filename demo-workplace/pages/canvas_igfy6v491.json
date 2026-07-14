@@ -2,6 +2,9 @@
   "name": "Story ideas",
   "layoutMode": "freeform",
   "noteSort": "updated",
+  "isCanvasDocument": true,
+  "parentPageId": "page-1",
+  "canvasDocumentId": "doc_1wnavppcw",
   "nodes": [
     {
       "id": "5dthrvqht",
@@ -24,6 +27,44 @@
       "width": 200,
       "height": 160,
       "fontSizeMode": "dynamic"
+    },
+    {
+      "id": "73n5r942l",
+      "type": "table",
+      "x": 432.0088489480913,
+      "y": 192.99998236762283,
+      "colWidths": [
+        120,
+        120,
+        120
+      ],
+      "rowHeights": [
+        36,
+        36,
+        36
+      ],
+      "cells": [
+        [
+          "jkjkj",
+          "",
+          ""
+        ],
+        [
+          "jkjk",
+          "",
+          ""
+        ],
+        [
+          "",
+          "",
+          ""
+        ]
+      ],
+      "headerRow": true,
+      "fill": "#ffffff",
+      "headerFill": "#f1f5f9",
+      "stroke": "#cbd5e1",
+      "fontSize": 13
     }
   ],
   "camera": {

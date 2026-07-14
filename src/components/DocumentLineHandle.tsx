@@ -52,6 +52,7 @@ export default function DocumentLineHandle({
               data-line-turn-ui="true"
               onPointerEnter={onCancelHide}
               onPointerLeave={onScheduleHide}
+              onPointerDown={(event) => onPointerDown(event, lineHandle)}
               style={{
                 position: 'fixed',
                 left: Math.max(4, lineHandle.rect.left - 44),
@@ -63,6 +64,7 @@ export default function DocumentLineHandle({
                 alignItems: 'center',
                 justifyContent: 'flex-start',
                 paddingLeft: 7,
+                cursor: 'grab',
                 touchAction: 'none',
               }}
             >

@@ -672,8 +672,8 @@ export function useCanvasInteraction({
         cells: Array.from({ length: NUM_ROWS }, () => Array(NUM_COLS).fill('')),
         headerRow: true,
         fill: isDark ? '#1e293b' : '#ffffff',
-        headerFill: 'var(--c-line)',
-        stroke: isDark ? '#475569' : '#e2e8f0',
+        headerFill: isDark ? '#334155' : '#f1f5f9',
+        stroke: isDark ? '#475569' : '#cbd5e1',
         fontSize: 13,
       } satisfies TableNode);
       setActiveTool('select');

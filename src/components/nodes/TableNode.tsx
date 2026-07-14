@@ -25,9 +25,11 @@ function contrastText(hex: string): string {
   return (r * 299 + g * 587 + b * 114) / 1000 >= 128 ? '#1a1a2e' : '#ffffff';
 }
 
-// Accent = #6366f1 (r=99, g=102, b=241) blended at 25% over cell fill
+// Blend warm accent (golden beige) at 20% over cell fill
 function focusedFill(fill: string): string {
-  return blendHex(fill, 99, 102, 241, 0.25);
+  // Light mode: #d4a858 (golden beige), Dark mode: #7a3a10 (warm brown) via CSS
+  // Using the light mode value which complements both themes
+  return blendHex(fill, 212, 168, 88, 0.20);
 }
 
 const MIN_COL_W = 40;
@@ -265,6 +267,10 @@ export default function TableNode({ node, isSelected, isDrawingLine, onAnchorDow
                 fill={isFocused ? focusedFill(isHeader ? node.headerFill : node.fill) : isHeader ? node.headerFill : node.fill}
                 onClick={(e) => handleCellClick(r, c, e)}
                 onDblClick={(e) => handleCellDblClick(r, c, e)}
+                shadowEnabled={isFocused}
+                shadowColor="rgba(0, 0, 0, 0.1)"
+                shadowBlur={8}
+                shadowOffset={{ x: 0, y: 2 }}
               />
             );
           })
@@ -284,16 +290,18 @@ export default function TableNode({ node, isSelected, isDrawingLine, onAnchorDow
             return (
               <Text
                 key={`text-${r}-${c}`}
-                x={colX[c] + 6}
+                x={colX[c] + 8}
                 y={rowY[r]}
-                width={node.colWidths[c] - 12}
+                width={node.colWidths[c] - 16}
                 height={node.rowHeights[r]}
                 text={text}
-                fontSize={node.fontSize}
+                fontSize={isHeader ? Math.round(node.fontSize * 1.05) : node.fontSize}
                 fontFamily={FONTS.ui}
                 fontStyle={isHeader ? 'bold' : 'normal'}
+                fontWeight={isHeader ? 'bold' : 'normal'}
                 fill={contrastText(effectiveFill)}
                 verticalAlign="middle"
+                align="left"
                 wrap="word"
                 listening={false}
               />
@@ -307,7 +315,8 @@ export default function TableNode({ node, isSelected, isDrawingLine, onAnchorDow
             key={`hline-${i}`}
             points={[0, y, totalW, y]}
             stroke={node.stroke}
-            strokeWidth={node.headerRow && i === 0 ? 2 : 1}
+            strokeWidth={node.headerRow && i === 0 ? 1.5 : 0.75}
+            opacity={node.headerRow && i === 0 ? 0.4 : 0.2}
             listening={false}
           />
         ))}
@@ -318,7 +327,8 @@ export default function TableNode({ node, isSelected, isDrawingLine, onAnchorDow
             key={`vline-${i}`}
             points={[x, 0, x, totalH]}
             stroke={node.stroke}
-            strokeWidth={1}
+            strokeWidth={0.75}
+            opacity={0.2}
             listening={false}
           />
         ))}
@@ -329,7 +339,8 @@ export default function TableNode({ node, isSelected, isDrawingLine, onAnchorDow
           width={totalW} height={totalH}
           fill="transparent"
           stroke={node.stroke}
-          strokeWidth={2}
+          strokeWidth={1.5}
+          opacity={0.6}
           listening={false}
         />
 
