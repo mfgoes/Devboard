@@ -6,7 +6,7 @@ import { saveAs } from 'file-saver';
 import { hasWorkspaceHandle, readWorkspaceFileAsUrl, saveImageAsset, saveTextFileToWorkspace } from '../utils/workspaceManager';
 import { toast } from '../utils/toast';
 import { focusNode } from '../utils/focusNode';
-import { IconArrowRight, IconCode, IconCodeBlock, IconCopy, IconEye, IconHorizontalRule, IconLink, IconList, IconListOrdered, IconMoreHorizontal, IconNodeLink, IconQuote, IconStar, IconTextWrap, IconUnlink, IconWikiLink } from './icons';
+import { IconArrowRight, IconCode, IconCodeBlock, IconColumns, IconCopy, IconEye, IconHorizontalRule, IconLink, IconList, IconListOrdered, IconMoreHorizontal, IconNodeLink, IconQuote, IconStar, IconTextWrap, IconUnlink, IconWikiLink } from './icons';
 import { useDocumentAutoSave } from '../hooks/useDocumentAutoSave';
 import { type DocumentCommandDefinition, type DocumentCommandGroup, type DocumentCommandId, getDocumentCommandsForSurface, runDocumentCommand } from './documentCommands';
 import { caretHostForConvertedBlock, isConvertibleDocumentCommand, isSupportedTurnIntoBlock, restoreCaretAtEnd, turnBlockInto } from './documentBlockTransforms';
@@ -45,1936 +45,43 @@ import {
   wikiLinkRaw,
   wordCountFromHtml,
 } from './documentModeUtils';
+import {
+  resolveDocumentColorValue,
+  rangeRoot,
+  dispatchEditableInput,
+  updatePlaceholderVisibility,
+  ensureDocImageIds,
+  ensureDocumentHeadingIds,
+  rangeBlock,
+  rangeBlocks,
+  restoreRangeSelection,
+  toggleInlineCode,
+  getLinkHref,
+} from './documentEditorCommands';
+import {
+  FormattingBar,
+  SelectionFormattingToolbar,
+  type SelectionToolbarAnchor,
+} from './DocumentToolbars';
+import {
+  PICKER_WIDTH,
+  WikilinkPicker,
+  NodePicker,
+  DocEmojiPicker,
+  SlashCommandPalette,
+} from './DocumentPickers';
 import './DocumentMode.css';
 
 const TODO_LIST_ITEM_HTML = taskListItemHtml({ placeholder: 'Todo item' });
-// ── Formatting toolbar ───────────────────────────────────────────────────────
+// ── DocumentMode ─────────────────────────────────────────────────────────────
 
-const BLOCK_LABELS: Record<string, string> = {
-  p: 'Paragraph', h1: 'Heading 1', h2: 'Heading 2', h3: 'Heading 3',
-};
-
-const BLOCK_SHORT_LABELS: Record<string, string> = {
-  p: 'P', h1: 'H1', h2: 'H2', h3: 'H3',
-};
-
-const DOCUMENT_TEXT_COLORS = [
-  { label: 'Default', value: 'auto', swatch: 'var(--c-text-hi)' },
-  { label: 'Accent', value: '--c-line', swatch: 'var(--c-line)' },
-  { label: 'Green', value: '--c-green', swatch: 'var(--c-green)' },
-  { label: 'Orange', value: '--c-orange', swatch: 'var(--c-orange)' },
-  { label: 'Red', value: '--c-red', swatch: 'var(--c-red)' },
-  { label: 'Yellow', value: '--c-yellow', swatch: 'var(--c-yellow)' },
-] as const;
-
-function resolveDocumentColorValue(value: string): string {
-  if (value === 'auto' || !value.startsWith('--')) return value;
-  return getComputedStyle(document.documentElement).getPropertyValue(value).trim() || value;
-}
-
-function getBlockType(savedRange: Range | null): string {
-  const range = savedRange ?? (window.getSelection()?.rangeCount ? window.getSelection()!.getRangeAt(0) : null);
-  if (!range) return 'p';
-  let el: Node | null = range.startContainer;
-  while (el && !(el as HTMLElement).contentEditable) {
-    const tag = (el as HTMLElement).tagName?.toLowerCase();
-    if (tag === 'h1' || tag === 'h2' || tag === 'h3' || tag === 'p') return tag;
-    el = el.parentElement;
-  }
-  return 'p';
-}
-
-function applyBlock(format: string, savedRange: Range | null) {
-  const range = savedRange;
-  if (!range) return;
-  const root = restoreRangeSelection(range);
-  if (!root) return;
-
-  let block: HTMLElement | null = range.startContainer as HTMLElement;
-  if (block.nodeType === Node.TEXT_NODE) block = block.parentElement;
-  while (block && block.parentElement !== root) block = block.parentElement;
-  if (!block || block === root) return;
-
-  const newEl = document.createElement(format);
-  while (block.firstChild) newEl.appendChild(block.firstChild);
-  block.replaceWith(newEl);
-  newEl.dispatchEvent(new Event('input', { bubbles: true }));
-}
-
-// Find the contentEditable root from a range
-function rangeRoot(range: Range): HTMLElement | null {
-  let n: Node | null = range.startContainer;
-  while (n && (n as HTMLElement).contentEditable !== 'true') n = n.parentElement;
-  return n as HTMLElement | null;
-}
-
-function dispatchEditableInput(savedRange: Range | null): void {
-  const fallbackRange = savedRange ?? (window.getSelection()?.rangeCount ? window.getSelection()!.getRangeAt(0) : null);
-  if (!fallbackRange) return;
-  rangeRoot(fallbackRange)?.dispatchEvent(new Event('input', { bubbles: true }));
-}
-
-function updatePlaceholderVisibility(root: HTMLElement): void {
-  root.querySelectorAll<HTMLElement>('[data-placeholder]').forEach((el) => {
-    const text = (el.textContent ?? '').replace(/\u00a0/g, ' ').trim();
-    const media = el.querySelector('img, .chip-wiki, .chip-node');
-    const hasMeaningfulContent = !!text || !!media;
-    el.setAttribute('data-placeholder-visible', hasMeaningfulContent ? 'false' : 'true');
-  });
-}
-
-function ensureDocImageIds(root: HTMLElement): void {
-  root.querySelectorAll<HTMLElement>('figure[data-doc-image="true"]').forEach((figure) => {
-    if (!figure.dataset.docImageId) {
-      figure.dataset.docImageId = `docimg_${Math.random().toString(36).slice(2, 10)}`;
-    }
-  });
-}
-
-function ensureDocumentHeadingIds(root: HTMLElement): void {
-  root.querySelectorAll<HTMLElement>('h1, h2').forEach((heading, index) => {
-    if (!heading.id) {
-      const base = (heading.textContent ?? '')
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '')
-        .slice(0, 40) || `section-${index + 1}`;
-      heading.id = `doc-${base}-${index + 1}`;
-    }
-  });
-}
-
-// Find the closest ancestor block that is a direct child of the editable root
-function rangeBlock(range: Range, root: HTMLElement): HTMLElement | null {
-  let block: HTMLElement | null = range.startContainer as HTMLElement;
-  if (block.nodeType === Node.TEXT_NODE) block = block.parentElement;
-  while (block && block.parentElement !== root) block = block.parentElement;
-  return block && block !== root ? block : null;
-}
-
-function rangeBlocks(range: Range, root: HTMLElement): HTMLElement[] {
-  const blocks = Array.from(root.children).filter((child): child is HTMLElement => {
-    try {
-      return range.intersectsNode(child);
-    } catch {
-      return false;
-    }
-  });
-  const fallback = rangeBlock(range, root);
-  return blocks.length ? blocks : fallback ? [fallback] : [];
-}
-
-function restoreRangeSelection(range: Range | null): HTMLElement | null {
-  if (!range) return null;
-  const root = rangeRoot(range);
-  if (!root) return null;
-  root.focus({ preventScroll: true });
-  const sel = window.getSelection();
-  if (sel) {
-    sel.removeAllRanges();
-    sel.addRange(range);
-  }
-  return root;
-}
-
-function applyTextAlignment(align: 'left' | 'center' | 'right', savedRange: Range | null) {
-  const range = savedRange;
-  const root = restoreRangeSelection(range);
-  if (!range || !root) return;
-
-  const command = align === 'left' ? 'justifyLeft' : align === 'center' ? 'justifyCenter' : 'justifyRight';
-  document.execCommand(command, false);
-  rangeBlocks(range, root).forEach((block) => {
-    if (align === 'left') block.style.removeProperty('text-align');
-    else block.style.textAlign = align;
-  });
-  root.dispatchEvent(new Event('input', { bubbles: true }));
-}
-
-// Toggle blockquote wrap on the current block
-function toggleBlockquote(savedRange: Range | null) {
-  const range = savedRange;
-  if (!range) return;
-  const root = restoreRangeSelection(range);
-  if (!root) return;
-  const block = rangeBlock(range, root);
-  if (!block) return;
-  if (block.tagName.toLowerCase() === 'blockquote') {
-    // Unwrap — replace blockquote with a div containing its inner content
-    const div = document.createElement('div');
-    while (block.firstChild) div.appendChild(block.firstChild);
-    block.replaceWith(div);
-    div.dispatchEvent(new Event('input', { bubbles: true }));
-  } else {
-    const bq = document.createElement('blockquote');
-    block.replaceWith(bq);
-    bq.appendChild(block);
-    bq.dispatchEvent(new Event('input', { bubbles: true }));
-  }
-}
-
-function insertCalloutBlock(savedRange: Range | null, emoji = '💡') {
-  const range = savedRange;
-  if (!range) return;
-  const root = restoreRangeSelection(range);
-  if (!root) return;
-  const block = rangeBlock(range, root);
-  if (!block) return;
-
-  if (block.tagName.toLowerCase() === 'blockquote' && block.classList.contains('doc-callout')) {
-    const body = block.querySelector('.doc-callout__body');
-    const div = document.createElement('div');
-    if (body) {
-      while (body.firstChild) div.appendChild(body.firstChild);
-    } else {
-      while (block.firstChild) div.appendChild(block.firstChild);
-    }
-    block.replaceWith(div);
-    div.dispatchEvent(new Event('input', { bubbles: true }));
-    return;
-  }
-
-  const callout = document.createElement('blockquote');
-  callout.className = 'doc-callout';
-  callout.dataset.callout = 'true';
-  callout.dataset.calloutEmoji = emoji;
-
-  const emojiEl = document.createElement('span');
-  emojiEl.className = 'doc-callout__emoji';
-  emojiEl.contentEditable = 'false';
-  emojiEl.textContent = emoji;
-
-  const body = document.createElement('div');
-  body.className = 'doc-callout__body';
-
-  if (block.tagName.toLowerCase() === 'blockquote') {
-    while (block.firstChild) body.appendChild(block.firstChild);
-    block.replaceWith(callout);
-  } else {
-    block.replaceWith(callout);
-    body.appendChild(block);
-  }
-
-  callout.append(emojiEl, body);
-  callout.dispatchEvent(new Event('input', { bubbles: true }));
-}
-
-// Toggle <pre><code> code block on the current block
-function toggleCodeBlock(savedRange: Range | null) {
-  const range = savedRange;
-  if (!range) return;
-  const root = restoreRangeSelection(range);
-  if (!root) return;
-  const block = rangeBlock(range, root);
-  if (!block) return;
-  if (block.tagName.toLowerCase() === 'pre') {
-    const div = document.createElement('div');
-    div.textContent = block.textContent ?? '';
-    block.replaceWith(div);
-    div.dispatchEvent(new Event('input', { bubbles: true }));
-  } else {
-    const pre = document.createElement('pre');
-    const code = document.createElement('code');
-    code.textContent = block.textContent ?? '';
-    pre.appendChild(code);
-    block.replaceWith(pre);
-    pre.dispatchEvent(new Event('input', { bubbles: true }));
-  }
-}
-
-// Wrap or unwrap the current selection in <code>
-function toggleInlineCode(savedRange: Range | null) {
-  const range = savedRange;
-  if (!range) return;
-  const root = restoreRangeSelection(range);
-  if (!root) return;
-  const sel = window.getSelection();
-
-  const closestCode = (node: Node | null): HTMLElement | null => {
-    let current = node;
-    if (current?.nodeType === Node.TEXT_NODE) current = current.parentNode;
-    while (current && (current as HTMLElement).contentEditable !== 'true') {
-      if ((current as HTMLElement).tagName?.toLowerCase() === 'code') return current as HTMLElement;
-      current = current.parentNode;
-    }
-    return null;
-  };
-
-  const unwrapCodeElements = (codes: HTMLElement[]) => {
-    const unwrappedTextNodes: Text[] = [];
-    codes.forEach((code) => {
-      const unwrapped = document.createTextNode(code.textContent ?? '');
-      code.replaceWith(unwrapped);
-      unwrappedTextNodes.push(unwrapped);
-    });
-
-    const nextRange = document.createRange();
-    const first = unwrappedTextNodes[0];
-    const last = unwrappedTextNodes[unwrappedTextNodes.length - 1];
-    if (first && last) {
-      nextRange.setStart(first, 0);
-      nextRange.setEnd(last, last.length);
-      sel?.removeAllRanges();
-      sel?.addRange(nextRange);
-    }
-
-    root.dispatchEvent(new Event('input', { bubbles: true }));
-  };
-
-  const codeParent =
-    closestCode(range.startContainer) ||
-    closestCode(range.commonAncestorContainer);
-
-  if (codeParent) {
-    unwrapCodeElements([codeParent]);
-    return;
-  }
-
-  const intersectingCodes = Array.from(root.querySelectorAll<HTMLElement>('code'))
-    .filter((code) => {
-      try {
-        return range.intersectsNode(code);
-      } catch {
-        return false;
-      }
-    });
-  if (intersectingCodes.length > 0) {
-    unwrapCodeElements(intersectingCodes);
-    return;
-  }
-
-  if (range.collapsed) return;
-  const code = document.createElement('code');
-  try { range.surroundContents(code); }
-  catch {
-    const text = range.toString();
-    range.deleteContents();
-    code.textContent = text;
-    range.insertNode(code);
-  }
-  root.dispatchEvent(new Event('input', { bubbles: true }));
-}
-
-// Insert <hr> after the current block
-function insertHorizontalRule(savedRange: Range | null) {
-  const range = savedRange;
-  if (!range) return;
-  const root = restoreRangeSelection(range);
-  if (!root) return;
-  const block = rangeBlock(range, root);
-  const hr = document.createElement('hr');
-  if (block) {
-    block.after(hr);
-    const next = document.createElement('div');
-    next.innerHTML = '<br>';
-    hr.after(next);
-  } else {
-    root.appendChild(hr);
-  }
-  hr.dispatchEvent(new Event('input', { bubbles: true }));
-}
-
-function isInBlock(savedRange: Range | null, tagName: string): boolean {
-  const range = savedRange ?? (window.getSelection()?.rangeCount ? window.getSelection()!.getRangeAt(0) : null);
-  if (!range) return false;
-  let n: Node | null = range.startContainer;
-  while (n && (n as HTMLElement).contentEditable !== 'true') {
-    if ((n as HTMLElement).tagName?.toLowerCase() === tagName) return true;
-    n = n.parentElement;
-  }
-  return false;
-}
-
-function getLinkHref(savedRange: Range | null): string {
-  const range = savedRange ?? (window.getSelection()?.rangeCount ? window.getSelection()!.getRangeAt(0) : null);
-  if (!range) return '';
-  let node: Node | null = range.startContainer;
-  if (node.nodeType === Node.TEXT_NODE) node = node.parentNode;
-  while (node && (node as HTMLElement).contentEditable !== 'true') {
-    if ((node as HTMLElement).tagName?.toLowerCase() === 'a') {
-      return (node as HTMLAnchorElement).getAttribute('href') ?? '';
-    }
-    node = node.parentElement;
-  }
-  return '';
-}
-
-interface FmtBarProps {
-  viewMode: 'edit' | 'source';
-  compactMode?: boolean;
-  onToggleSource: () => void;
-  onToggleEdit: () => void;
-  onExportMarkdown: () => void;
-  onSourceInsert: (syntax: string) => void;
-  sourceWrap: boolean;
-  setSourceWrap: React.Dispatch<React.SetStateAction<boolean>>;
-  onCopySource: () => void;
-  saveStatus?: NoteSavePresentation;
-  onOpenOutline: () => void;
-  onOpenProperties: () => void;
-  onFindReplace: () => void;
-  onShowWordCount: () => void;
-  wordCount: number;
-  readingTime: string;
-  insertCommands: DocumentCommandDefinition[];
-  turnIntoCommands: DocumentCommandDefinition[];
-  onInsertCommand: (command: DocumentCommandDefinition) => void;
-  onTurnIntoCommand: (command: DocumentCommandDefinition) => void;
-  onCaptureSelection: () => void;
-  onOpenSlashCommands: () => void;
-  onMenuOpenChange?: (open: boolean) => void;
-}
-
-interface SelectionToolbarAnchor {
-  left: number;
-  top: number;
-}
+type SlashCommand = DocumentCommandDefinition;
 
 interface FloatingPalettePosition {
   x: number;
   y: number;
   bounds?: { left: number; right: number; top: number; bottom: number };
 }
-
-function FormattingBar({
-  viewMode,
-  compactMode = false,
-  onSourceInsert,
-  sourceWrap,
-  setSourceWrap,
-  onCopySource,
-  insertCommands,
-  turnIntoCommands,
-  onInsertCommand,
-  onTurnIntoCommand,
-  onCaptureSelection,
-  onOpenSlashCommands,
-  onMenuOpenChange,
-}: FmtBarProps) {
-  const [showToolsMenu, setShowToolsMenu] = useState(false);
-  const [hoveredControl, setHoveredControl] = useState<string | null>(null);
-  const [toolbarWidth, setToolbarWidth] = useState(() => (typeof window !== 'undefined' ? window.innerWidth : 1440));
-  const isMobileNarrow = toolbarWidth < 520;
-  const useCompactToolbar = compactMode || toolbarWidth < 760;
-  const useUltraCompactToolbar = toolbarWidth < 620;
-  const savedRangeRef = useRef<Range | null>(null);
-  const [, tick] = useState(0);
-  const toolbarRef = useRef<HTMLDivElement>(null);
-  const toolsBtnRef = useRef<HTMLButtonElement>(null);
-  const toolsMenuRef = useRef<HTMLDivElement>(null);
-
-  const saveSelection = () => {
-    const sel = window.getSelection();
-    if (sel && sel.rangeCount > 0) savedRangeRef.current = sel.getRangeAt(0).cloneRange();
-    onCaptureSelection();
-  };
-
-  const restoreSelection = () => {
-    restoreRangeSelection(savedRangeRef.current);
-  };
-
-  const fmt = (cmd: string, val?: string) => {
-    restoreSelection();
-    document.execCommand(cmd, false, val);
-    dispatchEditableInput(savedRangeRef.current);
-    tick((n) => n + 1);
-  };
-
-  const btnStyle = (active: boolean, hovered = false): React.CSSProperties => ({
-    height: isMobileNarrow ? 30 : 26,
-    minWidth: isMobileNarrow ? 30 : 26,
-    padding: '0 8px',
-    background: active
-      ? (hovered ? 'rgba(184,119,80,0.33)' : 'rgba(184,119,80,0.22)')
-      : (hovered ? 'var(--c-hover)' : 'transparent'),
-    border: active
-      ? `1px solid ${hovered ? 'rgba(184,119,80,0.72)' : 'rgba(184,119,80,0.46)'}`
-      : `1px solid ${hovered ? 'var(--c-border)' : 'transparent'}`,
-    borderRadius: 6,
-    color: active ? 'var(--c-line)' : (hovered ? 'var(--c-text-hi)' : 'var(--c-text-lo)'),
-    cursor: 'pointer',
-    fontSize: 11,
-    fontFamily: 'inherit',
-    fontWeight: active ? 600 : 500,
-    flexShrink: 0,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 5,
-    boxShadow: hovered && !active ? '0 1px 2px rgba(0,0,0,0.06)' : 'none',
-    transition: 'background 0.12s, border-color 0.12s, color 0.12s, box-shadow 0.12s',
-  });
-
-  const primaryMenuButtonStyle = (active: boolean, hovered = false): React.CSSProperties => ({
-    ...btnStyle(active, hovered),
-    minWidth: useCompactToolbar ? 96 : 116,
-    height: isMobileNarrow ? 34 : 32,
-    padding: '0 12px',
-    justifyContent: 'space-between',
-    border: `1px solid ${active ? 'rgba(184,119,80,0.52)' : 'rgba(184,119,80,0.32)'}`,
-    background: active ? 'rgba(184,119,80,0.14)' : 'rgba(255,255,255,0.03)',
-    color: active ? 'var(--c-line)' : 'var(--c-text-hi)',
-    fontSize: useCompactToolbar ? 12 : 13,
-    fontWeight: 700,
-    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)',
-  });
-
-  const compactIconButtonStyle = (active: boolean, hovered = false): React.CSSProperties => ({
-    ...btnStyle(active, hovered),
-    height: isMobileNarrow ? 34 : 32,
-    minWidth: isMobileNarrow ? 34 : 32,
-    padding: '0 8px',
-    fontSize: 13,
-    fontWeight: active ? 800 : 700,
-    color: active ? 'var(--c-line)' : (hovered ? 'var(--c-text-hi)' : 'var(--c-text-md)'),
-  });
-
-  const toolbarDividerStyle: React.CSSProperties = {
-    width: 1,
-    height: 24,
-    background: 'var(--c-border)',
-    margin: '0 6px',
-    flexShrink: 0,
-  };
-
-  const todoGlyph = (
-    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-      <rect x="2.2" y="2.2" width="11.6" height="11.6" rx="2.2" stroke="currentColor" strokeWidth="1.5" />
-      <path d="M5 8.15 7.05 10.1 11.1 5.8" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-
-  const hoverHandlers = (id: string) => ({
-    onMouseEnter: () => setHoveredControl(id),
-    onMouseLeave: () => setHoveredControl((current) => (current === id ? null : current)),
-  });
-
-  const sourceShortcutStyle: React.CSSProperties = {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 6,
-    minHeight: 26,
-    padding: '0 8px',
-    borderRadius: 6,
-    border: '1px solid var(--c-border)',
-    background: 'rgba(255,255,255,0.025)',
-    color: 'var(--c-text-lo)',
-    fontSize: 11,
-    fontFamily: 'inherit',
-    whiteSpace: 'nowrap',
-  };
-
-  const sourceActionButtonStyle: React.CSSProperties = {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: useCompactToolbar ? 0 : 6,
-    minHeight: 26,
-    padding: useCompactToolbar ? '0 8px' : '0 10px',
-    borderRadius: 6,
-    border: '1px solid var(--c-border)',
-    background: 'rgba(255,255,255,0.025)',
-    color: 'var(--c-text-lo)',
-    fontSize: 11,
-    fontFamily: 'inherit',
-    cursor: 'pointer',
-    transition: 'background 0.12s, border-color 0.12s, color 0.12s',
-  };
-
-  const menuButtonStyle: React.CSSProperties = {
-    width: '100%',
-    display: 'flex',
-    alignItems: 'center',
-    gap: 8,
-    padding: '7px 10px',
-    border: 'none',
-    background: 'transparent',
-    color: 'var(--c-text-md)',
-    cursor: 'pointer',
-    fontSize: 12,
-    fontFamily: 'inherit',
-    textAlign: 'left',
-    borderRadius: 8,
-    transition: 'background 0.12s, color 0.12s',
-  };
-
-  const sourceShortcuts = [
-    ['### ', 'Heading'],
-    ['*text*', 'Italic'],
-    ['**bold**', 'Bold'],
-    ['- ', 'List'],
-    ['1. ', 'Ordered'],
-    ['> ', 'Quote'],
-    ['> [!callout] 💡 ', 'Callout'],
-    ['`code`', 'Inline code'],
-    ['```\ncode\n```', 'Code block'],
-    ['[](url)', 'Link'],
-    ['![](url)', 'Image'],
-    ['---', 'Rule'],
-    ['~~text~~', 'Strike'],
-    ['[[Note]]', 'Wiki link'],
-    ['@node:', 'Node'],
-  ];
-  const visibleSourceShortcuts = useUltraCompactToolbar ? sourceShortcuts.slice(0, 6) : sourceShortcuts;
-
-  const toolsMenuRect = showToolsMenu && toolsBtnRef.current ? toolsBtnRef.current.getBoundingClientRect() : null;
-  const groupedInsertCommands = insertCommands.reduce<Record<DocumentCommandGroup, DocumentCommandDefinition[]>>((acc, command) => {
-    (acc[command.group] ||= []).push(command);
-    return acc;
-  }, {} as Record<DocumentCommandGroup, DocumentCommandDefinition[]>);
-  const groupedTurnIntoCommands = turnIntoCommands.reduce<Record<DocumentCommandGroup, DocumentCommandDefinition[]>>((acc, command) => {
-    (acc[command.group] ||= []).push(command);
-    return acc;
-  }, {} as Record<DocumentCommandGroup, DocumentCommandDefinition[]>);
-
-  const closeMenus = () => {
-    setShowToolsMenu(false);
-  };
-
-  const runTurnIntoCommand = (id: DocumentCommandId) => {
-    const command = turnIntoCommands.find((candidate) => candidate.id === id);
-    if (!command) return;
-    restoreSelection();
-    onCaptureSelection();
-    closeMenus();
-    onTurnIntoCommand(command);
-    tick((n) => n + 1);
-  };
-
-  const runToolbarCommand = (id: DocumentCommandId) => {
-    const command = insertCommands.find((candidate) => candidate.id === id);
-    if (!command) return;
-    restoreSelection();
-    onCaptureSelection();
-    closeMenus();
-    onInsertCommand(command);
-  };
-
-  const openSlashCommands = () => {
-    restoreSelection();
-    onCaptureSelection();
-    closeMenus();
-    onOpenSlashCommands();
-  };
-
-  useEffect(() => {
-    onMenuOpenChange?.(showToolsMenu);
-    return () => onMenuOpenChange?.(false);
-  }, [onMenuOpenChange, showToolsMenu]);
-
-  useEffect(() => {
-    if (!showToolsMenu) return;
-    const handleWindowPointer = (event: MouseEvent | TouchEvent) => {
-      const target = event.target as Node | null;
-      if (!target) return;
-      if (
-        toolbarRef.current?.contains(target) ||
-        toolsMenuRef.current?.contains(target)
-      ) {
-        return;
-      }
-      closeMenus();
-    };
-    window.addEventListener('mousedown', handleWindowPointer);
-    window.addEventListener('touchstart', handleWindowPointer);
-    return () => {
-      window.removeEventListener('mousedown', handleWindowPointer);
-      window.removeEventListener('touchstart', handleWindowPointer);
-    };
-  }, [showToolsMenu]);
-
-  useEffect(() => {
-    const el = toolbarRef.current;
-    if (!el || typeof ResizeObserver === 'undefined') return;
-    const update = () => setToolbarWidth(el.getBoundingClientRect().width);
-    update();
-    const ro = new ResizeObserver(() => update());
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-
-  const menuShell = (rect: DOMRect | null, width = 190): React.CSSProperties => ({
-    position: 'fixed',
-    top: Math.min((rect?.bottom ?? 0) + 6, window.innerHeight - 240),
-    left: Math.min(rect?.left ?? 0, window.innerWidth - width - 12),
-    zIndex: 520,
-    minWidth: width,
-    padding: 6,
-    background: 'var(--c-panel)',
-    border: '1px solid rgba(255,255,255,0.12)',
-    borderRadius: 10,
-    boxShadow: '0 10px 30px rgba(0,0,0,0.28)',
-  });
-
-  const menuHover = {
-    onMouseEnter: (e: React.MouseEvent<HTMLButtonElement>) => {
-      e.currentTarget.style.background = 'var(--c-hover)';
-      e.currentTarget.style.color = 'var(--c-text-hi)';
-    },
-    onMouseLeave: (e: React.MouseEvent<HTMLButtonElement>) => {
-      e.currentTarget.style.background = 'transparent';
-      e.currentTarget.style.color = 'var(--c-text-md)';
-    },
-  };
-
-  return (
-    <div
-      ref={toolbarRef}
-      style={{
-        position: 'relative',
-        padding: compactMode ? '8px 14px' : '9px 28px',
-        borderBottom: '1px solid var(--c-border)',
-        background: 'var(--c-panel)',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 8,
-        flexShrink: 0,
-        boxShadow: '0 1px 0 rgba(0,0,0,0.04)',
-      }}
-      onMouseDown={(e) => e.stopPropagation()}
-    >
-      <div
-        style={{
-          flex: 1,
-          minWidth: 0,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-          overflowX: 'auto',
-          overflowY: 'visible',
-          scrollbarWidth: 'none',
-          msOverflowStyle: 'none',
-          paddingBottom: 2,
-          whiteSpace: 'nowrap',
-        }}
-      >
-        {viewMode === 'edit' && (
-          <>
-            <button
-              ref={toolsBtnRef}
-              type="button"
-              style={primaryMenuButtonStyle(showToolsMenu, hoveredControl === 'tools')}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                saveSelection();
-              }}
-              onClick={() => {
-                setShowToolsMenu((v) => !v);
-              }}
-              {...hoverHandlers('tools')}
-              title="Insert block or link"
-            >
-              <span style={{ fontSize: 18, fontWeight: 500, lineHeight: 1 }}>+</span>
-              <span style={{ marginRight: 2 }}>Insert</span>
-              <span style={{ fontSize: 9, opacity: 0.7 }}>▼</span>
-            </button>
-            <div style={toolbarDividerStyle} />
-            <button
-              type="button"
-              style={compactIconButtonStyle(false, hoveredControl === 'h1')}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                saveSelection();
-              }}
-              onClick={() => runTurnIntoCommand('heading-1')}
-              {...hoverHandlers('h1')}
-              title="Heading 1"
-            >
-              H1
-            </button>
-            <button
-              type="button"
-              style={compactIconButtonStyle(false, hoveredControl === 'h2')}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                saveSelection();
-              }}
-              onClick={() => runTurnIntoCommand('heading-2')}
-              {...hoverHandlers('h2')}
-              title="Heading 2"
-            >
-              H2
-            </button>
-            <button
-              type="button"
-              style={compactIconButtonStyle(false, hoveredControl === 'bullet-list')}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                saveSelection();
-              }}
-              onClick={() => runTurnIntoCommand('bullet-list')}
-              {...hoverHandlers('bullet-list')}
-              title="Bullet list"
-            >
-              <IconList />
-            </button>
-            <button
-              type="button"
-              style={compactIconButtonStyle(false, hoveredControl === 'todo-list')}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                saveSelection();
-              }}
-              onClick={() => runTurnIntoCommand('todo-list')}
-              {...hoverHandlers('todo-list')}
-              title="Todo list"
-            >
-              {todoGlyph}
-            </button>
-            <button
-              type="button"
-              style={compactIconButtonStyle(false, hoveredControl === 'quote')}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                saveSelection();
-              }}
-              onClick={() => runTurnIntoCommand('quote')}
-              {...hoverHandlers('quote')}
-              title="Quote"
-            >
-              <IconQuote />
-            </button>
-            <div style={toolbarDividerStyle} />
-            <button
-              type="button"
-              style={{
-                ...btnStyle(false, hoveredControl === 'slash-commands'),
-                height: isMobileNarrow ? 34 : 32,
-                minWidth: useCompactToolbar ? 42 : 154,
-                padding: useCompactToolbar ? '0 9px' : '0 12px',
-                borderRadius: 999,
-                border: '1px dashed var(--c-border)',
-                color: hoveredControl === 'slash-commands' ? 'var(--c-text-hi)' : 'var(--c-text-md)',
-                fontSize: 13,
-                fontWeight: 600,
-              }}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                saveSelection();
-              }}
-              onClick={openSlashCommands}
-              {...hoverHandlers('slash-commands')}
-              title="Slash commands"
-            >
-              <span
-                style={{
-                  width: 24,
-                  height: 24,
-                  borderRadius: 7,
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  background: 'rgba(255,255,255,0.05)',
-                  border: '1px solid rgba(255,255,255,0.12)',
-                  color: 'var(--c-text-hi)',
-                  fontSize: 15,
-                  lineHeight: 1,
-                }}
-              >
-                /
-              </span>
-              {!useCompactToolbar && <span>slash commands</span>}
-            </button>
-          </>
-        )}
-
-        {viewMode === 'source' && (
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              minHeight: 30,
-              flexShrink: 0,
-            }}
-          >
-            {!useCompactToolbar && (
-              <span style={{ fontSize: 11, color: 'var(--c-text-off)', marginRight: 2, whiteSpace: 'nowrap' }}>
-              Markdown
-              </span>
-            )}
-            {visibleSourceShortcuts.map(([syntax, label]) => (
-              <button
-                key={syntax}
-                type="button"
-                title={`Insert ${label.toLowerCase()} syntax`}
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  onSourceInsert(syntax);
-                }}
-                style={{
-                  ...sourceShortcutStyle,
-                  cursor: 'pointer',
-                  transition: 'background 0.12s, border-color 0.12s, color 0.12s',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'var(--c-hover)';
-                  e.currentTarget.style.borderColor = 'rgba(184,119,80,0.28)';
-                  e.currentTarget.style.color = 'var(--c-text-hi)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'rgba(255,255,255,0.025)';
-                  e.currentTarget.style.borderColor = 'var(--c-border)';
-                  e.currentTarget.style.color = 'var(--c-text-lo)';
-                }}
-              >
-                <code
-                  style={{
-                    color: 'var(--c-text-hi)',
-                    fontFamily: 'JetBrains Mono, monospace',
-                    fontSize: 11,
-                    background: 'rgba(0,0,0,0.08)',
-                    borderRadius: 4,
-                    padding: '1px 5px',
-                  }}
-                >
-                  {syntax}
-                </code>
-                {!useCompactToolbar && <span>{label}</span>}
-              </button>
-            ))}
-            <button
-              type="button"
-              title={sourceWrap ? 'Disable line wrap' : 'Enable line wrap'}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                setSourceWrap((v) => !v);
-              }}
-              style={{
-                ...sourceActionButtonStyle,
-                background: sourceWrap ? 'rgba(184,119,80,0.12)' : 'rgba(255,255,255,0.025)',
-                borderColor: sourceWrap ? 'rgba(184,119,80,0.28)' : 'var(--c-border)',
-                color: sourceWrap ? 'var(--c-text-hi)' : 'var(--c-text-lo)',
-              }}
-              onMouseEnter={(e) => {
-                if (sourceWrap) {
-                  e.currentTarget.style.background = 'rgba(184,119,80,0.16)';
-                  e.currentTarget.style.borderColor = 'rgba(184,119,80,0.36)';
-                } else {
-                  e.currentTarget.style.background = 'var(--c-hover)';
-                  e.currentTarget.style.borderColor = 'rgba(184,119,80,0.28)';
-                  e.currentTarget.style.color = 'var(--c-text-hi)';
-                }
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = sourceWrap ? 'rgba(184,119,80,0.12)' : 'rgba(255,255,255,0.025)';
-                e.currentTarget.style.borderColor = sourceWrap ? 'rgba(184,119,80,0.28)' : 'var(--c-border)';
-                e.currentTarget.style.color = sourceWrap ? 'var(--c-text-hi)' : 'var(--c-text-lo)';
-              }}
-            >
-              <IconTextWrap />
-              {!useCompactToolbar && 'Wrap'}
-            </button>
-            <button
-              type="button"
-              title="Copy raw markdown"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                onCopySource();
-              }}
-              style={sourceActionButtonStyle}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'var(--c-hover)';
-                e.currentTarget.style.borderColor = 'rgba(184,119,80,0.28)';
-                e.currentTarget.style.color = 'var(--c-text-hi)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'rgba(255,255,255,0.025)';
-                e.currentTarget.style.borderColor = 'var(--c-border)';
-                e.currentTarget.style.color = 'var(--c-text-lo)';
-              }}
-            >
-              <IconCopy />
-              {!useCompactToolbar && 'Copy'}
-            </button>
-          </div>
-        )}
-      </div>
-
-      {toolsMenuRect && (
-        <div
-          ref={toolsMenuRef}
-          style={{ ...menuShell(toolsMenuRect, 260), maxHeight: 'min(72vh, 620px)', overflowY: 'auto' }}
-          onMouseDown={(e) => e.stopPropagation()}
-        >
-          {(Object.keys(groupedTurnIntoCommands) as DocumentCommandGroup[]).map((group) => (
-            <div key={`turn-${group}`}>
-              <div style={{ padding: '7px 10px 4px', color: 'var(--c-text-off)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0 }}>
-                Turn into
-              </div>
-              {groupedTurnIntoCommands[group].map((command) => (
-                <button
-                  key={command.id}
-                  style={menuButtonStyle}
-                  title={`Turn current line into ${command.label.toLowerCase()}`}
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    restoreSelection();
-                    onCaptureSelection();
-                    closeMenus();
-                    onTurnIntoCommand(command);
-                  }}
-                  {...menuHover}
-                >
-                  <span
-                    style={{
-                      width: 24,
-                      height: 22,
-                      borderRadius: 6,
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0,
-                      background: 'rgba(184,119,80,0.12)',
-                      color: 'var(--c-line)',
-                      fontSize: 11,
-                      fontWeight: 800,
-                      fontFamily: command.id === 'code-block' ? 'JetBrains Mono, monospace' : 'inherit',
-                    }}
-                  >
-                    {command.glyph}
-                  </span>
-                  <span>{command.label}</span>
-                </button>
-              ))}
-              <div style={{ height: 1, background: 'var(--c-border)', margin: '6px 4px' }} />
-            </div>
-          ))}
-          {(Object.keys(groupedInsertCommands) as DocumentCommandGroup[]).map((group) => (
-            <div key={group}>
-              <div style={{ padding: '7px 10px 4px', color: 'var(--c-text-off)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0 }}>
-                {group}
-              </div>
-              {groupedInsertCommands[group].map((command) => (
-                <button
-                  key={command.id}
-                  style={menuButtonStyle}
-                  title={command.description}
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    restoreSelection();
-                    onCaptureSelection();
-                    closeMenus();
-                    onInsertCommand(command);
-                  }}
-                  {...menuHover}
-                >
-                  <span
-                    style={{
-                      width: 24,
-                      height: 22,
-                      borderRadius: 6,
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0,
-                      background: 'rgba(184,119,80,0.12)',
-                      color: 'var(--c-line)',
-                      fontSize: 11,
-                      fontWeight: 800,
-                      fontFamily: command.id === 'code-block' ? 'JetBrains Mono, monospace' : 'inherit',
-                    }}
-                  >
-                    {command.glyph}
-                  </span>
-                  <span>{command.label}</span>
-                  {command.hint && (
-                    <span style={{ marginLeft: 'auto', color: 'var(--c-text-lo)', fontSize: 11, fontFamily: 'JetBrains Mono, monospace' }}>
-                      {command.hint}
-                    </span>
-                  )}
-                </button>
-              ))}
-            </div>
-          ))}
-        </div>
-      )}
-
-    </div>
-  );
-}
-
-interface SelectionFormattingToolbarProps {
-  anchor: SelectionToolbarAnchor | null;
-  isWikiLinkActive: boolean;
-  onWikilinkClick: (rect: DOMRect) => void;
-  onInteractionStart: () => void;
-}
-
-function SelectionFormattingToolbar({ anchor, isWikiLinkActive, onWikilinkClick, onInteractionStart }: SelectionFormattingToolbarProps) {
-  const [showColorMenu, setShowColorMenu] = useState(false);
-  const [showLinkMenu, setShowLinkMenu] = useState(false);
-  const [linkValue, setLinkValue] = useState('');
-  const [hoveredControl, setHoveredControl] = useState<string | null>(null);
-  const savedRangeRef = useRef<Range | null>(null);
-  const [, tick] = useState(0);
-  const colorBtnRef = useRef<HTMLButtonElement>(null);
-  const linkBtnRef = useRef<HTMLButtonElement>(null);
-  const floatingToolbarRef = useRef<HTMLDivElement>(null);
-  const colorMenuRef = useRef<HTMLDivElement>(null);
-  const linkMenuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!anchor) {
-      setShowColorMenu(false);
-      setShowLinkMenu(false);
-    }
-  }, [anchor]);
-
-  useEffect(() => {
-    if (!showColorMenu && !showLinkMenu) return;
-    const handleWindowPointer = (event: MouseEvent) => {
-      const target = event.target as Node | null;
-      if (!target) return;
-      if (
-        floatingToolbarRef.current?.contains(target) ||
-        colorMenuRef.current?.contains(target) ||
-        linkMenuRef.current?.contains(target)
-      ) {
-        return;
-      }
-      setShowColorMenu(false);
-      setShowLinkMenu(false);
-    };
-    window.addEventListener('mousedown', handleWindowPointer);
-    return () => window.removeEventListener('mousedown', handleWindowPointer);
-  }, [showColorMenu, showLinkMenu]);
-
-  const saveSelection = () => {
-    const sel = window.getSelection();
-    if (sel && sel.rangeCount > 0) savedRangeRef.current = sel.getRangeAt(0).cloneRange();
-  };
-
-  const restoreSelection = () => {
-    const r = savedRangeRef.current ?? (window.getSelection()?.rangeCount ? window.getSelection()!.getRangeAt(0).cloneRange() : null);
-    if (!r) return;
-    const sel = window.getSelection();
-    if (sel) { sel.removeAllRanges(); sel.addRange(r); }
-  };
-
-  const execAndTick = (action: () => void) => {
-    restoreSelection();
-    action();
-    dispatchEditableInput(savedRangeRef.current);
-    tick((n) => n + 1);
-  };
-
-  const dispatchEditorInput = () => {
-    const root = savedRangeRef.current ? rangeRoot(savedRangeRef.current) : null;
-    root?.dispatchEvent(new Event('input', { bubbles: true }));
-    tick((n) => n + 1);
-  };
-
-  const hoverHandlers = (id: string) => ({
-    onMouseEnter: () => setHoveredControl(id),
-    onMouseLeave: () => setHoveredControl((current) => (current === id ? null : current)),
-  });
-
-  const colorMenuRect = showColorMenu && colorBtnRef.current ? colorBtnRef.current.getBoundingClientRect() : null;
-  const linkMenuRect = showLinkMenu && linkBtnRef.current ? linkBtnRef.current.getBoundingClientRect() : null;
-  const activeLinkHref = getLinkHref(savedRangeRef.current);
-
-  const toolbarButtonStyle = (active: boolean, hovered = false): React.CSSProperties => ({
-    width: 32,
-    height: 30,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 8,
-    border: active ? '1px solid rgba(184,119,80,0.46)' : '1px solid transparent',
-    background: active
-      ? (hovered ? 'rgba(184,119,80,0.3)' : 'rgba(184,119,80,0.2)')
-      : (hovered ? 'var(--c-hover)' : 'transparent'),
-    color: active ? 'var(--c-line)' : (hovered ? 'var(--c-text-hi)' : 'var(--c-text-lo)'),
-    cursor: 'pointer',
-    transition: 'background 0.12s, border-color 0.12s, color 0.12s',
-    flexShrink: 0,
-  });
-  const toolbarInsertButtonStyle = (active: boolean, hovered = false): React.CSSProperties => ({
-    ...toolbarButtonStyle(active, hovered),
-    width: 'auto',
-    minWidth: 116,
-    justifyContent: 'flex-start',
-    gap: 8,
-    padding: '0 10px',
-    fontSize: 12,
-    fontWeight: 700,
-  });
-
-  const menuShell = (rect: DOMRect | null, width = 176): React.CSSProperties => ({
-    position: 'fixed',
-    top: Math.min((rect?.bottom ?? 0) + 6, window.innerHeight - 220),
-    left: Math.min((rect?.left ?? 0), window.innerWidth - width - 12),
-    zIndex: 560,
-    minWidth: width,
-    padding: 6,
-    background: 'var(--c-panel)',
-    border: '1px solid rgba(255,255,255,0.12)',
-    borderRadius: 10,
-    boxShadow: '0 10px 30px rgba(0,0,0,0.28)',
-  });
-  const menuButtonStyle: React.CSSProperties = {
-    width: '100%',
-    display: 'flex',
-    alignItems: 'center',
-    gap: 8,
-    padding: '7px 10px',
-    border: 'none',
-    background: 'transparent',
-    color: 'var(--c-text-md)',
-    cursor: 'pointer',
-    fontSize: 12,
-    fontFamily: 'inherit',
-    textAlign: 'left',
-    borderRadius: 8,
-    transition: 'background 0.12s, color 0.12s',
-  };
-  const menuHover = {
-    onMouseEnter: (e: React.MouseEvent<HTMLButtonElement>) => {
-      e.currentTarget.style.background = 'var(--c-hover)';
-      e.currentTarget.style.color = 'var(--c-text-hi)';
-    },
-    onMouseLeave: (e: React.MouseEvent<HTMLButtonElement>) => {
-      e.currentTarget.style.background = 'transparent';
-      e.currentTarget.style.color = 'var(--c-text-md)';
-    },
-  };
-
-  if (!anchor) return null;
-
-  return (
-    <>
-      <div
-        ref={floatingToolbarRef}
-        data-selection-toolbar="true"
-        style={{
-          position: 'fixed',
-          left: anchor.left,
-          top: anchor.top,
-          transform: 'translateX(-50%)',
-          zIndex: 555,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: 3,
-          padding: 6,
-          borderRadius: 16,
-          background: 'var(--c-panel)',
-          border: '1px solid var(--c-border)',
-          boxShadow: '0 16px 38px rgba(0,0,0,0.34)',
-          maxWidth: 'min(92vw, 340px)',
-          overflow: 'visible',
-        }}
-        onMouseDown={(e) => e.stopPropagation()}
-        onMouseDownCapture={onInteractionStart}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-          <button style={toolbarButtonStyle(document.queryCommandState('bold'), hoveredControl === 'bold')} onMouseDown={(e) => { e.preventDefault(); saveSelection(); execAndTick(() => document.execCommand('bold')); }} {...hoverHandlers('bold')} title="Bold"><b>B</b></button>
-          <button style={{ ...toolbarButtonStyle(document.queryCommandState('italic'), hoveredControl === 'italic'), fontStyle: 'italic' }} onMouseDown={(e) => { e.preventDefault(); saveSelection(); execAndTick(() => document.execCommand('italic')); }} {...hoverHandlers('italic')} title="Italic"><i>I</i></button>
-          <button style={{ ...toolbarButtonStyle(document.queryCommandState('underline'), hoveredControl === 'underline'), textDecoration: 'underline' }} onMouseDown={(e) => { e.preventDefault(); saveSelection(); execAndTick(() => document.execCommand('underline')); }} {...hoverHandlers('underline')} title="Underline">U</button>
-          <button style={{ ...toolbarButtonStyle(document.queryCommandState('strikeThrough'), hoveredControl === 'strike'), textDecoration: 'line-through' }} onMouseDown={(e) => { e.preventDefault(); saveSelection(); execAndTick(() => document.execCommand('strikeThrough')); }} {...hoverHandlers('strike')} title="Strikethrough">S</button>
-          <button
-            ref={colorBtnRef}
-            style={toolbarButtonStyle(showColorMenu, hoveredControl === 'color')}
-            onMouseDown={(e) => {
-              e.preventDefault();
-              saveSelection();
-              setShowColorMenu((v) => !v);
-              setShowLinkMenu(false);
-            }}
-            {...hoverHandlers('color')}
-            title="Text color and highlight"
-          >
-            <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
-              <span style={{ fontFamily: 'serif', fontSize: 12, fontWeight: 700, lineHeight: 1 }}>A</span>
-              <span style={{ width: 12, height: 2.5, borderRadius: 999, background: 'currentColor', display: 'block' }} />
-            </span>
-          </button>
-        </div>
-
-        <div style={{ width: '100%', height: 1, background: 'var(--c-border)', opacity: 0.72 }} />
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-          <button
-            style={toolbarInsertButtonStyle(isWikiLinkActive, hoveredControl === 'wiki-link')}
-            onMouseDown={(e) => {
-              e.preventDefault();
-              saveSelection();
-              restoreSelection();
-              onWikilinkClick((e.currentTarget as HTMLButtonElement).getBoundingClientRect());
-            }}
-            {...hoverHandlers('wiki-link')}
-            title={isWikiLinkActive ? 'Edit note link' : 'Link note'}
-          >
-            <IconWikiLink />
-            <span>Link note</span>
-          </button>
-          <div style={{ width: 1, height: 24, background: 'var(--c-border)', opacity: 0.72, margin: '0 4px' }} />
-          <button
-            ref={linkBtnRef}
-            style={toolbarButtonStyle(!!activeLinkHref || showLinkMenu, hoveredControl === 'link')}
-            onMouseDown={(e) => {
-              e.preventDefault();
-              saveSelection();
-              setLinkValue(getLinkHref(savedRangeRef.current));
-              setShowLinkMenu((v) => !v);
-              setShowColorMenu(false);
-            }}
-            {...hoverHandlers('link')}
-            title="External link"
-          >
-            <IconLink />
-          </button>
-          <button style={toolbarButtonStyle(false, hoveredControl === 'inline-code')} onMouseDown={(e) => { e.preventDefault(); saveSelection(); restoreSelection(); toggleInlineCode(savedRangeRef.current); tick((n) => n + 1); }} {...hoverHandlers('inline-code')} title="Inline code"><IconCode /></button>
-        </div>
-      </div>
-
-      {colorMenuRect && (
-        <div ref={colorMenuRef} data-selection-toolbar="true" style={{ ...menuShell(colorMenuRect, 220), padding: 8 }} onMouseDown={(e) => e.stopPropagation()} onMouseDownCapture={onInteractionStart}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--c-text-lo)', textTransform: 'uppercase', letterSpacing: '0.08em', padding: '2px 2px 8px' }}>
-            Text color
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 6 }}>
-            {DOCUMENT_TEXT_COLORS.map((colorOption) => (
-              <button
-                key={colorOption.label}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  minHeight: 34,
-                  padding: '0 8px',
-                  borderRadius: 8,
-                  border: '1px solid transparent',
-                  background: 'transparent',
-                  color: 'var(--c-text-md)',
-                  cursor: 'pointer',
-                  fontSize: 11,
-                  fontFamily: 'inherit',
-                }}
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  restoreSelection();
-                  if (colorOption.value === 'auto') document.execCommand('removeFormat', false);
-                  else document.execCommand('foreColor', false, resolveDocumentColorValue(colorOption.value));
-                  dispatchEditorInput();
-                  setShowColorMenu(false);
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'var(--c-hover)';
-                  e.currentTarget.style.borderColor = 'var(--c-border)';
-                  e.currentTarget.style.color = 'var(--c-text-hi)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'transparent';
-                  e.currentTarget.style.borderColor = 'transparent';
-                  e.currentTarget.style.color = 'var(--c-text-md)';
-                }}
-                title={colorOption.label}
-              >
-                <span style={{ width: 12, height: 12, borderRadius: 999, background: colorOption.swatch, border: '1px solid rgba(255,255,255,0.18)', flexShrink: 0 }} />
-                <span style={{ whiteSpace: 'nowrap' }}>{colorOption.label}</span>
-              </button>
-            ))}
-          </div>
-          <div style={{ height: 1, background: 'var(--c-border)', margin: '10px 2px 8px' }} />
-          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--c-text-lo)', textTransform: 'uppercase', letterSpacing: '0.08em', padding: '0 2px 8px' }}>
-            Highlight
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 6 }}>
-            {[
-              { label: 'Clear', value: 'transparent', swatch: 'transparent', border: '1px dashed var(--c-border)' },
-              { label: 'Yellow', value: '#facc15', swatch: '#facc15' },
-              { label: 'Green', value: '#86efac', swatch: '#86efac' },
-              { label: 'Blue', value: '#93c5fd', swatch: '#93c5fd' },
-            ].map((option) => (
-              <button
-                key={option.label}
-                title={option.label}
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  restoreSelection();
-                  document.execCommand('styleWithCSS', false, 'true');
-                  document.execCommand('hiliteColor', false, option.value);
-                  dispatchEditorInput();
-                  setShowColorMenu(false);
-                }}
-                style={{
-                  minHeight: 30,
-                  borderRadius: 8,
-                  border: option.border ?? '1px solid rgba(255,255,255,0.12)',
-                  background: option.swatch,
-                  color: option.label === 'Clear' ? 'var(--c-text-lo)' : '#111827',
-                  cursor: 'pointer',
-                  fontSize: 10.5,
-                  fontFamily: 'inherit',
-                }}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {linkMenuRect && (
-        <div ref={linkMenuRef} data-selection-toolbar="true" style={{ ...menuShell(linkMenuRect, 260), padding: 8 }} onMouseDown={(e) => e.stopPropagation()} onMouseDownCapture={onInteractionStart}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <input
-              type="text"
-              value={linkValue}
-              placeholder="https://example.com"
-              onChange={(e) => setLinkValue(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  restoreSelection();
-                  const href = linkValue.trim();
-                  if (href) document.execCommand('createLink', false, href);
-                  else document.execCommand('unlink', false);
-                  dispatchEditorInput();
-                  setShowLinkMenu(false);
-                }
-              }}
-              style={{
-                width: '100%',
-                height: 34,
-                padding: '0 10px',
-                borderRadius: 8,
-                border: '1px solid var(--c-border)',
-                background: 'rgba(255,255,255,0.03)',
-                color: 'var(--c-text-hi)',
-                fontSize: 12,
-                fontFamily: 'inherit',
-                outline: 'none',
-              }}
-            />
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <button
-                style={{
-                  ...menuButtonStyle,
-                  width: 'auto',
-                  justifyContent: 'center',
-                  padding: '7px 12px',
-                  background: 'rgba(184,119,80,0.16)',
-                  color: 'var(--c-line)',
-                }}
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  restoreSelection();
-                  const href = linkValue.trim();
-                  if (href) document.execCommand('createLink', false, href);
-                  else document.execCommand('unlink', false);
-                  dispatchEditorInput();
-                  setShowLinkMenu(false);
-                }}
-              >
-                Apply link
-              </button>
-              {activeLinkHref && (
-                <button
-                  style={{ ...menuButtonStyle, width: 'auto', justifyContent: 'center', padding: '7px 12px' }}
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    restoreSelection();
-                    document.execCommand('unlink', false);
-                    dispatchEditorInput();
-                    setLinkValue('');
-                    setShowLinkMenu(false);
-                  }}
-                  {...menuHover}
-                >
-                  Remove
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-    </>
-  );
-}
-
-// ── Picker components ─────────────────────────────────────────────────────────
-
-const PICKER_WIDTH = 280;
-
-interface WikilinkPickerProps {
-  pos: { x: number; y: number };
-  documents: Document[];
-  activeDocId: string | null;
-  initialQuery?: string;
-  onSelect: (title: string) => void;
-  onCreate: (title: string) => void;
-  onClose: () => void;
-}
-
-function WikilinkPicker({ pos, documents, activeDocId, initialQuery = '', onSelect, onCreate, onClose }: WikilinkPickerProps) {
-  const [query, setQuery] = useState(initialQuery);
-  const inputRef = useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    inputRef.current?.focus();
-    if (initialQuery) inputRef.current?.select();
-  }, [initialQuery]);
-
-  const filtered = useMemo(() => {
-    const q = query.toLowerCase().trim();
-    return documents
-      .filter((d) => d.id !== activeDocId && (!q || d.title.toLowerCase().includes(q) || stripHtml(d.content).toLowerCase().includes(q)))
-      .slice(0, 8);
-  }, [query, documents, activeDocId]);
-
-  const exactMatch = documents.some((d) => d.title.toLowerCase() === query.toLowerCase().trim() && d.id !== activeDocId);
-  const width = Math.min(PICKER_WIDTH, Math.max(180, window.innerWidth - 24));
-  const left = Math.max(12, Math.min(pos.x, window.innerWidth - width - 12));
-  const top = Math.max(12, Math.min(pos.y, window.innerHeight - 280));
-
-  return (
-    <>
-      <div className="document-mode-overlay" onMouseDown={onClose} />
-      <div className="document-picker" style={{ left, top, width }}>
-        <div className="document-picker__header">
-          <svg className="document-picker__header-icon" width="12" height="12" viewBox="0 0 12 12" fill="none">
-            <rect x="1" y="1" width="10" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.2"/>
-            <path d="M3 4.5h6M3 6.5h6M3 8.5h4" stroke="currentColor" strokeWidth="1" strokeLinecap="round"/>
-          </svg>
-          <input
-            ref={inputRef}
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') { e.preventDefault(); onClose(); }
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                if (filtered.length > 0) onSelect(filtered[0].title);
-                else if (query.trim()) onCreate(query.trim());
-              }
-            }}
-            placeholder="Search notes…"
-            className="document-picker__input"
-          />
-        </div>
-        <div className="document-picker__list">
-          {filtered.map((d) => (
-            <div
-              key={d.id}
-              onMouseDown={(e) => { e.preventDefault(); onSelect(d.title); }}
-              className="document-picker__row"
-            >
-              <div className="document-picker__title">
-                {d.title || 'Untitled'}
-              </div>
-              <div className="document-picker__subtitle">
-                {stripHtml(d.content).slice(0, 80) || 'Empty'}
-              </div>
-            </div>
-          ))}
-          {query.trim() && !exactMatch && (
-            <div
-              onMouseDown={(e) => { e.preventDefault(); onCreate(query.trim()); }}
-              className="document-picker__row document-picker__row--create"
-              data-has-results={filtered.length > 0}
-            >
-              <span className="document-picker__create-icon">+</span>
-              <span className="document-picker__create-label">New note: <b className="document-picker__create-title">"{query.trim()}"</b></span>
-            </div>
-          )}
-          {filtered.length === 0 && query.trim() && (
-            <div className="document-picker__hint">
-              No matching notes. Clear the search to browse existing notes.
-            </div>
-          )}
-          {filtered.length === 0 && !query.trim() && (
-            <div className="document-picker__empty">No other notes yet</div>
-          )}
-        </div>
-      </div>
-    </>
-  );
-}
-
-interface NodePickerProps {
-  pos: { x: number; y: number };
-  nodes: CanvasNode[];
-  documents: Document[];
-  onSelect: (nodeId: string, label: string) => void;
-  onClose: () => void;
-}
-
-function NodePicker({ pos, nodes, documents, onSelect, onClose }: NodePickerProps) {
-  const [query, setQuery] = useState('');
-  const inputRef = useRef<HTMLInputElement>(null);
-  useEffect(() => { inputRef.current?.focus(); }, []);
-
-  const SKIP_TYPES = new Set(['connector']);
-  const filtered = useMemo(() => {
-    const q = query.toLowerCase().trim();
-    return nodes
-      .filter((n) => !SKIP_TYPES.has(n.type))
-      .map((n) => ({ node: n, label: getNodeLabel(n, documents) }))
-      .filter(({ label }) => !q || label.toLowerCase().includes(q))
-      .slice(0, 10);
-  }, [query, nodes, documents]);
-
-  const width = Math.min(PICKER_WIDTH, Math.max(180, window.innerWidth - 24));
-  const pickerLeft = Math.max(12, Math.min(pos.x, window.innerWidth - width - 12));
-  const pickerTop = Math.max(12, Math.min(pos.y, window.innerHeight - 280));
-
-  const typeIcon = (type: string) => {
-    if (type === 'sticky') return '📌';
-    if (type === 'document') return '📄';
-    if (type === 'shape') return '◻';
-    if (type === 'section') return '□';
-    if (type === 'taskcard') return '☑';
-    if (type === 'codeblock') return '{}';
-    if (type === 'textblock') return 'T';
-    return '·';
-  };
-
-  return (
-    <>
-      <div className="document-mode-overlay" onMouseDown={onClose} />
-      <div className="document-picker" style={{ left: pickerLeft, top: pickerTop, width }}>
-        <div className="document-picker__header">
-          <svg className="document-picker__header-icon" width="12" height="12" viewBox="0 0 12 12" fill="none">
-            <rect x="1" y="2" width="10" height="8" rx="1.2" stroke="currentColor" strokeWidth="1.2"/>
-          </svg>
-          <input
-            ref={inputRef}
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') { e.preventDefault(); onClose(); }
-              if (e.key === 'Enter' && filtered.length > 0) {
-                e.preventDefault();
-                onSelect(filtered[0].node.id, filtered[0].label);
-              }
-            }}
-            placeholder="Search canvas nodes…"
-            className="document-picker__input"
-          />
-        </div>
-        <div className="document-picker__list">
-          {filtered.map(({ node, label }) => (
-            <div
-              key={node.id}
-              onMouseDown={(e) => { e.preventDefault(); onSelect(node.id, label); }}
-              className="document-picker__row document-picker__row--node"
-            >
-              <span className="document-picker__node-type-icon">{typeIcon(node.type)}</span>
-              <span className="document-picker__node-label">{label}</span>
-              <span className="document-picker__node-type">{node.type}</span>
-            </div>
-          ))}
-          {filtered.length === 0 && (
-            <div className="document-picker__empty">No canvas nodes found</div>
-          )}
-        </div>
-      </div>
-    </>
-  );
-}
-
-// ── Doc emoji picker ─────────────────────────────────────────────────────────
-
-const DOC_EMOJIS = [
-  '📝','📋','📌','📍','📎','📁','🗂️','🗒️','🗓️','📅',
-  '💡','🔦','🕯️','🔍','🔎','🔑','🔒','🔓','⚙️','🛠️',
-  '🚀','🛸','🌍','🌙','☀️','⭐','🌟','✨','💫','🌈',
-  '🔥','⚡','❄️','💧','🌊','🍀','🌸','🌺','🌻','🍁',
-  '❤️','🧡','💛','💚','💙','💜','🖤','🤍','💎','🏆',
-  '🎯','🎨','🎮','🎵','🎸','🎲','🧩','⚽','🎉','🎊',
-  '😀','😊','🤔','😎','🥳','🫡','👀','🦁','🐯','🦄',
-  '✅','❌','⚠️','💬','📈','📉','💻','📡','🧪','🔭',
-];
-
-interface DocEmojiPickerProps {
-  pos: { x: number; y: number };
-  current?: string;
-  onSelect: (emoji: string) => void;
-  onRemove: () => void;
-  onClose: () => void;
-}
-
-function DocEmojiPicker({ pos, current, onSelect, onRemove, onClose }: DocEmojiPickerProps) {
-  const COLS = 10;
-  const left = Math.min(pos.x, window.innerWidth - COLS * 34 - 24);
-  const top = Math.min(pos.y, window.innerHeight - 260 - 12);
-  return (
-    <>
-      <div className="document-mode-overlay" onMouseDown={onClose} />
-      <div className="doc-emoji-picker" style={{ left, top }}>
-        <div className="doc-emoji-picker__grid" style={{ width: COLS * 34 }}>
-          {DOC_EMOJIS.map((e) => (
-            <button
-              key={e}
-              onMouseDown={(ev) => { ev.preventDefault(); onSelect(e); }}
-              className="doc-emoji-picker__button"
-              data-current={e === current}
-            >{e}</button>
-          ))}
-        </div>
-        {current && (
-          <div className="doc-emoji-picker__remove-wrap">
-            <button
-              onMouseDown={(e) => { e.preventDefault(); onRemove(); }}
-              className="doc-emoji-picker__remove"
-            >Remove icon</button>
-          </div>
-        )}
-      </div>
-    </>
-  );
-}
-
-type SlashCommand = DocumentCommandDefinition;
-
-interface SlashCommandPaletteProps {
-  pos: { x: number; y: number; bounds?: { left: number; right: number; top: number; bottom: number } };
-  commands: SlashCommand[];
-  onSelect: (command: SlashCommand) => void;
-  onClose: () => void;
-}
-
-function SlashCommandPalette({ pos, commands, onSelect, onClose }: SlashCommandPaletteProps) {
-  const [query, setQuery] = useState('');
-  const [activeIndex, setActiveIndex] = useState(0);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return commands;
-    return commands.filter((command) => command.search.includes(q));
-  }, [commands, query]);
-
-  useEffect(() => {
-    setActiveIndex(0);
-  }, [query]);
-
-  useEffect(() => {
-    if (activeIndex < filtered.length) return;
-    setActiveIndex(filtered.length > 0 ? filtered.length - 1 : 0);
-  }, [activeIndex, filtered.length]);
-
-  const grouped = useMemo(() => {
-    return filtered.reduce<Record<string, SlashCommand[]>>((acc, command) => {
-      if (!acc[command.group]) acc[command.group] = [];
-      acc[command.group].push(command);
-      return acc;
-    }, {});
-  }, [filtered]);
-
-  const activeCommand = filtered[activeIndex] ?? null;
-  const paletteWidth = 318;
-  const paletteHeight = 360;
-  const previewWidth = 196;
-  const bounds = pos.bounds;
-  const minLeft = bounds ? bounds.left + 8 : 12;
-  const maxLeft = bounds ? bounds.right - paletteWidth - 8 : window.innerWidth - paletteWidth - 12;
-  const left = Math.max(minLeft, Math.min(pos.x - 18, maxLeft));
-  const top = Math.max(bounds ? bounds.top + 8 : 16, Math.min(pos.y - 16, window.innerHeight - paletteHeight - 12));
-  const previewLeftCandidate = left + paletteWidth + 12;
-  const previewMaxRight = bounds ? bounds.right - 8 : window.innerWidth - 12;
-  const previewFitsRight = previewLeftCandidate + previewWidth <= previewMaxRight;
-  const previewLeft = previewFitsRight ? previewLeftCandidate : null;
-  let absoluteIndex = -1;
-
-  const renderSlashIcon = (command: SlashCommand) => {
-    switch (command.id) {
-      case 'text': return <span className="doc-slash-icon-text doc-slash-icon-text--body">T</span>;
-      case 'heading-1': return <span className="doc-slash-icon-text doc-slash-icon-text--heading">H1</span>;
-      case 'heading-2': return <span className="doc-slash-icon-text doc-slash-icon-text--heading">H2</span>;
-      case 'bullet-list': return <IconList />;
-      case 'numbered-list': return <IconListOrdered />;
-      case 'todo-list': return <span className="doc-slash-icon-text doc-slash-icon-text--todo">☐</span>;
-      case 'quote': return <IconQuote />;
-      case 'callout': return <IconQuote />;
-      case 'code-block': return <IconCodeBlock />;
-      case 'divider': return <IconHorizontalRule />;
-      case 'external-link': return <IconLink />;
-      case 'wiki-link': return <IconWikiLink />;
-      case 'node-link': return <IconNodeLink />;
-      case 'tag': return <span className="doc-slash-icon-text doc-slash-icon-text--tag">#</span>;
-      case 'image-upload':
-        return (
-          <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
-            <rect x="1.2" y="1.8" width="10.6" height="8.4" rx="1.6" stroke="currentColor" strokeWidth="1.1" />
-            <path d="M2.5 8.5 5.1 6l1.8 1.8 1.7-1.5 1.9 2.2" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round" />
-            <circle cx="4.1" cy="4.5" r="0.8" fill="currentColor" />
-          </svg>
-        );
-      default: return <span className="doc-slash-icon-text doc-slash-icon-text--default">{command.glyph}</span>;
-    }
-  };
-
-  const renderPreview = (command: SlashCommand | null) => {
-    if (!command) return null;
-    if (command.id === 'heading-2') {
-      return <div className="doc-slash-preview-heading">Heading 2</div>;
-    }
-    if (command.id === 'bullet-list') {
-      return <div className="doc-slash-preview-list">• First item<br />• Second item</div>;
-    }
-    if (command.id === 'numbered-list') {
-      return <div className="doc-slash-preview-list">1. First step<br />2. Second step</div>;
-    }
-    if (command.id === 'todo-list') {
-      return <div className="doc-slash-preview-list">☐ First task<br />☐ Second task</div>;
-    }
-    if (command.id === 'quote') {
-      return <div className="doc-slash-preview-quote">Quoted idea or passage</div>;
-    }
-    if (command.id === 'callout') {
-      return <div className="doc-slash-preview-callout">Callout block</div>;
-    }
-    if (command.id === 'code-block') {
-      return <div className="doc-slash-preview-code">const note = "code";</div>;
-    }
-    if (command.id === 'divider') {
-      return <div className="doc-slash-preview-rule" />;
-    }
-    if (command.id === 'external-link') {
-      return <div className="doc-slash-preview-link">https://example.com</div>;
-    }
-    if (command.id === 'tag') {
-      return <div className="doc-slash-preview-tag">#tag</div>;
-    }
-    if (command.id === 'image-upload') {
-      return <div className="doc-slash-preview-image">Paste, drop, or pick an image</div>;
-    }
-    return <div className="doc-slash-preview-default">{command.label}</div>;
-  };
-
-  return (
-    <>
-      <div className="document-mode-overlay" onMouseDown={onClose} />
-      <div
-        className="doc-slash-palette"
-        style={{ left, top }}
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        <div className="doc-slash-palette__header">
-          <input
-            ref={inputRef}
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') {
-                e.preventDefault();
-                onClose();
-                return;
-              }
-              if (e.key === 'ArrowDown') {
-                e.preventDefault();
-                setActiveIndex((current) => (filtered.length === 0 ? 0 : Math.min(current + 1, filtered.length - 1)));
-                return;
-              }
-              if (e.key === 'ArrowUp') {
-                e.preventDefault();
-                setActiveIndex((current) => (filtered.length === 0 ? 0 : Math.max(current - 1, 0)));
-                return;
-              }
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                const active = filtered[activeIndex];
-                if (active) onSelect(active);
-              }
-            }}
-            placeholder="Type to search"
-            className="doc-slash-palette__input"
-          />
-          <button
-            onMouseDown={(e) => {
-              e.preventDefault();
-              onClose();
-            }}
-            className="doc-slash-palette__close"
-            title="Close menu"
-          >
-            ×
-          </button>
-        </div>
-        <div className="doc-slash-palette__list">
-          {(['Basic', 'Link', 'Media', 'Meta'] as const).map((group) => {
-            const groupCommands = grouped[group] ?? [];
-            if (groupCommands.length === 0) return null;
-            return (
-              <div key={group} className="doc-slash-palette__group">
-                <div className="doc-slash-palette__group-label">
-                  {group}
-                </div>
-                {groupCommands.map((command) => {
-                  absoluteIndex += 1;
-                  const commandIndex = absoluteIndex;
-                  const active = commandIndex === activeIndex;
-                  return (
-                    <button
-                      key={command.id}
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        onSelect(command);
-                      }}
-                      onMouseEnter={() => setActiveIndex(commandIndex)}
-                      className="doc-slash-palette__command"
-                      data-active={active}
-                    >
-                      <span className="doc-slash-palette__command-icon">
-                        {renderSlashIcon(command)}
-                      </span>
-                      <span className="doc-slash-palette__command-label">
-                        {command.label}
-                      </span>
-                      {command.hint && (
-                        <span className="doc-slash-palette__command-hint">
-                          {command.hint}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            );
-          })}
-          {filtered.length === 0 && (
-            <div className="doc-slash-palette__empty">
-              No matching blocks
-            </div>
-          )}
-        </div>
-        <div className="doc-slash-palette__footer">
-          <span>Enter to insert</span>
-          <button
-            onMouseDown={(e) => {
-              e.preventDefault();
-              onClose();
-            }}
-            className="doc-slash-palette__footer-close"
-          >
-            Close menu · Esc
-          </button>
-        </div>
-      </div>
-      {previewLeft !== null && activeCommand && (
-        <div
-          className="doc-slash-preview-card"
-          style={{ left: previewLeft, top: Math.min(top + 88, (bounds ? bounds.bottom : window.innerHeight) - 188) }}
-        >
-          <div className="doc-slash-preview-card__eyebrow">
-            Preview
-          </div>
-          <div className="doc-slash-preview-card__title">{activeCommand.label}</div>
-          <div className="doc-slash-preview-card__description">{activeCommand.description}</div>
-          <div className="doc-slash-preview-card__sample">{renderPreview(activeCommand)}</div>
-        </div>
-      )}
-    </>
-  );
-}
-
-// ── DocumentMode ─────────────────────────────────────────────────────────────
 
 interface DocumentModeProps {
   onClose?: () => void;
@@ -2012,7 +119,7 @@ export default function DocumentMode({
   const headerMenuRef = useRef<HTMLDivElement>(null);
   const editHistoryTimerRef = useRef<number | null>(null);
   const canStartEditHistoryGroupRef = useRef(true);
-  const [viewMode, setViewMode] = useState<'edit' | 'source'>('edit');
+  const [viewMode, setViewMode] = useState<'edit' | 'source' | 'split'>('edit');
   const [isNarrowViewport, setIsNarrowViewport] = useState(() => (
     typeof window !== 'undefined' ? window.innerWidth < 640 : false
   ));
@@ -2733,7 +840,7 @@ export default function DocumentMode({
         }
       }
 
-      if (viewMode === 'source') {
+      if (viewMode === 'source' || viewMode === 'split') {
         const nextSource = htmlToMarkdown(hydrated);
         setSourceText((current) => current === nextSource ? current : nextSource);
       }
@@ -3007,17 +1114,26 @@ export default function DocumentMode({
 
   const switchToSource = () => {
     if (!doc) return;
-    setSourceText(htmlToMarkdown(doc.content ?? ''));
+    // Only reseed the raw buffer when coming from the WYSIWYG editor; toggling
+    // between the two raw modes (source ↔ split) must preserve uncommitted edits.
+    if (viewMode === 'edit') setSourceText(htmlToMarkdown(doc.content ?? ''));
     setViewMode('source');
   };
 
-  const switchToEdit = () => {
+  const switchToSplit = () => {
+    if (!doc) return;
+    if (viewMode === 'edit') setSourceText(htmlToMarkdown(doc.content ?? ''));
+    setViewMode('split');
+  };
+
+  // Commit the raw-Markdown buffer back into the document as HTML. Shared by the
+  // Source→Edit and Split→Edit transitions.
+  const commitSourceToDocument = () => {
     if (!doc) return;
     const html = markdownToHtml(sourceText);
     if (html !== (doc.content ?? '')) checkpointDocumentHistory();
     markDirty();
     updateDocument(doc.id, { content: html });
-    setViewMode('edit');
     requestAnimationFrame(() => {
       if (contentRef.current) {
         contentRef.current.innerHTML = html;
@@ -3027,6 +1143,14 @@ export default function DocumentMode({
         updatePlaceholderVisibility(contentRef.current);
       }
     });
+  };
+
+  const switchToEdit = () => {
+    if (!doc) return;
+    // In split mode the raw buffer stays in sync with the doc live, but re-commit
+    // to be safe before returning to the WYSIWYG editor.
+    commitSourceToDocument();
+    setViewMode('edit');
   };
 
   const insertSourceSyntax = useCallback((syntax: string) => {
@@ -3721,14 +1845,14 @@ export default function DocumentMode({
         : saveStatus.tone === 'warning'
           ? '#f59e0b'
           : '#1fa37a';
-  const headerModeButtonStyle = (active: boolean, side: 'left' | 'right'): React.CSSProperties => ({
+  const headerModeButtonStyle = (active: boolean, side: 'left' | 'middle' | 'right'): React.CSSProperties => ({
     position: 'relative',
     zIndex: 1,
     height: 28,
-    minWidth: panelMode ? 52 : 72,
+    minWidth: panelMode ? 44 : 68,
     padding: '0 10px',
     border: 'none',
-    borderRadius: side === 'left' ? '7px 0 0 7px' : '0 7px 7px 0',
+    borderRadius: side === 'left' ? '7px 0 0 7px' : side === 'right' ? '0 7px 7px 0' : 0,
     background: active ? '#1a1714' : 'var(--c-hover)',
     color: active ? '#fff' : 'var(--c-text-md)',
     boxShadow: 'none',
@@ -3773,7 +1897,10 @@ export default function DocumentMode({
     fontSize: 12,
     fontWeight: 600,
   };
-  const showFormattingBar = viewMode === 'source';
+  const showFormattingBar = viewMode === 'source' || viewMode === 'split';
+  // Flat, full-page editor surface — matches the left sidebar tone and is
+  // theme-aware (light in light mode, dark in dark mode).
+  const editorSurface = 'var(--c-sidebar)';
 
   return (
     <div
@@ -4247,7 +2374,7 @@ export default function DocumentMode({
               title="Preview"
               onMouseDown={(e) => {
                 e.preventDefault();
-                if (viewMode === 'source') switchToEdit();
+                if (viewMode !== 'edit') switchToEdit();
               }}
               style={headerModeButtonStyle(viewMode === 'edit', 'left')}
             >
@@ -4255,10 +2382,21 @@ export default function DocumentMode({
             </button>
             <button
               className="doc-editor-view-button"
+              title="Split (Markdown + preview)"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                if (viewMode !== 'split') switchToSplit();
+              }}
+              style={headerModeButtonStyle(viewMode === 'split', 'middle')}
+            >
+              {panelMode ? <IconColumns /> : 'Split'}
+            </button>
+            <button
+              className="doc-editor-view-button"
               title="Source"
               onMouseDown={(e) => {
                 e.preventDefault();
-                if (viewMode === 'edit') switchToSource();
+                if (viewMode !== 'source') switchToSource();
               }}
               style={headerModeButtonStyle(viewMode === 'source', 'right')}
               >
@@ -4347,7 +2485,7 @@ export default function DocumentMode({
 
       {/* Body: editor */}
       <div style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden' }}>
-        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: editorSurface }}>
           <input
             ref={imageInputRef}
             type="file"
@@ -4415,8 +2553,8 @@ export default function DocumentMode({
                 minHeight: 0,
                 overflowY: 'auto',
                 position: 'relative',
-                background: '#e6ded2',
-                padding: panelMode ? '24px 14px 40px' : isNarrowViewport ? '16px 8px 40px' : '40px 24px 60px',
+                background: editorSurface,
+                padding: panelMode ? '12px 14px 40px' : isNarrowViewport ? '8px 8px 40px' : '16px 24px 60px',
                 display: 'flex',
                 alignItems: 'flex-start',
                 justifyContent: 'center',
@@ -4553,14 +2691,14 @@ export default function DocumentMode({
             >
               <div
                 style={{
-                  background: '#fffaf1',
+                  background: editorSurface,
                   maxWidth: 860,
                   width: '100%',
                   minHeight: panelMode ? 'calc(100% - 64px)' : isNarrowViewport ? 'calc(100% - 56px)' : 'calc(100% - 100px)',
-                  padding: panelMode ? '30px 24px' : isNarrowViewport ? '24px 16px' : '42px 48px',
+                  padding: panelMode ? '20px 24px' : isNarrowViewport ? '16px 16px' : '28px 48px',
                   boxSizing: 'border-box',
-                  borderRadius: 4,
-                  boxShadow: '0 1px 4px rgba(0,0,0,0.06), 0 4px 20px rgba(0,0,0,0.05)',
+                  borderRadius: 0,
+                  boxShadow: 'none',
                 }}
               >
               {/* Emoji area — above the H1, hover-zone scoped to this div */}
@@ -4793,7 +2931,7 @@ export default function DocumentMode({
                     width: lineDragGhost.width,
                     maxHeight: 220,
                     overflow: 'hidden',
-                    background: '#fffaf1',
+                    background: editorSurface,
                     border: '1px solid color-mix(in srgb, var(--c-line) 35%, transparent)',
                     borderRadius: 6,
                     boxShadow: '0 10px 30px rgba(0,0,0,0.22)',
@@ -4985,6 +3123,53 @@ export default function DocumentMode({
                 opacity: 0.85,
               }}
             />
+          )}
+
+          {viewMode === 'split' && (
+            <div style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden' }}>
+              {/* Left: raw Markdown (editable) */}
+              <textarea
+                ref={sourceRef}
+                value={sourceText}
+                wrap={sourceWrap ? 'soft' : 'off'}
+                onChange={(e) => {
+                  markDirty();
+                  setSourceText(e.target.value);
+                }}
+                onFocus={() => setIsEditorFocused(true)}
+                onBlur={() => setIsEditorFocused(false)}
+                spellCheck={false}
+                aria-label="Markdown source"
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  padding: panelMode ? '24px 18px' : '32px 28px',
+                  background: 'transparent',
+                  border: 'none',
+                  outline: 'none',
+                  resize: 'none',
+                  color: 'var(--c-text-hi)',
+                  fontSize: '14px',
+                  lineHeight: 1.7,
+                  fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                  overflowY: 'auto',
+                  overflowX: sourceWrap ? 'hidden' : 'auto',
+                  opacity: 0.9,
+                }}
+              />
+              {/* Right: live rendered preview (read-only) */}
+              <div
+                className="doc-content doc-content--preview"
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  padding: panelMode ? '24px 22px' : '32px 40px',
+                  overflowY: 'auto',
+                  borderLeft: '1px solid var(--c-border)',
+                }}
+                dangerouslySetInnerHTML={{ __html: markdownToHtml(sourceText) }}
+              />
+            </div>
           )}
         </div>
 
