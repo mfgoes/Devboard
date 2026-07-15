@@ -13,7 +13,7 @@ interface DocumentLineHandleProps {
   turnIntoCommands: DocumentCommandDefinition[];
   onCancelHide: () => void;
   onScheduleHide: () => void;
-  onPointerDown: (event: PointerEvent<HTMLButtonElement>, handle: LineHandleState) => void;
+  onPointerDown: (event: PointerEvent<HTMLElement>, handle: LineHandleState) => void;
   onTurnInto: (command: DocumentCommandDefinition, block: HTMLElement) => void;
 }
 

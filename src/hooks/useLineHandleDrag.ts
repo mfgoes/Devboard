@@ -85,7 +85,7 @@ export function useLineHandleDrag({ contentRef, editorScrollRef, checkpointDocum
     return { left: containerRect.left, top: anchor.bottom - 2, width: containerRect.width };
   }, [contentRef]);
 
-  const beginLineHandlePointer = useCallback((event: React.PointerEvent<HTMLButtonElement>, handle: LineHandleState) => {
+  const beginLineHandlePointer = useCallback((event: React.PointerEvent<HTMLElement>, handle: LineHandleState) => {
     const root = contentRef.current;
     if (!root || !root.contains(handle.block)) return;
 
