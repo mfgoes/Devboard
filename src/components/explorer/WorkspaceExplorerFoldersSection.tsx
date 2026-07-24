@@ -98,7 +98,7 @@ export default function WorkspaceExplorerFoldersSection({
           userSelect: 'none',
         }}
       >
-        <span style={{ fontFamily: FONTS.ui, fontSize: 9.5, fontWeight: 650, letterSpacing: '0.02em', color: 'var(--c-sidebar-section)' }}>Folders</span>
+        <span style={{ fontFamily: FONTS.ui, fontSize: 9.5, fontWeight: 650, letterSpacing: '0.02em', color: 'var(--c-sidebar-section)' }}>Pages</span>
         <SectionChevron open={pagesSectionOpen} />
         <span style={{ marginLeft: 'auto', fontFamily: FONTS.ui, fontSize: 8.5, color: 'var(--c-sidebar-meta)' }}>{folderPages.length}</span>
         <button

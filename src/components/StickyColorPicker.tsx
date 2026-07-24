@@ -2,10 +2,8 @@ import { useState } from 'react';
 import { useBoardStore } from '../store/boardStore';
 import { StickyNoteNode } from '../types';
 import ColorSwatches from './ColorSwatches';
-import { PALETTE } from '../utils/palette';
+import { STICKY_COLORS } from '../utils/palette';
 import { useToolbarPosition } from '../utils/useToolbarPosition';
-
-const STICKY_COLORS = PALETTE.map((p) => ({ hex: p.sticky, label: p.label }));
 
 export { STICKY_COLORS };
 

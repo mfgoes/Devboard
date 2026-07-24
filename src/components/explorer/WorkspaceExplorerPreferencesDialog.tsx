@@ -24,7 +24,7 @@ export default function WorkspaceExplorerPreferencesDialog({
   return (
     <div
       style={{ position: 'fixed', inset: 0, zIndex: 9300, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.42)' }}
-      onMouseDown={onClose}
+      onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
         role="dialog"
@@ -58,6 +58,7 @@ export default function WorkspaceExplorerPreferencesDialog({
               type="button"
               aria-pressed={item.enabled}
               onClick={item.onToggle}
+              onMouseDown={(e) => e.stopPropagation()}
               style={{
                 width: '100%',
                 minHeight: 48,
@@ -92,8 +93,8 @@ export default function WorkspaceExplorerPreferencesDialog({
                   height: 20,
                   flexShrink: 0,
                   borderRadius: 999,
-                  border: item.enabled ? '1px solid var(--c-line)' : '1px solid var(--c-border)',
-                  background: item.enabled ? 'var(--c-line)' : 'var(--c-hover)',
+                  border: item.enabled ? '1px solid var(--c-line)' : '1px solid var(--c-text-lo)',
+                  background: item.enabled ? 'var(--c-line)' : 'color-mix(in srgb, var(--c-text-lo) 45%, transparent)',
                   position: 'relative',
                   transition: 'background 120ms, border-color 120ms',
                 }}
@@ -106,7 +107,7 @@ export default function WorkspaceExplorerPreferencesDialog({
                     width: 14,
                     height: 14,
                     borderRadius: 999,
-                    background: item.enabled ? '#fff' : 'var(--c-text-lo)',
+                    background: item.enabled ? '#fff' : 'var(--c-text-hi)',
                     transition: 'left 120ms, background 120ms',
                   }}
                 />

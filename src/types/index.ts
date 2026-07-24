@@ -105,6 +105,7 @@ export interface ShapeNode {
   bold?: boolean;
   italic?: boolean;
   textAlign?: 'left' | 'center' | 'right';
+  verticalAlign?: 'top' | 'middle' | 'bottom';
   rotation?: number;
   locked?: boolean;
   groupId?: string;

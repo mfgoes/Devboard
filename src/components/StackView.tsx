@@ -2,7 +2,7 @@ import { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, useRef, u
 import { useBoardStore } from '../store/boardStore';
 import { Document, FolderDescriptor } from '../types';
 import { IconCanvasDoc, IconCheck, IconDoc, IconFolder, IconFreeformPage, IconStackPage, IconStar } from './icons';
-import { IS_TAURI, readWorkspaceFileInfo, revealInFinder } from '../utils/workspaceManager';
+import { IS_TAURI, getWorkspaceName, readWorkspaceFileInfo, revealInFinder } from '../utils/workspaceManager';
 import { exportDocumentAsMarkdownFile, exportDocumentAsPdf, exportDocumentAsTextFile } from '../utils/documentExport';
 import DocumentMode from './DocumentMode';
 import StackBulkActionBar from './StackBulkActionBar';
@@ -817,6 +817,47 @@ function FolderCard({
   );
 }
 
+function EmptyStateActionTile({
+  icon,
+  label,
+  onClick,
+}: {
+  icon: ReactNode;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex flex-col items-center gap-1.5 rounded-xl border transition-colors text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] hover:border-[rgba(184,119,80,0.34)]"
+      style={{
+        width: 132,
+        padding: '14px 12px 12px',
+        borderColor: 'var(--c-border)',
+        background: 'var(--c-panel)',
+        cursor: 'pointer',
+      }}
+    >
+      <span
+        style={{
+          width: 26,
+          height: 26,
+          borderRadius: 8,
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: 'rgba(184,119,80,0.12)',
+          color: 'var(--c-line)',
+        }}
+      >
+        {icon}
+      </span>
+      <span style={{ fontSize: 12, fontWeight: 650 }}>{label}</span>
+    </button>
+  );
+}
+
 type StackNoteMenuState = {
   docId: string;
   x: number;
@@ -830,6 +871,7 @@ export default function StackView({ pageId, pageName }: Props) {
   const folderDescriptors = useBoardStore((s) => s.folderDescriptors);
   const boardTitle = useBoardStore((s) => s.boardTitle);
   const workspaceName = useBoardStore((s) => s.workspaceName);
+  const cloudBoardId = useBoardStore((s) => s.cloudBoardId);
   const appMode = useBoardStore((s) => s.appMode);
   const addDocument = useBoardStore((s) => s.addDocument);
   const addCanvasDocument = useBoardStore((s) => s.addCanvasDocument);
@@ -1381,6 +1423,9 @@ export default function StackView({ pageId, pageName }: Props) {
     setBrowserMode('notes');
   };
 	const showingFolders = browserMode === 'folders';
+  // When no project folder is attached, the sidebar "Create project…" is the primary
+  // action, so demote this "+ New" to a secondary style to avoid two competing CTAs.
+  const noProjectOpen = !workspaceName && !getWorkspaceName() && !cloudBoardId;
 	const activeFolderSummary = folderSummaries.find((entry) => entry.id === pageId);
 	const activePanelDoc = useMemo(
 		() => documents.find((doc) => doc.id === openPanelDocId) ?? null,
@@ -1637,7 +1682,7 @@ export default function StackView({ pageId, pageName }: Props) {
                 minWidth={162}
                 options={[
                   { value: 'updated', label: 'Newest' },
-                  { value: 'custom', label: 'Folder order' },
+                  { value: 'custom', label: 'Page order' },
                   { value: 'az', label: 'A-Z' },
                 ]}
               />
@@ -1650,7 +1695,7 @@ export default function StackView({ pageId, pageName }: Props) {
                 minWidth={136}
                 options={[
                   { value: 'updated', label: 'Newest' },
-                  { value: 'custom', label: 'Folder order' },
+                  { value: 'custom', label: 'Page order' },
                   { value: 'az', label: 'A-Z' },
                   { value: 'tag', label: 'Tag' },
                 ]}
@@ -1742,9 +1787,9 @@ export default function StackView({ pageId, pageName }: Props) {
                   minHeight: 42,
                   padding: '0 18px',
                   borderRadius: 8,
-                  border: '1px solid var(--c-line)',
-                  background: 'var(--c-line)',
-                  color: '#fff',
+                  border: noProjectOpen ? '1px solid var(--c-border)' : '1px solid var(--c-line)',
+                  background: noProjectOpen ? 'var(--c-panel)' : 'var(--c-line)',
+                  color: noProjectOpen ? 'var(--c-text-hi)' : '#fff',
                   cursor: 'pointer',
                   fontSize: 14,
                   fontWeight: 700,
@@ -1766,7 +1811,7 @@ export default function StackView({ pageId, pageName }: Props) {
                 }}
               >
                 <span style={{ fontSize: 20, lineHeight: 1, transform: 'translateY(-1px)' }}>+</span>
-                <span>{showingFolders ? 'New folder' : 'New'}</span>
+                <span>{showingFolders ? 'New page' : 'New'}</span>
                 {!showingFolders && <span style={{ fontSize: 11, transform: 'translateY(-1px)' }}>▾</span>}
               </button>
               {newMenuOpen && !showingFolders && (
@@ -1967,8 +2012,12 @@ export default function StackView({ pageId, pageName }: Props) {
 						{!showingFolders && pageDocs.length === 0 && (
           <div
             style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 20,
               textAlign: 'center',
-              padding: '96px 20px',
+              padding: '72px 20px',
               color: 'var(--c-text-lo)',
               fontSize: 14,
               border: '1px dashed var(--c-border)',
@@ -1976,7 +2025,21 @@ export default function StackView({ pageId, pageName }: Props) {
               background: 'rgba(255,255,255,0.02)',
             }}
           >
-            Nothing here yet. Press <strong>⌘N</strong> or create a new document from this folder.
+            <div>
+              Nothing here yet. Press <strong>⌘N</strong>, or start with:
+            </div>
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+              <EmptyStateActionTile
+                icon={<IconDoc />}
+                label="Note"
+                onClick={() => handleNewDoc(newBtnRef.current)}
+              />
+              <EmptyStateActionTile
+                icon={<IconCanvasDoc size={15} />}
+                label="Canvas"
+                onClick={handleNewCanvasDoc}
+              />
+            </div>
           </div>
         )}
 						{!showingFolders && pageDocs.length > 0 && visibleDocs.length === 0 && (

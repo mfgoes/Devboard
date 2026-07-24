@@ -6,8 +6,53 @@ import { useBoardStore } from '../../store/boardStore';
 import { useTheme } from '../../theme';
 import { resolveCssColor } from '../../utils/palette';
 import { FONTS } from '../../utils/fonts';
+import { isRichText, layoutRichText } from '../../utils/richText';
 
 function generateId() { return Math.random().toString(36).slice(2, 11); }
+
+// ── Rich text renderer — supports per-run bold plus horizontal/vertical align ──
+function ShapeRichText({
+  node, containerWidth, containerHeight, fill,
+}: { node: ShapeNodeType; containerWidth: number; containerHeight: number; fill: string }) {
+  const fs = node.fontSize ?? 14;
+  const lineHeightRatio = 1.45;
+  const runs = layoutRichText(node.text ?? '', containerWidth, fs, lineHeightRatio, node.bold ?? false, node.italic ?? false);
+
+  const lines = new Map<number, typeof runs>();
+  for (const r of runs) {
+    if (!lines.has(r.y)) lines.set(r.y, []);
+    lines.get(r.y)!.push(r);
+  }
+
+  const align = node.textAlign ?? 'center';
+  const lastY = runs.length ? Math.max(...runs.map((r) => r.y)) : 0;
+  const totalHeight = runs.length ? lastY + Math.round(fs * lineHeightRatio) : 0;
+  const vAlign = node.verticalAlign ?? 'middle';
+  const vOffset = vAlign === 'top' ? 0 : vAlign === 'bottom' ? containerHeight - totalHeight : (containerHeight - totalHeight) / 2;
+
+  return (
+    <>
+      {Array.from(lines.entries()).flatMap(([y, lineRuns]) => {
+        const lineWidth = lineRuns.reduce((sum, r) => sum + r.w, 0);
+        const hOffset = align === 'left' ? 0 : align === 'center' ? (containerWidth - lineWidth) / 2 : containerWidth - lineWidth;
+        return lineRuns.map((run, i) => (
+          <Text
+            key={`${y}-${i}`}
+            x={run.x + hOffset}
+            y={run.y + vOffset}
+            text={run.text}
+            fontSize={run.fontSize}
+            fontStyle={[run.bold ? 'bold' : '', run.italic ? 'italic' : ''].filter(Boolean).join(' ') || 'normal'}
+            textDecoration={run.underline ? 'underline' : ''}
+            fontFamily={FONTS.ui}
+            fill={fill}
+            listening={false}
+          />
+        ));
+      })}
+    </>
+  );
+}
 
 interface Props {
   node: ShapeNodeType;
@@ -338,8 +383,8 @@ const [dragPos, setDragPos] = useState<{ x: number; y: number } | null>(null);
       >
         {renderShape()}
 
-        {/* Label — hidden while editing (textarea overlay takes over) */}
-        {node.text && !isEditing && (
+        {/* Label — hidden while editing (contenteditable overlay takes over) */}
+        {node.text && !isEditing && !isRichText(node.text) && (
           <Text
             x={8 / liveScale.sx}
             y={8 / liveScale.sy}
@@ -354,10 +399,25 @@ const [dragPos, setDragPos] = useState<{ x: number; y: number } | null>(null);
             fontFamily={FONTS.ui}
             fill={textColor}
             align={node.textAlign ?? 'center'}
-            verticalAlign="middle"
+            verticalAlign={node.verticalAlign ?? 'middle'}
             wrap="word"
             listening={false}
           />
+        )}
+        {node.text && !isEditing && isRichText(node.text) && (
+          <Group
+            x={8 / liveScale.sx}
+            y={8 / liveScale.sy}
+            scaleX={1 / liveScale.sx}
+            scaleY={1 / liveScale.sy}
+          >
+            <ShapeRichText
+              node={node}
+              containerWidth={w * liveScale.sx - 16}
+              containerHeight={h * liveScale.sy - 16}
+              fill={textColor}
+            />
+          </Group>
         )}
         {/* Lock indicator */}
         {node.locked && (

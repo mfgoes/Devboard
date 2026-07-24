@@ -3,12 +3,13 @@ import ModalCloseButton from './ModalCloseButton';
 
 interface Props {
   onClose: () => void;
+  onCreateProject?: () => void;
   onStartWriting?: () => void;
   onStartMapping?: () => void;
   onShowTemplates?: () => void;
 }
 
-export default function OnboardingModal({ onClose, onStartWriting, onStartMapping, onShowTemplates }: Props) {
+export default function OnboardingModal({ onClose, onCreateProject, onStartWriting, onStartMapping, onShowTemplates }: Props) {
   const [dontShowAgain, setDontShowAgain] = useState(false);
 
   const handleDontShowAgainChange = (checked: boolean) => {
@@ -41,18 +42,26 @@ export default function OnboardingModal({ onClose, onStartWriting, onStartMappin
 
         {/* Tagline */}
         <p className="text-[var(--c-text-lo)] text-[13px] leading-relaxed mb-6">
-          Local-first and private — no account needed.
+          Projects are real folders on your device.
         </p>
 
         {/* Primary action */}
         <button
-          onClick={() => (onStartWriting ? onStartWriting() : onClose())}
+          onClick={() => (onCreateProject ? onCreateProject() : onClose())}
           className="w-full px-4 py-2.5 bg-[var(--c-line)] hover:opacity-80 text-white text-sm rounded-lg transition-colors font-semibold"
         >
-          Start a note
+          Create project…
         </button>
 
-        {/* Secondary actions */}
+        {/* Secondary action */}
+        <button
+          onClick={() => (onStartWriting ? onStartWriting() : onClose())}
+          className="w-full mt-2 px-4 py-2.5 bg-transparent hover:bg-[var(--c-hover)] border border-[var(--c-border)] text-[var(--c-text-hi)] text-sm rounded-lg transition-colors font-semibold"
+        >
+          Just start a note
+        </button>
+
+        {/* Tertiary actions */}
         <div className="flex items-center justify-center gap-3 mt-3">
           <button
             onClick={() => (onShowTemplates ? onShowTemplates() : onClose())}

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { type LocalRecentWorkspace } from '../../utils/workspaceManager';
 import { FONTS } from '../../utils/fonts';
 import { IconChevronDown, IconFolder } from '../icons';
+import { DARK_MENU_COLORS } from '../darkMenuTheme';
 
 type SyncDot = {
   label: string;
@@ -129,16 +130,16 @@ export default function WorkspaceExplorerProjectSwitcher({
             bottom: 'calc(100% + 8px)',
             zIndex: 9200,
             overflow: 'hidden',
-            border: '1px solid var(--c-border)',
+            border: `1px solid ${DARK_MENU_COLORS.border}`,
             borderRadius: 12,
-            background: 'var(--c-panel)',
-            boxShadow: '0 18px 46px rgba(25,18,14,0.22)',
+            background: DARK_MENU_COLORS.surface,
+            boxShadow: DARK_MENU_COLORS.shadow,
             fontFamily: FONTS.ui,
           }}
           onMouseDown={(e) => e.stopPropagation()}
         >
-          <div style={{ padding: '9px 10px 7px', borderBottom: '1px solid var(--c-border)' }}>
-            <div style={{ fontSize: 10.5, fontWeight: 760, color: 'var(--c-text-hi)' }}>
+          <div style={{ padding: '9px 10px 7px', borderBottom: `1px solid ${DARK_MENU_COLORS.border}` }}>
+            <div style={{ fontSize: 10.5, fontWeight: 760, color: DARK_MENU_COLORS.textHi }}>
               Switch project
             </div>
           </div>
@@ -181,12 +182,12 @@ export default function WorkspaceExplorerProjectSwitcher({
           )}
           <div style={{ maxHeight: 240, overflowY: 'auto', padding: 5 }}>
             {loading && recents.length === 0 ? (
-              <div style={{ padding: '10px 8px', fontSize: 11, fontWeight: 650, color: 'var(--c-text-lo)' }}>
+              <div style={{ padding: '10px 8px', fontSize: 11, fontWeight: 650, color: DARK_MENU_COLORS.textMuted }}>
                 Loading recent projects...
               </div>
             ) : recents.length === 0 ? (
-              <div style={{ padding: '10px 8px', fontSize: 11, lineHeight: 1.45, color: 'var(--c-text-lo)' }}>
-                No recent projects yet.
+              <div style={{ padding: '10px 8px', fontSize: 11, lineHeight: 1.45, color: DARK_MENU_COLORS.textMuted }}>
+                No recent projects yet
               </div>
             ) : (
               recents.map((recent) => {
@@ -226,21 +227,21 @@ export default function WorkspaceExplorerProjectSwitcher({
                       padding: '7px 8px',
                       border: 'none',
                       borderRadius: 9,
-                      background: isCurrent ? 'var(--c-hover)' : isOpening ? 'var(--c-hover)' : 'transparent',
-                      color: unavailable ? 'var(--c-text-lo)' : 'var(--c-text-hi)',
+                      background: isCurrent ? DARK_MENU_COLORS.hover : isOpening ? DARK_MENU_COLORS.hover : 'transparent',
+                      color: unavailable ? DARK_MENU_COLORS.textMuted : DARK_MENU_COLORS.textHi,
                       cursor: loading ? 'default' : 'pointer',
                       fontFamily: FONTS.ui,
                       textAlign: 'left',
                       opacity: loading && !isOpening ? 0.55 : 1,
                     }}
                     onMouseEnter={(e) => {
-                      if (!isCurrent) e.currentTarget.style.background = 'var(--c-hover)';
+                      if (!isCurrent) e.currentTarget.style.background = DARK_MENU_COLORS.hover;
                     }}
                     onMouseLeave={(e) => {
                       if (!isCurrent && !isOpening) e.currentTarget.style.background = 'transparent';
                     }}
                   >
-                    <span style={{ position: 'relative', display: 'inline-flex', color: unavailable ? 'var(--c-text-lo)' : 'var(--c-text-md)', flexShrink: 0 }}>
+                    <span style={{ position: 'relative', display: 'inline-flex', color: unavailable ? DARK_MENU_COLORS.textMuted : DARK_MENU_COLORS.text, flexShrink: 0 }}>
                       {isOpening ? (
                         <span
                           aria-hidden="true"
@@ -248,7 +249,7 @@ export default function WorkspaceExplorerProjectSwitcher({
                             width: 14,
                             height: 14,
                             borderRadius: '50%',
-                            border: '1.6px solid var(--c-text-lo)',
+                            border: `1.6px solid ${DARK_MENU_COLORS.textMuted}`,
                             borderTopColor: 'transparent',
                             animation: 'spin 0.7s linear infinite',
                             display: 'inline-block',
@@ -268,7 +269,7 @@ export default function WorkspaceExplorerProjectSwitcher({
                             width: 7,
                             height: 7,
                             borderRadius: 999,
-                            border: '1px solid var(--c-panel)',
+                            border: `1px solid ${DARK_MENU_COLORS.surface}`,
                             background: '#4aa878',
                           }}
                         />
@@ -278,12 +279,12 @@ export default function WorkspaceExplorerProjectSwitcher({
                       <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12, fontWeight: 740 }}>
                         {recent.title}
                       </span>
-                      <span style={{ display: 'block', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 10, fontWeight: 600, color: isOpening ? 'var(--c-text-md)' : unavailable ? '#b45309' : 'var(--c-text-lo)' }}>
+                      <span style={{ display: 'block', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 10, fontWeight: 600, color: isOpening ? DARK_MENU_COLORS.text : unavailable ? '#e0a458' : DARK_MENU_COLORS.textMuted }}>
                         {subtitle}
                       </span>
                     </span>
                     {isCurrent && (
-                      <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 760, color: 'var(--c-line)' }}>
+                      <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 760, color: DARK_MENU_COLORS.accent }}>
                         Current
                       </span>
                     )}
@@ -292,7 +293,7 @@ export default function WorkspaceExplorerProjectSwitcher({
               })
             )}
           </div>
-          <div style={{ padding: 5, borderTop: '1px solid var(--c-border)' }}>
+          <div style={{ padding: 5, borderTop: `1px solid ${DARK_MENU_COLORS.border}` }}>
             <button
               type="button"
               onClick={onOpenProjectsLibrary}
@@ -301,13 +302,17 @@ export default function WorkspaceExplorerProjectSwitcher({
                 height: 32,
                 border: 'none',
                 borderRadius: 8,
-                background: 'var(--c-hover)',
-                color: 'var(--c-text-hi)',
+                background: DARK_MENU_COLORS.hover,
+                color: DARK_MENU_COLORS.textHi,
                 cursor: 'pointer',
                 fontFamily: FONTS.ui,
                 fontSize: 11,
                 fontWeight: 740,
+                textAlign: 'left',
+                padding: '0 9px',
               }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = DARK_MENU_COLORS.hoverStrong; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = DARK_MENU_COLORS.hover; }}
             >
               All projects...
             </button>

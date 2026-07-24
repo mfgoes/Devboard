@@ -122,8 +122,12 @@ export default function App() {
     typeof window !== 'undefined' ? window.innerWidth < MOBILE_NOTE_BREAKPOINT : false
   ));
   const topBarVisible = !isMobileViewport && !canvasDocumentOwnsTop;
+  // The top bar only holds content (title chip + app menu) when the sidebar is
+  // collapsed. When it's expanded, the sidebar owns that chrome, so the band would
+  // be an empty strip — collapse it to reclaim the space instead.
+  const topBarOccupiesSpace = topBarVisible && explorerCollapsed;
   const activeNoticeCount = Number(showBraveNotice) + Number(showMobileWorkspaceNotice);
-  const contentTop = (topBarVisible ? TOP_BAR_HEIGHT : 0) + activeNoticeCount * NOTICE_HEIGHT;
+  const contentTop = (topBarOccupiesSpace ? TOP_BAR_HEIGHT : 0) + activeNoticeCount * NOTICE_HEIGHT;
   const explorerVisible = !isMobileViewport;
   const explorerOffset = explorerVisible ? (explorerCollapsed ? EXPLORER_COLLAPSED_WIDTH : sidebarWidth) : 0;
   const documentFrameOffset = isMobileViewport ? 0 : explorerOffset;
@@ -743,7 +747,7 @@ export default function App() {
   useEffect(() => {
     let cleanup = () => {};
     listenTauriMenus({
-      'menu:new_board':    () => useBoardStore.getState().loadBoard({ boardTitle: 'Untitled Board', nodes: [] }),
+      'menu:new_board':    () => useBoardStore.getState().loadBoard({ boardTitle: 'Untitled Project', nodes: [] }),
       'menu:new_note':     () => handleNewNote(),
       'menu:import_notes': () => { void promptAndImportMarkdownNotes(); },
       'menu:save':         () => {
@@ -888,7 +892,7 @@ export default function App() {
         <div
           className="absolute left-0 right-0 z-50 flex items-center justify-between gap-3 bg-orange-500 text-white text-xs px-4 py-2"
           style={{
-            top: documentFullscreenOwnsTop || canvasDocumentOwnsTop ? 0 : TOP_BAR_HEIGHT,
+            top: documentFullscreenOwnsTop || canvasDocumentOwnsTop ? 0 : (topBarOccupiesSpace ? TOP_BAR_HEIGHT : 0),
             zIndex: documentFullscreenOwnsTop ? DOCUMENT_FULLSCREEN_Z + 20 : 50,
           }}
         >
@@ -909,7 +913,7 @@ export default function App() {
           style={{
             top: documentFullscreenOwnsTop || canvasDocumentOwnsTop
               ? (showBraveNotice ? NOTICE_HEIGHT : 0)
-              : TOP_BAR_HEIGHT + (showBraveNotice ? NOTICE_HEIGHT : 0),
+              : (topBarOccupiesSpace ? TOP_BAR_HEIGHT : 0) + (showBraveNotice ? NOTICE_HEIGHT : 0),
             zIndex: documentFullscreenOwnsTop ? DOCUMENT_FULLSCREEN_Z + 20 : 50,
           }}
         >
@@ -1191,6 +1195,10 @@ export default function App() {
       {showOnboarding && (
         <OnboardingModal
           onClose={() => setShowOnboarding(false)}
+          onCreateProject={() => {
+            setShowOnboarding(false);
+            window.dispatchEvent(new CustomEvent('devboard:create-project'));
+          }}
           onStartWriting={() => {
             setShowOnboarding(false);
             handleNewNote();

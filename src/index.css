@@ -34,6 +34,8 @@
   --c-panel: #242019;
   --c-hover: #2d2820;
   --c-sidebar: color-mix(in srgb, var(--c-panel) 42%, var(--c-hover));
+  --c-sidebar-header: var(--c-panel);
+  --c-sidebar-header-border: var(--c-border);
   --c-topbar: var(--c-panel);
   --c-topbar-border: var(--c-border);
   --c-sidebar-border: var(--c-border);
@@ -73,6 +75,8 @@
   --c-panel: #ede7dd;
   --c-hover: #edeae4;
   --c-sidebar: #f7f6f4;
+  --c-sidebar-header: #ffffff;
+  --c-sidebar-header-border: #e8e6e2;
   --c-topbar: #e6ded2;
   --c-topbar-border: #d7cec2;
   --c-sidebar-border: #e2e0dc;

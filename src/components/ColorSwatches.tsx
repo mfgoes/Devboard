@@ -30,7 +30,11 @@ export default function ColorSwatches({ colors, activeColor, onSelect, columns =
             height: 32,
             borderRadius: 8,
             border: `2px solid ${activeColor === c.hex ? 'var(--c-line)' : 'transparent'}`,
-            background: c.hex === 'transparent' ? 'transparent' : c.hex,
+            background: c.hex === 'transparent'
+              ? 'transparent'
+              : c.hex === 'auto'
+              ? 'linear-gradient(135deg, #18181b 50%, #e2e8f0 50%)'
+              : c.hex,
             outline: c.hex === 'transparent' ? '1.5px dashed #555' : 'none',
             outlineOffset: c.hex === 'transparent' ? '-3px' : '0',
             cursor: 'pointer',

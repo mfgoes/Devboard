@@ -202,7 +202,21 @@ npx tauri icon path/to/icon-1024.png
 
 ## Version Bumps and Updater Signing
 
-Update `version` in `package.json` and `src-tauri/tauri.conf.json` before each release.
+Use the bump script instead of hand-editing version numbers — it keeps `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, and `src-tauri/Cargo.lock` in sync (all four must match for the Tauri build to be consistent).
+
+```bash
+npm run version:bump               # patch bump (0.4.3 -> 0.4.4), no commit/tag
+npm run version:bump -- minor      # minor bump (0.4.3 -> 0.5.0)
+npm run version:bump -- major      # major bump (0.4.3 -> 1.0.0)
+npm run version:bump -- 1.2.3      # set an explicit version
+npm run version:bump -- patch --tag   # bump, commit "Release vX.Y.Z", and create the git tag
+```
+
+`--tag` implies `--commit`. Without either flag the script only edits the four files locally so you can review the diff first. It never pushes — push explicitly when you're ready to trigger CI:
+
+```bash
+git push origin main --follow-tags   # runs .github/workflows/tauri-build.yml and, for the tag, creates the GitHub Release
+```
 
 The desktop app's built-in updater now uses Tauri's signed updater flow and checks `https://github.com/mfgoes/Devboard/releases/latest/download/latest.json`.
 

@@ -57,3 +57,48 @@ export const SECTION_TO_STICKY: Record<string, string> = {
   ...Object.fromEntries(PALETTE.map((p) => [p.section, p.sticky])),
   neutral: '#CFD8DC', // neutral section → slate sticky
 };
+
+/** Swatch set for sticky note fills — one pastel per palette entry. */
+export const STICKY_COLORS = PALETTE.map((p) => ({ hex: p.sticky, label: p.label }));
+
+/** Swatch set for text color (stickies, text blocks) — vivid, high-contrast on both themes. */
+export const TEXT_COLORS = [
+  { label: 'Auto',   hex: 'auto' },
+  { label: 'White',  hex: '#e2e8f0' },
+  { label: 'Yellow', hex: '#fbbf24' },
+  { label: 'Green',  hex: '#4ade80' },
+  { label: 'Cyan',   hex: '#67e8f9' },
+  { label: 'Blue',   hex: '#60a5fa' },
+  { label: 'Purple', hex: '#a78bfa' },
+  { label: 'Red',    hex: '#f87171' },
+  { label: 'Orange', hex: '#fb923c' },
+];
+
+/** Swatch set for shape fills — same base palette as stickies, plus neutrals and no-fill. */
+export const SHAPE_FILLS = [
+  ...STICKY_COLORS,
+  { hex: '#e2e8f0', label: 'White' },
+  { hex: '#334155', label: 'Dark' },
+  { hex: 'var(--c-line)', label: 'Indigo' },
+  { hex: 'transparent', label: 'No fill' },
+];
+
+/** Swatch set for shape strokes — the more saturated section variant of the palette. */
+export const SHAPE_STROKES = [
+  { hex: 'transparent', label: 'No stroke' },
+  ...PALETTE.map((p) => ({ hex: p.section, label: p.label })),
+  { hex: '#334155', label: 'Dark' },
+  { hex: '#e2e8f0', label: 'White' },
+];
+
+/** Swatch set for shape text color. Auto uses '' (not 'auto') — sentinel maps to `fontColor: undefined`. */
+export const SHAPE_TEXT_COLORS = [
+  { label: 'Auto',   hex: '' },
+  { label: 'White',  hex: '#e2e8f0' },
+  { label: 'Dark',   hex: '#1a1a2e' },
+  { label: 'Yellow', hex: '#fbbf24' },
+  { label: 'Green',  hex: '#4ade80' },
+  { label: 'Cyan',   hex: '#67e8f9' },
+  { label: 'Blue',   hex: '#60a5fa' },
+  { label: 'Red',    hex: '#f87171' },
+];

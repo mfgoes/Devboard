@@ -12,11 +12,6 @@ function getEffectiveFontSize(node: StickyNoteNode): number {
   return node.fontSize ?? 13;
 }
 
-function autoResize(el: HTMLTextAreaElement) {
-  el.style.height = 'auto';
-  el.style.height = el.scrollHeight + 'px';
-}
-
 // Hidden div used for text measurement — created once, reused.
 let _measureDiv: HTMLDivElement | null = null;
 
@@ -51,9 +46,9 @@ function measureStickyHeight(content: string, contentWidth: number, fontSize = 1
 export default function TextEditor() {
   const t = useTheme();
   const { editingId, nodes, camera, updateNode, setEditingId, saveHistory } = useBoardStore();
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const stickyEditorRef = useRef<HTMLDivElement>(null);
   const textBlockEditorRef = useRef<HTMLDivElement>(null);
+  const shapeEditorRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const editingNode = nodes.find((n) => n.id === editingId) as
@@ -94,10 +89,19 @@ export default function TextEditor() {
       const sel = window.getSelection();
       sel?.removeAllRanges();
       sel?.addRange(range);
-    } else if (textareaRef.current) {
-      textareaRef.current.focus();
-      const len = textareaRef.current.value.length;
-      textareaRef.current.setSelectionRange(len, len);
+    } else if (editingNode?.type === 'shape') {
+      const div = shapeEditorRef.current;
+      if (!div) return;
+      const sn = editingNode as ShapeNode;
+      const text = sn.text ?? '';
+      div.innerHTML = isRichText(text) ? text : textToHtml(text);
+      div.focus();
+      const range = document.createRange();
+      range.selectNodeContents(div);
+      range.collapse(false);
+      const sel = window.getSelection();
+      sel?.removeAllRanges();
+      sel?.addRange(range);
     }
   }, [editingId]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -106,51 +110,6 @@ export default function TextEditor() {
   const sx = editingNode.x * camera.scale + camera.x;
   const sy = editingNode.y * camera.scale + camera.y;
   const sw = editingNode.width * camera.scale;
-
-  // Small delay so iOS virtual keyboard animation doesn't cause a spurious blur
-  const handleBlur = () => setTimeout(() => {
-    if (document.activeElement !== textareaRef.current) setEditingId(null);
-  }, 150);
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      setEditingId(null);
-      return;
-    }
-
-    const ta = e.currentTarget;
-    const start = ta.selectionStart;
-    const end = ta.selectionEnd;
-    const value = ta.value;
-
-    // Auto-convert "- " at start of line to "• " for text blocks
-    if (e.key === ' ' && editingNode?.type === 'textblock') {
-      const lineStart = value.lastIndexOf('\n', start - 1) + 1;
-      if (value.slice(lineStart, start) === '-') {
-        e.preventDefault();
-        const newValue = value.slice(0, lineStart) + '• ' + value.slice(start);
-        updateNode(editingId!, { text: newValue });
-        requestAnimationFrame(() => {
-          ta.selectionStart = ta.selectionEnd = lineStart + 2;
-          autoResize(ta);
-        });
-        return;
-      }
-    }
-
-    // Bullet list: auto-insert bullet on Enter (textblock only — sticky uses its own handler)
-    const isTextBullet = e.key === 'Enter' && editingNode?.type === 'textblock' && (editingNode as TextBlockNode).bulletList;
-
-    if (isTextBullet) {
-      e.preventDefault();
-      const newValue = value.slice(0, start) + '\n• ' + value.slice(end);
-      updateNode(editingId!, { text: newValue });
-      requestAnimationFrame(() => {
-        ta.selectionStart = ta.selectionEnd = start + 3;
-        autoResize(ta);
-      });
-    }
-  };
 
   if (editingNode.type === 'section') {
     const sectionNode = editingNode as SectionNode;
@@ -212,45 +171,86 @@ export default function TextEditor() {
     const textColor = shapeNode.fontColor ?? autoColor;
     // Match Konva Text's x={8} y={8} padding exactly
     const pad = 8 * camera.scale;
-    const innerH = shapeSH - pad * 2;
     const fs = Math.round((shapeNode.fontSize ?? 14) * camera.scale);
-    // Approximate Konva's verticalAlign="middle": offset textarea down by half the empty space
-    const lineH = fs * 1.45;
-    const lineCount = Math.max(1, (shapeNode.text ?? '').split('\n').length);
-    const textH = lineH * lineCount;
-    const vOffset = Math.max(0, (innerH - textH) / 2);
+    const vAlign = shapeNode.verticalAlign ?? 'middle';
+    const justify = vAlign === 'top' ? 'flex-start' : vAlign === 'bottom' ? 'flex-end' : 'center';
+
+    const syncShapeContent = () => {
+      const div = shapeEditorRef.current;
+      if (!div) return;
+      updateNode(editingId, { text: div.innerHTML });
+    };
+
+    const handleShapeKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setEditingId(null);
+        return;
+      }
+      e.stopPropagation();
+    };
+
+    const handleShapePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
+      const text = e.clipboardData.getData('text/plain');
+      const html = e.clipboardData.getData('text/html');
+      if (!html && !text) return;
+      e.preventDefault();
+      document.execCommand('insertHTML', false, sanitizeClipboardHtml(html, text));
+      syncShapeContent();
+    };
+
     return (
-      <textarea
-        ref={textareaRef}
-        value={shapeNode.text ?? ''}
-        onChange={(e) => updateNode(editingId, { text: e.target.value })}
-        onFocus={saveHistory}
-        onBlur={handleBlur}
-        onKeyDown={handleKeyDown}
-        placeholder="Label…"
+      <div
         style={{
           position: 'absolute',
-          left: sx + pad,
-          top: sy + pad + vOffset,
-          width: sw - pad * 2,
-          height: innerH - vOffset,
-          background: 'transparent',
-          border: 'none',
-          outline: 'none',
-          resize: 'none',
-          fontSize: fs,
-          lineHeight: 1.45,
-          fontFamily: "'Plus Jakarta Sans', sans-serif",
-          fontWeight: shapeNode.bold ? 'bold' : 'normal',
-          fontStyle: shapeNode.italic ? 'italic' : 'normal',
-          color: textColor,
-          textAlign: shapeNode.textAlign ?? 'center',
-          padding: 0,
+          left: sx,
+          top: sy,
+          width: sw,
+          height: shapeSH,
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: justify,
+          boxSizing: 'border-box',
+          padding: pad,
           zIndex: 100,
+          pointerEvents: 'none',
           overflow: 'hidden',
-          caretColor: textColor,
         }}
-      />
+      >
+        <div
+          ref={shapeEditorRef}
+          contentEditable
+          suppressContentEditableWarning
+          data-shape-editor="true"
+          onInput={syncShapeContent}
+          onFocus={saveHistory}
+          onBlur={() => setTimeout(() => {
+            if (document.activeElement !== shapeEditorRef.current) setEditingId(null);
+          }, 150)}
+          onKeyDown={handleShapeKeyDown}
+          onPaste={handleShapePaste}
+          style={{
+            pointerEvents: 'auto',
+            width: '100%',
+            maxHeight: '100%',
+            background: 'transparent',
+            border: 'none',
+            outline: 'none',
+            fontSize: fs,
+            lineHeight: 1.45,
+            fontFamily: "'Plus Jakarta Sans', sans-serif",
+            fontWeight: shapeNode.bold ? 'bold' : 'normal',
+            fontStyle: shapeNode.italic ? 'italic' : 'normal',
+            color: textColor,
+            textAlign: shapeNode.textAlign ?? 'center',
+            padding: 0,
+            overflow: 'hidden',
+            whiteSpace: 'normal',
+            wordWrap: 'break-word',
+            caretColor: textColor,
+          }}
+        />
+      </div>
     );
   }
 

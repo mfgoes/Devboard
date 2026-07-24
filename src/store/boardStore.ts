@@ -221,7 +221,7 @@ interface BoardState {
 export const useBoardStore = create<BoardState>()(
   persist(
     (set, get) => ({
-      boardTitle: 'Untitled Board',
+      boardTitle: 'Untitled Project',
       nodes: [],
       camera: { x: 0, y: 0, scale: 1 },
       documents: [],

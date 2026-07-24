@@ -3,7 +3,7 @@ import type { RefObject } from 'react';
 import type { Document } from '../../types';
 import { FONTS } from '../../utils/fonts';
 import WorkspaceExplorerCommandMenu from './WorkspaceExplorerCommandMenu';
-import { IconSidebarToggle } from '../icons';
+import { IconSidebarToggle, IconSearch, IconPlus } from '../icons';
 import type { LocalRecentWorkspace } from '../../utils/workspaceManager';
 
 interface WorkspaceExplorerHeaderProps {
@@ -71,8 +71,8 @@ export default function WorkspaceExplorerHeader({
         minHeight: 44,
         padding: '6px 12px',
         flexShrink: 0,
-        borderBottom: '0.5px solid #e8e6e2',
-        background: '#ffffff',
+        borderBottom: '0.5px solid var(--c-sidebar-header-border)',
+        background: 'var(--c-sidebar-header)',
       }}
     >
       {!isPreviewPanel ? (
@@ -149,30 +149,64 @@ export default function WorkspaceExplorerHeader({
         </div>
       )}
 
-      <button
-        onClick={onCollapse}
-        title={isPreviewPanel ? 'Expand sidebar' : 'Collapse sidebar'}
-        aria-label={isPreviewPanel ? 'Expand sidebar' : 'Collapse sidebar'}
-        className="flex items-center justify-center transition-colors"
-        style={{
-          width: 28,
-          height: 28,
-          border: 'none',
-          borderRadius: 'var(--border-radius-md)',
-          background: 'transparent',
-          color: 'var(--color-text-secondary)',
-          cursor: 'pointer',
-          flexShrink: 0,
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.background = 'var(--color-background-secondary)';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = 'transparent';
-        }}
-      >
-        <IconSidebarToggle size={16} />
-      </button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
+        {!isPreviewPanel && (
+          <>
+            <HeaderIconButton title="Search" ariaLabel="Search" onClick={onToggleSearch}>
+              <IconSearch size={16} />
+            </HeaderIconButton>
+            <HeaderIconButton title="New note" ariaLabel="New note" onClick={onCreateNote}>
+              <IconPlus size={16} />
+            </HeaderIconButton>
+          </>
+        )}
+        <HeaderIconButton
+          title={isPreviewPanel ? 'Expand sidebar' : 'Collapse sidebar'}
+          ariaLabel={isPreviewPanel ? 'Expand sidebar' : 'Collapse sidebar'}
+          onClick={onCollapse}
+        >
+          <IconSidebarToggle size={16} />
+        </HeaderIconButton>
+      </div>
     </div>
+  );
+}
+
+function HeaderIconButton({
+  title,
+  ariaLabel,
+  onClick,
+  children,
+}: {
+  title: string;
+  ariaLabel: string;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      aria-label={ariaLabel}
+      className="flex items-center justify-center transition-colors"
+      style={{
+        width: 28,
+        height: 28,
+        border: 'none',
+        borderRadius: 'var(--border-radius-md)',
+        background: 'transparent',
+        color: 'var(--color-text-secondary)',
+        cursor: 'pointer',
+        flexShrink: 0,
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.background = 'var(--color-background-secondary)';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background = 'transparent';
+      }}
+    >
+      {children}
+    </button>
   );
 }

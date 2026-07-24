@@ -2,18 +2,8 @@ import { useState, useRef, useEffect } from 'react';
 import { useBoardStore } from '../store/boardStore';
 import { TextBlockNode } from '../types';
 import { useToolbarPosition } from '../utils/useToolbarPosition';
-
-const TEXT_COLORS = [
-  { label: 'Auto',   hex: 'auto' },
-  { label: 'White',  hex: '#e2e8f0' },
-  { label: 'Yellow', hex: '#fbbf24' },
-  { label: 'Green',  hex: '#4ade80' },
-  { label: 'Cyan',   hex: '#67e8f9' },
-  { label: 'Blue',   hex: '#60a5fa' },
-  { label: 'Purple', hex: '#a78bfa' },
-  { label: 'Red',    hex: '#f87171' },
-  { label: 'Orange', hex: '#fb923c' },
-];
+import ColorSwatches from './ColorSwatches';
+import { TEXT_COLORS } from '../utils/palette';
 
 function AlignIcon({ align }: { align: 'left' | 'center' | 'right' }) {
   return (
@@ -128,29 +118,12 @@ export default function TextBlockToolbar({ nodeId }: { nodeId: string }) {
           <span style={{ width: 14, height: 3, borderRadius: 2, background: node.color === 'auto' ? 'linear-gradient(90deg, #18181b 50%, #e2e8f0 50%)' : node.color, display: 'block' }} />
         </button>
         {showColors && (
-          <div
-            className="absolute top-full left-0 mt-1 bg-[var(--c-panel)] border border-[var(--c-border)] rounded-xl shadow-2xl z-50"
-            style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, padding: 12 }}
-          >
-            {TEXT_COLORS.map((c) => (
-              <button
-                key={c.hex}
-                title={c.label}
-                onClick={() => { update({ color: c.hex }); setShowColors(false); }}
-                style={{
-                  width: 32, height: 32,
-                  borderRadius: 8,
-                  border: `2px solid ${node.color === c.hex ? 'var(--c-line)' : 'transparent'}`,
-                  background: c.hex === 'auto'
-                    ? 'linear-gradient(135deg, #18181b 50%, #e2e8f0 50%)'
-                    : c.hex,
-                  cursor: 'pointer',
-                  transition: 'transform 0.1s',
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.15)')}
-                onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
-              />
-            ))}
+          <div className="absolute top-full left-0 mt-1 bg-[var(--c-panel)] border border-[var(--c-border)] rounded-xl shadow-2xl z-50">
+            <ColorSwatches
+              colors={TEXT_COLORS}
+              activeColor={node.color}
+              onSelect={(hex) => { update({ color: hex }); setShowColors(false); }}
+            />
           </div>
         )}
       </div>

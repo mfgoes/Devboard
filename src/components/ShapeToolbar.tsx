@@ -3,41 +3,13 @@ import { useBoardStore } from '../store/boardStore';
 import { ShapeNode, ShapeKind } from '../types';
 import { useToolbarPosition } from '../utils/useToolbarPosition';
 import ColorSwatches from './ColorSwatches';
-import { PALETTE } from '../utils/palette';
-
-const TEXT_COLORS = [
-  { label: 'Auto',   hex: '' },
-  { label: 'White',  hex: '#e2e8f0' },
-  { label: 'Dark',   hex: '#1a1a2e' },
-  { label: 'Yellow', hex: '#fbbf24' },
-  { label: 'Green',  hex: '#4ade80' },
-  { label: 'Cyan',   hex: '#67e8f9' },
-  { label: 'Blue',   hex: '#60a5fa' },
-  { label: 'Red',    hex: '#f87171' },
-];
+import { SHAPE_FILLS, SHAPE_STROKES, SHAPE_TEXT_COLORS as TEXT_COLORS } from '../utils/palette';
 
 const FONT_SIZE_PRESETS = [
   { label: 'Small',       value: 12 },
   { label: 'Medium',      value: 14 },
   { label: 'Large',       value: 18 },
   { label: 'Extra large', value: 24 },
-];
-
-// Shape fills use the same palette as stickies
-const SHAPE_FILLS = [
-  ...PALETTE.map((p) => ({ hex: p.sticky, label: p.label })),
-  { hex: '#e2e8f0', label: 'White' },
-  { hex: '#334155', label: 'Dark' },
-  { hex: 'var(--c-line)', label: 'Indigo' },
-  { hex: 'transparent', label: 'No fill' },
-];
-
-// Shape strokes use the more saturated section colors
-const SHAPE_STROKES = [
-  { hex: 'transparent', label: 'No stroke' },
-  ...PALETTE.map((p) => ({ hex: p.section, label: p.label })),
-  { hex: '#334155', label: 'Dark' },
-  { hex: '#e2e8f0', label: 'White' },
 ];
 
 const KIND_DEFS: { kind: ShapeKind; label: string; icon: React.ReactNode }[] = [
@@ -101,13 +73,35 @@ function AlignIcon({ align }: { align: 'left' | 'center' | 'right' }) {
   );
 }
 
+function VAlignIcon({ align }: { align: 'top' | 'middle' | 'bottom' }) {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+      <rect x="0" y="0" width="12" height="1.4" rx="0.7" fill="currentColor" opacity="0.5" />
+      <rect x="0" y="10.6" width="12" height="1.4" rx="0.7" fill="currentColor" opacity="0.5" />
+      {align === 'top' && <>
+        <rect x="2" y="2.6" width="8" height="1.5" rx="0.75" fill="currentColor" />
+        <rect x="3" y="5.6" width="6" height="1.5" rx="0.75" fill="currentColor" />
+      </>}
+      {align === 'middle' && <>
+        <rect x="2" y="4.25" width="8" height="1.5" rx="0.75" fill="currentColor" />
+        <rect x="3" y="7.25" width="6" height="1.5" rx="0.75" fill="currentColor" />
+      </>}
+      {align === 'bottom' && <>
+        <rect x="2" y="4.9" width="8" height="1.5" rx="0.75" fill="currentColor" />
+        <rect x="3" y="7.9" width="6" height="1.5" rx="0.75" fill="currentColor" />
+      </>}
+    </svg>
+  );
+}
+
 interface Props {
   nodeId: string;
 }
 
 export default function ShapeToolbar({ nodeId }: Props) {
-  const { nodes, updateNode, camera, saveHistory } = useBoardStore();
+  const { nodes, updateNode, camera, saveHistory, editingId } = useBoardStore();
   const node = nodes.find((n) => n.id === nodeId) as ShapeNode | undefined;
+  const isEditing = editingId === nodeId;
 
   const [customSize, setCustomSize] = useState('');
   const [showKind, setShowKind] = useState(false);
@@ -138,6 +132,23 @@ export default function ShapeToolbar({ nodeId }: Props) {
   };
 
   const closeAll = () => { setShowKind(false); setShowFills(false); setShowStrokes(false); setShowTextColors(false); setShowFontSizes(false); setShowAlign(false); };
+
+  // Selection-aware formatting: bold/italic the highlighted text while editing,
+  // otherwise toggle the shape's whole-label default style.
+  const execFormat = (command: 'bold' | 'italic') => {
+    if (isEditing) {
+      document.execCommand(command);
+      const div = document.querySelector<HTMLDivElement>('[data-shape-editor="true"]');
+      if (div) updateNode(nodeId, { text: div.innerHTML });
+    } else {
+      saveHistory();
+      if (command === 'bold') updateNode(nodeId, { bold: !node.bold });
+      if (command === 'italic') updateNode(nodeId, { italic: !node.italic });
+    }
+  };
+
+  const isBold = isEditing ? document.queryCommandState('bold') : node.bold;
+  const isItalic = isEditing ? document.queryCommandState('italic') : node.italic;
 
   return (
     <div
@@ -381,10 +392,11 @@ export default function ShapeToolbar({ nodeId }: Props) {
       <div className="px-0.5 py-1">
         <button
           title="Bold"
-          onClick={() => update({ bold: !node.bold })}
+          onMouseDown={(e) => { if (isEditing) e.preventDefault(); }}
+          onClick={() => execFormat('bold')}
           className={[
             'w-8 h-8 flex items-center justify-center rounded-lg transition-colors font-bold text-[14px]',
-            node.bold ? 'bg-[var(--c-line)] text-white' : 'text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
+            isBold ? 'bg-[var(--c-line)] text-white' : 'text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
           ].join(' ')}
           style={{ fontFamily: 'serif' }}
         >
@@ -394,10 +406,11 @@ export default function ShapeToolbar({ nodeId }: Props) {
       <div className="px-0.5 py-1">
         <button
           title="Italic"
-          onClick={() => update({ italic: !node.italic })}
+          onMouseDown={(e) => { if (isEditing) e.preventDefault(); }}
+          onClick={() => execFormat('italic')}
           className={[
             'w-8 h-8 flex items-center justify-center rounded-lg transition-colors italic text-[14px]',
-            node.italic ? 'bg-[var(--c-line)] text-white' : 'text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
+            isItalic ? 'bg-[var(--c-line)] text-white' : 'text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)]',
           ].join(' ')}
           style={{ fontFamily: 'serif' }}
         >
@@ -405,7 +418,7 @@ export default function ShapeToolbar({ nodeId }: Props) {
         </button>
       </div>
 
-      {/* ── Text align dropdown ─────────────────────────────────────── */}
+      {/* ── Text align dropdown (horizontal + vertical) ──────────────── */}
       <div className="relative px-1 py-1">
         {(() => {
           const activeAlign = node.textAlign ?? 'center';
@@ -437,6 +450,22 @@ export default function ShapeToolbar({ nodeId }: Props) {
               >
                 <AlignIcon align={align} />
                 {align}
+              </button>
+            ))}
+            <div className="border-t border-[var(--c-border)] mt-1.5 pt-1.5" />
+            {(['top', 'middle', 'bottom'] as const).map((valign) => (
+              <button
+                key={valign}
+                onClick={() => { update({ verticalAlign: valign }); setShowAlign(false); }}
+                className={[
+                  'w-full flex items-center gap-2.5 px-3 py-2 text-[12px] font-sans transition-colors capitalize',
+                  (node.verticalAlign ?? 'middle') === valign
+                    ? 'bg-[var(--c-line)] text-white'
+                    : 'text-[var(--c-text-md)] hover:bg-[var(--c-hover)]',
+                ].join(' ')}
+              >
+                <VAlignIcon align={valign} />
+                {valign}
               </button>
             ))}
           </div>

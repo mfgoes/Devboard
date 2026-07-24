@@ -126,6 +126,26 @@ macOS · Windows · Linux
 
 ---
 
+## Building the desktop app
+
+DevBoard is desktop-first — the Tauri app gets persistent local-folder access, native menus, and the auto-updater. Everyday iteration:
+
+```bash
+npm run tauri:dev          # live desktop window with hot reload
+```
+
+Produce a testable Mac build (Apple Silicon):
+
+```bash
+npm run tauri:build:mac-arm
+```
+
+Artifacts land in `src-tauri/target/aarch64-apple-darwin/release/bundle/` (`macos/DevBoard.app`, `dmg/DevBoard_<version>_aarch64.dmg`).
+
+> **First launch:** local builds are ad-hoc signed (not notarized), so macOS Gatekeeper flags them once — right-click the app → **Open**, or run `xattr -dr com.apple.quarantine <path>.app`. The updater-signing error at the end of a build is non-fatal for local testing (the `.app`/`.dmg` still build); it only matters for distributing auto-updates. See the [release guide](RELEASE_AND_PACKAGING.md) for signing, notarization, and other platforms.
+
+---
+
 ## Documentation
 
 | | |

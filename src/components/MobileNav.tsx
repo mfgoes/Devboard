@@ -282,7 +282,7 @@ export default function MobileNav({ onOpenSync, onOpenAccount }: MobileNavProps)
       <header className="mobile-nav-topbar">
         <div className="mobile-nav-title-group">
           {activeTab === 'folders' && selectedPage && (
-            <button type="button" className="mobile-nav-back" aria-label="Back to folders" onClick={() => setSelectedPageId(null)}>
+            <button type="button" className="mobile-nav-back" aria-label="Back to pages" onClick={() => setSelectedPageId(null)}>
               <IconArrowLeft size={20} />
             </button>
           )}
@@ -317,7 +317,7 @@ export default function MobileNav({ onOpenSync, onOpenAccount }: MobileNavProps)
         {content}
       </main>
       <nav className="mobile-nav-bottom" aria-label="Primary">
-        {tabButton('folders', <IconFolder size={22} />, 'Folders')}
+        {tabButton('folders', <IconFolder size={22} />, 'Pages')}
         {tabButton('search', <IconSearch size={22} />, 'Search')}
         <div ref={newMenuRef} className="mobile-nav-new-wrap">
           {newMenuOpen && (

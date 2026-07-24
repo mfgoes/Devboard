@@ -480,6 +480,7 @@ export default function WorkspaceExplorer({
 
   const {
     handleOpenFolder,
+    handleCreateProject,
     handleReconnectWorkspace,
     loadProjectSwitcherRecents,
     handleToggleProjectSwitcher,
@@ -503,6 +504,12 @@ export default function WorkspaceExplorer({
     closeSidebarMenus,
     openCloudModal,
   });
+
+  useEffect(() => {
+    const onCreateProject = () => { void handleCreateProject(); };
+    window.addEventListener('devboard:create-project', onCreateProject);
+    return () => window.removeEventListener('devboard:create-project', onCreateProject);
+  }, [handleCreateProject]);
 
   const {
     handleFindMissingImages,
@@ -878,6 +885,10 @@ export default function WorkspaceExplorer({
       onMouseDownCapture={(e) => {
         const target = e.target as Node;
         if (missingImagesPopoverRef.current?.contains(target)) return;
+        // Modal dialogs (Preferences, etc.) render inside this panel but manage
+        // their own dismissal — don't let the panel's capture-close swallow clicks
+        // on their controls (toggles, buttons) before those controls handle them.
+        if (target instanceof Element && target.closest('[role="dialog"]')) return;
         closeSidebarMenus();
       }}
       tabIndex={0}
@@ -935,6 +946,7 @@ export default function WorkspaceExplorer({
       {!hasWorkspaceContext && !isReconnectPending && (
         <NoWorkspaceState
           onOpen={() => { void handleOpenFolder(); }}
+          onCreate={() => { void handleCreateProject(); }}
           pendingWorkspaceName={pendingLocalWorkspaceName}
           onReconnect={() => { void handleReconnectWorkspace(); }}
         />

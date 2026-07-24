@@ -211,7 +211,7 @@ export default function SearchBar({ onClose }: { onClose: () => void }) {
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         onKeyDown={handleKeyDown}
-        placeholder="Find on board…"
+        placeholder="Find in project…"
         className="w-48 bg-transparent text-[var(--c-text-hi)] text-[12px] font-sans placeholder:text-[var(--c-text-off)] focus:outline-none"
       />
 

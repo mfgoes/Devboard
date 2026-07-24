@@ -20,6 +20,7 @@ export interface PositionedRun extends RichRun {
   x: number;
   y: number;
   fontSize: number;
+  w: number;
 }
 
 /** Returns true if the string contains HTML markup */
@@ -652,6 +653,7 @@ export function layoutRichText(
           underline: rt.underline,
           link: rt.link,
           fontSize: lineFontSize,
+          w: rt.w,
         });
       }
       rowTokens = [];

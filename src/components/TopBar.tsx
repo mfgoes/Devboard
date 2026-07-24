@@ -306,7 +306,7 @@ export default function TopBar({ onShowAbout, onNewNote, onToggleTimer, explorer
     const { nodes, boardTitle } = useBoardStore.getState();
     const tables = nodes.filter((n) => n.type === 'table') as import('../types').TableNode[];
     if (tables.length === 0) {
-      toast('No tables found on this board.');
+      toast('No tables found in this project.');
       return;
     }
     const parts = tables.map((t, i) => {
@@ -331,7 +331,7 @@ export default function TopBar({ onShowAbout, onNewNote, onToggleTimer, explorer
     const { nodes, boardTitle, documents } = useBoardStore.getState();
     const md = exportDocumentsAsMarkdown(nodes, documents);
     if (md.trim() === '') {
-      toast('No notes found on this board.');
+      toast('No notes found in this project.');
       return;
     }
     const blob = new Blob([md], { type: 'text/markdown;charset=utf-8;' });
@@ -393,7 +393,7 @@ export default function TopBar({ onShowAbout, onNewNote, onToggleTimer, explorer
     const hasContent = nodes.length > 0 || Object.values(pageSnapshots).some((s) => s.nodes.length > 0);
 
     const doNewBoard = () => {
-      loadBoard({ boardTitle: 'Untitled Board', nodes: [] });
+      loadBoard({ boardTitle: 'Untitled Project', nodes: [] });
       clearFileHandle();
       setConfirmDialog(null);
     };
@@ -563,11 +563,11 @@ export default function TopBar({ onShowAbout, onNewNote, onToggleTimer, explorer
         </div>
       )}
       <div
-        className="pointer-events-none absolute top-0 left-0 right-0 z-[190] h-11 font-sans overflow-visible"
+        className="pointer-events-none absolute top-0 left-0 right-0 z-[190] font-sans overflow-visible"
         style={{
-          height: 44,
-          background: 'var(--c-topbar)',
-          borderBottom: '0.5px solid var(--c-topbar-border)',
+          height: explorerOpen ? 0 : 44,
+          background: explorerOpen ? 'transparent' : 'var(--c-topbar)',
+          borderBottom: explorerOpen ? 'none' : '0.5px solid var(--c-topbar-border)',
         }}
       >
       {/* Left: persistent project menu when the sidebar is collapsed */}

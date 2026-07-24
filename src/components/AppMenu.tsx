@@ -7,7 +7,7 @@ import {
   CommandMenuItem,
   CommandMenuSubItem,
 } from './explorer/WorkspaceExplorerParts';
-import type { LocalRecentWorkspace } from '../utils/workspaceManager';
+import { IS_TAURI, type LocalRecentWorkspace } from '../utils/workspaceManager';
 
 export interface AppMenuActions {
   newNote: () => void;
@@ -88,12 +88,12 @@ export default function AppMenu({ actions, state, recentProjects = [], currentPr
       >
         <CommandMenuItem icon={<CommandIcon kind="file" />} label="New note" onClick={() => runAction(actions.newNote)} />
         <CommandMenuItem icon={<IconCanvasDoc size={13} />} label="New canvas" onClick={() => runAction(actions.newCanvas)} />
-        <CommandMenuItem icon={<CommandIcon kind="folder" />} label="New folder" onClick={() => runAction(actions.newFolder)} />
+        <CommandMenuItem icon={<CommandIcon kind="folder" />} label="New page" onClick={() => runAction(actions.newFolder)} />
         <CommandMenuDivider />
         <CommandMenuItem icon={<CommandIcon kind="export" />} label="Import Markdown..." onClick={() => runAction(actions.importMarkdown)} />
         <CommandMenuItem icon={<CommandIcon kind="folder" />} label="Open local folder..." onClick={() => runAction(actions.openLocalFolder)} />
         <CommandMenuItem icon={<CommandIcon kind="view" />} label="Save project" onClick={() => runAction(actions.saveProject)} />
-        <CommandMenuItem icon={<CommandIcon kind="settings" />} label="Rename workspace..." onClick={() => runAction(actions.renameProject)} />
+        <CommandMenuItem icon={<CommandIcon kind="settings" />} label="Rename project..." onClick={() => runAction(actions.renameProject)} />
         <CommandMenuItem icon={<CommandIcon kind="settings" />} label="Project Sync..." onClick={() => runAction(actions.projectSync)} />
       </CommandMenuSubItem>
 
@@ -121,7 +121,7 @@ export default function AppMenu({ actions, state, recentProjects = [], currentPr
         ) : (
           <CommandMenuItem
             icon={<CommandIcon kind="folder" />}
-            label="No recent projects"
+            label="No recent projects yet"
             disabled
           />
         )}
@@ -177,19 +177,23 @@ export default function AppMenu({ actions, state, recentProjects = [], currentPr
         {actions.exportBoardPng && (
           <CommandMenuItem
             icon={<CommandIcon kind="export" />}
-            label="Export board as PNG"
+            label="Export canvas as PNG"
             disabled={state.canExportBoardPng === false}
             onClick={() => runAction(actions.exportBoardPng!)}
           />
         )}
       </CommandMenuSubItem>
 
-      <CommandMenuDivider />
-      <CommandMenuItem
-        icon={<CommandIcon kind="download" />}
-        label="Download desktop app"
-        onClick={() => runAction(actions.downloadDesktopApp)}
-      />
+      {!IS_TAURI && (
+        <>
+          <CommandMenuDivider />
+          <CommandMenuItem
+            icon={<CommandIcon kind="download" />}
+            label="Download desktop app"
+            onClick={() => runAction(actions.downloadDesktopApp)}
+          />
+        </>
+      )}
       <CommandMenuDivider />
       <CommandMenuItem icon={<CommandIcon kind="settings" />} label="Preferences..." onClick={() => runAction(actions.preferences)} />
       <CommandMenuItem icon={<CommandIcon kind="help" />} label="Help & about" onClick={() => runAction(actions.helpAbout)} />

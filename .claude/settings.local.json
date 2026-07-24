@@ -66,7 +66,9 @@
       "mcp__Claude_Preview__preview_start",
       "Bash(git log *)",
       "Bash(awk 'NR==926,NR==1095{print NR\": \"$0}' src/App.tsx)",
-      "Bash(grep -n \"WorkspaceExplorer$\\\\|^ *\\)}$\\\\|<WorkspaceExplorer\")"
+      "Bash(grep -n \"WorkspaceExplorer$\\\\|^ *\\)}$\\\\|<WorkspaceExplorer\")",
+      "Bash(grep -n \"Filter\\\\|Newest\\\\|All tags\\\\|0 documents\\\\|documents\\\\`\\\\|pageDocs.length\\\\}\" src/components/StackView.tsx)",
+      "Bash(awk 'NR==650,NR==850{print NR\": \"$0}' /Users/mischavandergoes/Documents/GitHub/CollaboCanvas/src/components/StackView.tsx)"
     ]
   }
 }

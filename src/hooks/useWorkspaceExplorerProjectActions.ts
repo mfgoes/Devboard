@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { useBoardStore } from '../store/boardStore';
 import type { LocalRecentWorkspace, WorkspaceOpenResult } from '../utils/workspaceManager';
-import { hasWorkspaceHandle, listLocalRecentWorkspaces, openRecentWorkspace, openWorkspace, reconnectStoredWorkspace, relocateRecentWorkspace, saveWorkspace } from '../utils/workspaceManager';
+import { createWorkspace, hasWorkspaceHandle, listLocalRecentWorkspaces, openRecentWorkspace, openWorkspace, reconnectStoredWorkspace, relocateRecentWorkspace, saveWorkspace } from '../utils/workspaceManager';
 import { toast } from '../utils/toast';
 
 interface UseWorkspaceExplorerProjectActionsArgs {
@@ -53,6 +53,25 @@ export function useWorkspaceExplorerProjectActions({
     if (result) {
       applyOpenedWorkspaceResult(result);
     }
+  }, [applyOpenedWorkspaceResult, closeSidebarMenus]);
+
+  const handleCreateProject = useCallback(async () => {
+    closeSidebarMenus();
+    const state = useBoardStore.getState();
+    // Carry over any notes/pages made before a folder was attached (e.g. from the
+    // "start a note" onboarding path) so attaching a project later doesn't wipe them.
+    const hasExistingWork = state.nodes.length > 0 || state.documents.length > 0 || state.pages.length > 1;
+    const preferredName = state.boardTitle && state.boardTitle !== 'Untitled Project' ? state.boardTitle : undefined;
+    // Native "new folder" dialog on desktop; the browser can't mint a named
+    // folder, so createWorkspace returns null there and we fall back to picking
+    // an (empty) folder, which openWorkspace already treats as a new project.
+    const created = await createWorkspace(hasExistingWork ? state.exportData() : undefined, preferredName);
+    if (created) {
+      applyOpenedWorkspaceResult(created);
+      return;
+    }
+    const result = await openWorkspace();
+    if (result) applyOpenedWorkspaceResult(result);
   }, [applyOpenedWorkspaceResult, closeSidebarMenus]);
 
   const handleReconnectWorkspace = useCallback(async () => {
@@ -151,6 +170,7 @@ export function useWorkspaceExplorerProjectActions({
 
   return {
     handleOpenFolder,
+    handleCreateProject,
     handleReconnectWorkspace,
     loadProjectSwitcherRecents,
     handleToggleProjectSwitcher,

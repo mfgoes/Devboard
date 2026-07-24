@@ -138,20 +138,52 @@ export function CommandMenuSubItem({
   onClose: () => void;
   children: React.ReactNode;
 }) {
+  // The submenu pops out to the side of this row, so a diagonal mouse path toward
+  // it can briefly exit this wrapper's hit box before reaching the popout. A short
+  // close delay (cancelled on re-entry) gives that path room instead of closing
+  // the menu on every slightly-off-angle move.
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const cancelClose = () => {
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+  };
+
+  const scheduleClose = () => {
+    cancelClose();
+    closeTimerRef.current = setTimeout(() => {
+      closeTimerRef.current = null;
+      onClose();
+    }, 250);
+  };
+
+  useEffect(() => () => cancelClose(), []);
+
   return (
-    <div className="workspace-command-subitem" onMouseEnter={onOpen} onMouseLeave={onClose}>
+    <div
+      className="workspace-command-subitem"
+      onMouseEnter={() => {
+        cancelClose();
+        onOpen();
+      }}
+      onMouseLeave={scheduleClose}
+    >
       <CommandMenuItem
         icon={icon}
         label={label}
         trailing="›"
         onClick={(e) => {
           e.preventDefault();
+          cancelClose();
           open ? onClose() : onOpen();
         }}
       />
       {open && (
         <div
           className="workspace-command-submenu"
+          onMouseEnter={cancelClose}
           onMouseDown={(e) => e.stopPropagation()}
         >
           {children}
@@ -288,7 +320,7 @@ export function NoWorkspaceState({
       ? 'Folder access is unavailable here'
       : isBrave
         ? 'Open a folder to start'
-        : 'No folder open';
+        : 'No project open';
   const body = canReconnect
     ? 'Your browser needs permission again before DevBoard can read this folder. Nothing was lost — reconnect to pick up where you left off.'
     : browserWorkspaceUnavailable
@@ -297,14 +329,14 @@ export function NoWorkspaceState({
         : 'This browser session cannot open project folders. Use the desktop app or a desktop Chromium browser with File System Access support.'
       : isBrave
         ? 'Brave desktop can usually open project folders, but Shields or privacy settings may block the folder picker on some setups.'
-        : 'A project is a normal folder where DevBoard keeps your pages, notes, and assets so everything reopens together later.';
+        : 'A folder that keeps your pages, notes, and assets together.';
   const tip = canReconnect
     ? 'Browsers ask for folder permission again each session for your privacy.'
     : browserWorkspaceUnavailable
       ? 'Project folders need desktop browser support or the desktop app.'
       : isBrave
         ? 'If Open folder does nothing in Brave, click the lion icon in the address bar, disable Shields for this page, and try again.'
-        : 'Tip: use a dedicated project folder so workspace.json, pages/, notes/, and assets/ stay together.';
+        : 'Everything stays as plain files on your machine.';
 
   return (
     <div className="workspace-empty-state">
