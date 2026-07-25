@@ -7,6 +7,7 @@ import AppMenu from '../AppMenu';
 import type { LocalRecentWorkspace } from '../../utils/workspaceManager';
 import { MenuIcon } from './WorkspaceExplorerParts';
 import { isCanvasDocument } from './workspaceExplorerUtils';
+import { getDesktopDownloadUrl } from '../../utils/desktopDownload';
 
 interface WorkspaceExplorerCommandMenuProps {
   workspaceDisplayName: string;
@@ -192,7 +193,7 @@ const WorkspaceExplorerCommandMenu = forwardRef<HTMLDivElement, WorkspaceExplore
                 if (activeDocumentForMenu && !isCanvasDocument(activeDocumentForMenu)) exportDocumentAsTextFile(activeDocumentForMenu);
               },
               exportBoardPng: onExportBoardPng,
-              downloadDesktopApp: () => window.open('https://devboard.app/download', '_blank'),
+              downloadDesktopApp: () => window.open(getDesktopDownloadUrl(), '_blank'),
               preferences: onOpenPreferences,
               helpAbout: onOpenGetStarted,
             }}

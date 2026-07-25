@@ -177,6 +177,10 @@
       font-weight: 600;
     }
 
+    .build-updated-sep {
+      opacity: 0.5;
+    }
+
     /* ── platform grid ── */
     .dl-grid {
       display: grid;
@@ -543,9 +547,10 @@
   <div class="dl-hero">
     <h1>Download <em>DevBoard</em></h1>
     <p>Free forever. No account required.</p>
-    <div class="build-updated" aria-label="Latest desktop builds updated on April 26, 2026">
-      <strong>Last updated</strong>
-      <span>April 26, 2026</span>
+    <div class="build-updated" id="buildUpdated" aria-label="Latest desktop build version and update date">
+      <strong id="buildVersion">v0.4.2</strong>
+      <span class="build-updated-sep">·</span>
+      <span id="buildDate">Updated April 26, 2026</span>
     </div>
   </div>
 
@@ -751,6 +756,34 @@
     window.addEventListener('resize', function() {
       if (window.innerWidth > 640) closeMenu();
     });
+  })();
+
+  // Pull live version + release date from GitHub so this never goes stale.
+  (function() {
+    const versionEl = document.getElementById('buildVersion');
+    const dateEl = document.getElementById('buildDate');
+    const wrapEl = document.getElementById('buildUpdated');
+    if (!versionEl || !dateEl) return;
+
+    fetch('https://api.github.com/repos/mfgoes/Devboard/releases/latest', {
+      headers: { Accept: 'application/vnd.github+json' },
+    })
+      .then((res) => (res.ok ? res.json() : Promise.reject(res.status)))
+      .then((release) => {
+        const version = release.tag_name;
+        const published = new Date(release.published_at);
+        const dateStr = published.toLocaleDateString('en-US', {
+          month: 'long',
+          day: 'numeric',
+          year: 'numeric',
+        });
+        versionEl.textContent = version;
+        dateEl.textContent = `Updated ${dateStr}`;
+        if (wrapEl) wrapEl.setAttribute('aria-label', `Latest desktop build ${version}, updated ${dateStr}`);
+      })
+      .catch(() => {
+        // Leave the static fallback in the markup as-is.
+      });
   })();
 </script>
 </body>

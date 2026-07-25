@@ -18,6 +18,7 @@ import { IconDoc, IconSidebarToggle } from './icons';
 import { announceLocalSave } from '../utils/saveStatus';
 import { applyWorkspaceSyncFromOpenResult } from '../utils/applyWorkspaceSync';
 import { promptAndImportMarkdownNotes } from '../utils/noteImport';
+import { getDesktopDownloadUrl } from '../utils/desktopDownload';
 
 const playExportSound = () => new Audio(exportSound).play().catch(() => {});
 
@@ -630,7 +631,7 @@ export default function TopBar({ onShowAbout, onNewNote, onToggleTimer, explorer
                 exportActiveNotePdf: handleExportActivePdf,
                 exportActiveNoteText: handleExportActiveText,
                 exportBoardPng: handleExportPNG,
-                downloadDesktopApp: () => window.open('https://devboard.app/download', '_blank'),
+                downloadDesktopApp: () => window.open(getDesktopDownloadUrl(), '_blank'),
                 preferences: () => {
                   onToggleExplorer();
                   window.setTimeout(() => window.dispatchEvent(new CustomEvent('devboard:open-preferences')), 60);
