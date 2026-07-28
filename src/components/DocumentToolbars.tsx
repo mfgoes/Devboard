@@ -29,7 +29,6 @@ interface FmtBarProps {
   setSourceWrap: React.Dispatch<React.SetStateAction<boolean>>;
   onCopySource: () => void;
   saveStatus?: NoteSavePresentation;
-  onOpenOutline: () => void;
   onOpenProperties: () => void;
   onFindReplace: () => void;
   onShowWordCount: () => void;

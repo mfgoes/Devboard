@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { saveBoard } from './utils/fileSave';
-import { saveWorkspace, getWorkspaceName, restoreWorkspace, getPendingLocalWorkspaceName, setOnWorkspaceSavedCallback, MOBILE_WORKSPACE_WARNING_EVENT } from './utils/workspaceManager';
+import { saveWorkspace, getWorkspaceName, restoreWorkspace, getPendingLocalWorkspaceName, setOnWorkspaceSavedCallback, IS_MACOS_DESKTOP, MOBILE_WORKSPACE_WARNING_EVENT } from './utils/workspaceManager';
 import { setToastListener, toast, ToastPayload } from './utils/toast';
 import {
   checkForUpdates,
@@ -125,7 +125,9 @@ export default function App() {
   // The top bar only holds content (title chip + app menu) when the sidebar is
   // collapsed. When it's expanded, the sidebar owns that chrome, so the band would
   // be an empty strip — collapse it to reclaim the space instead.
-  const topBarOccupiesSpace = topBarVisible && explorerCollapsed;
+  // On macOS the top bar is the right half of the unified title band, so it
+  // always reserves space rather than floating over the content.
+  const topBarOccupiesSpace = topBarVisible && (explorerCollapsed || IS_MACOS_DESKTOP);
   const activeNoticeCount = Number(showBraveNotice) + Number(showMobileWorkspaceNotice);
   const contentTop = (topBarOccupiesSpace ? TOP_BAR_HEIGHT : 0) + activeNoticeCount * NOTICE_HEIGHT;
   const explorerVisible = !isMobileViewport;
@@ -954,7 +956,9 @@ export default function App() {
                 flexDirection: 'column',
                 alignItems: 'center',
                 gap: 2,
-                padding: '8px 0',
+                // The rail is narrower than the macOS traffic lights, so the
+                // buttons drop below them rather than insetting from the left.
+                padding: IS_MACOS_DESKTOP ? '44px 0 8px' : '8px 0',
                 background: '#f7f6f4',
                 borderRight: '0.5px solid #e2e0dc',
               }}

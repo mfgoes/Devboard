@@ -214,6 +214,17 @@ export function isVisibleInAssets(entry: TreeEntry): boolean {
   return true;
 }
 
+/**
+ * True when DevBoard can do something with this entry itself — open it as a
+ * note, place it on the canvas, or navigate into it. Everything else can only
+ * be handed to the OS, so it is hideable behind the Files section's filter.
+ */
+export function isOpenableEntry(entry: TreeEntry): boolean {
+  if (entry.kind === 'directory') return true;
+  const e = ext(entry.name);
+  return IMAGE_EXTS.has(e) || DOC_EXTS.has(e) || CODE_EXTS[e] !== undefined;
+}
+
 export function isWorkspaceManagedEntry(entry: TreeEntry): boolean {
   const root = entry.path[0];
   if (!root) return false;

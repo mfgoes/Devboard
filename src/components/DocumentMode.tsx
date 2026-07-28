@@ -18,6 +18,7 @@ import { sanitizeClipboardHtml } from '../utils/richText';
 import { describeNoteSaveStatus, saveLinkedWorkspaceToCloud, type NoteSavePresentation } from '../utils/saveStatus';
 import { taskListItemHtml } from '../utils/taskListHtml';
 import AssetDrawer from './AssetDrawer';
+import { DocumentHeadingRail } from './DocumentHeadingRail';
 import {
   activeWikiChipFromRange,
   applyChipsToDOM,
@@ -139,7 +140,7 @@ export default function DocumentMode({
   const [hasEditedSinceOpen, setHasEditedSinceOpen] = useState(false);
   const [dirtySinceSave, setDirtySinceSave] = useState(false);
   const [slashPalette, setSlashPalette] = useState<FloatingPalettePosition | null>(null);
-  const [sidebarPanel, setSidebarPanel] = useState<'outline' | 'properties' | null>(null);
+  const [sidebarPanel, setSidebarPanel] = useState<'properties' | null>(null);
   const [assetDrawerOpen, setAssetDrawerOpen] = useState(false);
   const [showHeaderMenu, setShowHeaderMenu] = useState(false);
   const [isEditorFocused, setIsEditorFocused] = useState(false);
@@ -271,6 +272,52 @@ export default function DocumentMode({
   const docWordCount = useMemo(() => wordCountFromHtml(doc?.content ?? ''), [doc?.content]);
   const docReadingTime = useMemo(() => readingTimeLabel(docWordCount), [docWordCount]);
   const docOutline = useMemo(() => documentOutlineFromHtml(doc?.content ?? ''), [doc?.content]);
+
+  const scrollToHeading = useCallback((id: string) => {
+    contentRef.current?.querySelector<HTMLElement>(`#${CSS.escape(id)}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, []);
+
+  const [activeHeadingId, setActiveHeadingId] = useState<string | null>(null);
+  const docOutlineIdsKey = docOutline.map((item) => item.id).join('|');
+
+  // Scrollspy: track which heading is currently scrolled to the top of the
+  // page so DocumentHeadingRail can highlight it. Keyed off a derived ids
+  // string rather than `docOutline` itself, since that array gets a new
+  // identity on every keystroke anywhere in the doc (doc.content changes).
+  useEffect(() => {
+    const root = editorScrollRef.current;
+    const contentRoot = contentRef.current;
+    if (!root || !contentRoot || docOutline.length === 0) {
+      setActiveHeadingId(null);
+      return;
+    }
+    const elements = docOutline
+      .map((item) => contentRoot.querySelector<HTMLElement>(`#${CSS.escape(item.id)}`))
+      .filter((el): el is HTMLElement => !!el);
+    if (elements.length === 0) return;
+
+    const observer = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) {
+          setActiveHeadingId(entry.target.id);
+        } else if (entry.boundingClientRect.top > (entry.rootBounds?.top ?? 0)) {
+          // Exited through the bottom of the observed band while scrolling up
+          // past it — fall back to the previous heading in document order.
+          const idx = docOutline.findIndex((item) => item.id === entry.target.id);
+          if (idx > 0) setActiveHeadingId(docOutline[idx - 1].id);
+        }
+      }
+    }, {
+      root,
+      rootMargin: '0px 0px -75% 0px',
+      threshold: 0,
+    });
+
+    elements.forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [doc?.id, docOutlineIdsKey]);
+
   const currentDocAssetPaths = useMemo(() => {
     if (!doc?.content) return [];
     const root = document.createElement('div');
@@ -531,6 +578,14 @@ export default function DocumentMode({
       ensureDocImageIds(contentRef.current);
       ensureDocumentHeadingIds(contentRef.current);
       updatePlaceholderVisibility(contentRef.current);
+      // Persist any heading ids just assigned above so docOutline (parsed from
+      // doc.content) always matches the live DOM, even before the user's first
+      // keystroke — otherwise heading click-to-jump/active-tracking silently
+      // no-ops on a freshly opened, never-yet-edited document.
+      const idSyncedContent = stripLeadingHtmlTitle(stripChipsFromHTML(contentRef.current.innerHTML), doc.title);
+      if (idSyncedContent !== doc.content) {
+        updateDocument(doc.id, { content: idSyncedContent });
+      }
       const resetEditorScroll = () => {
         if (!editorScrollRef.current) return;
         editorScrollRef.current.scrollTop = 0;
@@ -1536,9 +1591,12 @@ export default function DocumentMode({
     fontWeight: 600,
   };
   const showFormattingBar = viewMode === 'source' || viewMode === 'split';
-  // Flat, full-page editor surface — matches the left sidebar tone and is
-  // theme-aware (light in light mode, dark in dark mode).
-  const editorSurface = 'var(--c-sidebar)';
+  // Backdrop behind the page — a recessed panel tone, theme-aware (light in
+  // light mode, dark in dark mode). The page itself (below) uses the
+  // lighter sidebar tone plus a subtle border/shadow so it visibly reads as
+  // a sheet sitting on top, not sunk into, the backdrop.
+  const editorSurface = 'var(--c-panel)';
+  const pageSurface = 'var(--c-sidebar)';
 
   return (
     <div
@@ -1708,9 +1766,6 @@ export default function DocumentMode({
                     </button>
                     <button style={headerMenuButtonStyle} onMouseDown={(e) => { e.preventDefault(); setShowHeaderMenu(false); handleExportMarkdown(); }} {...headerMenuHover}>
                       <span>Export .md</span>
-                    </button>
-                    <button style={headerMenuButtonStyle} onMouseDown={(e) => { e.preventDefault(); setShowHeaderMenu(false); setSidebarPanel((current) => current === 'outline' ? null : 'outline'); }} {...headerMenuHover}>
-                      <span>Outline</span>
                     </button>
                     <button style={headerMenuButtonStyle} onMouseDown={(e) => { e.preventDefault(); setShowHeaderMenu(false); setSidebarPanel((current) => current === 'properties' ? null : 'properties'); }} {...headerMenuHover}>
                       <span>Properties</span>
@@ -2105,9 +2160,6 @@ export default function DocumentMode({
                 <button style={headerMenuButtonStyle} onMouseDown={(e) => { e.preventDefault(); setShowHeaderMenu(false); handleExportMarkdown(); }} {...headerMenuHover}>
                   <span>Export .md</span>
                 </button>
-                <button style={headerMenuButtonStyle} onMouseDown={(e) => { e.preventDefault(); setShowHeaderMenu(false); setSidebarPanel((current) => current === 'outline' ? null : 'outline'); }} {...headerMenuHover}>
-                  <span>Outline</span>
-                </button>
                 <button style={headerMenuButtonStyle} onMouseDown={(e) => { e.preventDefault(); setShowHeaderMenu(false); setSidebarPanel((current) => current === 'properties' ? null : 'properties'); }} {...headerMenuHover}>
                   <span>Properties</span>
                 </button>
@@ -2158,7 +2210,6 @@ export default function DocumentMode({
               sourceWrap={sourceWrap}
               setSourceWrap={setSourceWrap}
               onCopySource={copySourceText}
-              onOpenOutline={() => setSidebarPanel((current) => current === 'outline' ? null : 'outline')}
               onOpenProperties={() => setSidebarPanel((current) => current === 'properties' ? null : 'properties')}
               onFindReplace={handleFindReplace}
               onShowWordCount={handleShowWordCount}
@@ -2327,16 +2378,25 @@ export default function DocumentMode({
             >
               <div
                 style={{
-                  background: editorSurface,
+                  background: pageSurface,
                   maxWidth: 860,
                   width: '100%',
-                  minHeight: panelMode ? 'calc(100% - 64px)' : isNarrowViewport ? 'calc(100% - 56px)' : 'calc(100% - 100px)',
+                  aspectRatio: '210 / 297',
                   padding: panelMode ? '20px 24px' : isNarrowViewport ? '16px 16px' : '28px 48px',
                   boxSizing: 'border-box',
-                  borderRadius: 0,
-                  boxShadow: 'none',
+                  borderRadius: 3,
+                  border: '1px solid var(--c-border)',
+                  boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
                 }}
               >
+              {docOutline.length > 0 && (
+                <DocumentHeadingRail
+                  outline={docOutline}
+                  activeId={activeHeadingId}
+                  onJump={scrollToHeading}
+                  inset={panelMode ? 6 : isNarrowViewport ? 4 : 10}
+                />
+              )}
               {/* Emoji area — above the H1, hover-zone scoped to this div */}
               <div
                 style={{ padding: 0 }}
@@ -2567,7 +2627,7 @@ export default function DocumentMode({
                     width: lineHandleDrag.lineDragGhost.width,
                     maxHeight: 220,
                     overflow: 'hidden',
-                    background: editorSurface,
+                    background: pageSurface,
                     border: '1px solid color-mix(in srgb, var(--c-line) 35%, transparent)',
                     borderRadius: 6,
                     boxShadow: '0 10px 30px rgba(0,0,0,0.22)',
@@ -2814,7 +2874,7 @@ export default function DocumentMode({
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px 12px', borderBottom: '1px solid var(--c-border)' }}>
               <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--c-text-lo)' }}>
-                {sidebarPanel === 'outline' ? 'Outline' : 'Properties'}
+                Properties
               </div>
               <button
                 onClick={() => setSidebarPanel(null)}
@@ -2824,41 +2884,6 @@ export default function DocumentMode({
                 ×
               </button>
             </div>
-
-            {sidebarPanel === 'outline' && (
-              <div style={{ padding: 12, overflowY: 'auto' }}>
-                {docOutline.length === 0 && (
-                  <div style={{ fontSize: 12, color: 'var(--c-text-lo)', lineHeight: 1.5 }}>
-                    Add `H1` and `H2` blocks to build an outline for this note.
-                  </div>
-                )}
-                {docOutline.map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => {
-                      const heading = contentRef.current?.querySelector<HTMLElement>(`#${CSS.escape(item.id)}`);
-                      heading?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    }}
-                    style={{
-                      width: '100%',
-                      border: 'none',
-                      background: 'transparent',
-                      color: 'var(--c-text-md)',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      padding: item.level === 'h2' ? '8px 10px 8px 20px' : '8px 10px',
-                      borderRadius: 8,
-                      fontSize: item.level === 'h1' ? 12.5 : 12,
-                      fontWeight: item.level === 'h1' ? 600 : 500,
-                    }}
-                    onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--c-hover)'; e.currentTarget.style.color = 'var(--c-text-hi)'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--c-text-md)'; }}
-                  >
-                    {item.text}
-                  </button>
-                ))}
-              </div>
-            )}
 
             {sidebarPanel === 'properties' && (
               <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type RefObject } from 'react';
 import type React from 'react';
 import type { Document, PageMeta } from '../types';
-import { TreeEntry, flatVisible, isVisibleInAssets } from '../components/explorer/fileTreeUtils';
+import { TreeEntry, flatVisible, isOpenableEntry, isVisibleInAssets } from '../components/explorer/fileTreeUtils';
 import { isCanvasDocument } from '../components/explorer/workspaceExplorerUtils';
 
 type ExplorerKeyboardItem =
@@ -14,6 +14,7 @@ interface UseWorkspaceExplorerNavigationArgs {
   cloudTree: TreeEntry[];
   cloudOnlyWorkspace: boolean;
   advancedFilesVisible: boolean;
+  unopenableFilesVisible: boolean;
   pages: PageMeta[];
   documents: Document[];
   activePageId: string;
@@ -42,6 +43,7 @@ export function useWorkspaceExplorerNavigation({
   cloudTree,
   cloudOnlyWorkspace,
   advancedFilesVisible,
+  unopenableFilesVisible,
   pages,
   documents,
   activePageId,
@@ -98,8 +100,13 @@ export function useWorkspaceExplorerNavigation({
   );
 
   const assetVisibleEntries = useMemo(
-    () => assetSearchResults ?? flatVisible(assetTree),
-    [assetSearchResults, assetTree],
+    () => {
+      const base = assetSearchResults ?? flatVisible(assetTree);
+      // Filtering here (not in the row component) keeps keyboard nav in step
+      // with what is actually on screen.
+      return unopenableFilesVisible ? base : base.filter(isOpenableEntry);
+    },
+    [assetSearchResults, assetTree, unopenableFilesVisible],
   );
 
   const keyboardItems = useMemo<ExplorerKeyboardItem[]>(() => {

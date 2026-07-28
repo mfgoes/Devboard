@@ -130,6 +130,10 @@ export const IS_TAURI =
   typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
 /** Event fired when a mobile browser tries to use folder-based workspaces. */
+/** macOS desktop build — gates the native window chrome (overlay titlebar, drag regions). */
+export const IS_MACOS_DESKTOP =
+  IS_TAURI && typeof navigator !== 'undefined' && /Mac/i.test(navigator.userAgent);
+
 export const MOBILE_WORKSPACE_WARNING_EVENT = 'devboard:mobile-workspace-warning';
 
 /** True when running in a mobile browser where folder-based workspaces are not supported. */
@@ -246,6 +250,21 @@ export async function revealInFinder(relativePath: string): Promise<boolean> {
   } catch (err) {
     console.warn('revealInFinder failed', err);
     toast('Could not show item in folder');
+    return false;
+  }
+}
+
+/** Hand a workspace file to the OS default application. Desktop only. */
+export async function openInDefaultApp(relativePath: string): Promise<boolean> {
+  if (!IS_TAURI || !tauriWorkspacePath) return false;
+  try {
+    const { invoke } = await import('@tauri-apps/api/core');
+    const normalized = relativePath.replace(/\\/g, '/').replace(/^\/+/, '');
+    await invoke('open_external_url', { url: joinPath(tauriWorkspacePath, normalized) });
+    return true;
+  } catch (err) {
+    console.warn('openInDefaultApp failed', err);
+    toast('Could not open this file');
     return false;
   }
 }

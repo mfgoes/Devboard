@@ -5,7 +5,7 @@ import {
   GripVertical, Maximize2, FileText, Save, Folder,
   List, ListOrdered,
   AlignLeft, AlignCenter, AlignRight,
-  Code, Eye, CircleDot, Copy, TextWrap, Columns2,
+  Code, Eye, EyeOff, CircleDot, Copy, TextWrap, Columns2,
   Quote, Code2, Minus, Cloud, Pencil,
   Link2, Star, ArrowLeft, ArrowRight, Unlink, Brackets, MoreHorizontal,
   Search, Plus, User, ChevronDown, Check,
@@ -37,7 +37,8 @@ export function IconAlignLeft()    { return <AlignLeft     size={13} />; }
 export function IconAlignCenter()  { return <AlignCenter   size={13} />; }
 export function IconAlignRight()   { return <AlignRight    size={13} />; }
 export function IconCode()         { return <Code          size={13} />; }
-export function IconEye()          { return <Eye           size={13} />; }
+export function IconEye({ size = 13 }: { size?: number } = {}) { return <Eye size={size} />; }
+export function IconEyeOff({ size = 13 }: { size?: number } = {}) { return <EyeOff size={size} />; }
 export function IconColumns()      { return <Columns2      size={13} />; }
 export function IconNodeLink()     { return <CircleDot     size={13} />; }
 export function IconCopy()         { return <Copy          size={13} />; }

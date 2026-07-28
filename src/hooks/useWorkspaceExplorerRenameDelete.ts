@@ -19,9 +19,15 @@ export function useWorkspaceExplorerRenameDelete({
   setExplorerMenu,
   setTree,
 }: UseWorkspaceExplorerRenameDeleteArgs) {
+  const [renamingPath, setRenamingPath] = useState<string[] | null>(null);
   const [renameDraft, setRenameDraft] = useState('');
   const [renameExtWarning, setRenameExtWarning] = useState<{ entry: TreeEntry; newName: string } | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<TreeEntry | null>(null);
+
+  const cancelRename = useCallback(() => {
+    setRenamingPath(null);
+    setRenameDraft('');
+  }, []);
 
   const startRename = useCallback((entry: TreeEntry) => {
     if (cloudOnlyWorkspace) {
@@ -34,11 +40,13 @@ export function useWorkspaceExplorerRenameDelete({
       setExplorerMenu(null);
       return;
     }
+    setRenamingPath(entry.path);
     setRenameDraft(entry.name);
     setExplorerMenu(null);
   }, [cloudOnlyWorkspace, setExplorerMenu]);
 
   const doRename = useCallback(async (entry: TreeEntry, newName: string) => {
+    cancelRename();
     try {
       await renameEntry(entry.path, newName);
       const newPath = [...entry.path.slice(0, -1), newName];
@@ -68,17 +76,22 @@ export function useWorkspaceExplorerRenameDelete({
 
   const commitRename = useCallback((entry: TreeEntry) => {
     const newName = renameDraft.trim();
-    if (!newName || newName === entry.name) return;
+    if (!newName || newName === entry.name) {
+      cancelRename();
+      return;
+    }
     if (entry.kind === 'file') {
       const oldExt = entry.name.includes('.') ? entry.name.split('.').pop()!.toLowerCase() : '';
       const newExt = newName.includes('.') ? newName.split('.').pop()!.toLowerCase() : '';
       if (oldExt && oldExt !== newExt) {
+        // Hand off to the confirm dialog; the inline input closes either way.
+        cancelRename();
         setRenameExtWarning({ entry, newName });
         return;
       }
     }
     void doRename(entry, newName);
-  }, [doRename, renameDraft]);
+  }, [cancelRename, doRename, renameDraft]);
 
   const removeFromTree = useCallback((pathParts: string[]) => {
     const remove = (entries: TreeEntry[], path: string[]): TreeEntry[] => {
@@ -121,6 +134,10 @@ export function useWorkspaceExplorerRenameDelete({
   return {
     deleteConfirm,
     setDeleteConfirm,
+    renamingPath,
+    renameDraft,
+    setRenameDraft,
+    cancelRename,
     renameExtWarning,
     setRenameExtWarning,
     startRename,

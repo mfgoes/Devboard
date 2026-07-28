@@ -8,8 +8,10 @@ import CanvasTemplatePicker from './CanvasTemplatePicker';
 import CloudModal from './CloudModal';
 import AppMenu from './AppMenu';
 import WorkspaceExplorerProjectRenameDialog from './explorer/WorkspaceExplorerProjectRenameDialog';
+import { MenuIcon } from './explorer/WorkspaceExplorerParts';
+import { CollapsedRailTooltip } from './CollapsedRailTooltip';
 import { saveBoard, saveBoardAs, clearFileHandle } from '../utils/fileSave';
-import { openWorkspace, openRecentWorkspace, listLocalRecentWorkspaces, createWorkspace, saveWorkspace, hasWorkspaceHandle, clearWorkspaceHandle, getWorkspacePathHint, IS_TAURI, type LocalRecentWorkspace, type WorkspaceOpenResult } from '../utils/workspaceManager';
+import { openWorkspace, openRecentWorkspace, listLocalRecentWorkspaces, createWorkspace, saveWorkspace, hasWorkspaceHandle, clearWorkspaceHandle, getWorkspacePathHint, IS_MACOS_DESKTOP, IS_TAURI, type LocalRecentWorkspace, type WorkspaceOpenResult } from '../utils/workspaceManager';
 import { toast } from '../utils/toast';
 import { exportDocumentsAsMarkdown, generateMarkdownFilename } from '../utils/exportMarkdown';
 import { exportDocumentAsMarkdownFile, exportDocumentAsPdf, exportDocumentAsTextFile } from '../utils/documentExport';
@@ -107,6 +109,18 @@ export default function TopBar({ onShowAbout, onNewNote, onToggleTimer, explorer
   const appMenuLeft = menuAnchorLeft ?? titleStripLeft;
   const activeDocumentForMenu = documents.find((doc) => doc.id === activeDocId) ?? null;
   const canExportActiveNote = !!activeDocumentForMenu && activeDocumentForMenu.docType !== 'canvas';
+
+  // ── Window identity for the macOS title band ──────────────────────────────
+  const identityPage = pages.find((page) => page.id === activePageId) ?? null;
+  const identityDoc = isDocumentContext ? activeDocumentForMenu : null;
+  const identityTitle = identityDoc
+    ? (identityDoc.title || 'Untitled note')
+    : (identityPage?.name || titleLabel);
+  // The chip is the project; drop it when it would just repeat the title.
+  const identityChip = titleLabel && titleLabel !== identityTitle ? titleLabel : null;
+  // macOS with the sidebar open: this row is the right half of the title band.
+  const unifiedTitleBand = IS_MACOS_DESKTOP && explorerOpen;
+  const bandLeft = Math.max(12, workspaceOffset + 12);
 
   const applyOpenedWorkspaceResult = useCallback((result: WorkspaceOpenResult) => {
     setWorkspaceName(result.name);
@@ -499,6 +513,56 @@ export default function TopBar({ onShowAbout, onNewNote, onToggleTimer, explorer
     fn();
   };
 
+  // One definition shared by the collapsed-sidebar chip and the macOS title band.
+  const renderAppMenu = (left: number) => (
+    <AppMenu
+      left={left}
+      top={46}
+      width={220}
+      onRequestClose={() => setMenuOpen(false)}
+      recentProjects={recentProjects}
+      currentProjectName={titleLabel}
+      state={{
+        canExportActiveNote,
+        canExportBoardPng: true,
+      }}
+      actions={{
+        newNote: onNewNote,
+        newCanvas: handleNewCanvasFromMenu,
+        newFolder: () => addPage(),
+        importMarkdown: handleImportNotes,
+        openLocalFolder: () => { void handleOpenFolder(); },
+        openRecentProject: (project) => { void handleOpenRecentProject(project); },
+        allProjects: handleOpenProjectsLibrary,
+        saveProject: handleSaveJSON,
+        renameProject: beginRenameWorkspace,
+        projectSync: () => window.dispatchEvent(new CustomEvent('devboard:open-cloud-modal')),
+        search: onToggleSearch,
+        toggleTimer: onToggleTimer,
+        toggleJira: onToggleJira,
+        exportActiveNoteMarkdown: handleExportActiveMarkdown,
+        exportActiveNotePdf: handleExportActivePdf,
+        exportActiveNoteText: handleExportActiveText,
+        exportBoardPng: handleExportPNG,
+        downloadDesktopApp: () => window.open(getDesktopDownloadUrl(), '_blank'),
+        preferences: () => {
+          // The band already has the sidebar open, so only toggle when collapsed.
+          if (!explorerOpen) onToggleExplorer();
+          window.setTimeout(() => window.dispatchEvent(new CustomEvent('devboard:open-preferences')), 60);
+        },
+        helpAbout: onShowAbout,
+      }}
+    />
+  );
+
+  const toggleAppMenu = () => {
+    setMenuOpen((open) => {
+      const next = !open;
+      if (next) void loadRecentProjects();
+      return next;
+    });
+  };
+
   return (
     <>
       {confirmDialog && (
@@ -566,11 +630,55 @@ export default function TopBar({ onShowAbout, onNewNote, onToggleTimer, explorer
       <div
         className="pointer-events-none absolute top-0 left-0 right-0 z-[190] font-sans overflow-visible"
         style={{
-          height: explorerOpen ? 0 : 44,
-          background: explorerOpen ? 'transparent' : 'var(--c-topbar)',
-          borderBottom: explorerOpen ? 'none' : '0.5px solid var(--c-topbar-border)',
+          // On macOS this row is the right half of the unified title band, so
+          // it keeps its height and chrome even while the sidebar is open.
+          height: unifiedTitleBand || !explorerOpen ? 44 : 0,
+          // The unified band sits flush with the content surface — matching the
+          // canvas colour and dropping the rule keeps it reading as one plane.
+          background: unifiedTitleBand
+            ? 'var(--c-canvas)'
+            : explorerOpen ? 'transparent' : 'var(--c-topbar)',
+          borderBottom: !unifiedTitleBand && !explorerOpen
+            ? '0.5px solid var(--c-topbar-border)'
+            : 'none',
         }}
       >
+      {/* Left: window identity — only when the sidebar already owns the far left */}
+      {unifiedTitleBand && (
+        <div
+          ref={menuRef}
+          data-tauri-drag-region=""
+          className="pointer-events-auto absolute top-0 bottom-0 flex items-center gap-2"
+          style={{ left: bandLeft, right: 16, minWidth: 0 }}
+        >
+          <CollapsedRailTooltip label="App menu" placement="bottom">
+            <button
+              type="button"
+              onClick={toggleAppMenu}
+              aria-label="App menu"
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[7px] text-[var(--c-text-md)] transition-colors hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]"
+            >
+              <MenuIcon />
+            </button>
+          </CollapsedRailTooltip>
+          <span
+            className="min-w-0 truncate font-sans text-[12.5px] font-semibold text-[var(--c-text-hi)]"
+            title={identityTitle}
+          >
+            {identityTitle}
+          </span>
+          {identityChip && (
+            <span
+              className="shrink-0 truncate rounded-[6px] border border-[var(--c-border)] px-1.5 py-0.5 font-sans text-[10.5px] font-medium text-[var(--c-text-lo)]"
+              style={{ maxWidth: 160 }}
+              title={identityChip}
+            >
+              {identityChip}
+            </span>
+          )}
+          {menuOpen && renderAppMenu(bandLeft)}
+        </div>
+      )}
       {/* Left: persistent project menu when the sidebar is collapsed */}
       {!explorerOpen && (
         <div
@@ -602,43 +710,7 @@ export default function TopBar({ onShowAbout, onNewNote, onToggleTimer, explorer
             </button>
           </div>
           {menuOpen && (
-            <AppMenu
-              left={appMenuLeft}
-              top={46}
-              width={220}
-              onRequestClose={() => setMenuOpen(false)}
-              recentProjects={recentProjects}
-              currentProjectName={titleLabel}
-              state={{
-                canExportActiveNote,
-                canExportBoardPng: true,
-              }}
-              actions={{
-                newNote: onNewNote,
-                newCanvas: handleNewCanvasFromMenu,
-                newFolder: () => addPage(),
-                importMarkdown: handleImportNotes,
-                openLocalFolder: () => { void handleOpenFolder(); },
-                openRecentProject: (project) => { void handleOpenRecentProject(project); },
-                allProjects: handleOpenProjectsLibrary,
-                saveProject: handleSaveJSON,
-                renameProject: beginRenameWorkspace,
-                projectSync: () => window.dispatchEvent(new CustomEvent('devboard:open-cloud-modal')),
-                search: onToggleSearch,
-                toggleTimer: onToggleTimer,
-                toggleJira: onToggleJira,
-                exportActiveNoteMarkdown: handleExportActiveMarkdown,
-                exportActiveNotePdf: handleExportActivePdf,
-                exportActiveNoteText: handleExportActiveText,
-                exportBoardPng: handleExportPNG,
-                downloadDesktopApp: () => window.open(getDesktopDownloadUrl(), '_blank'),
-                preferences: () => {
-                  onToggleExplorer();
-                  window.setTimeout(() => window.dispatchEvent(new CustomEvent('devboard:open-preferences')), 60);
-                },
-                helpAbout: onShowAbout,
-              }}
-            />
+            renderAppMenu(appMenuLeft)
           )}
         </div>
       )}

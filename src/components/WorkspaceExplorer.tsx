@@ -7,7 +7,7 @@ import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import { useBoardStore } from '../store/boardStore';
 import { useAuth } from '../contexts/AuthContext';
 import type { CanvasNode, Document, ImageNode, PageMeta } from '../types';
-import { listDirectory, getWorkspaceName, IS_TAURI, revealInFinder, saveWorkspace, type LocalRecentWorkspace, type WorkspaceOpenResult } from '../utils/workspaceManager';
+import { listDirectory, getWorkspaceName, IS_TAURI, openInDefaultApp, revealInFinder, saveWorkspace, type LocalRecentWorkspace, type WorkspaceOpenResult } from '../utils/workspaceManager';
 import { FONTS } from '../utils/fonts';
 import { placeCodeFile, placeImageFile, placeDocumentFile, openDocumentFile } from '../utils/canvasPlacement';
 import { stripHtmlPreview } from '../utils/documentExport';
@@ -52,6 +52,7 @@ import WorkspaceExplorerFavoritesSection from './explorer/WorkspaceExplorerFavor
 import WorkspaceExplorerFoldersSection from './explorer/WorkspaceExplorerFoldersSection';
 import WorkspaceExplorerHeader from './explorer/WorkspaceExplorerHeader';
 import WorkspaceExplorerMissingImagesControl from './explorer/WorkspaceExplorerMissingImagesControl';
+import WorkspaceExplorerFilesSection from './explorer/WorkspaceExplorerFilesSection';
 import { useWorkspaceExplorerNavigation } from '../hooks/useWorkspaceExplorerNavigation';
 import { useWorkspaceExplorerProjectActions } from '../hooks/useWorkspaceExplorerProjectActions';
 import { useWorkspaceExplorerMissingImages } from '../hooks/useWorkspaceExplorerMissingImages';
@@ -61,6 +62,8 @@ import { useWorkspaceExplorerRenameDelete } from '../hooks/useWorkspaceExplorerR
 const SIDEBAR_SELECTABLE_ROW_HEIGHT = 24;
 
 const ADVANCED_FILES_STORAGE_KEY = 'devboard-advanced-files-visible';
+
+const UNOPENABLE_FILES_STORAGE_KEY = 'devboard-unopenable-files-visible';
 
 export const WORKSPACE_EXPLORER_WIDTH = 240;
 
@@ -164,7 +167,7 @@ export default function WorkspaceExplorer({
   const [canvasPicker, setCanvasPicker] = useState<{ parentPageId?: string } | null>(null);
   const [pagesSectionOpen, setPagesSectionOpen] = useState(true);
   const [favoritesSectionOpen, setFavoritesSectionOpen] = useState(true);
-  const [assetsSectionOpen] = useState(false);
+  const [assetsSectionOpen, setAssetsSectionOpen] = useState(true);
   const [cloudExpandedPaths, setCloudExpandedPaths] = useState<Record<string, boolean>>({
     assets: true,
     notes: true,
@@ -173,6 +176,10 @@ export default function WorkspaceExplorer({
   const [advancedFilesVisible, setAdvancedFilesVisible] = useState(() => {
     if (typeof window === 'undefined') return false;
     return window.localStorage.getItem(ADVANCED_FILES_STORAGE_KEY) === '1';
+  });
+  const [unopenableFilesVisible, setUnopenableFilesVisible] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    return window.localStorage.getItem(UNOPENABLE_FILES_STORAGE_KEY) !== '0';
   });
   const [collapsedPageIds, setCollapsedPageIds] = useState<Record<string, boolean>>({});
   const [confirmingClose, setConfirmingClose] = useState(false);
@@ -348,6 +355,11 @@ export default function WorkspaceExplorer({
   }, [advancedFilesVisible]);
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(UNOPENABLE_FILES_STORAGE_KEY, unopenableFilesVisible ? '1' : '0');
+  }, [unopenableFilesVisible]);
+
+  useEffect(() => {
     if (!missingImagesOpen) return;
     const onMouseDown = (e: MouseEvent) => {
       if (missingImagesPopoverRef.current?.contains(e.target as Node)) return;
@@ -442,9 +454,18 @@ export default function WorkspaceExplorer({
         toast('Opening from Folders. Notes are read-only in Asset files; edit them from the Folders section above.');
       }
       await openDocumentFile(entry.path);
-    } else {
-      await placeFile(entry);
+      return;
     }
+    if (IMAGE_EXTS.has(e) || CODE_EXTS[e] !== undefined) {
+      await placeFile(entry);
+      return;
+    }
+    // Nothing on the canvas can represent this file — hand it to the OS.
+    if (!IS_TAURI) {
+      toast('Open this file from your file manager.');
+      return;
+    }
+    await openInDefaultApp(entry.path.join('/'));
   }, [placeFile]);
 
   // ── Keyboard navigation ───────────────────────────────────────────────────
@@ -528,6 +549,11 @@ export default function WorkspaceExplorer({
   const {
     deleteConfirm,
     setDeleteConfirm,
+    renamingPath,
+    renameDraft,
+    setRenameDraft,
+    cancelRename,
+    commitRename,
     renameExtWarning,
     setRenameExtWarning,
     startRename,
@@ -819,13 +845,16 @@ export default function WorkspaceExplorer({
     focusPage,
     focusDocument,
     handleKeyDown,
+    focusedItem,
     focusedPageId,
     focusedDocId,
+    assetVisibleEntries,
   } = useWorkspaceExplorerNavigation({
     tree,
     cloudTree,
     cloudOnlyWorkspace,
     advancedFilesVisible,
+    unopenableFilesVisible,
     pages,
     documents,
     activePageId,
@@ -1045,6 +1074,42 @@ export default function WorkspaceExplorer({
         onNoteHover={showNotePreview}
         onNoteLeave={clearNotePreview}
       />
+
+      <WorkspaceExplorerFilesSection
+        open={hasWorkspaceContext || isReconnectPending}
+        sectionOpen={assetsSectionOpen}
+        entries={assetVisibleEntries}
+        focusedPath={focusedItem?.kind === 'asset' ? focusedItem.path : null}
+        isDark={isDark}
+        rootLoading={rootLoading}
+        rootError={rootError}
+        searching={searchQuery.trim().length > 0}
+        unopenableFilesVisible={unopenableFilesVisible}
+        renamingPath={renamingPath}
+        renameDraft={renameDraft}
+        newFolderParent={newFolderParent}
+        newFolderName={newFolderName}
+        newFolderInputRef={newFolderInputRef}
+        onToggleSection={() => setAssetsSectionOpen((v) => !v)}
+        onToggleUnopenableFiles={() => setUnopenableFilesVisible((v) => !v)}
+        onNewFolder={() => startNewFolder([])}
+        onToggleDirectory={handleAssetToggle}
+        onFileClick={handleFileSingleClick}
+        onFileOpen={handleFileOpen}
+        onFileDragStart={handleFileDragStart}
+        onFileHover={handleFileHover}
+        onFileLeave={clearPreview}
+        onContextMenu={(entry, x, y) => {
+          closeSidebarMenus();
+          setExplorerMenu({ entry, x, y });
+        }}
+        onRenameDraftChange={setRenameDraft}
+        onRenameCommit={commitRename}
+        onRenameCancel={cancelRename}
+        onNewFolderNameChange={setNewFolderName}
+        onNewFolderCommit={() => { void commitNewFolder(); }}
+        onNewFolderCancel={() => setNewFolderParent(null)}
+      />
       </div>
 
       {isReconnectPending && (
@@ -1125,6 +1190,18 @@ export default function WorkspaceExplorer({
             detail: pagesSectionOpen ? 'Shown' : 'Hidden',
             enabled: pagesSectionOpen,
             onToggle: () => setPagesSectionOpen((current) => !current),
+          },
+          {
+            label: 'Files section',
+            detail: assetsSectionOpen ? 'Shown' : 'Hidden',
+            enabled: assetsSectionOpen,
+            onToggle: () => setAssetsSectionOpen((current) => !current),
+          },
+          {
+            label: 'Unopenable files',
+            detail: unopenableFilesVisible ? 'Shown' : 'Hidden',
+            enabled: unopenableFilesVisible,
+            onToggle: () => setUnopenableFilesVisible((current) => !current),
           },
           {
             label: 'Advanced files',

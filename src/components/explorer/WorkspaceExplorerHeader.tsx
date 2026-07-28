@@ -4,7 +4,8 @@ import type { Document } from '../../types';
 import { FONTS } from '../../utils/fonts';
 import WorkspaceExplorerCommandMenu from './WorkspaceExplorerCommandMenu';
 import { IconSidebarToggle, IconSearch, IconPlus } from '../icons';
-import type { LocalRecentWorkspace } from '../../utils/workspaceManager';
+import { IS_MACOS_DESKTOP, type LocalRecentWorkspace } from '../../utils/workspaceManager';
+import { CollapsedRailTooltip } from '../CollapsedRailTooltip';
 
 interface WorkspaceExplorerHeaderProps {
   isPreviewPanel: boolean;
@@ -63,6 +64,9 @@ export default function WorkspaceExplorerHeader({
 }: WorkspaceExplorerHeaderProps) {
   return (
     <div
+      // Tauri matches this attribute on the event target only, never on
+      // ancestors, so the buttons inside keep working untouched.
+      data-tauri-drag-region={IS_MACOS_DESKTOP ? '' : undefined}
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -70,9 +74,13 @@ export default function WorkspaceExplorerHeader({
         justifyContent: isPreviewPanel ? 'flex-start' : 'space-between',
         minHeight: 44,
         padding: '6px 12px',
+        // Clear the macOS traffic lights, which now overlay the webview.
+        paddingLeft: IS_MACOS_DESKTOP ? 78 : 12,
         flexShrink: 0,
-        borderBottom: '0.5px solid var(--c-sidebar-header-border)',
-        background: 'var(--c-sidebar-header)',
+        // macOS: the header is part of the title band, so it sits flush with
+        // the sidebar body rather than reading as its own strip.
+        borderBottom: IS_MACOS_DESKTOP ? 'none' : '0.5px solid var(--c-sidebar-header-border)',
+        background: IS_MACOS_DESKTOP ? 'var(--c-sidebar)' : 'var(--c-sidebar-header)',
       }}
     >
       {!isPreviewPanel ? (
@@ -103,6 +111,7 @@ export default function WorkspaceExplorerHeader({
         />
       ) : (
         <div
+          data-tauri-drag-region={IS_MACOS_DESKTOP ? '' : undefined}
           style={{
             minWidth: 0,
             flex: 1,
@@ -184,29 +193,31 @@ function HeaderIconButton({
   children: React.ReactNode;
 }) {
   return (
-    <button
-      onClick={onClick}
-      title={title}
-      aria-label={ariaLabel}
-      className="flex items-center justify-center transition-colors"
-      style={{
-        width: 28,
-        height: 28,
-        border: 'none',
-        borderRadius: 'var(--border-radius-md)',
-        background: 'transparent',
-        color: 'var(--color-text-secondary)',
-        cursor: 'pointer',
-        flexShrink: 0,
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.background = 'var(--color-background-secondary)';
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.background = 'transparent';
-      }}
-    >
-      {children}
-    </button>
+    // The label comes from the tooltip, so no `title` — it would double up.
+    <CollapsedRailTooltip label={title} placement="bottom">
+      <button
+        onClick={onClick}
+        aria-label={ariaLabel}
+        className="flex items-center justify-center transition-colors"
+        style={{
+          width: 28,
+          height: 28,
+          border: 'none',
+          borderRadius: 'var(--border-radius-md)',
+          background: 'transparent',
+          color: 'var(--color-text-secondary)',
+          cursor: 'pointer',
+          flexShrink: 0,
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = 'var(--color-background-secondary)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = 'transparent';
+        }}
+      >
+        {children}
+      </button>
+    </CollapsedRailTooltip>
   );
 }

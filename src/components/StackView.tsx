@@ -2,7 +2,7 @@ import { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, useRef, u
 import { useBoardStore } from '../store/boardStore';
 import { Document, FolderDescriptor } from '../types';
 import { IconCanvasDoc, IconCheck, IconDoc, IconFolder, IconFreeformPage, IconStackPage, IconStar } from './icons';
-import { IS_TAURI, getWorkspaceName, readWorkspaceFileInfo, revealInFinder } from '../utils/workspaceManager';
+import { IS_MACOS_DESKTOP, IS_TAURI, getWorkspaceName, readWorkspaceFileInfo, revealInFinder } from '../utils/workspaceManager';
 import { exportDocumentAsMarkdownFile, exportDocumentAsPdf, exportDocumentAsTextFile } from '../utils/documentExport';
 import DocumentMode from './DocumentMode';
 import StackBulkActionBar from './StackBulkActionBar';
@@ -1513,7 +1513,8 @@ export default function StackView({ pageId, pageName }: Props) {
 						<div style={{ marginBottom: 18 }}>
 							<div
 								style={{
-									display: 'flex',
+									// macOS: the persistent title band already carries this trail.
+									display: IS_MACOS_DESKTOP ? 'none' : 'flex',
 									alignItems: 'center',
 									gap: 8,
 									marginBottom: 8,

@@ -4,7 +4,7 @@ import { FONTS } from '../../utils/fonts';
 import { exportDocumentAsMarkdownFile, exportDocumentAsPdf, exportDocumentAsTextFile } from '../../utils/documentExport';
 import { DARK_MENU_COLORS } from '../darkMenuTheme';
 import AppMenu from '../AppMenu';
-import type { LocalRecentWorkspace } from '../../utils/workspaceManager';
+import { IS_MACOS_DESKTOP, type LocalRecentWorkspace } from '../../utils/workspaceManager';
 import { MenuIcon } from './WorkspaceExplorerParts';
 import { isCanvasDocument } from './workspaceExplorerUtils';
 import { getDesktopDownloadUrl } from '../../utils/desktopDownload';
@@ -86,8 +86,12 @@ const WorkspaceExplorerCommandMenu = forwardRef<HTMLDivElement, WorkspaceExplore
     return (
       <div
         ref={localRef}
+        data-tauri-drag-region={IS_MACOS_DESKTOP ? '' : undefined}
         style={{ position: 'relative', minWidth: 0, display: 'flex', alignItems: 'center', gap: 6, flex: 1 }}
       >
+        {/* macOS puts this beside the traffic lights, which is not a place
+            macOS users expect controls — the title band carries it instead. */}
+        {!IS_MACOS_DESKTOP && (
         <button
           type="button"
           aria-label="App menu"
@@ -120,6 +124,10 @@ const WorkspaceExplorerCommandMenu = forwardRef<HTMLDivElement, WorkspaceExplore
         >
           <MenuIcon />
         </button>
+        )}
+        {/* On macOS the traffic lights take this space, and the workspace name
+            is carried by the content header instead. */}
+        {!IS_MACOS_DESKTOP && (
         <span
           role="button"
           tabIndex={0}
@@ -158,6 +166,7 @@ const WorkspaceExplorerCommandMenu = forwardRef<HTMLDivElement, WorkspaceExplore
         >
           {workspaceDisplayName}
         </span>
+        )}
         {commandMenuOpen && (
           <AppMenu
             left={10}
