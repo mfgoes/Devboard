@@ -1,5 +1,5 @@
 import { type CSSProperties, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { useAuth } from '../contexts/AuthContext';
+import { SupabaseUnavailableError, useAuth } from '../contexts/AuthContext';
 import { useBoardStore } from '../store/boardStore';
 import { AccountMenu } from './AccountMenu';
 import {
@@ -85,6 +85,13 @@ import {
 
 const SYNC_WORKSPACE_LIMIT = 10;
 const CURRENT_WORKSPACE_DOWNLOAD_ROW_ID = 'current-workspace';
+const GITHUB_ISSUES_URL = 'https://github.com/mfgoes/Devboard/issues';
+
+function isSupabaseUnavailableError(err: unknown): boolean {
+  if (err instanceof SupabaseUnavailableError) return true;
+  const message = err instanceof Error ? err.message : String(err);
+  return /failed to fetch|networkerror|load failed|fetch failed/i.test(message);
+}
 
 export default function CloudModal({ open, onClose, initialTab = 'workspace' }: { open: boolean; onClose: () => void; initialTab?: 'workspace' | 'library' }) {
   const { isConfigured, isLoading: authLoading, user, signInWithGoogle, signInWithGitHub, signInWithMagicLink, signInWithEmail, signUpWithEmail, signOut } = useAuth();
@@ -121,6 +128,7 @@ export default function CloudModal({ open, onClose, initialTab = 'workspace' }: 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [authMessage, setAuthMessage] = useState<string | null>(null);
+  const [authUnavailable, setAuthUnavailable] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [confirmingFirstSync, setConfirmingFirstSync] = useState(false);
   const [activeWorkspaceSyncTab, setActiveWorkspaceSyncTab] = useState<'workspace' | 'library'>('workspace');
@@ -383,6 +391,7 @@ export default function CloudModal({ open, onClose, initialTab = 'workspace' }: 
     setDetailsRowId(null);
     setDownloadChoiceRowId(null);
     setAuthMessage(null);
+    setAuthUnavailable(false);
     setActiveWorkspaceSyncTab('workspace');
     setLibraryTab('local');
     setDuplicateReviewRoute(null);
@@ -477,20 +486,30 @@ export default function CloudModal({ open, onClose, initialTab = 'workspace' }: 
   if (!open) return null;
 
   const handleGoogleSignIn = async () => {
+    setAuthUnavailable(false);
     try {
       await signInWithGoogle();
     } catch (err) {
       console.warn('Google sign-in failed', err);
-      toast('Google sign-in could not start.');
+      if (isSupabaseUnavailableError(err)) {
+        setAuthUnavailable(true);
+      } else {
+        toast('Google sign-in could not start.');
+      }
     }
   };
 
   const handleGitHubSignIn = async () => {
+    setAuthUnavailable(false);
     try {
       await signInWithGitHub();
     } catch (err) {
       console.warn('GitHub sign-in failed', err);
-      toast('GitHub sign-in could not start.');
+      if (isSupabaseUnavailableError(err)) {
+        setAuthUnavailable(true);
+      } else {
+        toast('GitHub sign-in could not start.');
+      }
     }
   };
 
@@ -503,6 +522,7 @@ export default function CloudModal({ open, onClose, initialTab = 'workspace' }: 
 
     setActionLoading(authMode === 'signin' ? 'auth-email-signin' : 'auth-email-signup');
     setAuthMessage(null);
+    setAuthUnavailable(false);
     try {
       if (authMode === 'signin') {
         await signInWithEmail(trimmedEmail, password);
@@ -517,8 +537,12 @@ export default function CloudModal({ open, onClose, initialTab = 'workspace' }: 
       }
     } catch (err) {
       console.warn('Email auth failed', err);
-      const message = err instanceof Error ? err.message : 'Email authentication failed.';
-      setAuthMessage(message);
+      if (isSupabaseUnavailableError(err)) {
+        setAuthUnavailable(true);
+      } else {
+        const message = err instanceof Error ? err.message : 'Email authentication failed.';
+        setAuthMessage(message);
+      }
     } finally {
       setActionLoading(null);
     }
@@ -533,13 +557,18 @@ export default function CloudModal({ open, onClose, initialTab = 'workspace' }: 
 
     setActionLoading('auth-magic-link');
     setAuthMessage(null);
+    setAuthUnavailable(false);
     try {
       await signInWithMagicLink(trimmedEmail);
       setAuthMessage('Magic link sent. Check your inbox to sign in.');
     } catch (err) {
       console.warn('Magic link sign-in failed', err);
-      const message = err instanceof Error ? err.message : 'Could not send magic link. Try again.';
-      setAuthMessage(message);
+      if (isSupabaseUnavailableError(err)) {
+        setAuthUnavailable(true);
+      } else {
+        const message = err instanceof Error ? err.message : 'Could not send magic link. Try again.';
+        setAuthMessage(message);
+      }
     } finally {
       setActionLoading(null);
     }
@@ -553,6 +582,7 @@ export default function CloudModal({ open, onClose, initialTab = 'workspace' }: 
     }
     setActionLoading('forgot-password');
     setAuthMessage(null);
+    setAuthUnavailable(false);
     try {
       if (!supabase) throw new Error('Supabase not configured.');
       const { error } = await supabase.auth.resetPasswordForEmail(trimmedEmail);
@@ -560,7 +590,11 @@ export default function CloudModal({ open, onClose, initialTab = 'workspace' }: 
       setAuthMessage('Password reset email sent. Check your inbox.');
     } catch (err) {
       console.warn('Password reset failed', err);
-      setAuthMessage('Could not send reset email. Try again.');
+      if (isSupabaseUnavailableError(err)) {
+        setAuthUnavailable(true);
+      } else {
+        setAuthMessage('Could not send reset email. Try again.');
+      }
     } finally {
       setActionLoading(null);
     }
@@ -1786,6 +1820,18 @@ export default function CloudModal({ open, onClose, initialTab = 'workspace' }: 
                     : 'Create an account to use free beta sync, reopen projects on another device, and keep online copies of the projects you choose.'}
                 </p>
 
+                {authUnavailable && (
+                  <div className="mt-5 rounded-xl border border-[var(--c-red)]/30 bg-[color-mix(in_srgb,var(--c-red)_10%,transparent)] px-4 py-3">
+                    <p className="font-sans text-[13px] font-semibold text-[var(--c-red)]">Cloud sync is unavailable right now.</p>
+                    <p className="mt-1 font-sans text-[12px] leading-relaxed text-[var(--c-red)]">
+                      The sync server isn&apos;t responding. Your local work is unaffected. If this continues,{' '}
+                      <a href={GITHUB_ISSUES_URL} target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:opacity-80">
+                        please report it on GitHub
+                      </a>.
+                    </p>
+                  </div>
+                )}
+
                 <div ref={authTabsRef} className="relative mt-7 flex gap-6 border-b border-[var(--c-border)]">
                   <span
                     aria-hidden="true"
@@ -1797,6 +1843,7 @@ export default function CloudModal({ open, onClose, initialTab = 'workspace' }: 
                     onClick={() => {
                       setAuthMode('signin');
                       setAuthMessage(null);
+                      setAuthUnavailable(false);
                     }}
                     className={`relative z-[1] -mb-px pb-2 font-sans text-[14px] font-semibold transition-colors ${authMode === 'signin' ? 'text-[var(--c-text-hi)]' : 'text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)]'}`}
                   >
@@ -1807,6 +1854,7 @@ export default function CloudModal({ open, onClose, initialTab = 'workspace' }: 
                     onClick={() => {
                       setAuthMode('signup');
                       setAuthMessage(null);
+                      setAuthUnavailable(false);
                     }}
                     className={`relative z-[1] -mb-px pb-2 font-sans text-[14px] font-semibold transition-colors ${authMode === 'signup' ? 'text-[var(--c-text-hi)]' : 'text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)]'}`}
                   >
@@ -1831,6 +1879,7 @@ export default function CloudModal({ open, onClose, initialTab = 'workspace' }: 
                       onClick={() => {
                         setSignInMethod('email');
                         setAuthMessage(null);
+                        setAuthUnavailable(false);
                       }}
                       className="pt-1 font-sans text-[12px] font-medium text-[var(--c-text-lo)] underline decoration-[var(--c-border)] underline-offset-4 transition-colors hover:text-[var(--c-text-hi)]"
                     >
@@ -1847,6 +1896,7 @@ export default function CloudModal({ open, onClose, initialTab = 'workspace' }: 
                         onClick={() => {
                           setSignInMethod('social');
                           setAuthMessage(null);
+                          setAuthUnavailable(false);
                         }}
                         className="mb-4 font-sans text-[12px] font-medium text-[var(--c-text-lo)] transition-colors hover:text-[var(--c-text-hi)]"
                       >

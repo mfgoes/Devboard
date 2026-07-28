@@ -1,6 +1,13 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
-import { supabase, supabaseConfigured } from '../utils/supabase';
+import { checkSupabaseReachable, supabase, supabaseConfigured } from '../utils/supabase';
+
+export class SupabaseUnavailableError extends Error {
+  constructor() {
+    super('Cloud sync server is not responding right now.');
+    this.name = 'SupabaseUnavailableError';
+  }
+}
 
 interface AuthContextValue {
   isConfigured: boolean;
@@ -54,6 +61,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     user: session?.user ?? null,
     signInWithGoogle: async () => {
       if (!supabase) throw new Error('Supabase is not configured.');
+      if (!(await checkSupabaseReachable())) throw new SupabaseUnavailableError();
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -64,6 +72,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     },
     signInWithGitHub: async () => {
       if (!supabase) throw new Error('Supabase is not configured.');
+      if (!(await checkSupabaseReachable())) throw new SupabaseUnavailableError();
       const redirectTo = `${window.location.origin}${window.location.pathname}`;
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'github',
