@@ -764,6 +764,21 @@
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .note-link-demo-caret,
+  .note-link-demo-toolbar,
+  .note-link-demo-tool--link,
+  .note-link-demo-suggest,
+  .note-link-demo-suggest-row.is-selected,
+  .note-link-demo-token,
+  .note-link-demo-token--node,
+  .note-link-demo-preview,
+  .note-link-demo-cursor,
+  .note-link-demo-outline-item.is-linked {
+    animation: none;
+  }
+}
+
 @media (max-width: 700px) {
   .note-link-demo {
     min-height: 500px;
