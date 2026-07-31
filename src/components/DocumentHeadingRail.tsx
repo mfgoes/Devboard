@@ -21,15 +21,26 @@ interface DocumentHeadingRailProps {
 // while staying pinned vertically within the scroll container, with no JS
 // rect-tracking needed for that part. Hovering reveals a portaled popover
 // listing heading titles for click-to-jump.
+const POPOVER_GAP = 10;
+const POPOVER_WIDTH = 220;
+
 export function DocumentHeadingRail({ outline, activeId, onJump, inset }: DocumentHeadingRailProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const railRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [popoverPos, setPopoverPos] = useState({ x: 0, y: 0 });
 
   const updatePopoverPos = useCallback(() => {
-    const rect = wrapperRef.current?.getBoundingClientRect();
+    const rect = railRef.current?.getBoundingClientRect();
     if (!rect) return;
-    setPopoverPos({ x: rect.left, y: rect.top });
+    const fitsRight = rect.right + POPOVER_GAP + POPOVER_WIDTH <= window.innerWidth;
+    setPopoverPos({
+      // When there's no room beside the rail (narrow/mobile viewports), overlap
+      // the popover over the pills instead of flinging it across the screen —
+      // keeps it next to the cursor so the hover zone stays reachable.
+      x: fitsRight ? rect.right + POPOVER_GAP : Math.max(8, rect.right - POPOVER_WIDTH),
+      y: Math.min(Math.max(rect.top + rect.height / 2, 80), window.innerHeight - 80),
+    });
   }, []);
 
   useEffect(() => {
@@ -55,6 +66,7 @@ export function DocumentHeadingRail({ outline, activeId, onJump, inset }: Docume
       style={{ position: 'sticky', top: 24, height: 0, pointerEvents: 'none' }}
     >
       <div
+        ref={railRef}
         style={{
           position: 'absolute',
           top: 0,
@@ -107,7 +119,7 @@ export function DocumentHeadingRail({ outline, activeId, onJump, inset }: Docume
             left: popoverPos.x,
             top: popoverPos.y,
             zIndex: 99999,
-            transform: 'translate(-100%, -8px)',
+            transform: 'translateY(-50%)',
             pointerEvents: 'auto',
           }}
           onMouseEnter={() => setOpen(true)}
@@ -115,8 +127,7 @@ export function DocumentHeadingRail({ outline, activeId, onJump, inset }: Docume
         >
           <div
             style={{
-              minWidth: 160,
-              maxWidth: 260,
+              width: POPOVER_WIDTH,
               padding: 6,
               borderRadius: 10,
               background: 'var(--c-panel)',

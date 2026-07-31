@@ -1,8 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { Document } from '../../types';
 import { FSA_DIR_SUPPORTED, IN_IFRAME, IS_TAURI } from '../../utils/workspaceManager';
+import { getDesktopDownloadUrl } from '../../utils/desktopDownload';
 import { IconChevronDown, IconDoc, IconFolder, IconStar } from '../icons';
 import './workspaceExplorer.css';
+
+const isItchIo = typeof window !== 'undefined' && window.location.hostname.endsWith('.itch.io');
 
 export function SectionChevron({ open }: { open: boolean }) {
   return (
@@ -351,6 +354,37 @@ export function NoWorkspaceState({
           {body}
         </p>
       </div>
+      {isItchIo && (
+        <div className="workspace-itch-io-banner">
+          <p className="workspace-itch-io-banner__title">Quick start options:</p>
+          <ul className="workspace-itch-io-banner__list">
+            <li>
+              <strong>Work with .md files:</strong> Import individual markdown files to start creating notes instantly
+            </li>
+            <li>
+              <strong>Full experience:</strong> Download the desktop app for folder-based projects and the complete feature set
+            </li>
+          </ul>
+          <div className="workspace-itch-io-banner__actions">
+            <a
+              href={getDesktopDownloadUrl()}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="workspace-itch-io-banner__link"
+            >
+              Download App
+            </a>
+            <a
+              href="https://github.com/mfgoes/Devboard"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="workspace-itch-io-banner__link is-secondary"
+            >
+              GitHub
+            </a>
+          </div>
+        </div>
+      )}
       <div className="workspace-empty-state__actions">
         {canReconnect ? (
           <button

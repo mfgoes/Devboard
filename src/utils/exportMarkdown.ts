@@ -472,6 +472,23 @@ export function markdownToHtml(md: string): string {
   return parts.join('');
 }
 
+/** Heuristic: does this plain text carry enough markdown syntax to be worth parsing? */
+export function looksLikeMarkdown(text: string): boolean {
+  if (!text.trim()) return false;
+  let score = 0;
+  for (const line of text.split('\n')) {
+    if (/^```/.test(line)) score += 2;
+    else if (/^#{1,3}\s+\S/.test(line)) score += 2;
+    else if (/^[-*]\s+\[[ xX]\]\s+\S/.test(line)) score += 2;
+    else if (/^>\s?\S/.test(line)) score += 1;
+    else if (/^[-*]\s+\S/.test(line)) score += 1;
+    else if (/^\d+\.\s+\S/.test(line)) score += 1;
+    else if (/\*\*[^*\n]+\*\*/.test(line) || /`[^`\n]+`/.test(line) || /\[[^\]\n]+\]\([^)\n]+\)/.test(line)) score += 1;
+    if (score >= 2) return true;
+  }
+  return false;
+}
+
 // ── Document export ───────────────────────────────────────────────────────────
 
 /**

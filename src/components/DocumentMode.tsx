@@ -1,7 +1,7 @@
 import { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { useBoardStore } from '../store/boardStore';
 import { CanvasNode, Document } from '../types';
-import { documentMarkdownFromParts, htmlToMarkdown, markdownToHtml } from '../utils/exportMarkdown';
+import { documentMarkdownFromParts, htmlToMarkdown, looksLikeMarkdown, markdownToHtml } from '../utils/exportMarkdown';
 import { saveAs } from 'file-saver';
 import { hasWorkspaceHandle, readWorkspaceFileAsUrl, saveImageAsset, saveTextFileToWorkspace } from '../utils/workspaceManager';
 import { toast } from '../utils/toast';
@@ -14,7 +14,7 @@ import { useLineHandleDrag } from '../hooks/useLineHandleDrag';
 import { type DocumentCommandDefinition, type DocumentCommandId, getDocumentCommandsForSurface, runDocumentCommand } from './documentCommands';
 import { caretHostForConvertedBlock, isConvertibleDocumentCommand, isSupportedTurnIntoBlock, restoreCaretAtEnd, turnBlockInto } from './documentBlockTransforms';
 import DocumentLineHandle from './DocumentLineHandle';
-import { sanitizeClipboardHtml } from '../utils/richText';
+import { htmlToPlainText, sanitizeClipboardHtml } from '../utils/richText';
 import { describeNoteSaveStatus, saveLinkedWorkspaceToCloud, type NoteSavePresentation } from '../utils/saveStatus';
 import { taskListItemHtml } from '../utils/taskListHtml';
 import AssetDrawer from './AssetDrawer';
@@ -2528,6 +2528,7 @@ export default function DocumentMode({
                     const blockText = (block?.textContent ?? '').replace(/\u00a0/g, ' ').trim();
                     if (!blockText || blockText === '/') {
                       e.preventDefault();
+                      captureEditorSelection();
                       openSlashPalette();
                       return;
                     }
@@ -2556,7 +2557,16 @@ export default function DocumentMode({
                   const text = e.clipboardData.getData('text/plain');
                   if (!html && !text) return;
                   e.preventDefault();
-                  document.execCommand('insertHTML', false, sanitizeClipboardHtml(html, text));
+
+                  let insertHtml = sanitizeClipboardHtml(html, text);
+                  // If the pasted text looks like markdown source and the "rich" clipboard
+                  // HTML never actually rendered it (still literal # / ** / - syntax, because
+                  // the source was a plain-text app), parse it as markdown instead.
+                  if (looksLikeMarkdown(text) && looksLikeMarkdown(htmlToPlainText(insertHtml))) {
+                    insertHtml = markdownToHtml(text);
+                  }
+
+                  document.execCommand('insertHTML', false, insertHtml);
                   if (contentRef.current) applyChipsToDOM(contentRef.current, documents);
                   handleInput();
                 }}
