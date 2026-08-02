@@ -29,6 +29,43 @@ interface SaveWorkspaceOptions {
 export interface SaveWorkspaceResult {
   saved: boolean;
   workspaceName?: string;
+  /**
+   * Set when the write was attempted and failed (revoked folder permission,
+   * folder deleted, disk full). Distinct from `saved: false` with no error,
+   * which means there was no folder attached to write to in the first place.
+   */
+  error?: string;
+}
+
+export const WORKSPACE_SAVE_STATE_EVENT = 'devboard:workspace-save-state';
+
+let lastWorkspaceSaveError: string | null = null;
+
+/** Last local workspace write failure, or null if the most recent write succeeded. */
+export function getLastWorkspaceSaveError(): string | null {
+  return lastWorkspaceSaveError;
+}
+
+/**
+ * Clears a recorded save failure without a write having happened. Call this when
+ * a workspace folder is newly attached — the old failure described a folder the
+ * project no longer uses, so leaving it up would report a problem that is fixed.
+ */
+export function clearWorkspaceSaveError(): void {
+  reportWorkspaceSaveState(null);
+}
+
+/**
+ * Most `saveWorkspace` calls are fire-and-forget (`void saveWorkspace(...)`), so a
+ * rejected write used to surface nowhere at all — no toast, no status change, just
+ * an unhandled rejection while the footer kept reporting a healthy save. Routing
+ * every outcome through here gives the UI something to subscribe to.
+ */
+function reportWorkspaceSaveState(error: string | null): void {
+  const changed = lastWorkspaceSaveError !== error;
+  lastWorkspaceSaveError = error;
+  if (!changed || typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent(WORKSPACE_SAVE_STATE_EVENT, { detail: { error } }));
 }
 
 export interface WorkspaceSyncMetadata {
@@ -1674,6 +1711,54 @@ export async function createWorkspace(
   }
 }
 
+/**
+ * Last-resort save path: writes the current board into a folder the user picks
+ * right now, and re-points the workspace at it.
+ *
+ * Every other save route depends on state that can go bad — a stored folder
+ * handle whose permission was revoked, a path that moved, a cloud session that
+ * expired. This one only depends on the user being able to pick a folder, so
+ * recovery UI can always offer it as an action that will actually finish.
+ *
+ * Returns null when the user cancels the picker, or when the environment has no
+ * folder picker at all (mobile browsers) — callers should surface a fallback.
+ */
+export async function saveWorkspaceToNewFolder(
+  data: BoardData,
+  preferredName = 'DevBoard Workspace',
+): Promise<{ name: string } | null> {
+  if (IS_TAURI) {
+    const created = await createWorkspace(data, preferredName);
+    return created ? { name: created.name } : null;
+  }
+
+  if (IS_MOBILE_BROWSER) {
+    notifyMobileWorkspaceUnsupported();
+    return null;
+  }
+  if (!FSA_DIR_SUPPORTED) return null;
+
+  const previousHandle = workspaceHandle;
+  try {
+    workspaceHandle = await (window as FSAWindow).showDirectoryPicker({ mode: 'readwrite' });
+  } catch {
+    workspaceHandle = previousHandle; // user cancelled — leave the old link intact
+    return null;
+  }
+
+  try {
+    const result = await saveWorkspace(data, { notify: false });
+    if (!result.saved) throw new Error(result.error ?? 'Workspace write did not complete');
+    try { await persistWorkspaceHandle(workspaceHandle); } catch (err) {
+      console.warn('Failed to persist workspace handle', err);
+    }
+    return { name: result.workspaceName ?? workspaceHandle.name };
+  } catch (err) {
+    workspaceHandle = previousHandle;
+    throw err;
+  }
+}
+
 export async function downloadCloudWorkspaceToFolder({
   cloud,
   data,
@@ -1878,8 +1963,31 @@ export async function saveTextFileToWorkspace(
   }
 }
 
-/** Saves all board data to the open workspace folder. Images stay in assets/. */
+/**
+ * Saves all board data to the open workspace folder. Images stay in assets/.
+ *
+ * Never rejects: a failed write resolves to `{ saved: false, error }` and is
+ * broadcast on WORKSPACE_SAVE_STATE_EVENT, because nearly every caller invokes
+ * this as `void saveWorkspace(...)` and would otherwise drop the failure on the
+ * floor while the UI kept showing a healthy save state.
+ */
 export async function saveWorkspace(data: BoardData, options: SaveWorkspaceOptions = {}): Promise<SaveWorkspaceResult> {
+  try {
+    const result = await performWorkspaceSave(data, options);
+    // Only a completed write clears a previous failure. `saved: false` with no
+    // error just means nothing was attached to save to, which leaves any
+    // existing failure standing.
+    if (result.saved) reportWorkspaceSaveState(null);
+    return result;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.warn('Workspace save failed', err);
+    reportWorkspaceSaveState(message);
+    return { saved: false, error: message };
+  }
+}
+
+async function performWorkspaceSave(data: BoardData, options: SaveWorkspaceOptions = {}): Promise<SaveWorkspaceResult> {
   const shouldNotify = options.notify !== false;
   const { documents, notes } = materializeDocuments(data.documents);
   const descriptors = folderDescriptorDocument(data, documents);

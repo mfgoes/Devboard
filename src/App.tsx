@@ -27,6 +27,7 @@ import StackView from './components/StackView';
 import QuickSwitcher from './components/QuickSwitcher';
 import TimerWidget from './components/TimerWidget';
 import WorkspaceExplorer from './components/WorkspaceExplorer';
+import CloudModal from './components/CloudModal';
 import JiraPanel from './components/JiraPanel';
 import SearchBar from './components/SearchBar';
 import { IconArrowLeft } from './components/icons';
@@ -100,6 +101,18 @@ export default function App() {
   const avatarUrl = typeof user?.user_metadata?.avatar_url === 'string' ? user.user_metadata.avatar_url : null;
   const openCloudModal = useCallback(() => {
     window.dispatchEvent(new CustomEvent('devboard:open-cloud-modal'));
+  }, []);
+
+  const [cloudModalOpen, setCloudModalOpen] = useState(false);
+  const [cloudModalTab, setCloudModalTab] = useState<'workspace' | 'library'>('workspace');
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<{ tab?: 'workspace' | 'library' }>).detail;
+      setCloudModalTab(detail?.tab === 'library' ? 'library' : 'workspace');
+      setCloudModalOpen(true);
+    };
+    window.addEventListener('devboard:open-cloud-modal', handler);
+    return () => window.removeEventListener('devboard:open-cloud-modal', handler);
   }, []);
 
   const activePage = pages.find((p) => p.id === activePageId);
@@ -1218,6 +1231,12 @@ export default function App() {
         />
       )}
       {showWelcome && <WelcomeModal onClose={handleCloseWelcome} />}
+
+      {/* Mounted here rather than in TopBar: the top bar unmounts on mobile
+          viewports and in canvas document mode, and every "Fix in Project Sync" /
+          "Open Project Sync" entry point is an event dispatch. When the only
+          listener lived in TopBar, those buttons silently did nothing. */}
+      <CloudModal open={cloudModalOpen} onClose={() => setCloudModalOpen(false)} initialTab={cloudModalTab} />
 
       <QuickSwitcher
         open={qsOpen}

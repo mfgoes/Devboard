@@ -7,7 +7,7 @@ import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import { useBoardStore } from '../store/boardStore';
 import { useAuth } from '../contexts/AuthContext';
 import type { CanvasNode, Document, ImageNode, PageMeta } from '../types';
-import { listDirectory, getWorkspaceName, IS_TAURI, openInDefaultApp, revealInFinder, saveWorkspace, type LocalRecentWorkspace, type WorkspaceOpenResult } from '../utils/workspaceManager';
+import { clearWorkspaceSaveError, getLastWorkspaceSaveError, listDirectory, getWorkspaceName, IS_TAURI, openInDefaultApp, revealInFinder, saveWorkspace, saveWorkspaceToNewFolder, WORKSPACE_SAVE_STATE_EVENT, type LocalRecentWorkspace, type WorkspaceOpenResult } from '../utils/workspaceManager';
 import { FONTS } from '../utils/fonts';
 import { placeCodeFile, placeImageFile, placeDocumentFile, openDocumentFile } from '../utils/canvasPlacement';
 import { stripHtmlPreview } from '../utils/documentExport';
@@ -201,6 +201,7 @@ export default function WorkspaceExplorer({
   const [missingImagesFixing, setMissingImagesFixing] = useState(false);
   const missingImagesPopoverRef = useRef<HTMLDivElement>(null);
   const [projectSwitcherOpen, setProjectSwitcherOpen] = useState(false);
+  const [localSaveError, setLocalSaveError] = useState<string | null>(() => getLastWorkspaceSaveError());
   const [projectSwitcherLoading, setProjectSwitcherLoading] = useState(false);
   const [projectSwitcherRecents, setProjectSwitcherRecents] = useState<LocalRecentWorkspace[]>([]);
   const [projectMenu, setProjectMenu] = useState<{ x: number; y: number } | null>(null);
@@ -276,6 +277,15 @@ export default function WorkspaceExplorer({
         : 'Saved';
   const bottomSyncStatus = authLoading
     ? null
+    // A failed local write outranks every sync state below: those describe where
+    // the project *should* be going, while this means the last attempt to put it
+    // there did not land.
+    : localSaveError
+      ? {
+        label: 'Save failed',
+        tone: 'danger' as const,
+        title: `This project's folder could not be written to (${localSaveError}). It may have been moved, renamed, or had its permission revoked.`,
+      }
     : !user && !!cloudBoardId
       ? { label: 'Not saved — offline', tone: 'danger' as const, title: syncStatus.title }
       : syncStatus.label === 'Cloud copy newer'
@@ -308,9 +318,19 @@ export default function WorkspaceExplorer({
             : 'var(--c-text-md)',
     }
     : null;
+  // Name the action the button actually performs. "Fix" reads as a promise the
+  // app can't always keep — signing back in is the only thing that resolves a
+  // paused sync, and saying so lets the user judge whether it's what they want.
+  const syncIssueActionLabel = localSaveError
+    ? 'Reconnect folder…'
+    : !user && !!cloudBoardId
+      ? 'Sign in to save'
+      : 'Open Project Sync';
+
   const openCloudModal = useCallback((tab: 'workspace' | 'library' = 'workspace') => {
     window.dispatchEvent(new CustomEvent('devboard:open-cloud-modal', { detail: { tab } }));
   }, []);
+
 
   const closeSidebarMenus = useCallback((keep?: 'command' | 'missingImages' | 'projectSwitcher' | 'preferences') => {
     if (keep !== 'missingImages') setMissingImagesOpen(false);
@@ -487,6 +507,7 @@ export default function WorkspaceExplorer({
   const applyOpenedWorkspaceResult = useCallback((result: WorkspaceOpenResult) => {
     setMissingImagesOpen(false);
     setProjectSwitcherOpen(false);
+    clearWorkspaceSaveError();
     useBoardStore.getState().setWorkspaceName?.(result.name);
     // A folder with no existing workspace.json still needs the old board cleared —
     // otherwise the previously open project's pages/notes stay visible under the new name.
@@ -526,11 +547,34 @@ export default function WorkspaceExplorer({
     openCloudModal,
   });
 
+  // The always-available way out of a failed save: pick a folder, write there,
+  // continue from there. It doesn't touch the cloud link or the old folder, so
+  // it works no matter which part of the save path is broken.
+  const handleSaveToNewFolder = useCallback(async (): Promise<boolean> => {
+    const state = useBoardStore.getState();
+    const preferredName = state.boardTitle.trim() || state.workspaceName || 'DevBoard Workspace';
+    const result = await saveWorkspaceToNewFolder(state.exportData(), preferredName);
+    if (!result) return false; // cancelled, or no folder picker in this environment
+    state.setWorkspaceName(result.name);
+    setProjectSwitcherOpen(false);
+    toast(`Saved to "${result.name}". This project now works from that folder.`);
+    void loadProjectSwitcherRecents();
+    return true;
+  }, [loadProjectSwitcherRecents]);
+
   useEffect(() => {
     const onCreateProject = () => { void handleCreateProject(); };
     window.addEventListener('devboard:create-project', onCreateProject);
     return () => window.removeEventListener('devboard:create-project', onCreateProject);
   }, [handleCreateProject]);
+
+  useEffect(() => {
+    const onSaveState = (event: Event) => {
+      setLocalSaveError((event as CustomEvent<{ error: string | null }>).detail?.error ?? null);
+    };
+    window.addEventListener(WORKSPACE_SAVE_STATE_EVENT, onSaveState);
+    return () => window.removeEventListener(WORKSPACE_SAVE_STATE_EVENT, onSaveState);
+  }, []);
 
   const {
     handleFindMissingImages,
@@ -914,6 +958,12 @@ export default function WorkspaceExplorer({
       onMouseDownCapture={(e) => {
         const target = e.target as Node;
         if (missingImagesPopoverRef.current?.contains(target)) return;
+        // Same reason as the missing-images popover: this capture handler runs
+        // before the popover's own bubble-phase handlers, so without an exemption
+        // it unmounts the popover on mousedown and the button's click never fires.
+        // That silently swallowed every action in the project switcher, including
+        // the sync-recovery buttons.
+        if (projectSwitcherRef.current?.contains(target)) return;
         // Modal dialogs (Preferences, etc.) render inside this panel but manage
         // their own dismissal — don't let the panel's capture-close swallow clicks
         // on their controls (toggles, buttons) before those controls handle them.
@@ -1134,6 +1184,15 @@ export default function WorkspaceExplorer({
         projectSwitcherRecents={projectSwitcherRecents}
         workspaceDisplayName={workspaceDisplayName}
         footerStatusLabel={bottomSyncStatus?.label}
+        syncIssueActionLabel={syncIssueActionLabel}
+        onSyncIssueAction={() => {
+          setProjectSwitcherOpen(false);
+          // A failed local write is a folder problem, not a sync problem — send
+          // the user to the folder picker rather than to the cloud modal.
+          if (localSaveError) void handleOpenFolder();
+          else openCloudModal();
+        }}
+        onSaveToNewFolder={handleSaveToNewFolder}
         onToggleProjectSwitcher={handleToggleProjectSwitcher}
         onProjectSwitcherContextMenu={openWorkspaceNameMenu}
         onOpenRecentProject={(project) => { void handleOpenRecentProject(project); }}
@@ -1146,7 +1205,10 @@ export default function WorkspaceExplorer({
           setProjectMenu(null);
           void handleOpenFolder();
         }}
-        onOpenCloudModal={() => openCloudModal()}
+        onOpenCloudModal={() => {
+          setProjectSwitcherOpen(false);
+          openCloudModal();
+        }}
       />
 
       <CanvasTemplatePicker

@@ -19,12 +19,21 @@ interface WorkspaceExplorerProjectSwitcherProps {
   workspaceDisplayName: string;
   footerLabel?: string;
   footerSyncDot: SyncDot;
+  /**
+   * Label for the sync-issue primary action. Names the concrete thing the click
+   * does ("Sign in to save"), because a generic "Fix" gives the user no way to
+   * tell a working button from a broken one.
+   */
+  syncIssueActionLabel: string;
+  /** Primary recovery for the current issue — varies by what actually broke. */
+  onSyncIssueAction: () => void;
   onToggleOpen: () => void;
   onContextMenu: (x: number, y: number) => void;
   onOpenRecentProject: (project: LocalRecentWorkspace) => void;
   onRelocateRecentProject: (project: LocalRecentWorkspace) => void;
   onOpenProjectsLibrary: () => void;
-  onOpenCloudModal: () => void;
+  /** Escape hatch that never depends on the broken link. Resolves false if the user cancelled. */
+  onSaveToNewFolder: () => Promise<boolean>;
 }
 
 export default function WorkspaceExplorerProjectSwitcher({
@@ -34,15 +43,19 @@ export default function WorkspaceExplorerProjectSwitcher({
   workspaceDisplayName,
   footerLabel,
   footerSyncDot,
+  syncIssueActionLabel,
+  onSyncIssueAction,
   onToggleOpen,
   onContextMenu,
   onOpenRecentProject,
   onRelocateRecentProject,
   onOpenProjectsLibrary,
-  onOpenCloudModal,
+  onSaveToNewFolder,
 }: WorkspaceExplorerProjectSwitcherProps) {
   const syncIssue = footerSyncDot && (footerSyncDot.tone === 'danger' || footerSyncDot.tone === 'warning') ? footerSyncDot : null;
   const [openingId, setOpeningId] = useState<string | null>(null);
+  const [savingToNewFolder, setSavingToNewFolder] = useState(false);
+  const [saveToNewFolderError, setSaveToNewFolderError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!loading) setOpeningId(null);
@@ -159,25 +172,69 @@ export default function WorkspaceExplorerProjectSwitcher({
               <div style={{ marginTop: 3, fontSize: 10.5, lineHeight: 1.4, color: 'var(--c-text-md)' }}>
                 {syncIssue.title}
               </div>
-              <button
-                type="button"
-                onClick={onOpenCloudModal}
-                style={{
-                  marginTop: 7,
-                  height: 26,
-                  padding: '0 10px',
-                  border: 'none',
-                  borderRadius: 7,
-                  background: syncIssue.tone === 'danger' ? '#ef4444' : '#d97706',
-                  color: '#fff',
-                  cursor: 'pointer',
-                  fontFamily: FONTS.ui,
-                  fontSize: 10.5,
-                  fontWeight: 740,
-                }}
-              >
-                Fix in Project Sync
-              </button>
+              {/* Stacked, not side by side: the sidebar is ~185px wide, which is
+                  too narrow for two labels to sit on one row without wrapping. */}
+              <div style={{ marginTop: 7, display: 'flex', flexDirection: 'column', gap: 5 }}>
+                <button
+                  type="button"
+                  onClick={onSyncIssueAction}
+                  disabled={savingToNewFolder}
+                  style={{
+                    minHeight: 26,
+                    padding: '5px 10px',
+                    lineHeight: 1.3,
+                    border: 'none',
+                    borderRadius: 7,
+                    background: syncIssue.tone === 'danger' ? '#ef4444' : '#d97706',
+                    color: '#fff',
+                    cursor: savingToNewFolder ? 'default' : 'pointer',
+                    opacity: savingToNewFolder ? 0.55 : 1,
+                    fontFamily: FONTS.ui,
+                    fontSize: 10.5,
+                    fontWeight: 740,
+                  }}
+                >
+                  {syncIssueActionLabel}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSaveToNewFolderError(null);
+                    setSavingToNewFolder(true);
+                    onSaveToNewFolder()
+                      .catch(() => {
+                        setSaveToNewFolderError("That folder couldn't be written to. Try another one.");
+                      })
+                      .finally(() => setSavingToNewFolder(false));
+                  }}
+                  disabled={savingToNewFolder}
+                  style={{
+                    minHeight: 26,
+                    padding: '5px 10px',
+                    lineHeight: 1.3,
+                    border: '1px solid #d8cfc4',
+                    borderRadius: 7,
+                    background: '#fff',
+                    color: 'var(--c-text-hi)',
+                    cursor: savingToNewFolder ? 'default' : 'pointer',
+                    opacity: savingToNewFolder ? 0.55 : 1,
+                    fontFamily: FONTS.ui,
+                    fontSize: 10.5,
+                    fontWeight: 740,
+                  }}
+                >
+                  {savingToNewFolder ? 'Choosing folder…' : 'Save to a new folder…'}
+                </button>
+              </div>
+              <div style={{ marginTop: 5, fontSize: 10, lineHeight: 1.45, color: 'var(--c-text-md)' }}>
+                Saving to a new folder copies this project to a folder you pick and keeps working from
+                there. Nothing is deleted, and the old location is left as it is.
+              </div>
+              {saveToNewFolderError && (
+                <div style={{ marginTop: 5, fontSize: 10, lineHeight: 1.45, fontWeight: 700, color: '#c93636' }}>
+                  {saveToNewFolderError}
+                </div>
+              )}
             </div>
           )}
           <div style={{ maxHeight: 240, overflowY: 'auto', padding: 5 }}>

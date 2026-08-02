@@ -18,6 +18,9 @@ interface WorkspaceExplorerFooterProps {
   projectSwitcherRecents: LocalRecentWorkspace[];
   workspaceDisplayName: string;
   footerStatusLabel?: string;
+  syncIssueActionLabel: string;
+  onSyncIssueAction: () => void;
+  onSaveToNewFolder: () => Promise<boolean>;
   onToggleProjectSwitcher: () => void;
   onProjectSwitcherContextMenu: (x: number, y: number) => void;
   onOpenRecentProject: (project: LocalRecentWorkspace) => void;
@@ -38,6 +41,9 @@ export default function WorkspaceExplorerFooter({
   projectSwitcherRecents,
   workspaceDisplayName,
   footerStatusLabel,
+  syncIssueActionLabel,
+  onSyncIssueAction,
+  onSaveToNewFolder,
   onToggleProjectSwitcher,
   onProjectSwitcherContextMenu,
   onOpenRecentProject,
@@ -80,12 +86,14 @@ export default function WorkspaceExplorerFooter({
           workspaceDisplayName={workspaceDisplayName}
           footerLabel={footerStatusLabel}
           footerSyncDot={footerSyncDot}
+          syncIssueActionLabel={syncIssueActionLabel}
+          onSyncIssueAction={onSyncIssueAction}
+          onSaveToNewFolder={onSaveToNewFolder}
           onToggleOpen={onToggleProjectSwitcher}
           onContextMenu={onProjectSwitcherContextMenu}
           onOpenRecentProject={onOpenRecentProject}
           onRelocateRecentProject={onRelocateRecentProject}
           onOpenProjectsLibrary={onOpenProjectsLibrary}
-          onOpenCloudModal={onOpenCloudModal}
         />
       </div>
 

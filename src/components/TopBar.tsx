@@ -5,13 +5,12 @@ import { useAuth } from '../contexts/AuthContext';
 import { TEMPLATES, CANVAS_TEMPLATES, instantiateCanvasTemplate, type Template } from '../templates';
 import ConfirmDialog from './ConfirmDialog';
 import CanvasTemplatePicker from './CanvasTemplatePicker';
-import CloudModal from './CloudModal';
 import AppMenu from './AppMenu';
 import WorkspaceExplorerProjectRenameDialog from './explorer/WorkspaceExplorerProjectRenameDialog';
 import { MenuIcon } from './explorer/WorkspaceExplorerParts';
 import { CollapsedRailTooltip } from './CollapsedRailTooltip';
 import { saveBoard, saveBoardAs, clearFileHandle } from '../utils/fileSave';
-import { openWorkspace, openRecentWorkspace, listLocalRecentWorkspaces, createWorkspace, saveWorkspace, hasWorkspaceHandle, clearWorkspaceHandle, getWorkspacePathHint, IS_MACOS_DESKTOP, IS_TAURI, type LocalRecentWorkspace, type WorkspaceOpenResult } from '../utils/workspaceManager';
+import { openWorkspace, openRecentWorkspace, listLocalRecentWorkspaces, createWorkspace, saveWorkspace, hasWorkspaceHandle, clearWorkspaceHandle, clearWorkspaceSaveError, getWorkspacePathHint, IS_MACOS_DESKTOP, IS_TAURI, type LocalRecentWorkspace, type WorkspaceOpenResult } from '../utils/workspaceManager';
 import { toast } from '../utils/toast';
 import { exportDocumentsAsMarkdown, generateMarkdownFilename } from '../utils/exportMarkdown';
 import { exportDocumentAsMarkdownFile, exportDocumentAsPdf, exportDocumentAsTextFile } from '../utils/documentExport';
@@ -96,8 +95,12 @@ export default function TopBar({ onShowAbout, onNewNote, onToggleTimer, explorer
     else setTemplatesModalOpenInternal(open);
   }, [onTemplatesOpenChange]);
   const [canvasPicker, setCanvasPicker] = useState<{ parentPageId?: string } | null>(null);
-  const [cloudOpen, setCloudOpen] = useState(false);
-  const [cloudInitialTab, setCloudInitialTab] = useState<'workspace' | 'library'>('workspace');
+  // The cloud/Project Sync modal is mounted by App so that "open Project Sync"
+  // still works when the top bar is unmounted (mobile viewport, canvas document
+  // mode). Opening it from here is a plain event dispatch.
+  const openCloudModal = useCallback((tab: 'workspace' | 'library' = 'workspace') => {
+    window.dispatchEvent(new CustomEvent('devboard:open-cloud-modal', { detail: { tab } }));
+  }, []);
   const [recentProjects, setRecentProjects] = useState<LocalRecentWorkspace[]>([]);
   const [workspaceRenameOpen, setWorkspaceRenameOpen] = useState(false);
   const [workspaceRenameDraft, setWorkspaceRenameDraft] = useState('');
@@ -123,6 +126,7 @@ export default function TopBar({ onShowAbout, onNewNote, onToggleTimer, explorer
   const bandLeft = Math.max(12, workspaceOffset + 12);
 
   const applyOpenedWorkspaceResult = useCallback((result: WorkspaceOpenResult) => {
+    clearWorkspaceSaveError();
     setWorkspaceName(result.name);
     if (result.data) {
       loadBoard(result.data);
@@ -168,16 +172,6 @@ export default function TopBar({ onShowAbout, onNewNote, onToggleTimer, explorer
     window.addEventListener('devboard:toggle-app-menu', handler);
     return () => window.removeEventListener('devboard:toggle-app-menu', handler);
   }, [loadRecentProjects, titleStripLeft]);
-
-  useEffect(() => {
-    const handler = (event: Event) => {
-      const detail = (event as CustomEvent<{ tab?: 'workspace' | 'library' }>).detail;
-      setCloudInitialTab(detail?.tab === 'library' ? 'library' : 'workspace');
-      setCloudOpen(true);
-    };
-    window.addEventListener('devboard:open-cloud-modal', handler);
-    return () => window.removeEventListener('devboard:open-cloud-modal', handler);
-  }, []);
 
   const handleSaveJSON = () => {
     if (workspaceName || hasWorkspaceHandle()) {
@@ -247,8 +241,7 @@ export default function TopBar({ onShowAbout, onNewNote, onToggleTimer, explorer
   };
 
   const handleOpenProjectsLibrary = () => {
-    setCloudInitialTab('library');
-    setCloudOpen(true);
+    openCloudModal('library');
   };
 
   const handleCreateWorkspace = async () => {
@@ -581,7 +574,6 @@ export default function TopBar({ onShowAbout, onNewNote, onToggleTimer, explorer
         onConfirm={commitRenameWorkspace}
         onCancel={() => setWorkspaceRenameOpen(false)}
       />
-      <CloudModal open={cloudOpen} onClose={() => setCloudOpen(false)} initialTab={cloudInitialTab} />
       <CanvasTemplatePicker
         open={!!canvasPicker}
         onClose={() => setCanvasPicker(null)}
