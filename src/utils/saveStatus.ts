@@ -1,8 +1,10 @@
 import { useBoardStore } from '../store/boardStore';
 import { toast } from './toast';
+import { saveAs } from 'file-saver';
 import { cloudTimestamp, rememberCloudSyncContext, updateCloudBoard } from './cloudStorage';
 import { getDeviceId, getDeviceLabel } from './deviceIdentity';
-import { getWorkspacePathHint, saveWorkspace, setWorkspaceSyncMetadata } from './workspaceManager';
+import { documentMarkdownFromParts, generateMarkdownFilename } from './exportMarkdown';
+import { getWorkspacePathHint, hasWorkspaceHandle, saveTextFileToWorkspace, saveWorkspace, setWorkspaceSyncMetadata } from './workspaceManager';
 
 export type NoteSaveDestination = 'local' | 'cloud' | 'none';
 export type NoteSavePhase = 'idle' | 'queued' | 'saving' | 'saved' | 'error';
@@ -17,6 +19,57 @@ export interface NoteSavePresentation {
   label: string;
   title: string;
   tone: 'neutral' | 'busy' | 'success' | 'warning' | 'danger';
+}
+
+export interface SaveMarkdownNoteOptions {
+  title: string | undefined;
+  content: string | undefined;
+  linkedFile?: string;
+  onLinkedFile?: (linkedFile: string) => void;
+}
+
+/** Save one HTML-backed note to its local workspace, cloud workspace, or a download. */
+export async function saveMarkdownNote({
+  title,
+  content,
+  linkedFile,
+  onLinkedFile,
+}: SaveMarkdownNoteOptions): Promise<boolean> {
+  const filename = generateMarkdownFilename(title);
+  const markdown = documentMarkdownFromParts(title, content);
+  const cloudBoardId = useBoardStore.getState().cloudBoardId;
+
+  if (hasWorkspaceHandle()) {
+    const target = linkedFile ?? `notes/${filename}`;
+    const parts = target.split('/').filter(Boolean);
+    const file = parts.pop() ?? filename;
+    const saved = await saveTextFileToWorkspace(parts.join('/'), file, markdown);
+    if (!saved) {
+      toast('Save failed');
+      return false;
+    }
+    if (!linkedFile) onLinkedFile?.(target);
+
+    if (cloudBoardId) {
+      void saveLinkedWorkspaceToCloud('note', {
+        successMessage: `Saved ${target} and cloud copy.`,
+        failureMessage: `Saved ${target}. Cloud save failed.`,
+      });
+    } else {
+      toast(`Saved: ${target}`);
+    }
+    return true;
+  }
+
+  if (cloudBoardId) {
+    return saveLinkedWorkspaceToCloud('note', {
+      successMessage: 'Saved to cloud.',
+      failureMessage: 'Cloud save failed.',
+    });
+  }
+
+  saveAs(new Blob([markdown], { type: 'text/markdown;charset=utf-8' }), filename);
+  return true;
 }
 
 export function describeNoteSaveStatus(status: NoteSaveStatus, autosaveEnabled: boolean): NoteSavePresentation {

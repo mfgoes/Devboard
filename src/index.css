@@ -1090,7 +1090,18 @@ canvas:focus {
   }
 
   .doc-editor-header-actions {
-    gap: 6px !important;
+    gap: 4px !important;
+  }
+
+  /* Keep navigation and view modes reachable on a phone. Formatting remains
+     available from the toolbar below the header. */
+  .doc-editor-insert-button,
+  .doc-editor-slash-hint {
+    display: none !important;
+  }
+
+  .doc-editor-title-group {
+    min-width: 40px !important;
   }
 
   .doc-editor-page-nav {

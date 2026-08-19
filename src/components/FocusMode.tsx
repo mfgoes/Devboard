@@ -1,17 +1,14 @@
 import { useRef, useEffect, useState } from 'react';
-import { saveAs } from 'file-saver';
 import { useBoardStore } from '../store/boardStore';
 import { DocumentNode } from '../types';
 import DocFormattingBar from './DocFormattingBar';
-import { documentToMarkdown, generateMarkdownFilename, htmlToMarkdown, markdownToHtml } from '../utils/exportMarkdown';
-import { hasWorkspaceHandle, saveTextFileToWorkspace } from '../utils/workspaceManager';
-import { toast } from '../utils/toast';
-import { describeNoteSaveStatus, saveLinkedWorkspaceToCloud } from '../utils/saveStatus';
+import { htmlToMarkdown, markdownToHtml } from '../utils/exportMarkdown';
+import { describeNoteSaveStatus, saveMarkdownNote } from '../utils/saveStatus';
 import { useDocumentAutoSave } from '../hooks/useDocumentAutoSave';
 import { IconCode, IconEye } from './icons';
 
 export default function FocusMode() {
-  const { nodes, focusDocumentId, setFocusDocument, updateNode, saveHistory, documents, noteAutosaveEnabled, cloudBoardId } = useBoardStore();
+  const { nodes, focusDocumentId, setFocusDocument, updateNode, saveHistory, noteAutosaveEnabled } = useBoardStore();
   const contentRef = useRef<HTMLDivElement>(null);
   const [, forceUpdate] = useState(0);
   const [viewMode, setViewMode] = useState<'edit' | 'source'>('edit');
@@ -78,44 +75,12 @@ export default function FocusMode() {
 
   const handleSave = async () => {
     if (!editingNode) return;
-    const md = documentToMarkdown(editingNode, documents);
-    const filename = generateMarkdownFilename(editingNode.title);
-
-    if (hasWorkspaceHandle()) {
-      const linkedFile = editingNode.linkedFile ?? `notes/${filename}`;
-      const parts = linkedFile.split('/').filter(Boolean);
-      const file = parts.pop() ?? filename;
-      const folder = parts.join('/');
-      const ok = await saveTextFileToWorkspace(folder, file, md);
-      if (ok) {
-        if (!editingNode.linkedFile) {
-          updateNode(editingNode.id, { linkedFile } as Partial<DocumentNode>);
-        }
-        if (cloudBoardId) {
-          void saveLinkedWorkspaceToCloud('note', {
-            successMessage: `Saved ${linkedFile} and cloud copy.`,
-            failureMessage: `Saved ${linkedFile}. Cloud save failed.`,
-          });
-        } else {
-          toast(`Saved to ${linkedFile}`);
-        }
-      } else {
-        toast('Save failed');
-      }
-      return;
-    }
-
-    if (cloudBoardId) {
-      const ok = await saveLinkedWorkspaceToCloud('note', {
-        successMessage: 'Saved to cloud.',
-        failureMessage: 'Cloud save failed.',
-      });
-      if (!ok) return;
-      return;
-    }
-
-    saveAs(new Blob([md], { type: 'text/markdown;charset=utf-8' }), filename);
-    toast('Exported Markdown note.');
+    await saveMarkdownNote({
+      title: editingNode.title,
+      content: editingNode.content,
+      linkedFile: editingNode.linkedFile,
+      onLinkedFile: (linkedFile) => updateNode(editingNode.id, { linkedFile } as Partial<DocumentNode>),
+    });
   };
 
   // Prev/Next navigation

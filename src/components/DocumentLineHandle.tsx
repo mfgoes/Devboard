@@ -37,13 +37,12 @@ export default function DocumentLineHandle({
               aria-hidden="true"
               style={{
                 position: 'fixed',
-                left: lineHandle.rect.left - 6,
-                top: lineHandle.rect.top - 2,
-                width: lineHandle.rect.width + 12,
-                height: lineHandle.rect.height + 4,
-                borderRadius: 6,
-                background: 'color-mix(in srgb, var(--c-line) 6%, transparent)',
-                boxShadow: 'inset 2px 0 0 color-mix(in srgb, var(--c-line) 45%, transparent)',
+                left: lineHandle.rect.left - 12,
+                top: lineHandle.rect.top + 4,
+                width: 1,
+                height: Math.max(18, lineHandle.rect.height - 8),
+                borderRadius: 999,
+                background: 'color-mix(in srgb, var(--c-text-lo) 48%, transparent)',
                 pointerEvents: 'none',
                 zIndex: 10005,
               }}
@@ -55,15 +54,14 @@ export default function DocumentLineHandle({
               onPointerDown={(event) => onPointerDown(event, lineHandle)}
               style={{
                 position: 'fixed',
-                left: Math.max(4, lineHandle.rect.left - 44),
+                left: Math.max(4, lineHandle.rect.left - 38),
                 top: hitTop,
                 zIndex: 10020,
-                width: 44,
+                width: 30,
                 height: hitHeight,
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'flex-start',
-                paddingLeft: 7,
+                justifyContent: 'center',
                 cursor: 'grab',
                 touchAction: 'none',
               }}
@@ -74,14 +72,14 @@ export default function DocumentLineHandle({
               aria-label="Drag to move. Click to open menu."
               onPointerDown={(event) => onPointerDown(event, lineHandle)}
               style={{
-                width: 28,
-                height: 28,
+                width: 24,
+                height: 24,
                 display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                borderRadius: 7,
-                border: '1px solid color-mix(in srgb, var(--c-border) 82%, transparent)',
-                background: 'color-mix(in srgb, var(--c-panel) 92%, transparent)',
+                borderRadius: 5,
+                border: 'none',
+                background: 'transparent',
                 color: 'var(--c-text-lo)',
                 boxShadow: 'none',
                 cursor: 'grab',
@@ -89,13 +87,11 @@ export default function DocumentLineHandle({
               }}
               onMouseEnter={(event) => {
                 event.currentTarget.style.color = 'var(--c-text-hi)';
-                event.currentTarget.style.borderColor = 'rgba(184,119,80,0.42)';
-                event.currentTarget.style.background = 'color-mix(in srgb, var(--c-hover) 82%, var(--c-panel))';
+                event.currentTarget.style.background = 'var(--c-hover)';
               }}
               onMouseLeave={(event) => {
                 event.currentTarget.style.color = 'var(--c-text-lo)';
-                event.currentTarget.style.borderColor = 'color-mix(in srgb, var(--c-border) 82%, transparent)';
-                event.currentTarget.style.background = 'color-mix(in srgb, var(--c-panel) 92%, transparent)';
+                event.currentTarget.style.background = 'transparent';
               }}
             >
               <IconGrip />

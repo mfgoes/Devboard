@@ -3,7 +3,7 @@ import { useBoardStore } from '../store/boardStore';
 import { CanvasNode, Document } from '../types';
 import { documentMarkdownFromParts, htmlToMarkdown, looksLikeMarkdown, markdownToHtml } from '../utils/exportMarkdown';
 import { saveAs } from 'file-saver';
-import { hasWorkspaceHandle, readWorkspaceFileAsUrl, saveImageAsset, saveTextFileToWorkspace } from '../utils/workspaceManager';
+import { hasWorkspaceHandle, readWorkspaceFileAsUrl, saveImageAsset } from '../utils/workspaceManager';
 import { toast } from '../utils/toast';
 import { focusNode } from '../utils/focusNode';
 import { IconArrowRight, IconCode, IconColumns, IconCopy, IconEye, IconMoreHorizontal, IconNodeLink, IconStar, IconTextWrap, IconUnlink } from './icons';
@@ -15,7 +15,7 @@ import { type DocumentCommandDefinition, type DocumentCommandId, getDocumentComm
 import { caretHostForConvertedBlock, isConvertibleDocumentCommand, isSupportedTurnIntoBlock, restoreCaretAtEnd, turnBlockInto } from './documentBlockTransforms';
 import DocumentLineHandle from './DocumentLineHandle';
 import { htmlToPlainText, sanitizeClipboardHtml } from '../utils/richText';
-import { describeNoteSaveStatus, saveLinkedWorkspaceToCloud, type NoteSavePresentation } from '../utils/saveStatus';
+import { describeNoteSaveStatus, saveMarkdownNote, type NoteSavePresentation } from '../utils/saveStatus';
 import { taskListItemHtml } from '../utils/taskListHtml';
 import AssetDrawer from './AssetDrawer';
 import { DocumentHeadingRail } from './DocumentHeadingRail';
@@ -68,6 +68,19 @@ import {
 import './DocumentMode.css';
 
 const TODO_LIST_ITEM_HTML = taskListItemHtml({ placeholder: 'Todo item' });
+
+/** Returns an internal note id only for Devboard's readable hash routes. */
+function noteIdFromDevboardUrl(value: string): string | null {
+  try {
+    const url = new URL(value.trim());
+    const hash = url.hash.replace(/^#/, '');
+    if (!hash.startsWith('/') || !hash.includes('/note/')) return null;
+    const query = hash.includes('?') ? hash.slice(hash.indexOf('?') + 1) : '';
+    return new URLSearchParams(query).get('note');
+  } catch {
+    return null;
+  }
+}
 // ── DocumentMode ─────────────────────────────────────────────────────────────
 
 type SlashCommand = DocumentCommandDefinition;
@@ -271,7 +284,7 @@ export default function DocumentMode({
       cancelAnimationFrame(frame);
       window.clearTimeout(timeout);
     };
-  }, [currentDocumentId, doc?.title, panelMode]);
+  }, [currentDocumentId, doc?.title, isNarrowViewport, panelMode]);
 
   const docWordCount = useMemo(() => wordCountFromHtml(doc?.content ?? ''), [doc?.content]);
   const docReadingTime = useMemo(() => readingTimeLabel(docWordCount), [docWordCount]);
@@ -933,47 +946,16 @@ export default function DocumentMode({
     // Saving from Source or Split must include its current buffer, even though
     // the buffer is normally committed only when returning to Preview.
     if (rawMode && content !== (doc.content ?? '')) updateDocument(doc.id, { content });
-    const md = documentMarkdownFromParts(doc.title, content);
-    const filename = generateMarkdownFilename(doc.title);
-    const cloudBoardId = useBoardStore.getState().cloudBoardId;
-    if (hasWorkspaceHandle()) {
-      try {
-        const linkedFile = doc.linkedFile ?? `notes/${filename}`;
-        const parts = linkedFile.split('/').filter(Boolean);
-        const file = parts.pop() ?? filename;
-        const folder = parts.join('/');
-        await saveTextFileToWorkspace(folder, file, md);
-        if (!doc.linkedFile) updateDocument(doc.id, { linkedFile });
-        setLastSavedAt(Date.now());
-        setHasEditedSinceOpen(true);
-        setDirtySinceSave(false);
-        if (cloudBoardId) {
-          void saveLinkedWorkspaceToCloud('note', {
-            successMessage: `Saved ${linkedFile} and cloud copy.`,
-            failureMessage: `Saved ${linkedFile}. Cloud save failed.`,
-          });
-        } else {
-          toast(`Saved: ${linkedFile}`);
-        }
-      } catch (err) {
-        console.error(err);
-        toast('Save failed');
-      }
-    } else if (cloudBoardId) {
-      const ok = await saveLinkedWorkspaceToCloud('note', {
-        successMessage: 'Saved to cloud.',
-        failureMessage: 'Cloud save failed.',
-      });
-      if (!ok) return;
-      setLastSavedAt(Date.now());
-      setHasEditedSinceOpen(true);
-      setDirtySinceSave(false);
-    } else {
-      saveAs(new Blob([md], { type: 'text/markdown;charset=utf-8' }), filename);
-      setLastSavedAt(Date.now());
-      setHasEditedSinceOpen(true);
-      setDirtySinceSave(false);
-    }
+    const saved = await saveMarkdownNote({
+      title: doc.title,
+      content,
+      linkedFile: doc.linkedFile,
+      onLinkedFile: (linkedFile) => updateDocument(doc.id, { linkedFile }),
+    });
+    if (!saved) return;
+    setLastSavedAt(Date.now());
+    setHasEditedSinceOpen(true);
+    setDirtySinceSave(false);
   };
 
   const handleExportMarkdown = useCallback(() => {
@@ -2009,6 +1991,7 @@ export default function DocumentMode({
           )}
 	          {!simplifyPanelChrome && viewMode === 'edit' && (
 	            <button
+	              className="doc-editor-insert-button"
 	              type="button"
 	              title="Insert block or link"
 	              onMouseDown={(e) => {
@@ -2044,6 +2027,7 @@ export default function DocumentMode({
 	          )}
 	          {!simplifyPanelChrome && viewMode === 'edit' && slashHintCount < 5 && (
 	            <button
+	              className="doc-editor-slash-hint"
 	              type="button"
 	              title="Trigger slash commands"
 	              onMouseDown={(e) => e.preventDefault()}
@@ -2405,7 +2389,8 @@ export default function DocumentMode({
                   background: pageSurface,
                   maxWidth: 860,
                   width: '100%',
-                  aspectRatio: '210 / 297',
+                  aspectRatio: isNarrowViewport ? 'auto' : '210 / 297',
+                  minHeight: isNarrowViewport ? '100%' : undefined,
                   padding: panelMode ? '20px 24px' : isNarrowViewport ? '16px 16px' : '28px 48px',
                   boxSizing: 'border-box',
                   borderRadius: 3,
@@ -2494,7 +2479,7 @@ export default function DocumentMode({
                   style={{
                     width: '100%',
                     minHeight: panelMode ? 32 : 34,
-                    maxHeight: panelMode ? 38 : 40,
+                    maxHeight: panelMode ? 38 : isNarrowViewport ? 104 : 40,
                     resize: 'none',
                     overflow: 'hidden',
                     border: 'none',
@@ -2502,13 +2487,13 @@ export default function DocumentMode({
                     background: 'transparent',
                     color: 'var(--c-text-hi)',
                     fontFamily: "'Plus Jakarta Sans', sans-serif",
-                    fontSize: panelMode ? 24 : 26,
+                    fontSize: panelMode ? 24 : isNarrowViewport ? 22 : 26,
                     fontWeight: 760,
                     lineHeight: 1.2,
                     letterSpacing: 0,
                     padding: 0,
                     margin: '0 0 6px',
-                    whiteSpace: 'nowrap',
+                    whiteSpace: isNarrowViewport ? 'normal' : 'nowrap',
                   }}
                 />
                 <div
@@ -2581,6 +2566,26 @@ export default function DocumentMode({
                   const text = e.clipboardData.getData('text/plain');
                   if (!html && !text) return;
                   e.preventDefault();
+
+                  // A Devboard page URL is not just a web bookmark when its
+                  // target is in this workspace: turn it into a durable wiki
+                  // reference with the human note title as its visible text.
+                  const linkedNoteId = noteIdFromDevboardUrl(text);
+                  const linkedNote = linkedNoteId
+                    ? documents.find((document) => document.id === linkedNoteId && document.docType !== 'canvas')
+                    : null;
+                  if (linkedNote) {
+                    const title = linkedNote.title.trim() || 'Untitled note';
+                    document.execCommand(
+                      'insertHTML',
+                      false,
+                      `<span class="chip-wiki" data-chip="wiki" data-title="${escapeHtmlAttr(title)}">${escapeInlineHtml(title)}</span>`,
+                    );
+                    if (contentRef.current) applyChipsToDOM(contentRef.current, documents);
+                    handleInput();
+                    toast(`Linked note: ${title}`);
+                    return;
+                  }
 
                   let insertHtml = sanitizeClipboardHtml(html, text);
                   // If the pasted text looks like markdown source and the "rich" clipboard
