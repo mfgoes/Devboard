@@ -4,6 +4,54 @@
   z-index: 9998;
 }
 
+/* Split mode uses the same sheet language as Preview while making the two
+   surfaces immediately distinguishable and independently scrollable. */
+.doc-split-pane-label {
+  height: 34px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--c-border);
+  color: var(--c-text-lo);
+  background: color-mix(in srgb, var(--c-panel) 82%, var(--c-sidebar));
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.doc-split-preview-title {
+  margin: 0 0 6px;
+  color: var(--c-text-hi);
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 26px;
+  font-weight: 760;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.doc-split-preview-meta {
+  margin-bottom: 24px;
+  color: #9b8d7f;
+  font-size: 12px;
+  font-weight: 560;
+  line-height: 1.5;
+}
+
+@media (max-width: 639px) {
+  .doc-split-pane-label {
+    height: 30px;
+    padding: 0 12px;
+  }
+
+  .doc-split-preview-title {
+    font-size: 22px;
+  }
+}
+
 .doc-block-dragging {
   opacity: 0.32;
   outline: 1.5px dashed color-mix(in srgb, var(--c-line) 55%, transparent);

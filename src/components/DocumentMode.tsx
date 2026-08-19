@@ -124,6 +124,10 @@ export default function DocumentMode({
     return () => window.removeEventListener('resize', onResize);
   }, []);
   const [sourceText, setSourceText] = useState('');
+  // Keep the latest raw buffer available to save handlers without waiting for a
+  // React render. Source and split mode intentionally keep this text unparsed
+  // until the user changes views or explicitly saves.
+  const sourceTextRef = useRef('');
   const [sourceWrap, setSourceWrap] = useState(true);
   const [docHistory, setDocHistory] = useState<string[]>([]);
   const [wikiPreview, setWikiPreview] = useState<{ x: number; y: number; doc: Document; chip: HTMLElement } | null>(null);
@@ -639,6 +643,16 @@ export default function DocumentMode({
     setDirtySinceSave(true);
   }, []);
 
+  const setSourceBuffer = useCallback((nextText: string) => {
+    sourceTextRef.current = nextText;
+    setSourceText(nextText);
+  }, []);
+
+  const updateSourceText = useCallback((nextText: string) => {
+    setSourceBuffer(nextText);
+    markDirty();
+  }, [markDirty, setSourceBuffer]);
+
   const handleAutoSaveSuccess = useCallback(() => {
     setLastSavedAt(Date.now());
     setHasEditedSinceOpen(true);
@@ -648,6 +662,10 @@ export default function DocumentMode({
   const autoSaveStatus = useDocumentAutoSave({
     docId: doc?.id ?? null,
     enabled: noteAutosaveEnabled && dirtySinceSave,
+    // Markdown is an intentional draft buffer in Source/Split. Suspending
+    // autosave here prevents it from saving the last rich-text version while
+    // the user is editing newer source.
+    suspended: viewMode === 'source' || viewMode === 'split',
     onSaved: handleAutoSaveSuccess,
   });
   const saveStatus = describeNoteSaveStatus(autoSaveStatus, noteAutosaveEnabled);
@@ -702,7 +720,10 @@ export default function DocumentMode({
 
       if (viewMode === 'source' || viewMode === 'split') {
         const nextSource = htmlToMarkdown(hydrated);
-        setSourceText((current) => current === nextSource ? current : nextSource);
+        setSourceText((current) => {
+          sourceTextRef.current = current === nextSource ? current : nextSource;
+          return sourceTextRef.current;
+        });
       }
     };
     void run();
@@ -829,13 +850,13 @@ export default function DocumentMode({
     if (!doc) return;
     // Only reseed the raw buffer when coming from the WYSIWYG editor; toggling
     // between the two raw modes (source ↔ split) must preserve uncommitted edits.
-    if (viewMode === 'edit') setSourceText(htmlToMarkdown(doc.content ?? ''));
+    if (viewMode === 'edit') setSourceBuffer(htmlToMarkdown(doc.content ?? ''));
     setViewMode('source');
   };
 
   const switchToSplit = () => {
     if (!doc) return;
-    if (viewMode === 'edit') setSourceText(htmlToMarkdown(doc.content ?? ''));
+    if (viewMode === 'edit') setSourceBuffer(htmlToMarkdown(doc.content ?? ''));
     setViewMode('split');
   };
 
@@ -843,7 +864,7 @@ export default function DocumentMode({
   // Source→Edit and Split→Edit transitions.
   const commitSourceToDocument = () => {
     if (!doc) return;
-    const html = markdownToHtml(sourceText);
+    const html = markdownToHtml(sourceTextRef.current);
     if (html !== (doc.content ?? '')) checkpointDocumentHistory();
     markDirty();
     updateDocument(doc.id, { content: html });
@@ -873,14 +894,13 @@ export default function DocumentMode({
     const selected = sourceText.slice(start, end);
     const nextText = sourceText.slice(0, start) + syntax + sourceText.slice(end);
     const cursorOffset = selected ? syntax.length : getSourceCursorOffset(syntax);
-    setSourceText(nextText);
-    markDirty();
+    updateSourceText(nextText);
     requestAnimationFrame(() => {
       sourceRef.current?.focus();
       const cursor = start + cursorOffset;
       sourceRef.current?.setSelectionRange(cursor, selected ? cursor + selected.length : cursor);
     });
-  }, [markDirty, sourceText]);
+  }, [sourceText, updateSourceText]);
 
   const copySourceText = useCallback(async () => {
     try {
@@ -908,7 +928,12 @@ export default function DocumentMode({
 
   const handleSave = async () => {
     if (!doc) return;
-    const md = documentMarkdownFromParts(doc.title, doc.content);
+    const rawMode = viewMode === 'source' || viewMode === 'split';
+    const content = rawMode ? markdownToHtml(sourceTextRef.current) : doc.content;
+    // Saving from Source or Split must include its current buffer, even though
+    // the buffer is normally committed only when returning to Preview.
+    if (rawMode && content !== (doc.content ?? '')) updateDocument(doc.id, { content });
+    const md = documentMarkdownFromParts(doc.title, content);
     const filename = generateMarkdownFilename(doc.title);
     const cloudBoardId = useBoardStore.getState().cloudBoardId;
     if (hasWorkspaceHandle()) {
@@ -975,7 +1000,7 @@ export default function DocumentMode({
     const replace = window.prompt('Replace with (leave empty to only find)', '');
 
     if (replace === null || replace === '') {
-      if (viewMode === 'source' && sourceRef.current) {
+      if ((viewMode === 'source' || viewMode === 'split') && sourceRef.current) {
         const index = sourceText.toLowerCase().indexOf(search.toLowerCase());
         if (index >= 0) {
           sourceRef.current.focus();
@@ -994,12 +1019,11 @@ export default function DocumentMode({
       return;
     }
 
-    if (viewMode === 'source') {
+    if (viewMode === 'source' || viewMode === 'split') {
       const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const next = sourceText.replace(new RegExp(escaped, 'gi'), replace);
       if (next !== sourceText) {
-        markDirty();
-        setSourceText(next);
+        updateSourceText(next);
         toast(`Replaced "${search}"`);
       } else {
         toast(`No matches for "${search}"`);
@@ -1024,7 +1048,7 @@ export default function DocumentMode({
     updatePlaceholderVisibility(contentRef.current);
     contentRef.current.dispatchEvent(new Event('input', { bubbles: true }));
     toast(`Replaced "${search}"`);
-  }, [checkpointDocumentHistory, doc, markDirty, sourceText, viewMode]);
+  }, [checkpointDocumentHistory, doc, sourceText, updateSourceText, viewMode]);
 
   const closeWikiPreview = useCallback((delay = 120) => {
     if (wikiPreviewCloseTimerRef.current !== null) {
@@ -2799,8 +2823,7 @@ export default function DocumentMode({
               value={sourceText}
               wrap={sourceWrap ? 'soft' : 'off'}
               onChange={(e) => {
-                markDirty();
-                setSourceText(e.target.value);
+                updateSourceText(e.target.value);
               }}
               onFocus={() => setIsEditorFocused(true)}
               onBlur={() => setIsEditorFocused(false)}
@@ -2824,49 +2847,105 @@ export default function DocumentMode({
           )}
 
           {viewMode === 'split' && (
-            <div style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden' }}>
-              {/* Left: raw Markdown (editable) */}
-              <textarea
-                ref={sourceRef}
-                value={sourceText}
-                wrap={sourceWrap ? 'soft' : 'off'}
-                onChange={(e) => {
-                  markDirty();
-                  setSourceText(e.target.value);
-                }}
-                onFocus={() => setIsEditorFocused(true)}
-                onBlur={() => setIsEditorFocused(false)}
-                spellCheck={false}
+            <div
+              style={{
+                flex: 1,
+                minHeight: 0,
+                display: 'flex',
+                flexDirection: isNarrowViewport ? 'column' : 'row',
+                overflow: 'hidden',
+                background: editorSurface,
+              }}
+            >
+              <section
                 aria-label="Markdown source"
                 style={{
                   flex: 1,
                   minWidth: 0,
-                  padding: panelMode ? '24px 18px' : '32px 28px',
-                  background: 'transparent',
-                  border: 'none',
-                  outline: 'none',
-                  resize: 'none',
-                  color: 'var(--c-text-hi)',
-                  fontSize: '14px',
-                  lineHeight: 1.7,
-                  fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-                  overflowY: 'auto',
-                  overflowX: sourceWrap ? 'hidden' : 'auto',
-                  opacity: 0.9,
+                  minHeight: 0,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  borderRight: isNarrowViewport ? 'none' : '1px solid var(--c-border)',
+                  borderBottom: isNarrowViewport ? '1px solid var(--c-border)' : 'none',
                 }}
-              />
-              {/* Right: live rendered preview (read-only) */}
-              <div
-                className="doc-content doc-content--preview"
+              >
+                <div className="doc-split-pane-label"><IconCode /> Markdown</div>
+                <textarea
+                  ref={sourceRef}
+                  value={sourceText}
+                  wrap={sourceWrap ? 'soft' : 'off'}
+                  onChange={(e) => updateSourceText(e.target.value)}
+                  onFocus={() => setIsEditorFocused(true)}
+                  onBlur={() => setIsEditorFocused(false)}
+                  spellCheck={false}
+                  aria-label="Markdown source"
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    minHeight: 0,
+                    padding: panelMode ? '18px' : '24px 28px',
+                    background: 'transparent',
+                    border: 'none',
+                    outline: 'none',
+                    resize: 'none',
+                    color: 'var(--c-text-hi)',
+                    fontSize: '14px',
+                    lineHeight: 1.7,
+                    fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                    overflowY: 'auto',
+                    overflowX: sourceWrap ? 'hidden' : 'auto',
+                    opacity: 0.9,
+                  }}
+                />
+              </section>
+
+              <section
+                aria-label="Rendered preview"
                 style={{
                   flex: 1,
                   minWidth: 0,
-                  padding: panelMode ? '24px 22px' : '32px 40px',
-                  overflowY: 'auto',
-                  borderLeft: '1px solid var(--c-border)',
+                  minHeight: 0,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  overflow: 'hidden',
                 }}
-                dangerouslySetInnerHTML={{ __html: markdownToHtml(sourceText) }}
-              />
+              >
+                <div className="doc-split-pane-label"><IconEye /> Preview</div>
+                <div
+                  style={{
+                    flex: 1,
+                    minHeight: 0,
+                    overflowY: 'auto',
+                    padding: panelMode ? '12px 14px 28px' : '16px 24px 44px',
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'flex-start',
+                  }}
+                >
+                  <article
+                    className="doc-split-preview-page"
+                    style={{
+                      width: '100%',
+                      maxWidth: 860,
+                      minHeight: '100%',
+                      boxSizing: 'border-box',
+                      padding: panelMode ? '20px 24px' : '28px 48px',
+                      background: pageSurface,
+                      border: '1px solid var(--c-border)',
+                      borderRadius: 3,
+                      boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
+                    }}
+                  >
+                    <h1 className="doc-split-preview-title">{doc.title || 'Untitled note'}</h1>
+                    <div className="doc-split-preview-meta">Last edited {relativeTime(doc.updatedAt)} · {docWordCount} words · {docReadingTime}</div>
+                    <div
+                      className="doc-content doc-content--preview"
+                      style={{ color: 'var(--c-text-hi)', fontSize: '16px', lineHeight: 1.8, wordWrap: 'break-word' }}
+                      dangerouslySetInnerHTML={{ __html: markdownToHtml(sourceText) }}
+                    />
+                  </article>
+                </div>
+              </section>
             </div>
           )}
         </div>
