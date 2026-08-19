@@ -12,8 +12,9 @@ import {
 } from './utils/updates';
 import { announceLocalSave } from './utils/saveStatus';
 import { applyWorkspaceSyncFromOpenResult } from './utils/applyWorkspaceSync';
+import { loadCloudBoard } from './utils/cloudStorage';
 import { extractMarkdownFiles, importMarkdownFileObjects, promptAndImportMarkdownNotes } from './utils/noteImport';
-import { listenTauriMenus, shouldKeepSidePanelOpenForTarget, loadFromHash, isBraveBrowser, generateId } from './utils/appHelpers';
+import { listenTauriMenus, shouldKeepSidePanelOpenForTarget, loadFromHash, isBraveBrowser, generateId, readWorkspaceRoute, replaceWorkspaceRoute } from './utils/appHelpers';
 import Canvas from './components/Canvas';
 import Toolbar from './components/Toolbar';
 import ZoomToolbar from './components/ZoomToolbar';
@@ -30,6 +31,7 @@ import WorkspaceExplorer from './components/WorkspaceExplorer';
 import CloudModal from './components/CloudModal';
 import JiraPanel from './components/JiraPanel';
 import SearchBar from './components/SearchBar';
+import WorkspaceShareModal from './components/WorkspaceShareModal';
 import { IconArrowLeft } from './components/icons';
 import { useBoardStore } from './store/boardStore';
 import { useAuth } from './contexts/AuthContext';
@@ -48,7 +50,7 @@ const PANEL_SLIDE_MS = 220;
 const IS_WINDOWS = typeof navigator !== 'undefined' && navigator.userAgent.includes('Windows');
 
 export default function App() {
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   // Only show welcome modal when explicitly triggered (logo click)
   const [showWelcome, setShowWelcome] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -60,6 +62,9 @@ export default function App() {
   const [showTimer, setShowTimer] = useState(false);
   const [jiraOpen, setJiraOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [workspaceShareOpen, setWorkspaceShareOpen] = useState(false);
+  const hasNavigatedToWorkspaceContent = useRef(false);
+  const cloudRouteLoadingRef = useRef<string | null>(null);
   const [updateBusy, setUpdateBusy] = useState(false);
   const [mobileCanvasToolsExpanded, setMobileCanvasToolsExpanded] = useState(false);
   const explorerOpen = useBoardStore((s) => s.explorerOpen);
@@ -84,6 +89,7 @@ export default function App() {
   const cloudBoardId = useBoardStore((s) => s.cloudBoardId);
   const cloudSyncedAt = useBoardStore((s) => s.cloudSyncedAt);
   const lastLocalSavedAt = useBoardStore((s) => s.lastLocalSavedAt);
+  const activeDocId = useBoardStore((s) => s.activeDocId);
 
   const boardTitle = useBoardStore((s) => s.boardTitle);
   const workspaceName = useBoardStore((s) => s.workspaceName);
@@ -113,6 +119,11 @@ export default function App() {
     };
     window.addEventListener('devboard:open-cloud-modal', handler);
     return () => window.removeEventListener('devboard:open-cloud-modal', handler);
+  }, []);
+  useEffect(() => {
+    const handler = () => setWorkspaceShareOpen(true);
+    window.addEventListener('devboard:open-share-workspace', handler);
+    return () => window.removeEventListener('devboard:open-share-workspace', handler);
   }, []);
 
   const activePage = pages.find((p) => p.id === activePageId);
@@ -537,6 +548,79 @@ export default function App() {
     loadFromHash();
   }, []);
 
+  // A workspace route identifies a location, not a public document. Local
+  // routes can only resolve after their folder is open; cloud routes require
+  // the owner's signed-in private sync access.
+  useEffect(() => {
+    const openRouteTarget = () => {
+      const route = readWorkspaceRoute();
+      if (!route) return;
+      const state = useBoardStore.getState();
+      if (route.noteId && state.documents.some((document) => document.id === route.noteId)) {
+        hasNavigatedToWorkspaceContent.current = true;
+        state.openDocument(route.noteId);
+        return;
+      }
+      if (route.canvasId) {
+        const canvasDocument = state.documents.find((document) => document.canvasPageId === route.canvasId);
+        if (canvasDocument) state.openCanvasDocument(canvasDocument.id);
+        else if (state.pages.some((page) => page.id === route.canvasId)) state.switchPage(route.canvasId);
+      }
+    };
+
+    const loadRoute = async () => {
+      const route = readWorkspaceRoute();
+      if (!route) return;
+      if (!route.workspaceId) {
+        openRouteTarget();
+        return;
+      }
+      if (authLoading) return;
+      if (!user) {
+        setCloudModalOpen(true);
+        return;
+      }
+      if (useBoardStore.getState().cloudBoardId === route.workspaceId) {
+        openRouteTarget();
+        return;
+      }
+      if (cloudRouteLoadingRef.current === route.workspaceId) return;
+      cloudRouteLoadingRef.current = route.workspaceId;
+      try {
+        const data = await loadCloudBoard(route.workspaceId);
+        const state = useBoardStore.getState();
+        state.loadBoard(data);
+        state.setCloudBoardState({ boardId: route.workspaceId, title: data.boardTitle });
+        state.setWorkspaceName(null);
+        openRouteTarget();
+      } catch (error) {
+        console.warn('Could not open workspace from private link', error);
+        toast('Could not open this private workspace link');
+      } finally {
+        cloudRouteLoadingRef.current = null;
+      }
+    };
+
+    void loadRoute();
+    window.addEventListener('hashchange', loadRoute);
+    return () => window.removeEventListener('hashchange', loadRoute);
+  }, [authLoading, user]);
+
+  // Keep a browser-visible location for notes and canvases. The local version
+  // deliberately contains no filesystem path; only synced workspaces receive
+  // a cloud workspace ID that can be opened on another signed-in device.
+  useEffect(() => {
+    if (!activeDocId && !hasNavigatedToWorkspaceContent.current) return;
+    hasNavigatedToWorkspaceContent.current = true;
+    replaceWorkspaceRoute({
+      ...(cloudBoardId ? { workspaceId: cloudBoardId } : {}),
+      workspaceTitle: boardTitle || workspaceName || 'Private workspace',
+      ...(activeDocId
+        ? { noteId: activeDocId, noteTitle: documents.find((document) => document.id === activeDocId)?.title }
+        : { canvasId: activePageId, canvasTitle: pages.find((page) => page.id === activePageId)?.name }),
+    });
+  }, [activeDocId, activePageId, cloudBoardId, boardTitle, workspaceName, documents, pages]);
+
   // Register callback so the explorer tree reloads after every workspace save.
   useEffect(() => {
     setOnWorkspaceSavedCallback(() => {
@@ -553,6 +637,8 @@ export default function App() {
 
   // Restore previously granted localhost workspace handle when possible.
   useEffect(() => {
+    // A private cloud route must not be overwritten by the last local folder.
+    if (readWorkspaceRoute()?.workspaceId) return;
     restoreWorkspace().then((result) => {
       if (!result) {
         // Permission may have lapsed (browsers demote directory-handle grants
@@ -567,6 +653,11 @@ export default function App() {
       useBoardStore.getState().bumpWorkspaceSaved();
       if (result.data) useBoardStore.getState().loadBoard(result.data);
       applyWorkspaceSyncFromOpenResult(result);
+      const route = readWorkspaceRoute();
+      if (route?.noteId && useBoardStore.getState().documents.some((document) => document.id === route.noteId)) {
+        hasNavigatedToWorkspaceContent.current = true;
+        useBoardStore.getState().openDocument(route.noteId);
+      }
     }).catch((err) => {
       console.warn('Failed to restore workspace', err);
     });
@@ -903,6 +994,11 @@ export default function App() {
       {showTimer && <TimerWidget onClose={() => setShowTimer(false)} />}
       {jiraOpen && <JiraPanel onClose={() => setJiraOpen(false)} />}
       {searchOpen && <SearchBar onClose={() => setSearchOpen(false)} />}
+      <WorkspaceShareModal
+        open={workspaceShareOpen}
+        onClose={() => setWorkspaceShareOpen(false)}
+        onOpenSync={openCloudModal}
+      />
       {showBraveNotice && (
         <div
           className="absolute left-0 right-0 z-50 flex items-center justify-between gap-3 bg-orange-500 text-white text-xs px-4 py-2"

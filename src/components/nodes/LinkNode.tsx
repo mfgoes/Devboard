@@ -56,6 +56,11 @@ function displayDomain(url: string): string {
   }
 }
 
+function relationLabel(relation?: LinkNodeType['relation']): string | null {
+  if (!relation || relation === 'reference') return null;
+  return relation.replace(/-/g, ' ');
+}
+
 interface Props {
   node: LinkNodeType;
   isSelected: boolean;
@@ -100,6 +105,7 @@ export default function LinkNodeComponent({ node, isSelected, isDrawingLine, onA
   const showAnchors = isSelected || isLineTool || isDrawingLine === true;
 
   const service = detectService(node.url);
+  const relation = relationLabel(node.relation);
   const accent = service?.color ?? 'var(--c-line)';
   const favicon = node.favicon || faviconUrl(node.url);
   const isEmbed = node.displayMode === 'embed';
@@ -236,6 +242,11 @@ export default function LinkNodeComponent({ node, isSelected, isDrawingLine, onA
           <span style={{ fontSize: 11, fontWeight: 600, color: textLo, flexShrink: 0 }}>
             {service?.label ?? displayDomain(node.url)}
           </span>
+          {relation && (
+            <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.03em', color: accent, textTransform: 'uppercase', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {relation}
+            </span>
+          )}
 
           {/* Spacer */}
           <span style={{ flex: 1 }} />

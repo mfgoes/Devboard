@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useBoardStore } from '../store/boardStore';
-import type { CanvasNode, TableNode, CodeBlockNode, LinkNode, SectionNode } from '../types';
+import type { CanvasNode, TableNode, CodeBlockNode, LinkNode, SectionNode, Document } from '../types';
 
 interface SearchMatch {
-  nodeId: string;
+  kind: 'node' | 'document';
+  id: string;
   pageId: string;
   pageName: string;
   snippet: string;
@@ -11,6 +12,15 @@ interface SearchMatch {
   y: number;
   width: number;
   height: number;
+}
+
+function documentText(document: Document): string {
+  // Search stays local and deliberately indexes the readable text, not HTML tags.
+  const body = document.content
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&');
+  return [document.title, ...(document.tags ?? []), body].join(' ');
 }
 
 function extractText(node: CanvasNode): string {
@@ -33,7 +43,7 @@ function extractText(node: CanvasNode): string {
     }
     case 'link': {
       const l = node as LinkNode;
-      return [l.title ?? '', l.description ?? '', l.url].join(' ');
+      return [l.title ?? '', l.description ?? '', l.url, l.relation ?? 'reference'].join(' ');
     }
     default:
       return '';
@@ -69,7 +79,8 @@ function buildMatches(
     const end = Math.min(text.length, idx + query.length + 30);
     const snippet = (start > 0 ? '…' : '') + text.slice(start, end).replace(/\n/g, ' ') + (end < text.length ? '…' : '');
     results.push({
-      nodeId: node.id,
+      kind: 'node',
+      id: node.id,
       pageId,
       pageName,
       snippet,
@@ -82,6 +93,30 @@ function buildMatches(
   return results;
 }
 
+function buildDocumentMatches(query: string, documents: Document[], pages: { id: string; name: string }[]): SearchMatch[] {
+  const q = query.toLowerCase();
+  return documents
+    .filter((document) => document.docType !== 'canvas')
+    .flatMap((document) => {
+      const text = documentText(document);
+      const idx = text.toLowerCase().indexOf(q);
+      if (idx === -1) return [];
+      const start = Math.max(0, idx - 30);
+      const end = Math.min(text.length, idx + query.length + 60);
+      return [{
+        kind: 'document' as const,
+        id: document.id,
+        pageId: document.pageId ?? 'page-1',
+        pageName: pages.find((page) => page.id === document.pageId)?.name ?? 'Notes',
+        snippet: (start > 0 ? '…' : '') + text.slice(start, end).replace(/\s+/g, ' ').trim() + (end < text.length ? '…' : ''),
+        x: 0,
+        y: 0,
+        width: 0,
+        height: 0,
+      }];
+    });
+}
+
 export default function SearchBar({ onClose }: { onClose: () => void }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState('');
@@ -92,9 +127,11 @@ export default function SearchBar({ onClose }: { onClose: () => void }) {
   const pages = useBoardStore((s) => s.pages);
   const activePageId = useBoardStore((s) => s.activePageId);
   const pageSnapshots = useBoardStore((s) => s.pageSnapshots);
+  const documents = useBoardStore((s) => s.documents);
   const setCamera = useBoardStore((s) => s.setCamera);
   const selectIds = useBoardStore((s) => s.selectIds);
   const switchPage = useBoardStore((s) => s.switchPage);
+  const openDocument = useBoardStore((s) => s.openDocument);
   const camera = useBoardStore((s) => s.camera);
 
   // Auto-focus on mount
@@ -111,6 +148,10 @@ export default function SearchBar({ onClose }: { onClose: () => void }) {
     const activePage = pages.find((p) => p.id === activePageId);
     let results = buildMatches(q, nodes, activePageId, activePage?.name ?? 'Page');
 
+    // Notes are searched across the whole local workspace. Canvas pages remain
+    // opt-in because moving the viewport while typing is more disruptive.
+    results = results.concat(buildDocumentMatches(q, documents, pages));
+
     if (allPages) {
       for (const page of pages) {
         if (page.id === activePageId) continue;
@@ -120,7 +161,7 @@ export default function SearchBar({ onClose }: { onClose: () => void }) {
       }
     }
     return results;
-  }, [query, nodes, pages, activePageId, pageSnapshots, allPages]);
+  }, [query, nodes, pages, documents, activePageId, pageSnapshots, allPages]);
 
   // Clamp activeIndex when matches change
   useEffect(() => {
@@ -132,6 +173,10 @@ export default function SearchBar({ onClose }: { onClose: () => void }) {
   }, [matches.length, activeIndex]);
 
   const navigateToMatch = useCallback((match: SearchMatch) => {
+    if (match.kind === 'document') {
+      openDocument(match.id);
+      return;
+    }
     // Switch page if needed
     if (match.pageId !== useBoardStore.getState().activePageId) {
       switchPage(match.pageId);
@@ -143,8 +188,8 @@ export default function SearchBar({ onClose }: { onClose: () => void }) {
       x: window.innerWidth / 2 - cx * scale,
       y: window.innerHeight / 2 - cy * scale,
     });
-    selectIds([match.nodeId]);
-  }, [switchPage, setCamera, selectIds]);
+    selectIds([match.id]);
+  }, [switchPage, setCamera, selectIds, openDocument]);
 
   // Navigate to active match when it changes
   useEffect(() => {
@@ -211,7 +256,7 @@ export default function SearchBar({ onClose }: { onClose: () => void }) {
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         onKeyDown={handleKeyDown}
-        placeholder="Find in project…"
+          placeholder="Find notes, canvas, and links…"
         className="w-48 bg-transparent text-[var(--c-text-hi)] text-[12px] font-sans placeholder:text-[var(--c-text-off)] focus:outline-none"
       />
 

@@ -193,6 +193,7 @@ export interface ImageNode {
 }
 
 export type LinkDisplayMode = 'compact' | 'embed';
+export type LinkRelation = 'reference' | 'task-board' | 'source' | 'decision' | 'inspiration' | 'blocked-by';
 
 export interface LinkNode {
   id: string;
@@ -208,6 +209,8 @@ export interface LinkNode {
   favicon?: string;
   image?: string;    // og:image URL
   siteName?: string; // og:site_name
+  /** A local label explaining why this external resource belongs in the project. */
+  relation?: LinkRelation;
   locked?: boolean;
   groupId?: string;
 }

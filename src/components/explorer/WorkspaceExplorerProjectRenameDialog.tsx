@@ -1,4 +1,5 @@
 import { FONTS } from '../../utils/fonts';
+import { useState } from 'react';
 
 interface WorkspaceExplorerProjectRenameDialogProps {
   open: boolean;
@@ -15,6 +16,7 @@ export default function WorkspaceExplorerProjectRenameDialog({
   onConfirm,
   onCancel,
 }: WorkspaceExplorerProjectRenameDialogProps) {
+  const [isHovering, setIsHovering] = useState(false);
   if (!open) return null;
 
   return (
@@ -77,7 +79,23 @@ export default function WorkspaceExplorerProjectRenameDialog({
               type="button"
               onClick={onConfirm}
               disabled={!draft.trim()}
-              style={{ flex: 1, height: 32, border: 'none', borderRadius: 8, background: draft.trim() ? 'var(--c-line)' : 'var(--c-hover)', color: draft.trim() ? '#fff' : 'var(--c-text-lo)', cursor: draft.trim() ? 'pointer' : 'default', fontFamily: FONTS.ui, fontSize: 11, fontWeight: 750 }}
+              onMouseEnter={() => setIsHovering(true)}
+              onMouseLeave={() => setIsHovering(false)}
+              style={{
+                flex: 1,
+                height: 32,
+                border: 'none',
+                borderRadius: 8,
+                background: draft.trim()
+                  ? isHovering ? 'var(--c-text-hi)' : 'var(--c-line)'
+                  : 'var(--c-hover)',
+                color: draft.trim() ? '#fff' : 'var(--c-text-lo)',
+                cursor: draft.trim() ? 'pointer' : 'default',
+                fontFamily: FONTS.ui,
+                fontSize: 11,
+                fontWeight: 750,
+                transition: 'background-color 0.2s ease'
+              }}
             >
               Rename
             </button>

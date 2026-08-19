@@ -826,10 +826,19 @@ function EmptyStateActionTile({
   label: string;
   onClick: () => void;
 }) {
+  const [hovered, setHovered] = useState(false);
+  const descriptions: Record<string, string> = {
+    Note: 'Create a new note to write and organize your thoughts',
+    Canvas: 'Create a visual canvas to brainstorm and design ideas',
+  };
+  const description = descriptions[label] || '';
+
   return (
     <button
       type="button"
       onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       className="flex flex-col items-center gap-1.5 rounded-xl border transition-colors text-[var(--c-text-lo)] hover:text-[var(--c-text-hi)] hover:bg-[var(--c-hover)] hover:border-[rgba(184,119,80,0.34)]"
       style={{
         width: 132,
@@ -837,6 +846,7 @@ function EmptyStateActionTile({
         borderColor: 'var(--c-border)',
         background: 'var(--c-panel)',
         cursor: 'pointer',
+        position: 'relative',
       }}
     >
       <span
@@ -854,6 +864,31 @@ function EmptyStateActionTile({
         {icon}
       </span>
       <span style={{ fontSize: 12, fontWeight: 650 }}>{label}</span>
+      {hovered && description && (
+        <span
+          style={{
+            position: 'absolute',
+            bottom: -38,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            whiteSpace: 'nowrap',
+            fontSize: 11,
+            fontWeight: 500,
+            color: 'var(--c-text-lo)',
+            background: 'var(--c-panel)',
+            border: '1px solid var(--c-border)',
+            borderRadius: 6,
+            padding: '6px 10px',
+            zIndex: 100,
+            boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+            opacity: 1,
+            transition: 'opacity 200ms ease-out',
+            pointerEvents: 'none',
+          }}
+        >
+          {description}
+        </span>
+      )}
     </button>
   );
 }

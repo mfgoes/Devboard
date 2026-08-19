@@ -529,7 +529,7 @@ export default function TopBar({ onShowAbout, onNewNote, onToggleTimer, explorer
         allProjects: handleOpenProjectsLibrary,
         saveProject: handleSaveJSON,
         renameProject: beginRenameWorkspace,
-        projectSync: () => window.dispatchEvent(new CustomEvent('devboard:open-cloud-modal')),
+        shareProject: () => window.dispatchEvent(new CustomEvent('devboard:open-share-workspace')),
         search: onToggleSearch,
         toggleTimer: onToggleTimer,
         toggleJira: onToggleJira,

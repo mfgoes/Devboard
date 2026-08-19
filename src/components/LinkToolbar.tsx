@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useBoardStore } from '../store/boardStore';
-import { LinkNode, LinkDisplayMode, TextBlockNode } from '../types';
+import { LinkNode, LinkDisplayMode, LinkRelation, TextBlockNode } from '../types';
 import { fetchMeta } from '../utils/fetchMeta';
 import { useToolbarPosition } from '../utils/useToolbarPosition';
 
@@ -63,6 +63,15 @@ const TURN_INTO_OPTIONS: { key: TurnIntoOption; label: string; icon: React.React
   { key: 'compact', label: 'Compact link', icon: <IconCompact /> },
   { key: 'embed',   label: 'Embed preview', icon: <IconEmbed /> },
   { key: 'text',    label: 'Text block',    icon: <IconText /> },
+];
+
+const RELATION_OPTIONS: Array<{ value: LinkRelation; label: string }> = [
+  { value: 'reference', label: 'Reference' },
+  { value: 'task-board', label: 'Task board' },
+  { value: 'source', label: 'Source' },
+  { value: 'decision', label: 'Decision' },
+  { value: 'inspiration', label: 'Inspiration' },
+  { value: 'blocked-by', label: 'Blocked by' },
 ];
 
 /* ── Component ───────────────────────────────────────────────────────── */
@@ -274,6 +283,19 @@ export default function LinkToolbar({ nodeId }: Props) {
         </div>
 
         {/* Divider */}
+        <div className="w-px h-5 bg-[var(--c-border)] mx-0.5" />
+
+        {/* ── Why this link belongs here ─────────────────────────────── */}
+        <select
+          aria-label="Reference role"
+          title="Why this link belongs in the project"
+          value={node.relation ?? 'reference'}
+          onChange={(event) => update({ relation: event.target.value as LinkRelation })}
+          className="h-8 max-w-[92px] rounded-lg border-0 bg-transparent px-1.5 text-[10px] text-[var(--c-text-md)] outline-none hover:bg-[var(--c-hover)] hover:text-[var(--c-text-hi)]"
+        >
+          {RELATION_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+        </select>
+
         <div className="w-px h-5 bg-[var(--c-border)] mx-0.5" />
 
         {/* ── Copy URL ────────────────────────────────────────────────── */}

@@ -20,7 +20,6 @@ interface WorkspaceExplorerCommandMenuProps {
   onOpenFolder: () => void;
   onOpenRecentProject: (project: LocalRecentWorkspace) => void;
   onOpenProjectsLibrary: () => void;
-  onOpenCloudModal: () => void;
   onOpenPreferences: () => void;
   onOpenGetStarted: () => void;
   onCloseSidebarMenus: (keep?: 'command' | 'missingImages' | 'projectSwitcher' | 'preferences') => void;
@@ -47,7 +46,6 @@ const WorkspaceExplorerCommandMenu = forwardRef<HTMLDivElement, WorkspaceExplore
       onOpenFolder,
       onOpenRecentProject,
       onOpenProjectsLibrary,
-      onOpenCloudModal,
       onOpenPreferences,
       onOpenGetStarted,
       onCloseSidebarMenus,
@@ -188,7 +186,7 @@ const WorkspaceExplorerCommandMenu = forwardRef<HTMLDivElement, WorkspaceExplore
               allProjects: onOpenProjectsLibrary,
               saveProject: onSaveWorkspace,
               renameProject: onRenameWorkspace,
-              projectSync: onOpenCloudModal,
+              shareProject: () => window.dispatchEvent(new CustomEvent('devboard:open-share-workspace')),
               search: onToggleSearch,
               toggleTimer: onToggleTimer,
               toggleJira: onToggleJira,

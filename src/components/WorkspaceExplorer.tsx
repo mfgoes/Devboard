@@ -7,7 +7,7 @@ import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import { useBoardStore } from '../store/boardStore';
 import { useAuth } from '../contexts/AuthContext';
 import type { CanvasNode, Document, ImageNode, PageMeta } from '../types';
-import { clearWorkspaceSaveError, getLastWorkspaceSaveError, listDirectory, getWorkspaceName, IS_TAURI, openInDefaultApp, revealInFinder, saveWorkspace, saveWorkspaceToNewFolder, WORKSPACE_SAVE_STATE_EVENT, type LocalRecentWorkspace, type WorkspaceOpenResult } from '../utils/workspaceManager';
+import { clearWorkspaceSaveError, clearWorkspaceCloudSyncMetadata, getLastWorkspaceSaveError, listDirectory, getWorkspaceName, IS_TAURI, openInDefaultApp, revealInFinder, saveWorkspace, saveWorkspaceToNewFolder, WORKSPACE_SAVE_STATE_EVENT, type LocalRecentWorkspace, type WorkspaceOpenResult } from '../utils/workspaceManager';
 import { FONTS } from '../utils/fonts';
 import { placeCodeFile, placeImageFile, placeDocumentFile, openDocumentFile } from '../utils/canvasPlacement';
 import { stripHtmlPreview } from '../utils/documentExport';
@@ -97,6 +97,7 @@ export default function WorkspaceExplorer({
   const cloudBoardId = useBoardStore((s) => s.cloudBoardId);
   const cloudBoardTitle = useBoardStore((s) => s.cloudBoardTitle);
   const cloudSyncedAt = useBoardStore((s) => s.cloudSyncedAt);
+  const clearCloudBoardState = useBoardStore((s) => s.clearCloudBoardState);
   const lastLocalSavedAt = useBoardStore((s) => s.lastLocalSavedAt);
   const pages = useBoardStore((s) => s.pages);
   const addPage = useBoardStore((s) => s.addPage);
@@ -287,11 +288,11 @@ export default function WorkspaceExplorer({
         title: `This project's folder could not be written to (${localSaveError}). It may have been moved, renamed, or had its permission revoked.`,
       }
     : !user && !!cloudBoardId
-      ? { label: 'Not saved — offline', tone: 'danger' as const, title: syncStatus.title }
+      ? { label: 'Cloud sync paused', tone: 'warning' as const, title: `${syncStatus.title} Your local folder is still saved on this device.` }
       : syncStatus.label === 'Cloud copy newer'
         ? { label: 'Cloud copy is newer — review', tone: 'warning' as const, title: syncStatus.title }
-      : hasUnsyncedSyncChanges
-        ? { label: 'Not saved — offline', tone: 'danger' as const, title: syncStatus.title }
+    : hasUnsyncedSyncChanges
+        ? { label: 'Cloud sync pending', tone: 'warning' as const, title: `${syncStatus.title} Your local folder is still saved on this device.` }
       : cloudOnlyWorkspace
           ? { label: 'Synced to cloud', tone: 'success' as const, title: syncStatus.title }
           : !cloudBoardId
@@ -330,6 +331,15 @@ export default function WorkspaceExplorer({
   const openCloudModal = useCallback((tab: 'workspace' | 'library' = 'workspace') => {
     window.dispatchEvent(new CustomEvent('devboard:open-cloud-modal', { detail: { tab } }));
   }, []);
+
+  const keepCurrentWorkspaceOffline = useCallback(() => {
+    if (!hasLocalWorkspace) return;
+    clearCloudBoardState();
+    clearWorkspaceCloudSyncMetadata();
+    void saveWorkspace(useBoardStore.getState().exportData(), { notify: false });
+    setProjectSwitcherOpen(false);
+    toast('Cloud sync detached — this project will keep working locally');
+  }, [clearCloudBoardState, hasLocalWorkspace]);
 
 
   const closeSidebarMenus = useCallback((keep?: 'command' | 'missingImages' | 'projectSwitcher' | 'preferences') => {
@@ -986,7 +996,6 @@ export default function WorkspaceExplorer({
         onOpenFolder={() => { void handleOpenFolder(); }}
         onOpenRecentProject={(project) => { void handleOpenRecentProject(project); }}
         onOpenProjectsLibrary={handleOpenProjectsLibrary}
-        onOpenCloudModal={() => openCloudModal()}
         onOpenPreferences={openPreferences}
         onOpenGetStarted={() => window.dispatchEvent(new CustomEvent('devboard:open-get-started'))}
         onCloseSidebarMenus={closeSidebarMenus}
@@ -1193,6 +1202,8 @@ export default function WorkspaceExplorer({
           else openCloudModal();
         }}
         onSaveToNewFolder={handleSaveToNewFolder}
+        canKeepOffline={hasLocalWorkspace && !!cloudBoardId}
+        onKeepOffline={keepCurrentWorkspaceOffline}
         onToggleProjectSwitcher={handleToggleProjectSwitcher}
         onProjectSwitcherContextMenu={openWorkspaceNameMenu}
         onOpenRecentProject={(project) => { void handleOpenRecentProject(project); }}

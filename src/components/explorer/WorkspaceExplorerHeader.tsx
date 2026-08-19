@@ -20,7 +20,6 @@ interface WorkspaceExplorerHeaderProps {
   onOpenFolder: () => void;
   onOpenRecentProject: (project: LocalRecentWorkspace) => void;
   onOpenProjectsLibrary: () => void;
-  onOpenCloudModal: () => void;
   onOpenPreferences: () => void;
   onOpenGetStarted: () => void;
   onCloseSidebarMenus: (keep?: 'command' | 'missingImages' | 'projectSwitcher' | 'preferences') => void;
@@ -48,7 +47,6 @@ export default function WorkspaceExplorerHeader({
   onOpenFolder,
   onOpenRecentProject,
   onOpenProjectsLibrary,
-  onOpenCloudModal,
   onOpenPreferences,
   onOpenGetStarted,
   onCloseSidebarMenus,
@@ -96,7 +94,6 @@ export default function WorkspaceExplorerHeader({
           onOpenFolder={onOpenFolder}
           onOpenRecentProject={onOpenRecentProject}
           onOpenProjectsLibrary={onOpenProjectsLibrary}
-          onOpenCloudModal={onOpenCloudModal}
           onOpenPreferences={onOpenPreferences}
           onOpenGetStarted={onOpenGetStarted}
           onCloseSidebarMenus={onCloseSidebarMenus}

@@ -20,6 +20,8 @@ interface WorkspaceExplorerFooterProps {
   footerStatusLabel?: string;
   syncIssueActionLabel: string;
   onSyncIssueAction: () => void;
+  canKeepOffline?: boolean;
+  onKeepOffline?: () => void;
   onSaveToNewFolder: () => Promise<boolean>;
   onToggleProjectSwitcher: () => void;
   onProjectSwitcherContextMenu: (x: number, y: number) => void;
@@ -43,6 +45,8 @@ export default function WorkspaceExplorerFooter({
   footerStatusLabel,
   syncIssueActionLabel,
   onSyncIssueAction,
+  canKeepOffline,
+  onKeepOffline,
   onSaveToNewFolder,
   onToggleProjectSwitcher,
   onProjectSwitcherContextMenu,
@@ -88,6 +92,8 @@ export default function WorkspaceExplorerFooter({
           footerSyncDot={footerSyncDot}
           syncIssueActionLabel={syncIssueActionLabel}
           onSyncIssueAction={onSyncIssueAction}
+          canKeepOffline={canKeepOffline}
+          onKeepOffline={onKeepOffline}
           onSaveToNewFolder={onSaveToNewFolder}
           onToggleOpen={onToggleProjectSwitcher}
           onContextMenu={onProjectSwitcherContextMenu}

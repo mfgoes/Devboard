@@ -27,6 +27,9 @@ interface WorkspaceExplorerProjectSwitcherProps {
   syncIssueActionLabel: string;
   /** Primary recovery for the current issue — varies by what actually broke. */
   onSyncIssueAction: () => void;
+  /** Detach a local folder from cloud sync without deleting either copy. */
+  canKeepOffline?: boolean;
+  onKeepOffline?: () => void;
   onToggleOpen: () => void;
   onContextMenu: (x: number, y: number) => void;
   onOpenRecentProject: (project: LocalRecentWorkspace) => void;
@@ -45,6 +48,8 @@ export default function WorkspaceExplorerProjectSwitcher({
   footerSyncDot,
   syncIssueActionLabel,
   onSyncIssueAction,
+  canKeepOffline = false,
+  onKeepOffline,
   onToggleOpen,
   onContextMenu,
   onOpenRecentProject,
@@ -196,6 +201,29 @@ export default function WorkspaceExplorerProjectSwitcher({
                 >
                   {syncIssueActionLabel}
                 </button>
+                {canKeepOffline && onKeepOffline && (
+                  <button
+                    type="button"
+                    onClick={onKeepOffline}
+                    disabled={savingToNewFolder}
+                    style={{
+                      minHeight: 26,
+                      padding: '5px 10px',
+                      lineHeight: 1.3,
+                      border: '1px solid #d8cfc4',
+                      borderRadius: 7,
+                      background: '#fff',
+                      color: 'var(--c-text-hi)',
+                      cursor: savingToNewFolder ? 'default' : 'pointer',
+                      opacity: savingToNewFolder ? 0.55 : 1,
+                      fontFamily: FONTS.ui,
+                      fontSize: 10.5,
+                      fontWeight: 740,
+                    }}
+                  >
+                    Keep working offline
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => {
@@ -227,6 +255,7 @@ export default function WorkspaceExplorerProjectSwitcher({
                 </button>
               </div>
               <div style={{ marginTop: 5, fontSize: 10, lineHeight: 1.45, color: 'var(--c-text-md)' }}>
+                {canKeepOffline && 'Keeping offline stops cloud sync for this folder; your local files and cloud copy are both kept. '}
                 Saving to a new folder copies this project to a folder you pick and keeps working from
                 there. Nothing is deleted, and the old location is left as it is.
               </div>

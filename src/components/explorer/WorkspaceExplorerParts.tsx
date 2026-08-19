@@ -25,7 +25,7 @@ export function MenuIcon() {
   );
 }
 
-export type CommandIconKind = 'search' | 'folder' | 'file' | 'edit' | 'view' | 'export' | 'settings' | 'download' | 'help';
+export type CommandIconKind = 'search' | 'folder' | 'file' | 'edit' | 'view' | 'export' | 'share' | 'settings' | 'download' | 'help';
 
 export function CommandIcon({ kind }: { kind: CommandIconKind }) {
   if (kind === 'search') {
@@ -67,6 +67,16 @@ export function CommandIcon({ kind }: { kind: CommandIconKind }) {
         <path d="M8.5 3v7" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
         <path d="M5.8 7.8 8.5 10.5l2.7-2.7" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
         <path d="M3.5 13.5h10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      </svg>
+    );
+  }
+  if (kind === 'share') {
+    return (
+      <svg width="13" height="13" viewBox="0 0 17 17" fill="none" aria-hidden="true">
+        <circle cx="12.2" cy="3.5" r="1.8" stroke="currentColor" strokeWidth="1.5" />
+        <circle cx="4.4" cy="8.5" r="1.8" stroke="currentColor" strokeWidth="1.5" />
+        <circle cx="12.2" cy="13.5" r="1.8" stroke="currentColor" strokeWidth="1.5" />
+        <path d="M6 7.5 10.6 4.6M6 9.5l4.6 2.9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
       </svg>
     );
   }
